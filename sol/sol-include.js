@@ -17,13 +17,9 @@ export class SolInclude extends HTMLElement {
     let shadow = this.shadowRoot;
     let wrapper = document.createElement('DIV');
     let defaults = solutils.getDefaults();
-/*
-    wrapper.height = this.style.height || defaults["anchor-list-height"];
-    wrapper.style.width = this.style.width || defaults["anchor-list-width"];
-    wrapper.style.background = this.style.background || defaults["anchor-list-background"];
-    wrapper.style["border-radius"] =  this.style["border-radius"] || "var(--border-radius)"
-*/
-    wrapper.innerHTML = await this.loadSource();
+    let content  = await this.loadSource();
+    if(typeof content==="string") wrapper.innerHTML = content;
+    else wrapper.appendChild(content);
     shadow.appendChild(wrapper)
   }
 
@@ -31,9 +27,10 @@ export class SolInclude extends HTMLElement {
 
     let content = "";
     let queryParam = this.getAttribute('queryParam');
+    let wanted = this.getAttribute('wanted');
     let url = this.getAttribute('source');
     let ctype = this.getAttribute('type');
-if(!url || !ctype) return;
+    if(!url || !ctype) return;
     // content comes from a data island
     //
     let reg = new RegExp(window.location.href);
@@ -66,7 +63,22 @@ if(!url || !ctype) return;
         catch(e){ console.log("Could not parse "+url,e);}
       }
     }
+    if( ctype.match(/text/) ){
+      content = `<pre>${content.replace(/</g,'&lt;')}</pre>`;
+    }
     if(queryParam) content = content.interpolate({queryParam});
+    if(wanted){
+      try {
+        ctype = "text/html";
+        var dom =(new DOMParser()).parseFromString( content,ctype);
+        content = document.createElement('DIV');
+        for(let anchor of dom.querySelectorAll(wanted)){
+          anchor.style.display="block";
+          content.appendChild(anchor);
+        }
+      }
+      catch(e){ console.log("Could not load",e); return; }
+    }
     return content;
   }
 }

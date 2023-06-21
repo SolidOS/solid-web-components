@@ -1,0 +1,68 @@
+<h1><a href="./sol.html">Solid Web Components</a> > sol-include</h1>
+
+<p>The <i>sol-include</i> component supports embedding a variety of sources into an HTML page. In some cases sources may be queried using parameters in the <i>sol-include</i> component.  For example the <i>queryParam</i> attribute can be used to specifiy replaceable parameters in an included <i>sol-sparql</i> componnet and the <i>wanted</i> attribute can be used to specify CSS and RDFa query selectors.</p>
+
+<h2>including other web components</h2>
+<p>Any web component can be included into an HTML page. It will be inserted into the page's DOM and will therefore be activated as if it had been hard-coded into the page. For example, this includes a previously saved sol-sparql component.</p>
+
+<pre>&lt;sol-include
+  type="htmlComponent"
+  source="assets/test-query.html"
+>&lt;/sol-include></pre>
+<div><sol-include
+  type="htmlComponent"
+  source="assets/test-query.html"
+></sol-include></div>
+
+<p>See also <a href="sol-sparql.html#replaceable">passing a queryParam to an included sol-sparql component</a>.</p>
+
+<h2>including an HTML snippet</h2>
+<pre>&lt;sol-include
+    type="html"
+    source="assets/test-include.html"
+>&lt;/sol-include></pre><div><sol-include
+    type="html"
+    source="assets/test-include.html"
+></sol-include></div>
+
+<h2>including an HTML snippet as text</h2>
+
+<p>You can specify <i>type="text"</i> to display the source code of an HTML snippet.</p>
+
+<pre>&lt;sol-include
+    type="text"
+    source="assets/test-include.html"
+>&lt;/sol-include></pre><div><sol-include
+    type="text"
+    source="assets/test-include.html"
+></sol-include></div>
+
+<h2>including a Markdown snippet as HTML</h2>
+<pre>&lt;sol-include
+    type="markdown"
+    source="assets/test-include.md"
+>&lt;/sol-include></pre><div><sol-include
+    type="markdown"
+    source="assets/test-include.md"
+></sol-include></div>
+
+
+<h2>Querying HTML and HTML/RDFa pages</h2>
+<p>
+The <i>wanted</i> attribute allows you to specify a CSS/RDFA query selector.  For example this component uses the specified <i>wanted</i> attribute to get a list of anchors to the Solid Specifications by querying a web page with a combined CSS/RDFa query selector.
+</p>
+<pre>&lt;sol-include
+    type="html"
+    source="https://solidproject.org/TR/"
+    wanted="#work-item-technical-reports a[rel='cito:citesForInformation']"
+>&lt;/sol-include></pre>
+<div><sol-include
+    type="html"
+    source="https://solidproject.org/TR/"
+    wanted="#work-item-technical-reports a[rel='cito:citesForInformation']"
+></sol-include></div>
+
+
+<link rel="stylesheet" href="assets/demo.css" />
+<script src="https://solidos.github.io/solid-ui/dist/solid-ui.min.js" type="module"></script>
+<script src="../sol-core.js" type="module"></script>
