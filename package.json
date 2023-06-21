@@ -1,0 +1,23 @@
+{
+  "name": "solid-web-components",
+  "version": "1.0.0",
+  "description": "access Solid & linked-data resources using no-code HTML components",
+  "main": "sol-core.js",
+  "directories": {
+    "documentation": "documentation"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["Solid","RDF","Web-Components"],
+  "author": "Jeff Zucker",
+  "license": "MIT",
+  "dependencies": {
+    "marked": "^5.0.1"
+  },
+  "peerDependencies": {
+    "mashlib": "^1.8.8",
+    "rdflib": "^2.2.32",
+    "solid-ui": "^2.4.27"
+  }
+}

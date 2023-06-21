@@ -1,0 +1,12 @@
+<sol-sparql>
+    <endpoint> assets/test-data.ttl </endpoint>
+    <template> ui:Table  </template>
+    <script type="application/sparql">
+        PREFIX schema: <http://schema.org/>
+        SELECT ?name ?age WHERE {
+            ?thing a schema:${queryParam}.
+            ?thing schema:name ?name; schema:age ?age.
+        }
+    </script>
+</sol-sparql>
+

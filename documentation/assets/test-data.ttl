@@ -1,0 +1,7 @@
+@prefix : <#>.
+@prefix schema: <http://schema.org/>.
+@prefix dbp: <http://dbpedia.org/ontology/>.
+
+:Thing1 a schema:Person; schema:name "Keisha";schema:age 19; schema:email "a@example.com", "b@example.com".
+:Thing2 a schema:Person; schema:name "Juan"; schema:age 20; schema:email "c@example.com".
+:Thing3 a dbp:Dog; schema:name "Fido"; schema:age 2.

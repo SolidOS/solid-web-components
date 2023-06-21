@@ -1,0 +1,37 @@
+@prefix : <#>.
+@prefix ui: <http://www.w3.org/ns/ui#>.
+
+:nameAgeQuery
+ ui:content """
+    PREFIX schema: <http://schema.org/>
+    SELECT ?name ?age WHERE {
+      ?thing schema:name ?name; schema:age ?age.
+    }
+  """.
+
+:allQuery
+ ui:content """
+    PREFIX schema: <http://schema.org/>
+    SELECT ?name ?age ?type WHERE {
+      ?thing schema:name ?name; schema:age ?age.
+      ?thing a ?type.
+    }
+  """.
+
+:typeQuery
+ ui:content """
+    PREFIX schema: <http://schema.org/>
+    SELECT ?name WHERE {
+      ?thing a schema:${queryParam}.
+      ?thing schema:name ?name.
+    }
+  """.
+
+:nameAgeTemplate
+  ui:content """<p><div>${name}</div><div>age: ${age}</div></p>""".
+
+:typeTemplate
+  ui:content """<p>${name}</p>""".
+
+
+

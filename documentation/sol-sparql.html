@@ -1,0 +1,148 @@
+<h1><a href="../README.md">Solid Web Components</a> > sol-sparql</h1>
+
+<p>The <i>sol-sparql</i> component displays the results of SPARQL queries.  It supports <a href="#built-in">built-in templates</a>, <a href="#custom">custom templates</a>, <a href="#saved">saved queries</a>, <a href="#replaceable">replaceable query parameters</a> and may be used with either the <a href="#engines">rdflib or comunica</a> query engine.</p>
+
+<h2 id="using">Embedding the component</h2>
+
+<p>In order to embed a <i>sol-sparql</i> component in a web page, the page needs two script tags as shown below.</p>
+
+<p style="margin-left:1rem">&lt;script src="https://solidos.github.io/solid-ui/dist/solid-ui.min.js" type="module">&lt;/script><br>
+&ltscript src="https://solidos.github.io/solid-web-components/sol-core.js" type="module">&lt;/script></p>
+
+<p>Once those tags are on the page simply insert the HTML as shown below and everthing should work. No coding is needed, only the HTML component.</p>
+
+<p><b>Note for advanced users</b> : Instead of using CDNs of the libraries you may get and build solid-ui from npm and can get (no build needed) sol-core by cloning the <a href="https://github.com/solidos/web-components/">github repo</a>.</p>
+
+<h2 id="built-in">Inline SPARQL query using a built-in template</h2>
+
+<p>Query results can be displayed using pre-built UI elements like <i>ui:Table</i> and <i>ui:Selector</i>.</p>
+<pre>&lt;sol-sparql>
+    &lt;endpoint>  assets/test-data.ttl  &lt;/endpoint>
+    &lt;template>  ui:Table  &lt;/template>
+    &ltscript type="application/sparql">
+        PREFIX schema: &lt;http://schema.org/>
+        SELECT ?name ?age WHERE {
+            ?thing schema:name ?name; schema:age ?age.
+        }
+    &lt;/script>
+&lt/sol-sparql></pre>
+<div><sol-sparql>
+    <endpoint>
+        assets/test-data.ttl
+    </endpoint>
+    <template>
+        ui:Table
+    </template>
+    <script type="application/sparql">
+        PREFIX schema: <http://schema.org/>
+        SELECT ?name ?age ?type WHERE {
+            ?thing schema:name ?name;
+            a ?type; schema:age ?age.
+        } 
+    </script>
+</sol-sparql></div>
+
+<h2 id="custom">Inline SPARQL query using a custom template</h2>
+<p>
+You may also create your own custom template using the standard Javascript template format. Results of the query will be interpolated into the template row by row.
+</p>
+<pre>&lt;sol-sparql inline>
+    &lt;endpoint>  assets/test-data.ttl  &lt;/endpoint>
+    &lt;template>  &lt;p>&lt;div>${name}&lt;/div>&lt;div>age: ${age}&lt;/div>&lt;/p>  &lt;/template>
+    &ltscript type="application/sparql">
+        PREFIX schema: <http://schema.org/>
+        SELECT ?name ?age WHERE {
+            ?thing schema:name ?name; schema:age ?age.
+        }
+    &lt;/script>
+&lt/sol-sparql></pre>
+<div><sol-sparql inline>
+    <endpoint>
+        assets/test-data.ttl
+    </endpoint>
+    <template>
+        <p><div>${name}</div><div>age: ${age}</div></p>
+    </template>
+    <script type="application/sparql">
+        PREFIX schema: <http://schema.org/>
+        SELECT ?name ?age WHERE {
+            ?thing schema:name ?name; schema:age ?age.
+        }
+    </script>
+</sol-sparql></div>
+
+<h2 id="saved">Embedding a saved SPARQL query</h2>
+<p>
+If you save a sol-sparql component like the ones shown above in a document, you can embed it in other documents without repeating the component details.
+</p>
+<pre>&lt;sol-include
+  type="htmlComponent"
+  source="assets/test-query.html"
+>&lt;/sol-include></pre>
+<div><sol-include
+  type="htmlComponent"
+  source="assets/test-query.html"
+></sol-include></div>
+
+<h2 id="replaceable">Using replaceable parameters with a saved SPARQL query</h2>
+<p>
+If you add "${queryParam}" in the text of your saved SPARQL query, you can then replace it with a passed in parameter when you embed the query.
+</p>
+<p>
+You can create a file "test-replaceable-query.html" like this:
+</p>
+<pre>&lt;sol-sparql>
+    &lt;endpoint> assets/test-data.ttl &lt;/endpoint>
+    &lt;template> ui:Table  &lt;/template>
+    &lt;script type="application/sparql">
+        PREFIX schema: &lt;http://schema.org/>
+        SELECT ?name ?age WHERE {
+            ?thing a schema:${queryParam}.
+            ?thing schema:name ?name; schema:age ?age.
+        }
+    &lt/script>
+&lt;/sol-sparql></pre>
+<p>And then embed that query with a passed-in parameter :</p>
+<pre>&lt;sol-include
+  type="htmlComponent"
+  source="assets/test-replaceable-query.html"
+  queryParam="Person"
+>&lt;/sol-include></pre>
+<div><sol-include
+  type="htmlComponent"
+  source="assets/test-replaceable-query.html"
+  queryParam="Person"
+></sol-include></div>
+
+<h2 id="engines">Using Alternate SPARQL Query Engines</h2>
+
+<p>By default, queries are performed by <a href="https://github.com/linkeddata/rdflib/">rdflib</a> which uses a subset of SPARQL 1.1.  If you wish to use the SPARQL 1.1 compliant <a href="">comunica</a>,  engine, just import it in a script tag in your main HTML page and it will be used by all components.</p>
+
+<b>&copy; 2023, Jeff Zucker - may be freely distributed under an MIT license</b>
+
+<style>
+* {
+  font-family:sans-serif;
+}
+
+h2 { font-size:110%; }
+td,th {
+  padding:0.5rem;
+}
+div,pre {
+  display:inline-block;
+  vertical-align:top;
+  margin-left:1rem;
+}
+div {
+  padding-left:1rem;
+  padding-right:1rem;
+  background:#eef;
+}
+p {
+  width:80ch;
+}
+</style>
+
+<script src="https://solidos.github.io/solid-ui/dist/solid-ui.min.js" type="module"></script>
+<script src="../sol-core.js" type="module"></script>
