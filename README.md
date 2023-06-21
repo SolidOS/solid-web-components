@@ -6,4 +6,4 @@ These components provide access to Solid and other linked-data resources allowin
 
 Here's the first component, more on the way :
 
-* [sol-sparql](./documentation/sol-sparql.html) - save and embed SPARQL queries in web pages
+* [sol-sparql](https://solidos.github.io/solid-web-components/documentation/sol-sparql.html) - save and embed SPARQL queries in web pages
