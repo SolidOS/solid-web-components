@@ -21,8 +21,9 @@
     &lt;template>  ui:Table  &lt;/template>
     &ltscript type="application/sparql">
         PREFIX schema: &lt;http://schema.org/>
-        SELECT ?name ?age WHERE {
-            ?thing schema:name ?name; schema:age ?age.
+        SELECT ?name ?age ?type WHERE {
+            ?thing schema:name ?name;
+            a ?type; schema:age ?age.
         }
     &lt;/script>
 &lt/sol-sparql></pre>
