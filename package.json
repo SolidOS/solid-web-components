@@ -9,10 +9,15 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["Solid","RDF","Web-Components"],
+  "keywords": [
+    "Solid",
+    "RDF",
+    "Web-Components"
+  ],
   "author": "Jeff Zucker",
   "license": "MIT",
   "dependencies": {
+    "dompurify": "^3.0.3",
     "marked": "^5.0.1"
   },
   "peerDependencies": {

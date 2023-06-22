@@ -16,6 +16,13 @@
 
 <p>See also <a href="sol-sparql.html#replaceable">passing a queryParam to an included sol-sparql component</a>.</p>
 
+<h2>Sanitizing included HTML & Markdown snippets</h2>
+
+<p>When including HTML and Markdown files, as protection agains XSS attacks, the components will automatically call <i>DOMPurify.sanitize</i> before displaying the included files.  If you are going to be including these kinds of files, place this script tag in your top HTML page.</p>
+
+<p style="margin-left:1rem">&lt;script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js" type="module">&lt;/script></p>
+
+
 <h2>including an HTML snippet</h2>
 <pre>&lt;sol-include
     type="html"
@@ -27,7 +34,7 @@
 
 <h2>including an HTML snippet as text</h2>
 
-<p>You can specify <i>type="text"</i> to display the source code of an HTML snippet.</p>
+<p>You can specify <i>type="text"</i> to display the source code of an HTML snippet. Note that this is the code for the button in the example above and that clicking the button does not produce an alert.  If we had omitted the DOMPurify import, the button would be clickable.</p>
 
 <pre>&lt;sol-include
     type="text"
@@ -64,5 +71,6 @@ The <i>wanted</i> attribute allows you to specify a CSS/RDFA query selector.  Fo
 
 
 <link rel="stylesheet" href="assets/demo.css" />
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js" type="module"></script>
 <script src="https://solidos.github.io/solid-ui/dist/solid-ui.min.js" type="module"></script>
 <script src="../sol-core.js" type="module"></script>

@@ -76,8 +76,12 @@ export class SolInclude extends HTMLElement {
           anchor.style.display="block";
           content.appendChild(anchor);
         }
+        content = content.innerHTML;
       }
       catch(e){ console.log("Could not load",e); return; }
+    }
+    if(ctype != "htmlComponent" && DOMPurify && DOMPurify.sanitize) {
+      content = DOMPurify.sanitize(content);
     }
     return content;
   }
