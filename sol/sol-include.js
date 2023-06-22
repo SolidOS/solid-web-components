@@ -52,7 +52,7 @@ export class SolInclude extends HTMLElement {
     if( ctype.match(/markdown/) ){
       if(typeof marked==="undefined"){
         try { 
-          await import("/public/s/solid-uix/node_modules/marked/lib/marked.umd.js");
+          await import("https://cdn.jsdelivr.net/npm/marked/marked.min.js");
         }
         catch(e){ console.log("Could not load marked.js.",e);}
       }
