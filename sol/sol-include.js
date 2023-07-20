@@ -7,12 +7,13 @@ export class SolInclude extends HTMLElement {
   }
   async connectedCallback(){
     let shadow = this.shadowRoot;
-    let wrapper = document.createElement('DIV');
     let defaults = solutils.getDefaults();
+//    let wrapper = document.createElement('DIV');
     let content  = await this.loadSource(defaults);
-    if(typeof content==="string") wrapper.innerHTML = content;
-    else wrapper.appendChild(content);
-    shadow.appendChild(wrapper)
+    solutils.makeShadowElement(shadow,this,`<div class="wrapper">${content}</div>`);
+//    if(typeof content==="string") wrapper.innerHTML = content;
+//    else wrapper.appendChild(content);
+//    shadow.appendChild(wrapper)
   }
 
   async loadSource(defaults){

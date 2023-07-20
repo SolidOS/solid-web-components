@@ -1,3 +1,13 @@
+export function makeShadowElement(shadow,element,templateString){
+  const template = document.createElement('template');
+  let style = element.getAttribute('style');
+  style = style ?`<style>${style}</style>` :"";
+  template.innerHTML = style + templateString;
+  shadow.appendChild(template.content.cloneNode(true));
+}
+
+
+
 /*
   rel2absIRI(url)
 */
