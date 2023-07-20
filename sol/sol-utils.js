@@ -4,6 +4,29 @@
 
 import {sparqlQuery} from './sol-sparql.js';
 
+/* from https://blog.lekoala.be/modern-way-to-sanitize-your-data-using-the-sanitizer-api
+*/
+export async function sanitize(content) {
+  if (!window.DOMPurify) {
+    window.DOMPurify = (await import("https://cdn.jsdelivr.net/npm/dompurify@3/+esm")).default;
+  }
+  if(window.DOMPurify) content = window.DOMPurify.sanitize(content);
+/*
+I can't get something like this to work so I don't call sanitize on custom elements.
+,{
+        CUSTOM_ELEMENT_HANDLING: {
+            tagNameCheck: /^sol-/,    // allow all tags starting with "sol-"
+            attributeNameCheck: /baz/,   // allow all attributes containing "baz"
+            allowCustomizedBuiltInElements: true, // customized built-ins are allowed
+        },
+      });
+*/
+  return content;
+}
+
+
+
+
 export async function getContent(subject,queryParam){
   subject = subject.uri ?subject :UI.rdf.sym(subject);
   await UI.store.fetcher.load(subject.doc());
@@ -88,7 +111,6 @@ export async function fetchAnchorArray(self,fetchType,url,options) {
   if(!_fetchAnchorArray[fetchType]) return false;
   let fetchAction = _fetchAnchorArray[fetchType];
   return await fetchAction(self,url,options);
-  
 }
 async function container(self,url,options){
   options ||= {};
@@ -158,7 +180,6 @@ p*/
   }//,  // END OF fetchAnchorArray.html
 
 async function rss(self,feedUri,options){
-//  rss: async (feedUri,options)=>{
     options ||= {};
     const isVideoFeed = options.isVideoFeed;
     let proxy = options.proxy;

@@ -1,11 +1,3 @@
-/* sol-demo
-
-  PURPOSE : 
-
-  USAGE :  <sol-card source="SOURCE" type="TYPE"></sol-card>
-           
-  AUTHOR : Jeff Zucker
-*/
 import * as solutils from './sol-utils.js';
 
 export class SolInclude extends HTMLElement {
@@ -17,13 +9,13 @@ export class SolInclude extends HTMLElement {
     let shadow = this.shadowRoot;
     let wrapper = document.createElement('DIV');
     let defaults = solutils.getDefaults();
-    let content  = await this.loadSource();
+    let content  = await this.loadSource(defaults);
     if(typeof content==="string") wrapper.innerHTML = content;
     else wrapper.appendChild(content);
     shadow.appendChild(wrapper)
   }
 
-  async loadSource(){
+  async loadSource(defaults){
 
     let content = "";
     let queryParam = this.getAttribute('queryParam');
@@ -31,6 +23,8 @@ export class SolInclude extends HTMLElement {
     let url = this.getAttribute('source');
     let ctype = this.getAttribute('type');
     if(!url || !ctype) return;
+    if(ctype==='rss') url = ((solutils.getDefaults())||{}).proxy + url;
+
     // content comes from a data island
     //
     let reg = new RegExp(window.location.href);
@@ -43,8 +37,18 @@ export class SolInclude extends HTMLElement {
     // content comes from a fetch
     //
     else {
-      var response = await window.fetch( url,{accept:ctype} );
-      content =  await response.text();
+      if(ctype==='rss'){
+        content = await solutils.fetchAnchorArray(this,'rss',url,{proxy:defaults.proxy});
+        let newContent="";
+        for(let c of content){
+          newContent += `<a style="display:block" href="${c.link}">${c.label}</a>`;
+        }
+        content = newContent;
+      }
+      else {
+        var response = await window.fetch( url,{accept:ctype} );
+        content =  await response.text();
+      }
     }
 
     // content is markdown
@@ -63,9 +67,16 @@ export class SolInclude extends HTMLElement {
         catch(e){ console.log("Could not parse "+url,e);}
       }
     }
+
+    // content requested as text
+    //
     if( ctype.match(/text/) ){
       content = `<pre>${content.replace(/</g,'&lt;')}</pre>`;
     }
+
+
+    // content selected by queryParam or wanted value
+    //
     if(queryParam) content = content.interpolate({queryParam});
     if(wanted){
       try {
@@ -80,9 +91,13 @@ export class SolInclude extends HTMLElement {
       }
       catch(e){ console.log("Could not load",e); return; }
     }
-    if(ctype != "htmlComponent" && DOMPurify && DOMPurify.sanitize) {
-      content = DOMPurify.sanitize(content);
+
+    // sanitize content except for components
+    //
+    if(ctype != "htmlComponent") {
+      content = await solutils.sanitize(content);
     }
+
     return content;
   }
 }

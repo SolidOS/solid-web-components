@@ -104,6 +104,56 @@ You can create a file "test-replaceable-query.html" like this:
   queryParam="Person"
 ></sol-include></div>
 
+<!-- Not ready for prime time but fun to play with
+
+<h2 id="nesting">Nesting Queries</h2>
+
+<p>One way of creating nested queries is to use a *sol-sparql* component as the template of another *sol-sparql* component.  Values found in the outer query will be applied to the inner query.  For example, this has an initial query that finds the webids of Angelo's friends and an inner query for each webid to find the friend's name. </p>
+
+<pre>&lt;sol-sparql>
+    &lt;endpoint>  https://angelo.veltens.org/profile/card  &lt;/endpoint>
+    &lt;script type="application/sparql">
+        SELECT  ?webid  WHERE {
+            &lt;https://angelo.veltens.org/profile/card#me>
+            &lt;http://xmlns.com/foaf/0.1/knows> ?webid .
+        }
+        LIMIT 3
+    &lt;/script>
+    &lt;template>
+        &lt;sol-sparql>
+            &lt;endpoint> ${webid} &lt;/endpoint>
+            &lt;template> ui:Table &lt;/template>
+            &lt;script type="application/sparql">
+                SELECT  ?name  WHERE {
+                    &lt;${webid}> &lt;http://xmlns.com/foaf/0.1/name> ?name .
+                }
+            &lt/script>
+        &lt;/sol-sparql>
+    &lt;/template>
+&lt;/sol-sparql></pre><div><sol-sparql>
+    <endpoint>  https://angelo.veltens.org/profile/card  </endpoint>
+    <script type="application/sparql">
+        SELECT  ?webid  WHERE {
+            <https://angelo.veltens.org/profile/card#me>
+            <http://xmlns.com/foaf/0.1/knows> ?webid .
+        }
+        LIMIT 3
+    </script>
+    <template>
+        <sol-sparql>
+            <endpoint> ${webid} </endpoint>
+            <template> ui:Table </template>
+            <script type="application/sparql">
+                SELECT ?name  WHERE {
+                    <${webid}> <http://xmlns.com/foaf/0.1/name> ?name .
+                }
+            </script>
+        </sol-sparql>
+    </template>
+</sol-sparql></div>
+
+-->
+
 <h2 id="engines">Using Alternate SPARQL Query Engines</h2>
 
 <p>By default, queries are performed by <a href="https://github.com/linkeddata/rdflib/">rdflib</a> which uses a subset of SPARQL 1.1.  If you wish to use the SPARQL 1.1 compliant <a href="">comunica</a>,  engine, just import it in a script tag in your main HTML page and it will be used by all components.</p>
@@ -111,5 +161,9 @@ You can create a file "test-replaceable-query.html" like this:
 <b>&copy; 2023, Jeff Zucker - may be freely distributed under an MIT license</b>
 
 <link rel="stylesheet" href="assets/demo.css" />
+<!--
+<script src="https://rdf.js.org/comunica-browser/versions/v2/engines/query-sparql/comunica-browser.js"></script>
+-->
+
 <script src="https://solidos.github.io/solid-ui/dist/solid-ui.min.js" type="module"></script>
 <script src="../sol-core.js" type="module"></script>
