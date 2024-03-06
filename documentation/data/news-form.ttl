@@ -1,0 +1,162 @@
+@prefix : <#> .
+@prefix solid: <http://www.w3.org/ns/solid/terms#> .
+@prefix bk: <http://www.w3.org/2002/01/bookmark#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+:SolidForm
+  a ui:Form ;
+  ui:parts (
+    :GeneralNewsFeed
+    :ScienceNewsFeed
+    :TechNewsFeed
+  ) .
+
+:GeneralNewsFeed
+  a ui:Group ;
+  ui:label "General News Feeds" ;
+  ui:parts (
+    :OPB
+    :AlJazeera
+    :NYTimes
+    :DemocracyNow
+    :Truthout
+    :TheIntercept
+    :Counterspin
+    :Vox
+    :ProPublica
+    :CNN
+    :Slate
+    :TheConversation
+  ) .
+
+:ScienceNewsFeed
+  a ui:Group ;
+  ui:label "Science News Feeds" ;
+  ui:parts (
+    :Smithsonian
+    :ScientificAmerican
+  ) .
+
+:TechNewsFeed
+  a ui:Group ;
+  ui:label "Tech News Feeds" ;
+  ui:parts (
+    :Wired
+    :Engadget
+    :TheVerge
+    :ArsTechnica
+  ) .
+
+# General News Feeds
+:OPB
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Oregon Public Broadcasting" ;
+  ui:name :001 ;
+  ui:property bk:recalls .
+
+:AlJazeera
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Al Jazeera" ;
+  ui:name :002 ;
+  ui:property bk:recalls .
+
+:NYTimes
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "NY Times" ;
+  ui:name :003 ;
+  ui:property bk:recalls .
+
+:DemocracyNow
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Democracy Now" ;
+  ui:name :004 ;
+  ui:property bk:recalls .
+
+:Truthout
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Truthout" ;
+  ui:name :011 ;
+  ui:property bk:recalls .
+
+:TheIntercept
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "The Intercept" ;
+  ui:name :011 ;
+  ui:property bk:recalls .
+
+:Counterspin
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Counterspin" ;
+  ui:name :012 ;
+  ui:property bk:recalls .
+
+:Vox
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Vox" ;
+  ui:name :013 ;
+  ui:property bk:recalls .
+
+:ProPublica
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "ProPublica" ;
+  ui:name :014 ;
+  ui:property bk:recalls .
+
+:CNN
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "CNN" ;
+  ui:name :015 ;
+  ui:property bk:recalls .
+
+:Slate
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Slate" ;
+  ui:name :016 ;
+  ui:property bk:recalls .
+
+:TheConversation
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "The Conversation" ;
+  ui:name :017 ;
+  ui:property bk:recalls .
+
+# Science News Feeds
+:Smithsonian
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Smithsonian" ;
+  ui:name :005 ;
+  ui:property bk:recalls .
+
+:ScientificAmerican
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Scientific American" ;
+  ui:name :006 ;
+  ui:property bk:recalls .
+
+# Tech News Feeds
+:Wired
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Wired" ;
+  ui:name :007 ;
+  ui:property bk:recalls .
+
+:Engadget
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Engadget" ;
+  ui:name :008 ;
+  ui:property bk:recalls .
+
+:TheVerge
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "The Verge" ;
+  ui:name :009 ;
+  ui:property bk:recalls .
+
+:ArsTechnica
+  a ui:Control, ui:SingleLineTextField ;
+  ui:label "Ars Technica" ;
+  ui:name :0010 ;
+  ui:property bk:recalls .
+

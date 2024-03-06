@@ -17,8 +17,10 @@
   "author": "Jeff Zucker",
   "license": "MIT",
   "dependencies": {
+    "cypress": "^13.6.4",
     "dompurify": "^3.0.3",
-    "marked": "^5.0.1"
+    "marked": "^5.0.1",
+    "puppeteer": "^22.0.0"
   },
   "peerDependencies": {
     "mashlib": "^1.8.8",

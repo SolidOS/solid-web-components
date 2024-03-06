@@ -1,0 +1,229 @@
+<sol-defaults demo></sol-defaults>
+
+<h1>Solid Web Components</h1>
+
+<h2>Overview</h2><div>
+
+  <h3>About Components</h3><div>
+    <p>
+      Solid web components are a way to use HTML tags and attributes to embed content in a web page. The content can come from many sources - HTML, Markdown, RDF, and others. The content can be fitered using search criteria and it can be displayed directly or using built-in templates or using custom templates you design.  
+    </p>
+    <p>
+      To use components, simply include the script tags shown in the `Requirements` section,and put the component in your HTML. This exampe would replace the "sol-html" component with the contents of "foo.html".
+      <pre><code style="color:teal">
+        &lt;sol-html source="./foo.html">&lt;/sol-html>
+      </code></pre>
+    </p>
+    <p>
+      There are a limited number of things to learn about Solid web components - there are currently only 5 new tags like "sol-html" and 6 new attributes like "source".  These are all listed on the one-page cheatsheet and examples of each can be seen in the remainder of this documentation.  Other than learning these tags and attributes, Solid web components are "no-code" - you don't need to know anything except plain HTML.
+    </p>
+  </div>
+
+  <h3>Requirements</h3><div>
+
+    <p>The only thing needed to use Solid Web Components is to include the following script tags in the topmost HTML page using components.  These are shown as CDNs which you can use by just cutting and pasting. If you prefer to have local versions, clone this repository and point locally</p>
+    <pre><code style="color:teal;font-size:95%;margin-left:1rem;">&lt;script 
+      src="https://cdn.jsdelivr.net/npm/solid-ui@2.4.33-alpha/dist/solid-ui.min.js"
+      type="module"
+    >&lt;/script>
+
+    &lt;script 
+      src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js"
+      type="module"
+    >&lt;/script>
+
+    &lt;script
+      src="http://solidos.github.io/solid-web-components/sol-core.js"
+      type="module"
+    >&lt;/script></code></pre>
+
+</div>
+
+<h3>Cheatsheet - all Tags & Attributes</h3><div>
+  <sol-markdown source="./data/cheatsheet.md" nodemo></sol-markdown>
+</div>
+
+  <h3>Styling Components</h3><div>
+    <p>
+      Unlike some web components, Solid web components can be styled with CSS the same as any HTML element.  A sample stylesheet showing common classnames is available at 
+      <pre><code style="color:teal">
+        &lt;link href="https://solidos.github.io/solid-web-components/sol-core.css" rel="stylesheet" />
+      </code></pre>
+    </p>
+    <p>
+     When styling components, use classes, not tag names. For exampe with a &lt;sol-rdf> tag, style it using the selector '.sol-rdf' not 'sol-rdf'. You can also add ids and classes to any tag e.g. &lt;sol-rdf id="myId">.
+    </p>
+  </div>
+
+</div>
+
+<h2>Embed Content</h2><div>
+
+  <H3>HTML</H3><template>
+    <sol-html source="./data/sample-html-2.html"></sol-html>
+  </template>
+
+  <H3>Markdown</H3><template>
+    <sol-markdown source="./data/sample-markdown.md"></sol-markdown>
+  </template>
+
+  <H3>Text</H3><template>
+      <sol-text source="./data/sample-markdown.md"></sol-text>
+    </template>
+
+  <H3>Javascript</H3><template>
+    <sol-html source="./data/sample-html.html"></sol-html>
+    <sol-html source="./data/sample-html.html" trusted></sol-html>
+  </template>
+
+  <H3>Components</H3><template>
+    <sol-component source="./data/sample-component.html"></sol-component>
+  </template>
+
+</div>
+
+<h2>Embed RDF</h2><div>
+
+  <H3>A single subject</H3>
+<template><sol-rdf source="./data/sample-rdf.ttl#004" template="table"></sol-rdf></template>
+
+    <H3>Multiple subjects</H3><template>
+      <sol-rdf source="./data/sample-rdf.ttl" template="table"></sol-rdf>
+    </template>
+<!--
+    <H3>All documents in a catalog</H3><div>
+    </div>
+-->
+    <H3>Forms</H3><div>Coming soon!</div>
+
+  </div>
+
+<h2>Query and Filter</h2><div>
+  <H3>Simple RDF queries</H3><template>
+  The `wanted` attribute, when used with an RDF source, should be a triple pattern using an asterisk for null.
+  <sol-rdf
+    template="table"
+    source="./data/sample-rdf.ttl"
+    wanted="* hasTopic Science News"
+  ></sol-rdf>
+  </template>
+
+  <H3>SPARQL queries</H3><div>Coming soon! Can be used with either rdlib or communica as the query engine.</div>
+  <H3>Replaceable query parameters</H3><div>Coming soon!</div>
+
+
+<H3>HTML/RDFa filtering</H3><template>
+  <p>The `wanted` attribute, when used with an HTML, HTML/RDFa, or Markdown source, can be any CSS selector and will return only elements matching the selctor.</p>
+  <sol-markdown
+     source="./data/sample-markdown.md"
+     wanted="H1"
+  ></sol-markdown>
+</template>
+
+</div>
+
+<H2>Display data</H2><div>
+
+  <H3>Custom templates</H3><template>
+  <sol-rdf
+  source="./data/sample-rdf.ttl"
+wanted="* hasTopic Science News"
+template="./data/news-template.html"
+></sol-rdf>
+</template>
+
+<H3>Links</H3><template>
+<sol-rdf
+source="./data/sample-rdf.ttl"
+wanted="* hasTopic Science News"
+template="links"
+></sol-rdf>
+<!--
+<sol-markdown
+template="links"
+source="./data/sample-markdown.md"
+></sol-markdown>
+-->
+</template>
+
+<H3>Selector</H3><template>
+  <sol-rdf
+    source="./data/sample-rdf.ttl"
+    template="selector"
+  ></sol-rdf>
+<!--
+  <sol-markdown
+  source="./data/sample-markdown.md"
+  template="selector"
+  ></sol-markdown>
+-->  
+</template>
+
+<!--
+<H3>Accordion</H3><template>
+  <sol-rdf
+    source="./data/sample-rdf.ttl"
+    template="accordion"
+  ></sol-rdf>
+</template>
+-->
+
+<H3>Reader</H3><template>
+  This documentation is a "reader" - it has a menu on the left which displays the chosen items on the right.  You can hide and display the menu with the menu button.  You can use next and previous buttons to navigate through the documentation.  This particular reader was made from an HTML page, but readers can also be generated from Markdown, and RDF.  More info coming soon.  Here's exampe code:
+  <pre><code>
+  &lt;sol-rdf
+    id="reader1"
+    source="./data/sample-rdf.ttl"
+    template="reader"
+  >&lt;/sol-rdf>
+-</code></pre>
+  <style>
+    reader1 .sol-link {padding:1rem;border-bottom:1px solid grey;}
+  </style>
+</template>
+
+<h3>searchbar</h3><template>
+  <sol-rdf
+    source="./data/search.ttl"
+    template="searchbar"
+  ></sol-rdf>
+</template>
+
+</div>
+
+<!--
+<h2>Plug & Play Widgets</h2><div>
+  <h3>searchbar</h3><template>
+    <sol-searchbar
+      source="./data/search.ttl"
+    ></sol-searchbar>
+  </template>
+</div>
+-->
+
+<H2>Contributing & Extending</H2><div>
+
+  <H3 >Bug Reporting & Feedback</H3><div>
+    Please report bugs and provide feedback at <a  style="color:blue;text-decoration:underline" href="https://github.com/solidos/solid-web-components/issues.">https://github.com/solidos/solid-web-components/issues.</a>
+  </div>
+  
+  <H3 >Contributing</H3><div>
+    If you create new components, model or view plugins that are generally applicable, please add them to the code here <a style="color:blue;text-decoration:underline"    
+    href="https://github.com/SolidOS/solid-web-components/pulls">https://github.com/SolidOS/solid-web-components/pulls</a>
+  </div>
+
+  <H3 >Extending - View Plugins</H3><template>
+    <sol-markdown source="./data/extending.md" nodemo></sol-markdown>
+ </template>
+
+ <H3 >Extending - Model Plugins</H3><div>
+  Coming Soon!
+ </div>
+
+ <H3 >Extending - Query/Fiter Plugins</H3><div>
+  Coming Soon!
+ </div>
+  
+</div>
+
+

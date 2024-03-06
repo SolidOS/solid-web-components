@@ -1,0 +1,78 @@
+###
+# Personal Links
+###
+
+@prefix bk: <http://www.w3.org/2002/01/bookmark#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:001
+  bk:recalls <https://calendar.google.com/> ;
+  a bk:Bookmark ;
+  rdfs:label "calendar" .
+
+:002
+  bk:recalls <https://www.worldtimebuddy.com/> ;
+  a bk:Bookmark ;
+  rdfs:label "time" .
+
+:003
+  bk:recalls <https://weather.com/weather/today/l/16c191705da25d1bb5ea8a65302d71eb78243d9dfca1113a6de7d45e3fb6e3e6> ;
+  a bk:Bookmark ;
+  rdfs:label "weather" .
+
+:004
+  bk:recalls <https://www.airnow.gov/?city=Portland&state=OR&country=USA> ;
+  a bk:Bookmark ;
+  rdfs:label "air" .
+
+
+:014
+  bk:recalls <https://chat.openai.com/> ;
+  a bk:Bookmark ;
+  rdfs:label "chatGPT" .
+
+:005
+  bk:recalls <https://libbyapp.com/search/multcolib> ;
+  a bk:Bookmark ;
+  rdfs:label "library" .
+
+:006
+  bk:recalls <http://192.168.0.1/index.html> ;
+  a bk:Bookmark ;
+  rdfs:label "router" .
+
+:007
+  bk:recalls <https://dropbox.com/home> ;
+  a bk:Bookmark ;
+  rdfs:label "dropbox" .
+
+:008
+  bk:recalls <https://www.ancestry.com/family-tree/tree/186763302?cfpid=202432550819> ;
+  a bk:Bookmark ;
+  rdfs:label "ancestry" .
+
+:009
+  bk:recalls <https://www.playok.com/en/euchre/#> ;
+  a bk:Bookmark ;
+  rdfs:label "euchre" .
+
+:010
+  bk:recalls <https://www.netflix.com/browse> ;
+  a bk:Bookmark ;
+  rdfs:label "netflix" .
+
+:011
+  bk:recalls <http://www.amazon.com/b/ref=atv_hm_hom_2_slct?_encoding=UTF8&filterId=OFFER_FILTER%3DYOURS_TO_WATCH&node=2676882011> ;
+  a bk:Bookmark ;
+  rdfs:label "amazon" .
+
+:012
+  bk:recalls <https://www.hulu.com/hub/home> ;
+  a bk:Bookmark ;
+  rdfs:label "hulu" .
+
+:013
+  bk:recalls <https://max.com/> ;
+  a bk:Bookmark ;
+  rdfs:label "max" .
+

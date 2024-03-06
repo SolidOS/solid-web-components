@@ -1,0 +1,128 @@
+body {
+    overflow:hidden;
+    padding:1rem;
+    padding-top:0;
+    margin:0;
+    background:teal;
+}
+* {
+    font-family:Verdana,Arial,Helvetica,Sans-Serif;
+}
+.sol-reader {
+  height:100%;
+  overflow:hidden;
+}
+
+span.sol-open, span.sol-closed, .sol-link * { color:teal !important; }
+
+/* READER HEADER
+*/
+.sol-reader-header {
+  padding:1rem;
+  padding-left:0;
+  display:grid;
+  grid-template-columns: 2rem auto 8rem;
+}
+.sol-page-title {
+    font-size:140%;
+    font-weight:bold;
+    margin-left:1rem;
+}
+.sol-menu-control {
+  font-size:240% !important;
+  font-weight:bold;
+  color:white !important;
+  cursor:pointer;  
+  margin-top:-0.8rem;
+}
+.navigation-buttons {
+  text-align:right;
+}
+.navigation-buttons button {
+  background:transparent;
+  border:none;
+  color:white !important;
+  font-weight:bold;
+  font-size:140%;
+  cursor:pointer;
+}
+.currentIndex,.maxIndex {
+  display:inline-block;
+  font-size:1rem;
+}
+
+/* READER MAIN
+*/
+.sol-reader-main {
+  display:grid;
+  grid-template-columns: 22rem auto;
+  height:100%;
+}
+.sol-reader-main.hidden {
+  display:block;
+  width:100%;
+}
+.sol-reader-main.hidden > .sol-reader-menu {
+  display:none;
+}
+
+/* READER MENU 
+*/
+.sol-reader-menu, .sol-reader-display {
+  background:white;
+  opacity:80%;
+  border-radius:0.4rem;
+  height:85vh;
+}
+.sol-reader-menu {
+  height: calc(85vh + 2rem);
+}
+.sol-reader-menu > span {
+  padding:1rem;
+  display:block;
+  overflow-y:auto;
+}
+.sol-reader-menu h1,
+.sol-reader-menu h2,
+.sol-reader-menu h3,
+.sol-reader-menu h4,
+.sol-reader-menu h5{
+  font-size:1rem; font-weight:normal; margin-top:0; margin-bottom:0.3rem; 
+}
+.sol-reader-menu h1,
+.sol-reader-menu h2{
+  margin-top:0.5rem; margin-bottom:0.5rem; font-weight:600; 
+}
+.sol-reader-menu h1 {font-size:110%}
+.sol-reader-menu h3 { padding-left:1rem;}
+.sol-reader-menu h4 { padding-left:2rem;}
+.sol-reader-menu h5 { padding-left:3rem;}
+
+/* DISPLAY
+*/
+.sol-reader-display {
+  margin-left:1rem;
+  padding:1rem;
+  overflow:auto;
+}
+.sol-codeResults, .sol-coderesults {
+    padding:1rem;
+  border-radius:0.4rem;
+  background:white !important;
+  opacity:1 !important;
+  z-index:2;
+  border:1px dashed black;
+}
+#reader1 {
+  opacity:200% !important;
+background:white !important;
+}
+.sol-links a {
+  margin-right:0.5rem;
+  text-decoration:none;
+  padding:0.25rem;
+  border:1px solid black;
+  border-radius:0.3rem;
+  background:lightgray !important;
+  color:black !important;
+}

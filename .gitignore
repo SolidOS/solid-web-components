@@ -3,6 +3,7 @@
 *#
 .#*
 drafts
+drafts-*
 node_modules
 dist
 coverage
