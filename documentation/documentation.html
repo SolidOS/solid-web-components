@@ -9,7 +9,7 @@
       Solid web components are a way to use HTML tags and attributes to embed content in a web page. The content can come from many sources - HTML, Markdown, RDF, and others. The content can be fitered using search criteria and it can be displayed directly or using built-in templates or using custom templates you design.  
     </p>
     <p>
-      To use components, simply include the script tags shown in the `Requirements` section,and put the component in your HTML. This exampe would replace the "sol-html" component with the contents of "foo.html".
+      To use components, simply include the script tags shown in the `Requirements` section,and put the component in your HTML. This example would replace the "sol-html" component with the contents of "foo.html".
       <pre><code style="color:teal">
         &lt;sol-html source="./foo.html">&lt;/sol-html>
       </code></pre>
@@ -22,6 +22,11 @@
   <h3>Requirements</h3><div>
 
     <p>The only thing needed to use Solid Web Components is to include the following script tags in the topmost HTML page using components.  These are shown as CDNs which you can use by just cutting and pasting. If you prefer to have local versions, clone this repository and point locally</p>
+    <p>
+      <b>Important Note :</b> web components must be served from a web server. 
+      They will not work by just opening a local file in a browser but should
+      work fine on any localhost or remote server or pod.
+    </p>
     <pre><code style="color:teal;font-size:95%;margin-left:1rem;">&lt;script 
       src="https://cdn.jsdelivr.net/npm/solid-ui@2.4.33-alpha/dist/solid-ui.min.js"
       type="module"
