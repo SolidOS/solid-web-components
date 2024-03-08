@@ -7,9 +7,11 @@ isomorphic routines to handle
 */
 import {renderCustomElements} from './controller.js';
 
-export const inBrowser = typeof window !== 'undefined';
-export const isoWin = typeof process === 'undefined' ?window :process.sol.dom.window;
-export const isoDoc = typeof process === 'undefined' ?document :process.sol.dom.window.document;
+//export const inBrowser = typeof window !== 'undefined';
+
+export const inBrowser = typeof global==='undefined' || typeof global.sol==='undefined';
+export const isoWin = inBrowser ?window :global.sol.dom.window;
+export const isoDoc = inBrowser ?document :global.sol.dom.window.document;
 
 export async function domFromContent(content){
   let tmpDom;
@@ -56,9 +58,9 @@ export function err(...args){
 export async function defineRdfObject(){
   let handler = {};
   if(typeof UI==="undefined"){
-    const $rdf = process.sol.$rdf;
-    handler.store = process.sol.store;
-    handler.fetcher = process.sol.fetcher;
+    const $rdf = global.sol.$rdf;
+    handler.store = global.sol.store;
+    handler.fetcher = global.sol.fetcher;
     handler.sym = $rdf.sym;
     handler.rdf = $rdf;
   }
@@ -70,18 +72,20 @@ export async function defineRdfObject(){
   }
   return handler;
 }
-export async function getAbsPath(rel,domWindow){
+export async function getAbsPath(rel){
   if(!inBrowser){
     const pkg = await import('./file-io.js');
-    let path = 'file://' + pkg.getScriptPath().replace(/src\/libs/,'');
-    return path + domWindow.inputPath + rel.replace(/^\.\//,'');
+    let path = 'file://' + pkg.curDir().replace(/src/,'');
+    //    let path = 'file://' + pkg.getScriptPath().replace(/src\/libs/,'');
+    return path + "/" + isoWin.inputPath + rel.replace(/^\.\//,'');
   }
   else {
-    let loc = domWindow.location.href;
+    let loc = isoWin.location.href;
     return loc.replace(/\/[^\/]*$/,'') + rel.replace(/^\./,'');
   }
 }
-/*
+
+/* ADD CONTENT TO ELEMENT
   If in Browser just add content as customElement innerHTML. We can't do that
   in command-line since the resulting static document won't recognize customElements
   so instead we create a span, give it the customElement's attributes,

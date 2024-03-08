@@ -2,6 +2,7 @@
   "name": "solid-web-components",
   "version": "1.0.0",
   "description": "access Solid & linked-data resources using no-code HTML components",
+  "type":"module",
   "main": "sol-core.js",
   "directories": {
     "documentation": "documentation"
@@ -17,10 +18,8 @@
   "author": "Jeff Zucker",
   "license": "MIT",
   "dependencies": {
-    "cypress": "^13.6.4",
     "dompurify": "^3.0.3",
-    "marked": "^5.0.1",
-    "puppeteer": "^22.0.0"
+    "marked": "^5.0.1"
   },
   "peerDependencies": {
     "mashlib": "^1.8.8",

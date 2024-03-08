@@ -60,10 +60,10 @@ export function solInit(){
 }
 export function registerView(options){
   solInit();
-  options.clicks ||= {};
+  options.actions ||= {};
   options.templates ||= {};  options.templates ||= {};
-  for(let clickName of Object.keys(options.clicks)){
-    isoWin.sol.action[clickName] = options.clicks[clickName];
+  for(let clickName of Object.keys(options.actions)){
+    isoWin.sol.action[clickName] = options.actions[clickName];
   }
   for(let templateName of Object.keys(options.templates)){
     isoWin.sol.template[templateName] = options.templates[templateName];

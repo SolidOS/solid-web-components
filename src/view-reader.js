@@ -1,17 +1,18 @@
-import {isoDoc,domFromContent} from './isomorphic.js';
+import {isoDoc} from './isomorphic.js';
 import { registerView } from './controller.js';
+import { table } from './view-table.js';
 
 const closed = `<span class="sol-closed">+ </span>`;
 const open = `<span class="sol-open">- </span>`;
 const link = `<span class="sol-link">> </span>`;
 
 registerView({
-         clicks : {readerClick,readerNavigate,readerDisplay},
-      templates : {reader}
+    actions : {readerClick,readerNavigate,readerDisplay,readerHideMenu},
+  templates : {reader}
 });
 
 export function reader(element,data){
-  if(element.type==="rdf") return aoh2reader(data);
+  if(element.type==="rdf") return aoh2reader(data,element);
   let wrapper = isoDoc.createElement('SPAN');
   wrapper.innerHTML = data;
   html2reader(wrapper,'h2');
@@ -65,7 +66,7 @@ function addReaderListeners(reader){
   //  MENU-VISIBILITY-CONTROL
   let main = reader.querySelector('.sol-reader-main');
   let menuButton = reader.querySelector('.sol-menu-control');
-  menuButton.setAttribute('onclick', "javascript:solrun(event,'menu-hide')");
+  menuButton.setAttribute('onclick', "javascript:solrun(event,'readerHideMenu')");
   // OPEN FIRST TREE HEADER
   let headers = menu.querySelectorAll('H2');
   headers[0].click();
@@ -76,14 +77,17 @@ function addReaderListeners(reader){
 
 // READER FROM RDF
 //
-function aoh2reader(dataAOH,dom){
+function aoh2reader(dataAOH,element){
   let resultsString = "";
   let ac = isoDoc.createElement('DIV');
+  //dataAOH = getLinks(dataAOH)
   for(let row of dataAOH){
     let header = row.label || row.prefLabel || row.title || row.name || row.id;
     let record = row.id;
     let recordEl = isoDoc.createElement('TEMPLATE');
-    recordEl.innerHTML = `<sol-rdf source="${record}"></sol-rdf>`;
+    recordEl.innerHTML = (table(element,[row])).outerHTML;
+    console.log(22,table(element,[row]))
+    //`<sol-rdf source="${record}"></sol-rdf>`;
     let headerEl = isoDoc.createElement('H2');
     headerEl.innerHTML = header;
     headerEl = makeReaderLink(headerEl);
@@ -160,11 +164,7 @@ function readerClick(currentEl,flag){
       if(!header.tagName.startsWith('H')) continue;
       header.innerHTML = header.innerHTML.replace(open,closed)
       header.classList.remove('sol-open');
-      header.classList.add('sol-closed');    header.classList.add('sol-closed');
-  /*    let js = "javascript:solrun(event,'readerDisplay')";/*    let js = "javascript:solrun(event,'readerDisplay')";
-      let ih = header.innerHTML.replace(closed,link);
-      header.innerHTML = `<a href="#" onclick="${js}">${ih}</a>`;
-  */
+      header.classList.add('sol-closed');  
       let nextEl = header.nextElementSibling;
       nextEl.style.display="none";
     }
@@ -203,4 +203,8 @@ async function readerNavigate(currentEl,direction){
   indexArea.innerHTML = currentIndex;
   let el2show = menu.querySelector(`.c${currentIndex}`);
   readerDisplay(el2show)
+}
+
+function readerHideMenu(currentEl){
+  currentEl.closest('.sol-reader-wrapper').querySelector('.sol-reader-main').classList.toggle('hidden')
 }

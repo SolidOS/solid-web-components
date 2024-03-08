@@ -1,4 +1,4 @@
-import { isoDoc,domFromContent } from './isomorphic.js';
+import { isoDoc } from './isomorphic.js';
 import { registerView } from './controller.js';
 
 registerView({
@@ -7,7 +7,7 @@ registerView({
 
 /* TABLE FORMATS 
 */
-export function table(element,aoh,dom){
+export function table(element,aoh){
     let table = isoDoc.createElement('TABLE');
     if(!aoh.length) return;
     let fields = getMostKeys(aoh);
@@ -25,11 +25,10 @@ export function table(element,aoh,dom){
     }
     return Object.keys(mostKeys);
   }
-  function horizontalTable(table,fields,aoh,domDoc){
-    domDoc ||= document;
-    const toprow = domDoc.createElement('TR');
+  function horizontalTable(table,fields,aoh){
+    const toprow = isoDoc.createElement('TR');
     for(let field of fields){
-      let th = domDoc.createElement('TH');
+      let th = isoDoc.createElement('TH');
       th.style.display="table-cell";
       th.innerHTML = field;
       th.style.border="1px solid black";
@@ -38,10 +37,10 @@ export function table(element,aoh,dom){
     }
     table.appendChild(toprow);
     for(let r of aoh){
-      let row = domDoc.createElement('TR');
+      let row = isoDoc.createElement('TR');
       row.style.display="table-row";
       for(let field of fields){
-        let td = domDoc.createElement('TD');
+        let td = isoDoc.createElement('TD');
         td.style.padding="0.5rem";
         td.style.display="table-cell";
         td.style.border="1px solid black";
@@ -54,21 +53,20 @@ export function table(element,aoh,dom){
     table.style["border-collapse"]="collapse";
     return table;
   }
-  function verticalTable(table,fields,aoh,domDoc){
-    domDoc ||= document;
-    for(let field of fields){
-      let th = domDoc.createElement('TH');
+  function verticalTable(table,fields,aoh){
+      for(let field of fields){
+      let th = isoDoc.createElement('TH');
       th.style.display="table-cell";
       th.innerHTML = field;
       th.style.border="1px solid black";
       th.style.padding="0.5rem";
-      let td = domDoc.createElement('TD');
+      let td = isoDoc.createElement('TD');
       td.style.display="table-cell";
       let value = aoh[0][field];
       td.innerHTML = mungeValue(field,value);
       td.style.border="1px solid black";
       td.style.padding="0.5rem";
-      let row = domDoc.createElement('TR');
+      let row = isoDoc.createElement('TR');
       row.appendChild(th);    
       row.appendChild(td);    
       table.appendChild(row);
