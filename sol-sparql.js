@@ -1,11 +1,11 @@
 //import * as util from './drafts-old/sol/libs/utils.js';
 //import {showNamedTemplate,results2table} from './drafts-old/sol/libs/display.js';
 import {fetchNonRdfData} from './src/model.js';
-import {rel2absIRI} from './src/isomorphic.js';
+import {rel2absIRI} from './src/utils.js';
 
 export async function fetchSparqlData(element){
     let endpoint = element.getAttribute('endpoint');
-    endpoint = rel2absIRI(endpoint.trim());
+    endpoint = await rel2absIRI(endpoint.trim());
     let query = (await fetchNonRdfData({
       source : element.source,
       type : 'html',
@@ -20,7 +20,6 @@ export async function fetchSparqlData(element){
       }
     }
     query = prefixes + query;
-    alert(query)
     let resultElement,resultsString;
     try {
       let results = await sparqlQuery( endpoint, query );
@@ -46,10 +45,11 @@ export async function fetchSparqlData(element){
       try {
         preparedQuery=await UI.rdf.SPARQLToQuery(queryString,false,kb);
       }
-      catch(e){}
+      catch(e){"Could not prepare query : ",e}
       let wanted = preparedQuery.vars.map( stm=>stm.label );
       let table = [];
       let results = kb.querySync(preparedQuery);
+      console.log(44,results)
       for(let r of results){
         let row = {};
         for(let w of wanted){
@@ -59,9 +59,10 @@ export async function fetchSparqlData(element){
         table.push(row);
       }
       table = table.sort((a,b)=>a.label > b.label ?1 :-1);
+      if(!table.length) console.log('No results!');
       return table
     }
-    catch(e) { console.log(e); }
+    catch(e) { console.log("Could not get results : ",e); }
   }
 
   async  function _comunicaQuery(endpoint,sparqlStr,forceReload){
