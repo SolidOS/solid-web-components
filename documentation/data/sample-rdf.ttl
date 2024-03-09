@@ -22,3 +22,4 @@
   bk:recalls <https://www.wired.com/feed/rss> ;
   bk:hasTopic "Tech News" ;
   rdfs:label "Wired" .
+

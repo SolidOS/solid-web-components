@@ -1,32 +1,33 @@
-//import * as util from './drafts-old/sol/libs/utils.js';
-//import {showNamedTemplate,results2table} from './drafts-old/sol/libs/display.js';
 import {fetchNonRdfData} from './src/model.js';
 import {rel2absIRI} from './src/utils.js';
 
 export async function fetchSparqlData(element){
-    let endpoint = element.getAttribute('endpoint');
-    endpoint = await rel2absIRI(endpoint.trim());
-    let query = (await fetchNonRdfData({
+  let endpoint = element.getAttribute('endpoint');
+  let queryParam = element.getAttribute('queryParam');
+  endpoint = await rel2absIRI(endpoint.trim());
+  let query = (await fetchNonRdfData({
       source : element.source,
       type : 'html',
-      queryParam : element.queryParam,
-    })).trim();
-    let prefixes = `PREFIX : <#>\n`;
-    for(let p of query.split(/\s/)){
+  })).trim();
+  if(queryParam){
+    query = query.interpolate({queryParam});
+  }
+  let prefixes = `PREFIX : <${endpoint}#>\n`;
+  for(let p of query.split(/\s/)){
       if(!p.match(/[^\s]+[^\s]+/)) continue;
       const prefix = (p.split(/:/))[0];
       if(UI.ns[prefix]) {
         prefixes += `PREFIX ${prefix}: ${UI.ns[prefix]()}\n`;
       }
-    }
-    query = prefixes + query;
-    let resultElement,resultsString;
-    try {
+  }
+  query = prefixes + query;
+  let resultElement,resultsString;
+  try {
       let results = await sparqlQuery( endpoint, query );
       return results;
-    }
-    catch(e) { console.log(e); }
   }
+  catch(e) { console.log(e); }
+}
 
   export async function sparqlQuery(endpoint,queryString,forceReload){
     if(typeof Comunica !="undefined")
@@ -36,20 +37,18 @@ export async function fetchSparqlData(element){
   }
 
   async function _rdflibQuery(endpoint,queryString,forceReload){
-//    const kb = UI.rdf.graph();
-//    const fetcher = UI.rdf.fetcher(kb);
     const kb = UI.store;
     await kb.fetcher.load(endpoint);
     try {
       let preparedQuery;
       try {
         preparedQuery=await UI.rdf.SPARQLToQuery(queryString,false,kb);
+        console.log(444,preparedQuery)
       }
-      catch(e){"Could not prepare query : ",e}
+      catch(e){console.log("Could not prepare query : ",e);}
       let wanted = preparedQuery.vars.map( stm=>stm.label );
       let table = [];
       let results = kb.querySync(preparedQuery);
-      console.log(44,results)
       for(let r of results){
         let row = {};
         for(let w of wanted){

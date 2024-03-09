@@ -115,10 +115,16 @@
 
   <H3>SPARQL queries</H3><template>
     <p>
-      A SPARQL component should use the `source` attribute to point to a document containing a SPARQL query; an `endpoint` attribute to point to the data the query will search and a template attribute to indicate method of display.  The query can omit prefix statements for all common vocabularies (listed in [solid-namespace](https://github.com/solid/solid-namespace)), so if the query contains `:thing rdfs:label "foo"`, the necessary prefix statements will be prepended to the query.
+      A SPARQL component uses these attributes : <ul>
+      <li><b>source</b> attribute points to a document containing a SPARQL query
+      <li><b>endpoint</b> attribute points to the data the query will search
+      <li><b>template </b> attribute indicates method of display
+      </ul>
+      The query can omit prefix statements for all common vocabularies (listed in <a href="https://github.com/solid/solid-namespace">solid-namespace</a>), so if the query contains <i>:thing rdfs:label "foo"</i>, the necessary prefix statements will be prepended to the query.
     </p>
     <p>
-      By default, the rdflib query engine is used.  However, if  you add comunica with a script tag in your topmost HTML, the communica engine you specify will be used instead.
+      By default, the rdflib query engine is used.  However, if  you add comunica with a script tag in your topmost HTML, the comunica engine you specify will be used instead.
+      Rdflib is sufficient for basic querying but, for full SPARQL 1.1, you probably want comunica.
     </p>
     <p>
       If you are using comunica and the endpoint is an actual SPARQL endpoint, the querying will be done server-side.  If you are using rdflib or the endpoint is a plain RDF endpoint, the querying will be done client-side.
@@ -129,8 +135,24 @@
         template="table"
     ></sol-sparql>
   </template>
-  <H3>Replaceable query parameters</H3><div>Coming soon!</div>
-
+  <H3>Replaceable query parameters</H3><template>
+    <p>
+    If your SPARQL document has <i>${queryParam}</i> in it, you can replace that at runtime.
+    So, given this SPARQL : 
+    <pre style="color:teal">SELECT ?Feedname
+    WHERE {
+       ?x rdfs:label ?Feedname; bookmark:hasTopic "${queryParam}" .
+    }</pre>
+    The following component will replace the queryParam at runtime.
+  </p>
+<sol-sparql
+style="color:teal"
+source="./data/sparql-replaceable.rq"
+endpoint="./data/sample-rdf.ttl"
+template="table"
+queryParam="Tech News"
+></sol-sparql>
+</template>
 
 <H3>HTML/RDFa filtering</H3><template>
   <p>The `wanted` attribute, when used with an HTML, HTML/RDFa, or Markdown source, can be any CSS selector and will return only elements matching the selctor.</p>

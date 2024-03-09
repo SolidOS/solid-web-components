@@ -1,0 +1,4 @@
+SELECT ?Feedname
+ WHERE {
+    ?x rdfs:label ?Feedname; bookmark:hasTopic "${queryParam}" .
+ }
