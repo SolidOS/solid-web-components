@@ -15,6 +15,11 @@ export class SolMarkdown extends SolBase {}customElements.define("sol-markdown",
 export class SolText extends SolBase {}customElements.define("sol-text",SolText);
 export class SolInclude extends SolBase {}customElements.define("sol-include",SolInclude);
 export class SolDemo extends SolBase{}customElements.define("sol-demo",SolDemo);
+export class SolSparql extends SolBase {}customElements.define("sol-sparql",SolSparql);
+
 /* 
-  THE END 
+  THE END export class SolSparql extends SolBase {}
+customElements.define("sol-sparql",SolSparql);
+
+
 */

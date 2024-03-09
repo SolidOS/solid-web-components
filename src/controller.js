@@ -1,15 +1,17 @@
 import { fetchRdfData } from './model-rdf.js';
 import { fetchNonRdfData } from './model.js';
-import { isoDoc,isoWin,addContentToElement,domFromContent } from './isomorphic.js';
+import { fetchSparqlData } from '../sol-sparql.js';
+import { isoWin,addContentToElement,domFromContent } from './isomorphic.js';
 import { getDefaults } from './utils.js';
 
 export async function processCustomElement(element){
   const win = isoWin;
   element = await getDefaults(element);
   element.type ||= element.tagName.toLowerCase().replace(/^sol-/,'');
-  let data = element.type==='rdf'
-    ? await fetchRdfData(element)
-    : await fetchNonRdfData(element);
+  let data
+  if (element.type==='sparql') data = await fetchSparqlData(element);
+  else if(element.type==='rdf') data = await fetchRdfData(element);
+  else data = await fetchNonRdfData(element);
   const pkg = await import('./view.js');
   let content = await pkg.showData(element,data);
   content = typeof content==="string" ?content :content.outerHTML;

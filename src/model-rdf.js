@@ -1,17 +1,17 @@
-import {defineRdfObject} from './isomorphic.js';
+import {isoWin,defineRdfObject} from './isomorphic.js';
 
 export async function fetchRdfData(element){
   let done = {};
   let aoh = [];
   let source = await rdfLoad(element.source);
   const triples = element.source.match(/#/) 
-                ? store.match(source,null,null,source.doc()) 
-                : store.match(null,null,null,source.doc());
+                ? UI.store.match(source,null,null,source.doc()) 
+                : UI.store.match(null,null,null,source.doc());
   for(let t of triples){
     let subject = t.subject;
     if(done[subject.value]) continue;
     done[subject.value]=true;
-    const predicates = store.match(subject,null,null,source.doc());
+    const predicates = UI.store.match(subject,null,null,source.doc());
     let row = {id:subject.value};
     for(let p of predicates){
       let key = p.predicate.value.replace(/.*\//,'').replace(/.*#/,'');
@@ -44,31 +44,31 @@ export async function fetchRdfData(element){
 export async function rdfLoad(uri){
   await checkRdfObject();
   if(uri.startsWith('http')) try {
-    await fetcher.load(uri)
+    await UI.store.fetcher.load(uri)
   }catch(err){console.log("URI LOAD ERROR",err)}
   else try {
     let pkg = await import('./file-io.js');
     let filePath = uri.replace(/^file:\/\//,'').replace(/\#.*/,'');
-    uri = $rdf.sym(uri);
+    uri = UI.rdf.sym(uri);
     let content = await pkg.readFileAsync(filePath,'utf8');
     try {
-      $rdf.parse(content, store, uri.doc().value, 'text/turtle');
+      UI.rdf.parse(content, UI.store, uri.doc().value, 'text/turtle');
     }catch(err){console.log("FILE PARSE ERROR: ",err)}
   }catch(err){console.log("FILE READ ERROR: ",err)}
-  return sym(uri);
+  return UI.rdf.sym(uri);
 }
 export function rdfMatch(s,p,o,g){
-  if(s && typeof s=="string") s = sym(s);
-  if(p && typeof p=="string") p = sym(p);
-  if(o && typeof o=="string") o = sym(o);
-  if(g && typeof g=="string") g = sym(g);
-  return store.match(s,p,o,g);
+  if(s && typeof s=="string") s = UI.rdf.sym(s);
+  if(p && typeof p=="string") p = UI.rdf.sym(p);
+  if(o && typeof o=="string") o = UI.rdf.sym(o);
+  if(g && typeof g=="string") g = UI.rdf.sym(g);
+  return UI.store.match(s,p,o,g);
 }
 export function rdfRemove(...args){
-  return store.remove(args);
+  return UI.store.remove(args);
 }
 export async function rdfPutBack(uri,kb){
-  kb ||= store;
+  kb ||= UI.store;
   const stmts = kb.match();
   if(uri.startsWith('http')) try {
     await kb.fetcher.putBack(uri)
@@ -79,8 +79,8 @@ export async function rdfPutBack(uri,kb){
       console.log(s.subject.value,s.predicate.value,s.object.value)
     }
     return;
-    const node = $rdf.sym(uri);
-    $rdf.serialize(node, kb, uri, 'text/turtle', async (err,turtleString) => {
+    const node = UI.rdf.sym(uri);
+    UI.rdf.serialize(node, kb, uri, 'text/turtle', async (err,turtleString) => {
       if(err) {
         console.log('SERIALIZE ERROR : ',err)
         return;
@@ -96,7 +96,7 @@ export async function rdfPutBack(uri,kb){
 export async function webOp(method,uri,options) {
   await checkRdfObject();
   return new Promise( (resolve, reject) => {
-    fetcher.webOperation(method, uri,options).then( async(response) => {
+    UI.store.fetcher.webOperation(method, uri,options).then( async(response) => {
       if (response.ok) {
         resolve(response.responseText);
       }
@@ -106,17 +106,15 @@ export async function webOp(method,uri,options) {
     });
   });
 }
-/* Dynamically import rdflib if called from command line.
-     Else use the UI object from solid-ui or panes or mashib
-     imported by user in a script tag.
+/* If mashlib or solid-ui is loaded, use their exported UI object
+   Else expect user to have imported rdflib and ns and create a dummy UI object from them.
 */
-let store; let fetcher; let sym; let $rdf;
 export async function checkRdfObject(){
-  if(!store) {
-    const handler = await defineRdfObject();
-    store = handler.store;
-    fetcher = handler.fetcher;
-    sym = handler.sym;
-    $rdf = handler.rdf;
+  if(typeof UI==="undefined") {
+    isoWin.UI = global.UI = {
+      store : global.sol.store,
+         ns : global.sol.ns,
+        rdf : global.sol.$rdf,
+    };
   }
 }

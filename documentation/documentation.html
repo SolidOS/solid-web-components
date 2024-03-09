@@ -113,7 +113,22 @@
   ></sol-rdf>
   </template>
 
-  <H3>SPARQL queries</H3><div>Coming soon! Can be used with either rdlib or communica as the query engine.</div>
+  <H3>SPARQL queries</H3><template>
+    <p>
+      A SPARQL component should use the `source` attribute to point to a document containing a SPARQL query; an `endpoint` attribute to point to the data the query will search and a template attribute to indicate method of display.  The query can omit prefix statements for all common vocabularies (listed in [solid-namespace](https://github.com/solid/solid-namespace)), so if the query contains `:thing rdfs:label "foo"`, the necessary prefix statements will be prepended to the query.
+    </p>
+    <p>
+      By default, the rdflib query engine is used.  However, if  you add comunica with a script tag in your topmost HTML, the communica engine you specify will be used instead.
+    </p>
+    <p>
+      If you are using comunica and the endpoint is an actual SPARQL endpoint, the querying will be done server-side.  If you are using rdflib or the endpoint is a plain RDF endpoint, the querying will be done client-side.
+    </p>
+    <sol-sparql
+        source="./data/sparql.rq"
+        endpoint="./data/sample-rdf.ttl"
+        template="table"
+    ></sol-sparql>
+  </template>
   <H3>Replaceable query parameters</H3><div>Coming soon!</div>
 
 

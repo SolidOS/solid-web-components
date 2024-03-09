@@ -1,6 +1,6 @@
 {
   "name": "solid-web-components",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "access Solid & linked-data resources using no-code HTML components",
   "type": "module",
   "main": "sol-core.js",
@@ -19,11 +19,11 @@
   "license": "MIT",
   "dependencies": {
     "dompurify": "^3.0.3",
-    "marked": "^5.0.1"
+    "marked": "^5.0.1",
+    "rdflib": "^2.2.34-1"
   },
   "peerDependencies": {
     "mashlib": "^1.8.9",
-    "rdflib": "^2.2.33",
     "solid-ui": "^2.4.27"
   }
 }
