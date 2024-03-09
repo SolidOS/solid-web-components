@@ -1,11 +1,12 @@
 //import * as util from './drafts-old/sol/libs/utils.js';
 //import {showNamedTemplate,results2table} from './drafts-old/sol/libs/display.js';
 import {fetchNonRdfData} from './src/model.js';
+import {rel2absIRI} from './src/isomorphic.js';
 
 export async function fetchSparqlData(element){
  alert(typeof sol)
     let endpoint = element.getAttribute('endpoint');
-    endpoint = util.rel2absIRI(endpoint.trim());
+    endpoint = rel2absIRI(endpoint.trim());
     let query = (await fetchNonRdfData({
       source : element.source,
       type : 'html',
