@@ -1,5 +1,5 @@
-import * as util from './drafts-old/sol/libs/utils.js';
-import {showNamedTemplate,results2table} from './drafts-old/sol/libs/display.js';
+//import * as util from './drafts-old/sol/libs/utils.js';
+//import {showNamedTemplate,results2table} from './drafts-old/sol/libs/display.js';
 import {fetchNonRdfData} from './src/model.js';
 
 export async function fetchSparqlData(element){
