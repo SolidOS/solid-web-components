@@ -1,12 +1,43 @@
+/*
 body {
     overflow:hidden;
     padding:1rem;
-    padding-top:0;
     margin:0;
     background:teal;
 }
+*/
 * {
     font-family:Verdana,Arial,Helvetica,Sans-Serif;
+}
+.sol-rdf > DIV {
+  padding:1rem !important;
+  padding-left:0 !important;
+  padding-right:0 !important;
+  display:table-cell !important;
+}
+.sol-rdf .formFieldName {
+  padding:1rem !important;
+  padding-left:0 !important;
+  padding-right:0 !important;
+  width:4em !important;
+  text-align:right;
+}
+.sol-rdf .formFieldValue input {
+  width:60ch !important;
+}
+
+.sol-searchbar {
+  border-radius:0.3rem;
+  background:white;
+  opacity:70%;
+  display:inine-block !important;
+  padding:0 !important;
+  padding-top:0.5rem !important;
+  padding-left:0.5rem !important;
+}
+.sol-searchbar button,
+.sol-searchbar input {
+  border-radius:0.3rem;
 }
 .sol-reader {
   height:100%;
@@ -123,6 +154,7 @@ background:white !important;
   padding:0.25rem;
   border:1px solid black;
   border-radius:0.3rem;
-  background:lightgray !important;
+  background:white !important;
+  opacity:70%;
   color:black !important;
 }

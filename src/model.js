@@ -1,4 +1,4 @@
-import {sanitize,markdownString2HTML} from './isomorphic.js';
+import {sanitize,markdownString2HTML,domFromContent} from './isomorphic.js';
 import {webOp} from './model-rdf.js';
 import {filterByQuerySelector} from './model-html.js';
 
@@ -8,7 +8,11 @@ export async function fetchNonRdfData(element){
   let url = element.source;
   let ctype = element.type;
   if(!url || !ctype) return;
-  let content =  await webOp('GET',element.source);
+  let content;
+  try {
+    content =  await webOp('GET',element.source);
+  }
+  catch(err){alert(err)}
   if( ctype.match(/markdown/i) ){
     content = await markdownString2HTML(content);
   }
@@ -19,20 +23,3 @@ export async function fetchNonRdfData(element){
   if(!element.trusted && ctype.match(/(html|markdown|text)/i)) content = await sanitize(content);
   return content;
 }
-/*
-export async function fetchNonRdfContent(element,url,ctype,webOp){
-  let content;
-  try {
-   if(!inBrowser){
-      element.source = element.source.replace(/^file:\/\//,'');
-      const pkg = await import('./file-io.js');
-      content = await pkg.readFileAsync(element.source,'utf8');
-    }
-    else {
-      content =  await webOp('GET',element.source);
-    }
-    return content;
-  }
-  catch(e){console.log(e);return ""}
-}
-*/

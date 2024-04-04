@@ -28,6 +28,7 @@ export async function getDefaults(element,dom){
   element.classList.add(tag);
   element.action ||= tag.replace(/^sol-/,'');
   element.source = element.getAttribute('source') || element.source;
+  element.form = element.getAttribute('form') || element.form;
   element.type       = element.getAttribute('type') || element.type;
   element.template   = element.getAttribute('template') || element.template;
   element.linkType   = element.getAttribute('linkType') || element.linkType;
@@ -45,6 +46,7 @@ export async function getDefaults(element,dom){
     if(!element.showAs) element.showAs = container.getAttribute('showAs');
   }
   if(element.source) element.source = await rel2absIRI(element.source,domWindow);
+  if(element.form) element.form = await rel2absIRI(element.form,domWindow);
   if(element.template && element.template.startsWith('./') ){
     element.template = await rel2absIRI(element.template,domWindow);
   }
@@ -84,7 +86,7 @@ export function getAnchors(data,dom){
   let anchors = "";
   let links = getLinks(data,dom);
   for(let l of links){
-    anchors += `<a href="${l.link}" title="${l.comment}">${l.label}</a>`;
+    anchors += `<a href="${l.link}" title="${l.comment||''}">${l.label}</a>`;
   }
   return anchors;
 }

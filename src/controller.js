@@ -1,6 +1,7 @@
 import { fetchRdfData } from './model-rdf.js';
 import { fetchNonRdfData } from './model.js';
-import { fetchSparqlData } from '../sol-sparql.js';
+import { fetchSparqlData } from './model-sparql.js';
+import { fetchForm } from './form.js';
 import { isoWin,addContentToElement,domFromContent } from './isomorphic.js';
 import { getDefaults } from './utils.js';
 
@@ -8,10 +9,18 @@ export async function processCustomElement(element){
   const win = isoWin;
   element = await getDefaults(element);
   element.type ||= element.tagName.toLowerCase().replace(/^sol-/,'');
-  let data
-  if (element.type==='sparql') data = await fetchSparqlData(element);
-  else if(element.type==='rdf') data = await fetchRdfData(element);
-  else data = await fetchNonRdfData(element);
+
+  let data;
+  if (element.type ==='sparql')    data = await fetchSparqlData(element);
+  else if(element.type ==='rdf')   data = await fetchRdfData(element);
+  else if(element.type !='custom') data = await fetchNonRdfData(element);
+  if(element.form){
+    data = await fetchForm(element,data);
+    element.appendChild(data);
+    return;
+  }
+  // sol-custom expects data to be fetched in the view
+
   const pkg = await import('./view.js');
   let content = await pkg.showData(element,data);
   content = typeof content==="string" ?content :content.outerHTML;
@@ -70,6 +79,10 @@ export function registerView(options){
   for(let templateName of Object.keys(options.templates)){
     isoWin.sol.template[templateName] = options.templates[templateName];
   }
+}
+export function registerModel(name,fetchFunction){
+  solInit();
+  isoWin.sol.model[name] = fetchFunction;
 }
 
 

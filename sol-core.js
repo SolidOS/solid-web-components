@@ -4,22 +4,43 @@
   for how the callback behaves.
 */
 import { processCustomElement } from './src/controller.js';
+import { SolLogin } from './src/login.js';
+
 export class SolBase extends HTMLElement {
-    constructor() { super(); }
-    async connectedCallback(){ processCustomElement(this); }
+  constructor() { super(); }
+  async connectedCallback(){ processCustomElement(this); }
 }
-export class SolComponent extends SolBase {}customElements.define("sol-component",SolComponent);
-export class SolRdf extends SolBase {}customElements.define("sol-rdf",SolRdf);
-export class SolHtml extends SolBase {}customElements.define("sol-html",SolHtml);
-export class SolMarkdown extends SolBase {}customElements.define("sol-markdown",SolMarkdown);
-export class SolText extends SolBase {}customElements.define("sol-text",SolText);
-export class SolInclude extends SolBase {}customElements.define("sol-include",SolInclude);
-export class SolDemo extends SolBase{}customElements.define("sol-demo",SolDemo);
-export class SolSparql extends SolBase {}customElements.define("sol-sparql",SolSparql);
+export class SolComponent extends SolBase {}
+export class SolRdf extends SolBase {}
+export class SolHtml extends SolBase {}
+export class SolMarkdown extends SolBase {}
+export class SolText extends SolBase {}
+export class SolInclude extends SolBase {}
+export class SolCustom extends SolBase {}
+export class SolDemo extends SolBase{}
+export class SolSparql extends SolBase{}
+export class SolForm extends SolBase{}
 
-/* 
-  THE END export class SolSparql extends SolBase {}
-customElements.define("sol-sparql",SolSparql);
+if( typeof document != "undefined" ){
+  document.addEventListener('DOMContentLoaded', ()=> {
+    let hasLogin = document.querySelector('SOL-LOGIN');
+    if(!hasLogin) defineElements();
+    // else call defineElements after login check
+  });
+}
 
+export function defineElements(){
+  if( customElements.get("sol-component") !== undefined ) return;
+  customElements.define("sol-component",SolComponent);
+  customElements.define("sol-rdf",SolRdf);
+  customElements.define("sol-html",SolHtml);
+  customElements.define("sol-markdown",SolMarkdown);
+  customElements.define("sol-text",SolText);
+  customElements.define("sol-include",SolInclude);
+  customElements.define("sol-demo",SolDemo);
+  customElements.define("sol-sparql",SolSparql);
+  customElements.define("sol-form",SolForm);
+  customElements.define("sol-custom",SolCustom);
+}
 
-*/
+/* END */

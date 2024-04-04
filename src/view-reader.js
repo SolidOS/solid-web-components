@@ -15,7 +15,9 @@ export function reader(element,data){
   if(element.type==="rdf") return aoh2reader(data,element);
   let wrapper = isoDoc.createElement('SPAN');
   wrapper.innerHTML = data;
-  html2reader(wrapper,'h2');
+  let headers = wrapper.querySelectorAll('h1,h2,h3,h4,h5,h6,h7');
+  if(headers.length > 0) html2reader(wrapper,'h2');
+  else links2reader(wrapper);
   return makeReader(wrapper);
 }
 
@@ -78,22 +80,17 @@ function addReaderListeners(reader){
 // READER FROM RDF
 //
 function aoh2reader(dataAOH,element){
-  let resultsString = "";
   let ac = isoDoc.createElement('DIV');
-  //dataAOH = getLinks(dataAOH)
   for(let row of dataAOH){
     let header = row.label || row.prefLabel || row.title || row.name || row.id;
     let record = row.id;
     let recordEl = isoDoc.createElement('TEMPLATE');
     recordEl.innerHTML = (table(element,[row])).outerHTML;
-    console.log(22,table(element,[row]))
-    //`<sol-rdf source="${record}"></sol-rdf>`;
     let headerEl = isoDoc.createElement('H2');
-    headerEl.innerHTML = header;
+    headerEl.innerHTML = header;    headerEl.innerHTML = header;
     headerEl = makeReaderLink(headerEl);
     ac.appendChild(headerEl);
     ac.appendChild(recordEl);
-    //headerEl.setAttribute('onclick',"javascript:solrun(event,'reader')")
   }
   return makeReader(ac);
 }
@@ -108,7 +105,22 @@ function makeReaderLink(el){
   return el;
 }
 
-// READER FROM HTML
+// READER FROM HTML LINKS
+//
+function links2reader(links,element){
+  let resultsString = "";
+  let ac = isoDoc.createElement('DIV');
+  for(let anchor of links.querySelectorAll('A')){
+    let headerEl = isoDoc.createElement('H2');
+    headerEl.innerHTML = anchor.innerHTML;
+    headerEl = makeReaderLink(headerEl);
+    ac.appendChild(headerEl);
+    ac.appendChild(recordEl);
+  }
+  return makeReader(ac);
+}
+
+// READER FROM HTML CONTAINING HEADERS
 //
 function html2reader(element,headerSelector,dom){
   let headers = element.querySelectorAll(headerSelector);

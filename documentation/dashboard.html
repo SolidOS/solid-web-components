@@ -1,0 +1,54 @@
+<body style="display:grid;grid-template-columns:572px auto;">
+  <div style="width:572px">
+    <div style="display:grid;grid-template-columns:160px auto;">
+      <sol-time></sol-time>
+      <sol-rdf source="./data/links.ttl" template="links" viewIn="popup"></sol-rdf> 
+    </div>
+    <p>
+    <sol-rdf source="./data/search.ttl" template="searchbar"></sol-rdf>
+    </p>
+    <sol-markdown source="./data/links.md" template="links"></sol-markdown>
+  </div>
+  <div>
+  </div>
+<style>
+.sol-links {
+//  margin-left:1rem;
+}
+.sol-links h1 {
+  font-size:1rem;
+  font-weight:normal;
+  margin-bottom:0.3rem;
+}
+.sol-links p {
+  margin:0;
+  margin-bottom:0.3rem;
+}
+.sol-links li {
+  margin:0;
+  display:inline-block;
+}
+.sol-links ul {
+  margin:0;
+  padding:0;
+  list-style:none;
+  display:inline-block;
+}
+.sol-links a {
+  display:inline-block;
+  margin-bottom:0.3rem;
+}
+</style>
+
+<link href="../sol-core.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/solid-ui@2.4.33-alpha/dist/solid-ui.min.js" type="module">
+</script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" type="module">
+</script>
+<script src="../sol-core.js" type="module">
+</script>
+<script src="../src/time.js" type="module">
+</script>
+<!--
+      <sol-rdf source="./data/links.ttl" template="links" viewIn="popup"></sol-rdf> 
+-->

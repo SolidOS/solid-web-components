@@ -1,25 +1,26 @@
-@prefix :  <#> .
-@prefix bk: <http://www.w3.org/2002/01/bookmark#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix : <#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix bk: <http://www.w3.org/2002/01/bookmark#>.
+@prefix l: <https://www.smithsonianmag.com/rss/latest_articles/>.
+@prefix rs: <http://rss.sciam.com/>.
+@prefix feed: <https://www.wired.com/feed/>.
+
+<> rdfs:label "News Feeds"@en.
 
 :004
-  a bk:Bookmark ;
-  bk:recalls <https://www.democracynow.org/democracynow.rss> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Democracy Now" .
+    a bk:Bookmark;
+    rdfs:label "Democracy Now";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.democracynow.org/democracynow.rss>.
 :005
-  a bk:Bookmark ;
-  bk:recalls <https://www.smithsonianmag.com/rss/latest_articles/> ;
-  bk:hasTopic "Science News" ;
-  rdfs:label "Smithsonian" .
+    a bk:Bookmark;
+    rdfs:label "Smithsonian";
+    bk:hasTopic "Science News";
+    bk:recalls l:.
 :006
-  a bk:Bookmark ;
-  bk:recalls <http://rss.sciam.com/ScientificAmerican-Global> ;
-  bk:hasTopic "Science News" ;
-  rdfs:label "Scientific American" .
+    a bk:Bookmark;
+    rdfs:label "Scientific American";
+    bk:hasTopic "Science News";
+    bk:recalls rs:ScientificAmerican-Global.
 :007
-  a bk:Bookmark ;
-  bk:recalls <https://www.wired.com/feed/rss> ;
-  bk:hasTopic "Tech News" ;
-  rdfs:label "Wired" .
-
+a bk:Bookmark; rdfs:label "Wired"; bk:hasTopic "Tech News"; bk:recalls feed:rss.

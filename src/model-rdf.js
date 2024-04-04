@@ -1,4 +1,34 @@
 import {isoWin,defineRdfObject} from './isomorphic.js';
+/*
+  label = skos:prefLabel, rdfs:label, dct:title, schema:name, foaf:name, vcard:fn, or UI.utils.label(node)
+  comment = rdfs:comment; schema:description
+  link = bookmark:recalls, schema:url
+*/
+export function bestComment(subject,graph){
+  return UI.store.any(subject,UI.ns.rdfs('comment'),null,graph)
+      || UI.store.any(subject,UI.ns.schema('description'),null,graph);
+}
+export function bestLink(subject,graph){
+  const recalls = UI.rdf.sym('http://www.w3.org/2002/01/bookmark#recalls');
+  return UI.store.any(subject,recalls,null,graph)
+      || UI.store.any(subject,UI.ns.schema('url'),null,graph)
+      || subject;
+}
+export function bestLabel(node){
+  let skosLabel = UI.rdf.sym( "http://www.w3.org/2004/02/skos/core#prefLabel");
+  try{
+    if(typeof node==="string")  node = UI.rdf.sym(node) ;
+    const best = UI.store.any(node,UI.ns.ui('label'))
+        || UI.store.any(node,skosLabel)
+        || UI.store.any(node,UI.ns.rdfs('label'))
+        || UI.store.any(node,UI.ns.dct('title'))
+        || UI.store.any(node,UI.ns.foaf('name'))
+        || UI.store.any(node,UI.ns.vcard('fn'))
+        || UI.utils.label(node);
+    return best;
+  }
+  catch(e) { console.log(e); return node }
+}
 
 export async function fetchRdfData(element){
   let done = {};
@@ -27,8 +57,9 @@ export async function fetchRdfData(element){
       subj = ary.shift();
       pred = ary.shift();
       obj = ary.join(' ');
+      if(pred=='a') pred = "type";
       if(subj=="*"){
-        if(row[pred].match(obj)) aoh.push(row)
+        if(row[pred] &&row[pred].match(obj)) aoh.push(row)
       }
       else{
         if(row.id.match(subj)&&row[pred].match(obj)) aoh.push(row)
@@ -96,14 +127,17 @@ export async function rdfPutBack(uri,kb){
 export async function webOp(method,uri,options) {
   await checkRdfObject();
   return new Promise( (resolve, reject) => {
-    UI.store.fetcher.webOperation(method, uri,options).then( async(response) => {
-      if (response.ok) {
-        resolve(response.responseText);
-      }
-      else {
-        reject(new Error(`Error fetching data from '${uri}' : ${response.statusText}`));
-      }
-    });
+    try {
+      UI.store.fetcher.webOperation(method, uri,options).then( async(response) => {
+        if (response.ok) {
+          resolve(response.responseText);
+        }
+        else {
+          resolve(response.status + response.statusText);
+        }
+      });
+    }
+    catch(err){ resolve(err.status+err.statusText); }
   });
 }
 /* If mashlib or solid-ui is loaded, use their exported UI object

@@ -2,7 +2,7 @@ import {isoDoc} from './isomorphic.js';
 import {getLinks} from './utils.js';
 import { registerView } from './controller.js';
 
-registerView({ clicks:{searchbarClick}, templates:{searchbar} });
+registerView({ actions:{searchbarClick}, templates:{searchbar} });
 
 export function searchbar(element,data) {
   let newEl = isoDoc.createElement('DIV');
@@ -32,7 +32,7 @@ export function searchbar(element,data) {
   newEl.style.padding="1rem";
   newEl.style.border="1px solid grey";
   newEl.style['border-radius']="0.3rem";
-  newEl.style.width = "44ch";
+  newEl.style.width = "41ch";
   return newEl;
 }
 
