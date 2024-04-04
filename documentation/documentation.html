@@ -99,7 +99,21 @@
     <H3>All documents in a catalog</H3><div>
     </div>
 -->
-    <H3>Forms</H3><div>Coming soon!</div>
+    <H3>Forms</H3><template>
+      <pre><code>&lt;sol-rdf
+    source="./data/sample-rdf.ttl#004"
+    form="./data/sample-form.ttl#MyForm"
+    wanted="* a Bookmark"
+>&lt;/sol-rdf></code></pre>
+
+      <sol-rdf source="./data/sample-rdf.ttl#004" form="./data/sample-form.ttl#MyForm" wanted="* a Bookmark"></sol-rdf>
+    </template>
+
+    <H3>Login</H3><template>
+      Include a Solid login button with a simple tag.
+
+      <sol-login></sol-login>
+    </template>
 
   </div>
 
