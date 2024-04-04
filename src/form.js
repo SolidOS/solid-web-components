@@ -44,7 +44,6 @@ console.log(2,element.source)
 
     // the form data (subect)
     let subject = o.formSubject ;
-alert(subject)
     if(!subject){
        let fSubj = UI.rdf.sym('http://www.w3.org/ns/ui#formSubject');
        subject = UI.store.any(form,fSubj)
