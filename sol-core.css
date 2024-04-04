@@ -62,7 +62,7 @@ span.sol-open, span.sol-closed, .sol-link * { color:teal !important; }
 .sol-menu-control {
   font-size:240% !important;
   font-weight:bold;
-  color:white !important;
+  // color:white !important;
   cursor:pointer;  
   margin-top:-0.8rem;
 }
@@ -72,7 +72,7 @@ span.sol-open, span.sol-closed, .sol-link * { color:teal !important; }
 .navigation-buttons button {
   background:transparent;
   border:none;
-  color:white !important;
+  // color:white !important;
   font-weight:bold;
   font-size:140%;
   cursor:pointer;
