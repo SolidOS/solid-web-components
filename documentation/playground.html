@@ -1,4 +1,4 @@
-<body>
+<div id="main">
   <div id="display">
 </div>
   <div id="editor">
@@ -12,6 +12,7 @@
     </textarea>
     <div id="control"><b><a href="./index.html">Solid Web Components</a> Playground</b><button onclick="submit()">submit</button></div>
   </div>
+</div>
 
 <script>
   function submit(){
@@ -23,7 +24,8 @@
 </script>
 
 <style>
-body {
+#main {
+  height:90%;
   display:grid;
   grid-template-rows: 50% 50%;
 }
