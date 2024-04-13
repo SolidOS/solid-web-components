@@ -1,7 +1,7 @@
 import { fetchRdfData } from './model-rdf.js';
 import { fetchNonRdfData } from './model.js';
 import { fetchSparqlData } from './model-sparql.js';
-import { fetchForm } from './form.js';
+import { fetchForm } from './view-form.js';
 import { isoWin,addContentToElement,domFromContent } from './isomorphic.js';
 import { getDefaults } from './utils.js';
 
@@ -11,14 +11,14 @@ export async function processCustomElement(element){
   element.type ||= element.tagName.toLowerCase().replace(/^sol-/,'');
 
   let data;
-  if (element.type ==='sparql')    data = await fetchSparqlData(element);
-  else if(element.type ==='rdf')   data = await fetchRdfData(element);
-  else if(element.type !='custom') data = await fetchNonRdfData(element);
-  if(element.form){
+  if(element.template==='form'){
     data = await fetchForm(element,data);
     element.appendChild(data);
     return;
   }
+  if (element.type ==='sparql')    data = await fetchSparqlData(element);
+  else if(element.type ==='rdf')   data = await fetchRdfData(element);
+  else if(element.type !='custom') data = await fetchNonRdfData(element);
   // sol-custom expects data to be fetched in the view
 
   const pkg = await import('./view.js');

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Record Form</title>
+    <!-- Include Solid-UI library -->
+    <script src="https://linkeddata.github.io/solid-ui/dist/solid-ui.bundle.js"></script>
+<script src="https://linkeddata.github.io/rdflib.js/dist/rdflib.min.js"></script>
+</head>
+</head>
+<body>
+
+<h1>Add New Record</h1>
+
+<div id="formContainer"></div>
+
+<script>
+// Define RDF graph for the form
+const graph = new $rdf.graph();
+
+// Define form configuration
+const formConfig = {
+    form: [
+        { 
+            path: 'schema:name', 
+            valueType: 'string', 
+            label: 'Name' 
+        },
+        { 
+            path: 'schema:birthDate', 
+            valueType: 'date', 
+            label: 'Birth Date' 
+        }
+    ]
+};
+
+// Generate the form
+const form = new $rdf.Form(graph, formConfig);
+
+// Append the form to the form container
+document.getElementById('formContainer').appendChild(form.render(document));
+</script>
+
+</body>
+</html>

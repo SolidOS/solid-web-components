@@ -4,7 +4,10 @@
   for how the callback behaves.
 */
 import { processCustomElement } from './src/controller.js';
-import { SolLogin } from './src/login.js';
+import { SolLogin } from './src/sol-login.js';
+import { SolTime } from './src/sol-time.js';
+import { SolModal } from './src/sol-modal.js';
+//import { SolManageButton } from './src/sol-edit.js';
 
 export class SolBase extends HTMLElement {
   constructor() { super(); }
@@ -19,17 +22,16 @@ export class SolInclude extends SolBase {}
 export class SolCustom extends SolBase {}
 export class SolDemo extends SolBase{}
 export class SolSparql extends SolBase{}
-export class SolForm extends SolBase{}
 
 if( typeof document != "undefined" ){
-  document.addEventListener('DOMContentLoaded', ()=> {
+  document.addEventListener('DOMContentLoaded', async ()=> {
     let hasLogin = document.querySelector('SOL-LOGIN');
-    if(!hasLogin) defineElements();
+    if(!hasLogin) await defineElements();
     // else call defineElements after login check
   });
 }
 
-export function defineElements(){
+export async function defineElements(){
   if( customElements.get("sol-component") !== undefined ) return;
   customElements.define("sol-component",SolComponent);
   customElements.define("sol-rdf",SolRdf);
@@ -39,7 +41,6 @@ export function defineElements(){
   customElements.define("sol-include",SolInclude);
   customElements.define("sol-demo",SolDemo);
   customElements.define("sol-sparql",SolSparql);
-  customElements.define("sol-form",SolForm);
   customElements.define("sol-custom",SolCustom);
 }
 

@@ -7,17 +7,25 @@ registerView({
 });
 
 export async function selector(element,data){
-    let div = isoDoc.createElement('SELECT')
-    div.classList.add('sol-selector')
-    div.innerHTML = getOptions(data);
-    return div;
+    let wrapper = isoDoc.createElement('DIV');
+    let select = isoDoc.createElement('SELECT');
+    let display = isoDoc.createElement('DIV');
+    wrapper.classList.add('sol-selector-wrapper')
+    select.classList.add('sol-selector')
+    display.classList.add('sol-selector-display')
+    select.style.width = "100%";
+    select.innerHTML = getOptions(data);
+    select.style.padding = "1rem";
+    wrapper.appendChild(select);
+    wrapper.appendChild(display);
+    return wrapper;
 }
 export async function links(element,data){
   let div = isoDoc.createElement('DIV')
   div.classList.add('sol-links')
   if(typeof data != "string") data = getAnchors(data); // extract anchors from RDF
   div.innerHTML = data;                                // else use anchors in HTML/Markdown
-  const viewIn = element.getAttribute('viewIn') || "popup";
+  const viewIn = element.viewIn || "popup";
   for(let anchor of div.querySelectorAll('A')){
     if( viewIn=="popup" ){
        const href=anchor.href;
@@ -34,7 +42,6 @@ export async function links(element,data){
       if(iframe && iframe.tagName=="iframe") iframe.src=anchor.href // IFRAME
       else anchor.setAttribute('target',viewIn);                    // NAMED TARGET
     }
-    console.log(anchor)
    }
   return div;
 }

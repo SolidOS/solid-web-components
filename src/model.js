@@ -1,16 +1,18 @@
 import {sanitize,markdownString2HTML,domFromContent} from './isomorphic.js';
 import {webOp} from './model-rdf.js';
+import {rel2absIRI} from './utils.js';
 import {filterByQuerySelector} from './model-html.js';
 
 export async function fetchNonRdfData(element){
   let queryParam = element.queryParam;
   let wanted = element.wanted;
-  let url = element.source;
-  let ctype = element.type;
+  let url = element.source || element.getAttribute('source');
+  url = await rel2absIRI(url);
+  let ctype = element.type || element.getAttribute('type');
   if(!url || !ctype) return;
-  let content;
+  let content="fail";
   try {
-    content =  await webOp('GET',element.source);
+    content =  await webOp('GET',url);
   }
   catch(err){alert(err)}
   if( ctype.match(/markdown/i) ){

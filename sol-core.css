@@ -9,12 +9,14 @@ body {
 * {
     font-family:Verdana,Arial,Helvetica,Sans-Serif;
 }
+/*
 .sol-rdf > DIV {
   padding:1rem !important;
   padding-left:0 !important;
   padding-right:0 !important;
   display:table-cell !important;
 }
+*/
 .sol-rdf .formFieldName {
   padding:1rem !important;
   padding-left:0 !important;
@@ -25,7 +27,38 @@ body {
 .sol-rdf .formFieldValue input {
   width:60ch !important;
 }
+.sol-selector {
+  border-radius: 0.3rem 0.3rem 0 0;
+  background:white;
+  opacity:60%;
 
+}
+.sol-selector-wrapper .sol-links {
+  height:16rem !important;
+  overflow-y:scroll;
+  border-radius: 0 0 0.3rem 0.3rem;
+  border:1px solid gray;
+  border-top:0;
+}
+.sol-selector-wrapper .sol-links a {
+  display:block;
+  text-decoration:none;
+  padding:0.5rem;
+  border-bottom:1px solid gray;
+  background:white;
+  opacity:70%;
+  color:black !important;
+}
+.button-links a {
+  margin-right:0.5rem;
+  text-decoration:none;
+  padding:0.25rem;
+  border:1px solid black;
+  border-radius:0.3rem;
+  background:white !important;
+  opacity:70%;
+  color:black !important;
+}
 .sol-searchbar {
   border-radius:0.3rem;
   background:white;
@@ -34,6 +67,7 @@ body {
   padding:0 !important;
   padding-top:0.5rem !important;
   padding-left:0.5rem !important;
+  padding-right:0.5rem !important;
 }
 .sol-searchbar button,
 .sol-searchbar input {
@@ -147,14 +181,4 @@ span.sol-open, span.sol-closed, .sol-link * { color:teal !important; }
 #reader1 {
   opacity:200% !important;
 background:white !important;
-}
-.sol-links a {
-  margin-right:0.5rem;
-  text-decoration:none;
-  padding:0.25rem;
-  border:1px solid black;
-  border-radius:0.3rem;
-  background:white !important;
-  opacity:70%;
-  color:black !important;
 }

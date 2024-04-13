@@ -1,96 +1,105 @@
-@prefix :  <#> .
-@prefix bk: <http://www.w3.org/2002/01/bookmark#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix : <#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix bk: <http://www.w3.org/2002/01/bookmark#>.
+@prefix l: <https://www.smithsonianmag.com/rss/latest_articles/>.
+@prefix rs: <http://rss.sciam.com/>.
+@prefix feed: <https://www.wired.com/feed/>.
+@prefix n0: <https://feeds.arstechnica.com/arstechnica/>.
+@prefix fee: <https://fair.org/feed/>.
+@prefix pro: <http://feeds.propublica.org/propublica/>.
+@prefix fe: <https://www.openculture.com/feed/>.
 
 <> rdfs:label "News Feeds".
 
 :001
-  a bk:Bookmark ;
-  bk:recalls <https://api.opb.arcpublishing.com/feeds/rss/?website=opb> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Oregon Public Broadcasting"  .
+    a "http//www.w3.org/2002/01/bookmark#Bookmark", bk:Bookmark;
+    rdfs:label "Oregon Public Broadcasting";
+    bk:hasTopic "General News";
+    bk:recalls <https://api.opb.arcpublishing.com/feeds/rss/?website=opb>.
 :002
-  a bk:Bookmark ;
-  bk:recalls <http://www.aljazeera.com/xml/rss/all.xml> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Al Jazeera" .
+    a bk:Bookmark;
+    rdfs:label "Al Jazeera";
+    bk:hasTopic "General News";
+    bk:recalls <http://www.aljazeera.com/xml/rss/all.xml>.
 :003
-  a bk:Bookmark ;
-  bk:recalls <https://rss.nytimes.com/services/xml/rss/nyt/World.xml> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "NY Times" .
+    a bk:Bookmark;
+    rdfs:label "NY Times";
+    bk:hasTopic "General News";
+    bk:recalls <https://rss.nytimes.com/services/xml/rss/nyt/World.xml>.
 :004
-  a bk:Bookmark ;
-  bk:recalls <https://www.democracynow.org/democracynow.rss> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Democracy Now" .
+    a bk:Bookmark;
+    rdfs:label "Democracy Now";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.democracynow.org/democracynow.rss>.
 :005
-  a bk:Bookmark ;
-  bk:recalls <https://www.smithsonianmag.com/rss/latest_articles/> ;
-  bk:hasTopic "Science News" ;
-  rdfs:label "Smithsonian" .
+    a bk:Bookmark;
+    rdfs:label "Smithsonian";
+    bk:hasTopic "Science News";
+    bk:recalls l:.
 :006
-  a bk:Bookmark ;
-  bk:recalls <http://rss.sciam.com/ScientificAmerican-Global> ;
-  bk:hasTopic "Science News" ;
-  rdfs:label "Scientific American" .
+    a bk:Bookmark;
+    rdfs:label "Scientific American";
+    bk:hasTopic "Science News";
+    bk:recalls rs:ScientificAmerican-Global.
 :007
-  a bk:Bookmark ;
-  bk:recalls <https://www.wired.com/feed/rss> ;
-  bk:hasTopic "Tech News" ;
-  rdfs:label "Wired" .
+a bk:Bookmark; rdfs:label "Wired"; bk:hasTopic "Tech News"; bk:recalls feed:rss.
 :008
-  a bk:Bookmark ;
-  bk:recalls <https://www.engadget.com/rss.xml> ;
-  bk:hasTopic "Tech News" ;
-  rdfs:label  "Engadget" .
+    a bk:Bookmark;
+    rdfs:label "Engadget";
+    bk:hasTopic "Tech News";
+    bk:recalls <https://www.engadget.com/rss.xml>.
 :009
-  a bk:Bookmark ;
-  bk:recalls <https://www.theverge.com/rss/index.xml> ;
-  bk:hasTopic "Tech News" ;
-  rdfs:label  "The Verge" .
+    a bk:Bookmark;
+    rdfs:label "The Verge";
+    bk:hasTopic "Tech News";
+    bk:recalls <https://www.theverge.com/rss/index.xml>.
 :010
-  a bk:Bookmark ;
-  bk:recalls <https://feeds.arstechnica.com/arstechnica/index> ;
-  bk:hasTopic "Tech News" ;
-  rdfs:label  "Ars Technica" .
+    a bk:Bookmark;
+    rdfs:label "Ars Technica";
+    bk:hasTopic "Tech News";
+    bk:recalls n0:index.
 :011
-  a bk:Bookmark ;
-  bk:recalls <https://www.truth-out.org/feed?format=feed> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Truthout" .
+    a bk:Bookmark;
+    rdfs:label "Truthout";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.truth-out.org/feed?format=feed>.
 :012
-  a bk:Bookmark ;
-  bk:recalls <https://theintercept.com/feed/?lang=en> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "The Intercept" .
+    a bk:Bookmark;
+    rdfs:label "The Intercept";
+    bk:hasTopic "General News";
+    bk:recalls <https://theintercept.com/feed/?lang=en>.
 :013
-  a bk:Bookmark ;
-  bk:recalls <https://fair.org/feed/> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Counterspin" .
+    a bk:Bookmark;
+    rdfs:label "Counterspin";
+    bk:hasTopic "General News";
+    bk:recalls fee:.
 :014
-  a bk:Bookmark ;
-  bk:recalls <https://www.vox.com/rss/index.xml> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Vox" .
+    a bk:Bookmark;
+    rdfs:label "Vox";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.vox.com/rss/index.xml>.
 :015
-  a bk:Bookmark ;
-  bk:recalls <http://feeds.propublica.org/propublica/main> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "ProPublica" .
+    a bk:Bookmark;
+    rdfs:label "ProPublica";
+    bk:hasTopic "General News";
+    bk:recalls pro:main.
 :016
-  a bk:Bookmark ;
-  bk:recalls <http://rss.cnn.com/rss/edition.rss> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "CNN" .
+    a bk:Bookmark;
+    rdfs:label "CNN";
+    bk:hasTopic "General News";
+    bk:recalls <http://rss.cnn.com/rss/edition.rss>.
 :017
-  a bk:Bookmark ;
-  bk:recalls <https://slate.com/feeds/all.rss> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "Slate" .
+    a bk:Bookmark;
+    rdfs:label "Slate";
+    bk:hasTopic "General News";
+    bk:recalls <https://slate.com/feeds/all.rss>.
 :018
-  a bk:Bookmark ;
-  bk:recalls <https://theconversation.com/us/articles.atom> ;
-  bk:hasTopic "General News" ;
-  rdfs:label "The Conversation" .
+    a bk:Bookmark;
+    rdfs:label "The Conversation";
+    bk:hasTopic "General News";
+    bk:recalls <https://theconversation.com/us/articles.atom>.
+:019
+    a bk:Bookmark;
+    rdfs:label "Open Culture";
+    bk:hasTopic "General News";
+    bk:recalls fe:rss2.

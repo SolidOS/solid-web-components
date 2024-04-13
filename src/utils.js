@@ -86,7 +86,9 @@ export function getAnchors(data,dom){
   let anchors = "";
   let links = getLinks(data,dom);
   for(let l of links){
-    anchors += `<a href="${l.link}" title="${l.comment||''}">${l.label}</a>`;
+    l.comment ||= "";
+    //l.comment = l.comment.replace(/"/g,'\\"').replace(/\n/g,' ').replace(/</g,'&lt;');
+    anchors += `<a href="${l.link}" title="${l.comment}">${l.label}</a>`;
   }
   return anchors;
 }

@@ -1,5 +1,6 @@
 // import all views
 //
+import { rss,showFeedItems } from './view-rss.js';
 import { reader } from './view-reader.js';
 import { table } from './view-table.js';
 import { links,selector } from './view-anchorList.js';
