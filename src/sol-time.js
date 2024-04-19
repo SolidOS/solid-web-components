@@ -16,9 +16,9 @@ function displayTime(){
   var now = new Date();
   var localTime = formatTime(now.getHours()) + ':' + formatTime(now.getMinutes());
   var utcTime = formatTime(now.getUTCHours()) + ':' + formatTime(now.getUTCMinutes());
-  element.innerHTML = `<div class="sol-time" style="display:table-cell; text-align:right;padding:0.5rem;opacity:70%;background:white;border-radius:0.3rem;">
-      <span style="font-size:small">Local :</span> <span style="color:brown">${localTime}</span><br />
-      <span style="font-size:small">UTC : </span><span style="color:brown" >${utcTime}</span>
+  element.innerHTML = `<div class="sol-time" style="display:inline-block; text-align:right;padding:0.5rem;border-radius:0.3rem;border:1px solid grey;font-size:0.8rem;width:5rem;">
+      <div style="wrap:nowrap">Local : ${localTime}</div>
+      <span>UTC : </span><span>${utcTime}</span>
     </div>`;
 }
 function formatTime(time) {

@@ -1,0 +1,38 @@
+
+<div class="sol-header">
+  <span class="sol-sidebarButton" style="font-weight:900;font-size:43px;cursor:pointer;"
+    onclick="this.closest('.sol-page').querySelector('.sol-main').classList.toggle('hidden')";
+  >&equiv;</span>
+</div>
+<div class="sol-main">
+  <div class="sol-sidebar"></div>
+  <div class="sol-display"></div>
+</div>
+<div class="sol-footer"></div>
+
+<style>
+/* COLORS  */
+.sol-page { color:wheat; background:#333344; }
+.sol-header, .sol-footer { background:#111122;}
+.sol-display { background:#444455; }
+/* FONTS */
+.sol-page { 
+  font-size:16px; 
+  font-family:Verdana,Arial,Helvetica,Sans-Serif;
+}
+/* POSITIONING */
+body { margin:0; }
+.sol-page  { margin:0; display:grid; grid-template-rows:2.5rem auto 1rem; }
+.sol-main { display:grid;grid-template-columns:21rem auto; height:calc( 100vh - 3.5rem ); }
+.sol-main.hidden { grid-template-columns:auto !important; }
+.sol-main.hidden .sol-sidebar { display:none; }
+.sol-main.hidden .sol-display { padding-left:1rem; }
+.sol-sidebarButton { margin-left:1rem; }
+.sol-sidebar { padding:1rem; }
+.sol-display { padding:1rem; padding-left:0; }
+/* OVERFLOW */
+.sol-page { overflow:hidden; }
+.sol-sidebar, .sol-display { overflow:auto; }
+
+</style>
+

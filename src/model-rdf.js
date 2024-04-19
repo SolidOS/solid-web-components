@@ -126,6 +126,7 @@ export async function rdfPutBack(uri,kb){
 
 export async function webOp(method,uri,options) {
   await checkRdfObject();
+  options ||= {};
   return new Promise( (resolve, reject) => {
     try {
       UI.store.fetcher.webOperation(method, uri,options).then( async(response) => {
@@ -137,7 +138,8 @@ export async function webOp(method,uri,options) {
         }
       });
     }
-    catch(err){ resolve(err.status+err.statusText); }
+    catch(err){ console.log(method,uri,options,err);
+resolve(err.status+err.statusText); }
   });
 }
 /* If mashlib or solid-ui is loaded, use their exported UI object

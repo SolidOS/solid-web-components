@@ -21,7 +21,24 @@ export async function fetchNonRdfData(element){
   if( ctype.match(/text/) ){
     content = `<pre><code>${content.replace(/</g,'&lt;')}</code></pre>`;
   }
-  content = await filterByQuerySelector(content,wanted,element);
-  if(!element.trusted && ctype.match(/(html|markdown|text)/i)) content = await sanitize(content);
+  if(!ctype=='raw') {
+    content = await filterByQuerySelector(content,wanted,element);
+    if(!element.trusted && ctype.match(/(html|markdown|text)/i)) {
+      content = await sanitize(content);
+    }
+  }
   return content;
+}
+
+export async function putNonRdfData(element){
+  let url = rel2absIRI( element.source || element.getAttribute('source') );
+  let ctype = element.type || element.getAttribute('type');
+  if(!url || !ctype) return;
+  let body = element.content || element.getAttribute('content')  || "";
+  let headers = {'Content-Type':ctype}
+  try {
+    let response =  await webOp('PUT',url,{body,contentType:ctype,headers});
+    console.log(response)
+  }
+  catch(err){alert(err)}
 }

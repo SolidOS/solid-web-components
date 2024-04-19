@@ -72,9 +72,11 @@ export async function defineRdfObject(){
   }
   return handler;
 }
-export async function getAbsPath(rel){
+//export async function getAbsPath(rel){
+export function getAbsPath(rel){
   if(!inBrowser){
-    const pkg = await import('./file-io.js');
+    // const pkg = await import('./file-io.js');
+    // TBD - import in main file instead
     let path = 'file://' + pkg.curDir().replace(/src/,'');
     //    let path = 'file://' + pkg.getScriptPath().replace(/src\/libs/,'');
     return path + "/" + isoWin.inputPath + rel.replace(/^\.\//,'');

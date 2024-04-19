@@ -7,6 +7,9 @@ import { processCustomElement } from './src/controller.js';
 import { SolLogin } from './src/sol-login.js';
 import { SolTime } from './src/sol-time.js';
 import { SolModal } from './src/sol-modal.js';
+import { SolPage } from './src/sol-page.js';
+import { SolContainer } from './src/sol-container.js';
+import { SolDocumentEditor } from './src/sol-document-editor.js';
 //import { SolManageButton } from './src/sol-edit.js';
 
 export class SolBase extends HTMLElement {

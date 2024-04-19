@@ -21,6 +21,9 @@ export async function rss(element,data){
     selectElement.setAttribute('onchange',"javascript:solrun(event,'showFeedItems')");
     selectElement.setAttribute( 'proxy', element.getAttribute('proxy') );
     await showFeedItems(selectElement);
+    el.style['box-sizing'] = "box-model";
+    el.style.width = "17.5rem";
+    selectElement.style['border-radius']="0.3rem 0.3rem 0 0";
     return el;
 }
 
@@ -29,10 +32,14 @@ export async function showFeedItems(selector,flags){
     const feedUri = (selector.options[index]).value
     const proxy = selector.getAttribute('proxy');
     let items = await getFeedItems(feedUri,{proxy,anchorOnly:1});
-    let anchors = await links({viewIn:"popup"},items);
+    let anchors = await links({viewIn:"popup",scrollable:true},items);
     let selectorParent = selector.parentNode.querySelector('.sol-selector-display');
-    selectorParent.classList.add('sol-links');
+    selectorParent.classList.add('sol-selector-links');
     selectorParent.innerHTML=anchors.innerHTML;
+    selectorParent.style.border="1px solid gray";
+    selectorParent.style['overflow-y']="scroll";
+    selectorParent.style['border-radius']="0 0 0.3rem 0.3rem";
+    selectorParent.style.height = "13rem";
     selectorParent.scrollTop = 0;
 }
 

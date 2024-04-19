@@ -57,7 +57,7 @@ export async function getDefaults(element,dom){
    rel2absIRI() - convert relative URL to absolute
    if we are running in JSDOM, must pass the dom.windowbject
 */
-export async function rel2absIRI(rel,domWindow){
+export function rel2absIRI(rel,domWindow){
   domWindow ||= window;
   if(!domWindow) return rel;
 // ABSOLUTE
@@ -73,7 +73,7 @@ export async function rel2absIRI(rel,domWindow){
   }
 // RELATIVE TO SPECIFIED CURRENT DIRECTORY
   else if( rel.startsWith('./') ){
-    abs = await getAbsPath(rel,domWindow);
+    abs = getAbsPath(rel,domWindow);
   }
 // RELATIVE TO UNSPECIFIED CURRENT DIRECTORY
   else if( !rel.match(/:\/\//) ){
@@ -82,13 +82,14 @@ export async function rel2absIRI(rel,domWindow){
   }
   return abs;
 }
+
 export function getAnchors(data,dom){
   let anchors = "";
   let links = getLinks(data,dom);
   for(let l of links){
     l.comment ||= "";
     //l.comment = l.comment.replace(/"/g,'\\"').replace(/\n/g,' ').replace(/</g,'&lt;');
-    anchors += `<a href="${l.link}" title="${l.comment}">${l.label}</a>`;
+    anchors += `<a href="${l.link}" title="${l.comment}" role="link">${l.label}</a>`;
   }
   return anchors;
 }

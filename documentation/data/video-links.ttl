@@ -1,9 +1,7 @@
-###
-# Personal Links
-###
-
 @prefix bk: <http://www.w3.org/2002/01/bookmark#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<> rdfs:label "Video Calls".
 
 :CG
   a bk:Bookmark ;
