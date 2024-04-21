@@ -5,7 +5,6 @@
     style="margin-top:3rem;height:calc( 100vh - 5rem )"
   ></sol-container>
 
-<!--
   <sol-include type=markdown source="../drafts/notes.md"></sol-include>
 
   <sol-page
@@ -14,8 +13,6 @@
     template="container"
   ></sol-page>
 
-
--->
 <style>
 * { font-size:18px; }
 p,h2,h3,li,ul { margin:0; }
@@ -23,9 +20,17 @@ h2,h3 { margin-top:0.5rem; }
 h2 { margin-left:1rem; }
 h3 { margin-left:2rem; }
 ul { margin-left:3rem; }
+textarea {
+  max-width:100% !important; 
+  min-width:40rem !important;
+  width:40rem;
+//  display:table-cell !important;
+}
+
 </style>
 <!-- <link href="../sol-core.css" rel="stylesheet" /> -->
-<script src="https://cdn.jsdelivr.net/npm/solid-ui@2.4.33-alpha/dist/solid-ui.min.js" type="module">
+
+<script src="https://cdn.jsdelivr.net/npm/mashlib@1.8.10/dist/mashlib.min.js" type="module">
 </script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" type="module">
 </script>

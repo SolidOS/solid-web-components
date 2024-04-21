@@ -1,3 +1,4 @@
+export const sidebarLeftTheme = `
 <div class="sol-header">
   <span class="sol-sidebarButton" style="font-weight:900;font-size:43px;cursor:pointer;"
     onclick="this.parentNode.parentNode.querySelector('.sol-main').classList.toggle('hidden')";
@@ -27,9 +28,8 @@ body { margin:0; }
 /* OVERFLOW */
 body, .sol-page { overflow:hidden; }
 .sol-sidebar, .sol-display { overflow:auto; }
-
 .formFieldName * {
   color: wheat !important;
 }
 </style>
-
+`;

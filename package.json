@@ -1,6 +1,6 @@
 {
   "name": "solid-web-components",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "access Solid & linked-data resources using no-code HTML components",
   "type": "module",
   "main": "sol-core.js",
