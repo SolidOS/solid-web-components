@@ -2,15 +2,12 @@ const host = "http://localhost:8444";
 window.SolidAppContext = {
   noAuth : host,
   webId : host + "/profile/card#me",
-  app : host,
-  webid : host + "/profile/card#me",
-  scroll : 130 // for eyeFocus, should be height of top banner
+  scroll : 100 // for eyeFocus, should be height of top banner
 }
 window.$SolidTestEnvironment = {
-  iconBase : "/common/icons/",
-  originalIconBase : "/common/originalIcons/",
+  iconBase : "/assets/icons/",
+  originalIconBase : "/assets/originalIcons/",
 }
-
 /*
   all components use the same constructor & connectedCallback
   see the processCustomElement in libs/controller.js

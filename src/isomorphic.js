@@ -7,8 +7,6 @@ isomorphic routines to handle
 */
 import {renderCustomElements} from './controller.js';
 
-//export const inBrowser = typeof window !== 'undefined';
-
 export const inBrowser = typeof global==='undefined' || typeof global.sol==='undefined';
 export const isoWin = inBrowser ?window :global.sol.dom.window;
 export const isoDoc = inBrowser ?document :global.sol.dom.window.document;
@@ -17,8 +15,8 @@ export async function domFromContent(content){
   let tmpDom;
   if(inBrowser) tmpDom=(new DOMParser()).parseFromString( content,"text/html");
   else {
-    const pkg = await import('jsdom');
-    tmpDom = (new pkg.JSDOM(content)).window.document;
+//    const pkg = await import('jsdom');
+//    tmpDom = (new pkg.JSDOM(content)).window.document;
   }
   return tmpDom
 }
@@ -30,7 +28,8 @@ export async function markdownString2HTML(markdownString,dom){
   }
   if(!isoWin.marked && inBrowser){  
     try { 
-      await import("https://cdn.jsdelivr.net/npm/marked/marked.min.js");
+      await import("../node_modules/marked/marked.min.js");
+//      await import("https://cdn.jsdelivr.net/npm/marked/marked.min.js");
     }
     catch(e){ console.log("Could not load marked.js.",e);}
   }
@@ -57,7 +56,7 @@ export function err(...args){
 }
 export async function defineRdfObject(){
   let handler = {};
-  if(typeof UI==="undefined"){
+  if(typeof document==="undefined"){
     const $rdf = global.sol.$rdf;
     handler.store = global.sol.store;
     handler.fetcher = global.sol.fetcher;
