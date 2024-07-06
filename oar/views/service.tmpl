@@ -1,0 +1,15 @@
+
+<div class="card">
+  <div class="header">
+    <div class="name">${name}</a></div>
+    <div class="type">${additionalTypes}</a></div>
+  </div>
+  <div>see: <a href="${service-endpoint}">service endpoint</a></div>
+  <div>provider: <a href="${provider}">${providerName}</a></div>
+  <div>location: ${location ||"?"}</div>
+  <div>implemented using: <a href="${implementedUsing}">${implementedUsingName}</a></div>
+  <div class="footer">
+    <span class="left">is free: ${isAvailableForFree==true ?"yes" :"no"}</span>
+    <span class="right"><a href="${termsOfService}">terms of service</a></span>
+  </div>
+</div>

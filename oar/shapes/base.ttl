@@ -1,0 +1,17 @@
+@prefix : <#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix schema: <http://schema.org/> .
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix sioc: <http://rdfs.org/sioc/ns#> .
+@prefix oar: <https://github.com/solid/organizations/tree/main/vocabularies/oar.ttl#> .
+
+oar:BaseCatalogResourceShape
+    a sh:NodeShape ;
+    sh:targetClass oar:Resource ;
+    sh:property [ sh:path schema:additionalType ;  ] ;
+    sh:property [ sh:path schema:name ;  ] ;
+    sh:property [ sh:path schema:provider ;  ] ;
+    sh:property [ sh:path doap:service-endpoint ; ] ;
+    sh:property [ sh:path schema:isAvailableForFree ; ] ;
+    sh:property [ sh:path schema:termsOfService ; ] ;
+    sh:property [ sh:path oar:implementedUsing ; sh:minCount 1 ; ] .

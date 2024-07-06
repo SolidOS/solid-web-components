@@ -1,0 +1,14 @@
+@prefix : <#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix bookmark: <http://www.w3.org/2002/01/bookmark#>.
+
+<> rdfs:label "Data Locations".
+
+:001
+    a bookmark:Bookmark;
+    rdfs:label "Desktop Root";
+    bookmark:recalls </home/>.
+:002
+    a bookmark:Bookmark;
+    rdfs:label "Community Pod Root";
+    bookmark:recalls <https://jeff-zucker.solidcommunity.net/public/>.

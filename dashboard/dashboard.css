@@ -1,0 +1,101 @@
+.sol-sidebar-right p {
+  margin:0.5rem;
+}
+.sol-display {
+  padding:0 !important;
+}
+* {
+  font-size:100%; 
+  font-family:Sans-Serif;
+}
+body {
+    overflow:hidden;
+    padding:0.5rem;
+    margin:0;
+    background:#004040;
+    color:#bbfbfb;
+}
+
+
+.TabulatorOutline textarea {
+  width: 100% !important;
+  min-width: 100% !important;
+  min-height: 20rem !important;
+  height: 20rem !important;
+}
+.TabulatorOutline * {
+  color:black;
+}
+.sol-solidos {
+  display:block;
+  height:100%;
+  overflow:auto !important;
+}
+.TabulatorOutline {
+  border-radius:0.3rem;
+}
+.sol-container {
+  margin-top:1rem;
+}
+*[class^="sol-"] a, .sol-time *, .sol-searchbar * { 
+  font-size:0.8rem !important;
+  color:black !important;
+}
+/* HEADER */
+sol-login input, .sol-time {
+  background-color:white !important;
+  opacity:70%;
+}
+/* SIDEBAR */
+.sol-sidebar-right {
+  text-align:center;
+  margin:0 !important;
+  margin-left:1rem !important;
+  margin-right:0 !important;
+}
+.sol-sidebar-right p {
+  margin-left:0 !important;
+  margin-right:0 !important;
+}
+.sol-selector-wrapper {
+  width:100% !important;
+}
+.sol-links ul {
+  list-style:none;
+  padding:0;
+}
+.sol-links li {
+  display:inline-block;
+}
+#video-links a {
+  background:#fee !important;
+}
+#other-links a {
+  background:#eef !important;
+}
+.sol-selector-wrapper * {
+  text-align:left;
+}
+.sol-selector-wrapper {
+  height:20rem !important;
+}
+.sol-selector-display {
+  height:100% !important;
+}
+.sol-folders, .sol-files, .sol-container .sol-icon { background:#99B3B3 !important;}
+.sol-container .sol-icon { border-radius:3rem;}
+.sol-solidos img {
+  max-height:100% !important;
+  max-width:100% !important;
+  image-fit:contain;
+}
+.sol-display > .sol-component{
+  height: 100%;
+  overflow:auto !important;
+  display:block;
+  background:#B3C6C6;
+  color:black;
+  padding:1rem;
+  margin-top:1rem;
+  border-radius:0.3rem;
+}

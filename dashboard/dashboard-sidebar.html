@@ -1,0 +1,36 @@
+<sol-markdown
+        id = "video-links"
+    source = "./plugins/solid-video-links.md"
+  template = "links"
+  viewIn = "popup"
+></sol-markdown> 
+<p>
+<sol-markdown
+        id = "other-links"
+    source = "./plugins/solid-links.md"
+  template = "links"
+  viewIn = "popup"
+></sol-markdown> 
+</p>
+
+      <sol-rdf
+        source="./plugins/search.ttl"
+        template="searchbar"
+        form="./data/sample-form.ttl"
+        wanted="* a Bookmark"
+      ></sol-rdf>
+      <p><sol-rdf
+        source="./plugins/news.ttl"
+        wanted="* a Bookmark"
+        template="rss"
+        proxy="/proxy?uri="
+      ></sol-rdf></p>
+
+<!--
+     <sol-rdf 
+       source="./data/news.ttl"
+       form="./data/dashboard-forms.ttl#NewsForm"
+       wanted="* a Bookmark"
+       template="form"
+     ></sol-rdf>       
+-->

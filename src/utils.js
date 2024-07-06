@@ -4,13 +4,59 @@
   getAnchors
   getOptions
 */
-import {isoDoc,isoWin,getAbsPath,domFromContent} from './isomorphic.js'
+import {getAbsPath,domFromContent} from './isomorphic.js'
 
-export async function getDefaults(element,dom){
-//  const domWindow = typeof dom !="undefined" ?dom.window :window;
-//  const domDocument = typeof dom != "undefined" ?dom.window.document :document;
-  const domWindow = isoWin;
-  const domDocument = isoDoc;
+export async function webOp(method,uri,options) {
+  options ||= {};
+  return new Promise( (resolve, reject) => {
+    try {
+      UI.store.fetcher.webOperation(method, uri,options).then( async(response) => {
+        if (response.ok) {
+          resolve(response.responseText);
+        }
+        else {
+          resolve(response.status + response.statusText);
+        }
+      });
+    }
+    catch(err){ console.log(method,uri,options,err);
+resolve(err.status+err.statusText); }
+  });
+}
+
+export async function fillTemplate(element,dataAOH){
+  const document = element.ownerDocument;
+  let tmp = element.getAttribute('view');
+  let template;
+  if(tmp.match('#')) {
+    template = document.querySelector(tmp).innerHTML;
+  }
+  else {
+    template = await webOp('GET',element.view);
+  }
+  let resultsString = "";
+  for(let row of dataAOH){
+    resultsString += template.interpolate(row);
+  }
+  const el = document.createElement('SPAN');
+  el.innerHTML = resultsString;
+  return el;
+}
+
+
+String.prototype.interpolate = function(params) {
+  const names = Object.keys(params);
+  for(let n of names){
+    params[n] ||= ""; // MISSING VALUES DO NOT ERROR
+  };
+  const vals =  Object.values(params);
+  return new Function(...names, `return \`${this}\`;`)(...vals);
+}   
+
+export async function getDefaults(element){
+  const domDocument = element.ownerDocument;
+  const domWindow   = domDocument.defaultView;
+  element.className=element.tagName.toLowerCase();
   let defaults = {};
   let el = domDocument.querySelector('sol-defaults');
   if(el && el.hasAttribute('demo')) element.demo=true;
@@ -31,6 +77,8 @@ export async function getDefaults(element,dom){
   element.form = element.getAttribute('form') || element.form;
   element.type       = element.getAttribute('type') || element.type;
   element.template   = element.getAttribute('template') || element.template;
+  element.view       = element.getAttribute('view') || element.view;
+  element.shape      = element.getAttribute('shape') || element.shape;
   element.linkType   = element.getAttribute('linkType') || element.linkType;
   element.openLinkIn = element.getAttribute('openLinkIn') || element.openLinkIn;
   element.proxy      = element.getAttribute('proxy') || element.proxy;
@@ -49,6 +97,12 @@ export async function getDefaults(element,dom){
   if(element.form) element.form = await rel2absIRI(element.form,domWindow);
   if(element.template && element.template.startsWith('./') ){
     element.template = await rel2absIRI(element.template,domWindow);
+  }
+  if(element.view && !element.view.startsWith('http') ){
+    element.view = await rel2absIRI(element.view,domWindow);
+  }
+  if(element.shape && !element.shape.startsWith('http') ){
+    element.shape = await rel2absIRI(element.shape,domWindow);
   }
   return element;
 }

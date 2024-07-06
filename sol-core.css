@@ -1,3 +1,60 @@
+
+.TabulatorOutline .doc {
+  width:99% !important;
+  margin:0 !important;
+}
+/* ACCORDION
+*/
+.sol-help {
+  display:block;
+  width:40rem !important;
+}
+.sol-codeResults { width:960px; } 
+.sol-help h1, .sol-help h2, .sol-help h3 { font-size:100%; margin:0;  margin-bottom:0.2rem !important; }
+.sol-help h2 { margin-left:0.75rem; clear:left; !important;  
+  padding-top:1rem !important; 
+}
+.sol-help h3 { 
+  font-weight:normal;
+  margin:0;
+  margin-left:1.5rem; 
+  border:1px solid gray; 
+  border-radius:0.3rem;
+  padding:0.25rem;
+  background-color:#99B3B3;
+  display:inline-block !important;  
+}
+.sol-help > div,
+.sol-modal {
+  position:absolute;
+  top:0;
+  right:0;
+//  margin:2rem !important;
+//  width:  calc( 100vw - 6rem );
+//  height: calc( 100vh - 6rem );
+  border-radius:0.3rem;
+  right:0;
+  padding:1rem;
+  z-index:20000;
+  background:white;
+  color:black;
+  border:8px solid black;
+  display:block;
+  min-width:420px;
+  margin-left:3rem;
+  margin-bottom:2rem;
+}
+.sol-help > div.hidden { 
+  display:none;
+//  margin-left:3rem;
+//  margin-bottom:0.2rem;
+}
+.sol-help table { 
+  background:white;
+  margin-top:0.5rem;
+  color:black;
+}
+
 /*
 body {
     overflow:hidden;
@@ -9,6 +66,7 @@ body {
 * {
     font-family:Verdana,Arial,Helvetica,Sans-Serif;
 }
+.sol-help .hidden * { display:none; }
 /*
 .sol-rdf > DIV {
   padding:1rem !important;
@@ -40,7 +98,7 @@ body {
   border:1px solid gray;
   border-top:0;
 }
-.sol-selector-wrapper .sol-links a {
+.sol-selector-wrapper a {
   display:block;
   text-decoration:none;
   padding:0.5rem;

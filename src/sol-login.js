@@ -17,6 +17,7 @@ export class SolLogin extends HTMLElement {
   }
   async mungeLoginArea(){
     const loginButtonArea = this.tagName ?this :document.querySelector('SOL-LOGIN');
+    loginButtonArea.classList.add('sol-login');
     loginButtonArea.innerHTML="";
     loginButtonArea.appendChild(UI.login.loginStatusBox(document, null, {}));
     const signupButton = loginButtonArea.querySelectorAll('input')[1];
@@ -35,6 +36,8 @@ export class SolLogin extends HTMLElement {
       button.value = "Log in!";           
       button.title = "--- click to log in!";
     }
+    button.style.margin="0";
+    button.style.padding="0.5rem";
     if(transparent) button.style.backgroundColor="transparent";
     if(me) button.style.color="green";
   }      

@@ -2,7 +2,7 @@ const host = "http://localhost:8444";
 window.SolidAppContext = {
   noAuth : host,
   webId : host + "/profile/card#me",
-  scroll : 100 // for eyeFocus, should be height of top banner
+  scroll : 200 // for eyeFocus, should be height of top banner
 }
 window.$SolidTestEnvironment = {
   iconBase : "/assets/icons/",
@@ -14,12 +14,16 @@ window.$SolidTestEnvironment = {
   for how the callback behaves.
 */
 import { processCustomElement } from './src/controller.js';
+import { SolDocumentEditor } from './src/sol-document-editor.js';
+import { SolAccordion } from './src/sol-accordion.js';
+import { SolJitsi } from './src/sol-jitsi.js';
+import { SolSolidos } from './src/sol-solidos.js';
+import { SolMenu } from './src/sol-menu.js';
 import { SolLogin } from './src/sol-login.js';
 import { SolTime } from './src/sol-time.js';
 import { SolModal } from './src/sol-modal.js';
 import { SolPage } from './src/sol-page.js';
 import { SolContainer } from './src/sol-container.js';
-import { SolDocumentEditor } from './src/sol-document-editor.js';
 //import { SolManageButton } from './src/sol-edit.js';
 
 export class SolBase extends HTMLElement {

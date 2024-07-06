@@ -1,0 +1,108 @@
+@prefix : <#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix bookmark: <http://www.w3.org/2002/01/bookmark#>.
+@prefix l: <https://www.smithsonianmag.com/rss/latest_articles/>.
+@prefix rs: <http://rss.sciam.com/>.
+@prefix feed: <https://www.wired.com/feed/>.
+@prefix n0: <https://feeds.arstechnica.com/arstechnica/>.
+@prefix fee: <https://fair.org/feed/>.
+@prefix pro: <http://feeds.propublica.org/propublica/>.
+@prefix fe: <https://www.openculture.com/feed/>.
+
+<> rdfs:label "News Feeds".
+
+:001
+    a bookmark:Bookmark;
+    rdfs:label "Oregon Public Broadcasting";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://api.opb.arcpublishing.com/feeds/rss/?website=opb>.
+:002
+    a bookmark:Bookmark;
+    rdfs:label "Al Jazeera";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <http://www.aljazeera.com/xml/rss/all.xml>.
+:003
+    a bookmark:Bookmark;
+    rdfs:label "NY Times";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://rss.nytimes.com/services/xml/rss/nyt/World.xml>.
+:004
+    a bookmark:Bookmark;
+    rdfs:label "Democracy Now";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://www.democracynow.org/democracynow.rss>.
+:005
+    a bookmark:Bookmark;
+    rdfs:label "Smithsonian";
+    bookmark:hasTopic "Science News";
+    bookmark:recalls l: .
+:006
+    a bookmark:Bookmark;
+    rdfs:label "Scientific American";
+    bookmark:hasTopic "Science News";
+    bookmark:recalls rs:ScientificAmerican-Global.
+:007
+    a bookmark:Bookmark;
+    rdfs:label "Wired";
+    bookmark:hasTopic "Tech News";
+    bookmark:recalls feed:rss.
+:008
+    a bookmark:Bookmark;
+    rdfs:label "Engadget";
+    bookmark:hasTopic "Tech News";
+    bookmark:recalls <https://www.engadget.com/rss.xml>.
+:009
+    a bookmark:Bookmark;
+    rdfs:label "The Verge";
+    bookmark:hasTopic "Tech News";
+    bookmark:recalls <https://www.theverge.com/rss/index.xml>.
+:010
+    a bookmark:Bookmark;
+    rdfs:label "Ars Technica";
+    bookmark:hasTopic "Tech News";
+    bookmark:recalls n0:index.
+:011
+    a bookmark:Bookmark;
+    rdfs:label "Truthout";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://www.truth-out.org/feed?format=feed>.
+:012
+    a bookmark:Bookmark;
+    rdfs:label "The Intercept";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://theintercept.com/feed/?lang=en>.
+:013
+    a bookmark:Bookmark;
+    rdfs:label "Counterspin";
+    bookmark:hasTopic "General News";
+    bookmark:recalls fee: .
+:014
+    a bookmark:Bookmark;
+    rdfs:label "Vox";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://www.vox.com/rss/index.xml>.
+:015
+    a bookmark:Bookmark;
+    rdfs:label "ProPublica";
+    bookmark:hasTopic "General News";
+    bookmark:recalls pro:main.
+:016
+    a bookmark:Bookmark;
+    rdfs:label "CNN";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <http://rss.cnn.com/rss/edition.rss>.
+:017
+    a bookmark:Bookmark;
+    rdfs:label "Slate";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://slate.com/feeds/all.rss>.
+:018
+    a bookmark:Bookmark;
+    rdfs:label "The Conversation";
+    bookmark:hasTopic "General News";
+    bookmark:recalls <https://theconversation.com/us/articles.atom>.
+:019
+    a bookmark:Bookmark;
+    rdfs:label "Open Culture";
+    bookmark:hasTopic "General News";
+    bookmark:recalls fe:rss2 .
