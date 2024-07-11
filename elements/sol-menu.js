@@ -1,5 +1,5 @@
 import {getDefaults,rel2absIRI} from './utils/utils.js';
-import {fetchRdfData} from './utils/rdf-utils.js';
+import {getSingletonStore,fetchRdfData} from './utils/rdf-utils.js';
 import {menuCSS} from './utils/view-menu-template.js';
 
 export class SolMenu extends HTMLElement {
@@ -8,6 +8,7 @@ export class SolMenu extends HTMLElement {
   }
   async connectedCallback(){ 
     await getDefaults(this);
+    await getSingletonStore();
     // let data = await getMenuDataFromRdf(this.source);
     let data = await this.getMenuDataFromElement(this);
     this.createMenu(data,this);

@@ -1,10 +1,11 @@
+import {rel2absIRI,getLinks} from './utils.js';
 import {fetchNonRdfData} from './model.js';
-import {rel2absIRI} from './utils.js';
+import {getSingletonStore} from './rdf-utils.js';
 
 export async function fetchSparqlData(element){
   let endpoint = element.getAttribute('endpoint');
   let queryParam = element.getAttribute('queryParam');
-  if(endpoint) endpoint = await rel2absIRI(endpoint.trim());
+  if(endpoint) endpoint = rel2absIRI(endpoint.trim());
   let query;
   if(element.source){
     query = (await fetchNonRdfData({
@@ -20,7 +21,8 @@ export async function fetchSparqlData(element){
   if(queryParam){
     query = query.interpolate({queryParam});
   }
-  let prefixes = endpoint ?`PREFIX : <${endpoint}#>\n` :"";
+    let prefixes;
+  // prefixes = endpoint ?`PREFIX : <${endpoint}#>\n` :"";
 /*
   for(let line of query.split(/\n/)){
       if(!line.match(/^\s*PREFIX/)) continue;
@@ -61,9 +63,13 @@ alert(prefix)
     // use temporary store, not universal store, so query is not cached
     // maybe make this a 'forceReload' param that can be turned on and off?
     // const kb = UI.store;
-    const kb = UI.rdf.graph();
-    kb.fetcher = UI.rdf.fetcher(kb,{fetch:UI.store.fetcher._fetch})
-    //----------------------------------------------------------------------
+//    const kb = UI.rdf.graph();
+      //    kb.fetcher = UI.rdf.fetcher(kb,{fetch:UI.store.fetcher._fetch})
+      const config = await getSingletonStore();
+      const kb = config.store;
+      kb.fetcher = config.fetcher;
+      
+      //----------------------------------------------------------------------
     let [mainQuery, groupByClause] = queryString.split(/\s+GROUP\s+BY\s+/i);
     let groupKey;
     if(mainQuery&&groupByClause) {
@@ -74,7 +80,7 @@ alert(prefix)
       await kb.fetcher.load(endpoint);
       let preparedQuery;
       try {
-        preparedQuery=await UI.rdf.SPARQLToQuery(queryString,false,kb);
+        preparedQuery=await config.UI.rdf.SPARQLToQuery(queryString,false,kb);
       }
       catch(e){console.log("Could not prepare query : ",e);}
       let wanted = preparedQuery.vars.map( stm=>stm.label );
@@ -89,9 +95,7 @@ alert(prefix)
         table.push(row);
       }
       table = table.sort((a,b)=>a.label > b.label ?1 :-1);
-console.log(table)
       if(groupKey) table = groupBy(results,groupKey);
-console.log( table );
       if(!table.length) console.log('No results!');
       return table
     }
@@ -151,13 +155,11 @@ function groupBy(data, key) {
     let table = [];
     let hash = {};
     for(let e of result) {
-console.log(e)
       let row = {} ;
       let ary = e.entries._root.entries;
       if(!ary || !ary.length) ary =e.entries._root.nodes;
       for(let i of ary){
         let key = i[0];
-console.log(key)
         let val = e.get(key);
         let value = val ?val.value  :null;
 /*
@@ -172,7 +174,6 @@ console.log(key)
 //        else row[key] = value.id;
         else row[key] = value;
       }
-console.log(row)
       table.push(row);
     }
     if(!table.length) console.log('No results!');

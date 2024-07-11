@@ -1,6 +1,6 @@
-import {rel2absIRI} from './utils.js';
-import {fetchNonRdfData} from './model.js';
-import { isoDoc,domFromContent } from "./isomorphic.js";
+import {getDefaults,attrs2props,domFromContent} from './utils/utils.js';
+import {fetchNonRdfData} from './utils/model.js';
+import {SolBase} from './sol-base.js';
 
 /*
 <sol-page
@@ -12,15 +12,18 @@ import { isoDoc,domFromContent } from "./isomorphic.js";
 ></sol-page>
 */
 
-export class SolPage extends HTMLElement {
+export class SolPage extends SolBase {
   constructor() { 
     super(); 
   }
-  async connectedCallback(){ 
-    await makePage(this);
+  async fetchData(){ 
+    await page(this);
   }
+  async filterData() {}
+  async showData() {}
 }
-export async function makePage(element){ 
+export async function page(element){ 
+  getDefaults(element);     
   await attrs2props(element);
   let themeString = element.themeString || await fetchNonRdfData({source:element.theme,type:'component'});
   let themeDom = await domFromContent(themeString);
@@ -35,12 +38,6 @@ export async function makePage(element){
   }
   element.classList.add('sol-wrapper');
   element.innerHTML = themeDom.body.innerHTML;
-  return element;
-}
-async function attrs2props(element){
-  for (let attr of element.attributes) {
-    element[attr.name] = await rel2absIRI(attr.value);
-  }
   return element;
 }
 customElements.define("sol-page",SolPage);

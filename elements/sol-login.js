@@ -1,4 +1,3 @@
-import {getUI} from './utils/browser-utils.js';
 import {getSingletonStore} from './utils/rdf-utils.js';
 
 export class SolLogin extends HTMLElement {
@@ -7,7 +6,7 @@ export class SolLogin extends HTMLElement {
     super(); 
   }
   async connectedCallback(){
-    this.config = getSingletonStore(await getUI())
+    this.config = await getSingletonStore()
     this.UI = this.config.UI;
     this.authSession = this.UI.authn.authSession;
     if (this.authSession) {

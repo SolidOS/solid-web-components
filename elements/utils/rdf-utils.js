@@ -1,85 +1,81 @@
-let lit,sym,ns,store,fetcher,updater;
+let lit,sym,ns,store,fetcher,updater,UI;
 
 export {sym,lit};
 
-export async function fetchRdfData(element){
-  let done = {};
-  let aoh = [];
-  let source = await fetcher.load(element.source);
-  const triples = element.source.match(/#/) 
-                ? store.match(source,null,null,source.doc()) 
-                : store.match(null,null,null,source.doc());
-  for(let t of triples){
-    let subject = t.subject;
-    if(done[subject.value]) continue;
-    done[subject.value]=true;
-    const predicates = store.match(subject,null,null,source.doc());
-    let row = {id:subject.value};
-    for(let p of predicates){
-      let key = p.predicate.value.replace(/.*\//,'').replace(/.*#/,'');
-      let val = p.object.value; 
-      if(row[key]){
-        row[key] += "," + val;"," + val;
-      }
-      else row[key] = val;
-    }
-    if(element.wanted){
-      let subj,pred,obj;
-      const ary = element.wanted.split(/\s+/).filter(Boolean);
-      subj = ary.shift();
-      pred = ary.shift();
-      obj = ary.join(' ');
-      if(pred=='a') pred = "type";
-      if(subj=="*"){
-        if(row[pred] &&row[pred].match(obj)) aoh.push(row)
-      }
-      else{
-        if(row.id.match(subj)&&row[pred].match(obj)) aoh.push(row)
-      }
+export async function isoGetUI(){
+    let config;
+    if(typeof window !="undefined"){
+      let browserUtils = await import('./browser-utils.js');
+      config = browserUtils['fetchUI']();
     }
     else {
-      aoh.push(row);
+      let nodeUtils = await import('./node-utils.js');
+      config = nodeUtils['rdfConfig'];
     }
+    return config;
+}
+export async function getSingletonStore() {
+  if(store) { store,fetcher,updater,UI };
+  let config = await isoGetUI();
+  if(!sym){
+    sym = config.sym ;
+    lit = config.lit ;
+    ns = config.ns;
+    store = config.store;
+    fetcher = config.fetcher;
+    updater= config.updater ;
+    UI=config.UI;
   }
-  return aoh;
+  return { store,fetcher,updater,UI };
+}  
+
+export async function markdownString2HTML(markdownString,dom){
+  let htmlString="";
+  if(!isoWin.marked && !inBrowser){
+    isoWin.marked = await import('marked');
+  }
+  if(!isoWin.marked && inBrowser){  
+    try { 
+      await import("../node_modules/marked/marked.min.js");
+      // await import("https://cdn.jsdelivr.net/npm/marked/marked.min.js");
+    }
+    catch(e){ console.log("Could not load marked.js.",e);}
+  }
+  if(typeof isoWin.marked !="undefined"){
+    try {
+      htmlString = await isoWin.marked.parse(markdownString)
+    }
+    catch(e){ console.log("Could not parse ",e);}
+  }
+  return htmlString;
 }
 
-export async function fetchRDFdata(component){ 
-  let config = getSingletonStore(component.config);
-  let url = config.source = component.source;
-  config.shapeUrl = component.shape;
-  config.targetClass = component.targetClass;
-  let shape = new RDFfetcher( config );
-  if(!component.asHtml) shape.raw=true;
-  let data = url.match(/#/) ?await shape.get(url) :await shape.getAll(url);
-  // wanted
-  if(component.wanted) data = data.filter( (row)=> {
-    let clauses = component.wanted.split(/\s*\|\|\s*/);
+export function filterRdf(data,element){
+  let url = element.source;
+  if(element.wanted) data = data.filter( (row)=> {
+    let clauses = element.wanted.split(/\s*\|\|\s*/);
     for(let clause of clauses){
       let pred,obj;
       const ary = clause.split(/\s+/).filter(Boolean);
       pred = ary.shift();
       if(pred=='a') pred = "type";
-      obj = ary.join(' ');
+	obj = ary.join(' ');
       if(row.id.match(url)&&(row[pred]||"").match(obj)) return row;
     }
-/*
-      let subj,pred,obj;
-      const ary = component.wanted.split(/\s+/).filter(Boolean);
-      subj = ary.shift();
-      pred = ary.shift();
-      obj = ary.join(' ');
-      if(pred=='a') pred = "type";
-      if(subj=="*"){
-        if(row[pred] &&row[pred].match(obj)) return(row)
-      }
-      else{
-        if(row.id.match(subj)&&row[pred].match(obj)) return(row)
-      }
-*/
   });
-  // limit
-  if(component.limit) data = data.slice(0,component.limit);
+  if(element.limit) data = data.slice(0,element.limit);
+  return data;
+}
+
+export async function fetchRdfData(component){ 
+//  let config = await getSingletonStore();
+  let config={store,fetcher,updater}
+  let url = config.source = component.source;
+  config.shapeUrl = component.shape;
+  config.targetClass = component.targetClass;
+  let shape = new RDFfetcher( config );
+  if(component.raw) shape.raw=true;
+  let data = url.match(/#/) ?await shape.get(url) :await shape.getAll(url);
   return data;
 }
 
@@ -167,7 +163,8 @@ export class RDFfetcher {
           all.push(label);
         }
         else {
-          all.push(`<a property="${predicate.value}" href="${id}">${label}</a>`);
+//          all.push(`<a property="${predicate.value}" href="${id}">${label}</a>`);
+          all.push(label);
         }
       }
     }
@@ -185,17 +182,6 @@ export class RDFfetcher {
   }
 }
 
-export function getSingletonStore(config) {
-  if(!sym){
-    sym = config.sym ;
-    lit = config.lit ;
-    ns = config.ns;
-    store = config.store;
-    fetcher = config.fetcher;
-    updater= config.updater ;
-  }
-  return { store,fetcher,updater,UI:config.UI };
-}  
 export async function webOp(method,uri,options) {
   options ||= {};
   return new Promise( (resolve, reject) => {
@@ -256,127 +242,4 @@ export function bestLabel(node){
 }
 */
 
-
-/* MOVE to utils.js 
-*/
-export function getTemplateVariables(templateString){
-  const regex = /\${(.*?)}/g;
-  let variables = {};
-  let match;
-  while ((match = regex.exec(templateString)) !== null) {
-    variables[match[1]]=1;
-  }
-  return Object.keys(variables);
-}
-
-
-/* MOVE to view.js 
-*/
-export async function fillTemplate(element,dataAOH){
-  const document = element.ownerDocument;
-  let tmp = element.getAttribute('view');
-  if(tmp=="card") return showCard(element,dataAOH);
-  let template;
-  if(tmp.match('#')) {
-    template = document.querySelector(tmp).innerHTML;
-  }
-  else {
-    template = await webOp('GET',element.view);
-  }
-  let properties = getTemplateVariables(template);
-  let resultsString = "";
-  for(let row of dataAOH){
-     for(let key of properties){
-       row[key] ||= "";
-     }
-     try {
-       resultsString += template.interpolate(row);
-     } 
-     catch(e){console.log(e)}
-  }
-  const el = document.createElement('DIV');
-  el.innerHTML = resultsString;
-  return el;
-}
-
-function makeCardRow(key,val){
-       return `
-<div style="display:table-row">
-  <span style="display:table-cell;text-align:right;margin-right:1rem;">
-    ${key}
-  </span>
-  :&nbsp; 
-  <span style="display:table-cell">
-    ${val}
-  </span>
-</div>
-       `;
-}  
-function makeCardFRow(key,val){
-  return `<span>`+val.replace(/>[^<]*</,'>'+key+'<')+'</span>&nbsp;';
-}  
-export async function showCard(element,dataAOH){
-  const document = element.ownerDocument;
-  const defaults = document.querySelector('sol-defaults');
-  let resultsString="";
-  let compact = element.getAttribute('compact');
-//  if(!compact && defaults) compact = defaults.getAttribute('compact');
-  const cardClass = compact ?"card-compact" :"card";
-  for(let row of dataAOH){
-    if(row.alternateName) row.name += " ("+row.alternateName+")";
-    let rowType = row.additionalType;
-    resultsString += `
-    <div class="${cardClass}">
-      <div class="header">
-        <div class="name">${row.name}</div>
-        <div class="type">a ${row.additionalType||row.type||""}</div>
-      </div>
-      ${row.image||""}
-      <blockquote class="sol-card-description">${row.description||""}</blockquote>
-      <div class="row-wrapper">
-  `;
-
-     for(let key in row){
-       if(!row[key]) continue;
-       if(key.match(
-/^(image|id|type|name|additionalType|description|service_endpoint|homepage|repository|url|alternateName|isAccessibleForFree|license|videoCallPage|seeAlso)$/
-       )) continue;
-       resultsString += makeCardRow(key,row[key]);
-    } 
-    resultsString += `</div><div class="links">` ;
-    if(row.service_endpoint){
-      if( rowType && rowType.match(/MailingList/)) resultsString += makeCardFRow('subscribe',row.service_endpoint);
-      else if( rowType && rowType.match(/MessageBoard/)) resultsString += makeCardFRow('join discussion',row.service_endpoint);
-      else if( rowType && rowType.match(/Chat/)) resultsString += makeCardFRow('join chat',row.service_endpoint);
-      else resultsString += makeCardFRow('service-endpoint',row.service_endpoint);
-    }
-    if(row.repository){
-      if( rowType && rowType.match(/MailingList/)) resultsString += makeCardFRow('archives',row.repository);
-      else if( rowType && rowType.match(/OngoingMeeting/)) resultsString += makeCardFRow('meeting notes',row.repository);
-      else resultsString += makeCardFRow('repository',row.repository);
-    }
-    if(row.videoCallPage) resultsString += makeCardFRow('join video call',row.videoCallPage);
-    if(row.homepage) resultsString += makeCardFRow('homepage',row.homepage);
-    if(row.url) resultsString += makeCardFRow('url',row.url);
-    resultsString += `</div><div class="footer">` ;
-    let free = row.isAccessibleForFree;
-    free = typeof(free)==="undefined" ?"?" :free==1 ?"yes" :"no";
-    resultsString += `<span class="left">is free: ${free}</span>`;
-    let license = row.license;
-    license = license ?`<span class="right">license: ${license}</span>` :"";
-    resultsString += license;
-    resultsString += "</div></div>";
-  }
-  const el = document.createElement('DIV');
-  el.innerHTML = resultsString;
-  return el;
-}
-String.prototype.interp = function(params) {
-  const names = Object.keys(params);
-  for(let n of names){
-    params[n] ||= ""; // MISSING VALUES DO NOT ERROR
-  };
-  const vals =  Object.values(params);
-  return new Function(...names, `return \`${this}\`;`)(...vals);
-}   
 

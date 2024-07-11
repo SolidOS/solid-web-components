@@ -1,11 +1,11 @@
-export async function sanitize(content) {
-  isoWin.sanitize ||= (typeof DOMPurify != "undefined") ?DOMPurify.sanitize :null;
-  if(!isoWin.sanitize && !inBrowser){
-    let pkg = await import('dompurify');
-    let DOMPurify = pkg.default(isoWin);
-    isoWin.sanitize =typeof DOMPurify!="undefined" ?DOMPurify.sanitize :null;
+export function attrs2props(element){
+  for (let attr of element.attributes) {
+    element[attr.name] = rel2absIRI(attr.value);
   }
-  if(typeof isoWin.sanitize=="function") return isoWin.sanitize(content);
+  return element;
+}
+export async function sanitize(content) {
+    if(typeof DOMPurify != "undefined") return DOMPurify.sanitize(content);
 }
 export async function domFromContent(content){
   let tmpDom;
@@ -105,16 +105,16 @@ export async function getDefaults(element){
     if(!element.template) element.template = container.getAttribute('template');
     if(!element.showAs) element.showAs = container.getAttribute('showAs');
   }
-  if(element.source) element.source = await rel2absIRI(element.source,domWindow);
-  if(element.form) element.form = await rel2absIRI(element.form,domWindow);
+    if(element.source) element.source = rel2absIRI(element.source,domWindow);
+  if(element.form) element.form = rel2absIRI(element.form,domWindow);
   if(element.template && element.template.startsWith('./') ){
-    element.template = await rel2absIRI(element.template,domWindow);
+    element.template = rel2absIRI(element.template,domWindow);
   }
   if(element.view && !element.view.startsWith('http') ){
-    element.view = await rel2absIRI(element.view,domWindow);
+    element.view = rel2absIRI(element.view,domWindow);
   }
   if(element.shape && !element.shape.startsWith('http') ){
-    element.shape = await rel2absIRI(element.shape,domWindow);
+    element.shape = rel2absIRI(element.shape,domWindow);
   }
   return element;
 }
