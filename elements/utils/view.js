@@ -1,24 +1,35 @@
-const isBuiltInView = {
-    table:1,
-    card:1,
-};
+import {webOp} from './rdf-utils.js';
+import {solidosShow} from './solidos-utils.js';
+
 
 export async function showData(data,element){
     let content;
     const view = element.getAttribute('view');
-    const viewDoc = element.view; // this one makes relative refs absolute
+    const viewDoc = element.view;
     if(!view){
-	content = data;
+        content = data;
     }
-    if(isBuiltInView[view]){
+    else if(isBuiltInView[view]){
 	content = await interpolateBuiltInView(data,element,view,viewDoc);
-    }
+    }   
+    else {
+	content = await fillTemplate(element,data);
+    }   
     if(typeof window !="undefined"){
-	if(typeof content=="string") element.innerHTML = content;
-	else element.appendChild(content);
+        content ||= "";
+	if(typeof content=="string") { element.innerHTML = content; }
+	else { element.appendChild(content); }
     }
-    else return content;
+    return content ;
 }
+
+const isBuiltInView = {
+    table:1,
+    card:1,
+    links:1,
+    selector:1,
+};
+
 
 /* DYNAMICALLY IMPORT BUILT-IN VIEWS
 */
@@ -26,6 +37,53 @@ async function interpolateBuiltInView(data,element,viewName,viewDoc){
   const pkg = await import(`../views/${viewName}.js`);
   return await pkg[viewName](data,element);
 }
+
+export async function showLink(clicked,element){
+  const linkUrl = element.linkUrl || clicked.getAttribute('href') || element.source ;
+  const linkTarget = element.linkTarget 
+                  || element.querySelector('.sol-display')
+                  || element.querySelector('.sol-container-display')
+                  || clicked.closest('.sol-wrapper').querySelector('.sol-display')
+                  || clicked.closest('.sol-wrapper').querySelector('.sol-container-display');
+  const linkPane = element.plane || clicked.plane || clicked.getAttribute('pane');
+  const linkContentType = clicked.getAttribute('contentType');
+  const linkType = clicked.getAttribute('linkType') || element.type || 'component';
+//  console.log(linkUrl,linkTarget,linkPane);
+  if(linkType == 'solidos'){
+    return solidosShow(linkUrl,linkTarget,linkPane,clicked,element);
+  }
+  else if(linkTarget=="popup") {
+    window.open(linkUrl,"sol-win","top=200px,left=4000px,height=768px,width=1366px,");
+  }
+  else {
+    let isDemo = element.hasAttribute('demo');
+    linkTarget.innerHTML = element.hasAttribute('demo') ?demo(element.linkContent,element) :element.linkContent;
+  }
+}
+/*
+    if( viewIn=="popup" ){
+       const href=anchor.href;
+       anchor.href="#";
+       const onclick=`event.preventDefault();window.open( '${href}','sol-win', "top=200px,left=4000px,height=768px,width=1366px")`;
+       anchor.setAttribute('onclick',onclick);                      // POPUP WINDOW
+    }
+    else if( viewIn=="modal" ){
+                                                                    // POPUP MODAL IFRAME
+                                                                    // POPUP MODAL 
+    }
+    else {
+      let iframe = document.querySelector(viewIn);
+      if(iframe && iframe.tagName=="iframe") iframe.src=anchor.href // IFRAME
+      else {
+        anchor.setAttribute('target',viewIn);
+        if(viewIn==".sol-display"){                                 // SOL-DISPLAY
+          const aclick=`solrun(event,'showInSolDisplay')`;
+          anchor.setAttribute('onclick',aclick);                      // POPUP WINDOW
+        }
+        anchor.setAttribute('target',viewIn);                    // NAMED TARGET
+      }
+    }
+*/
 
 /* ADD CONTENT TO ELEMENT
   If in Browser just add content as customElement innerHTML. We can't do that
@@ -71,7 +129,6 @@ export function getTemplateVariables(templateString){
 export async function fillTemplate(element,dataAOH){
   const document = element.ownerDocument;
   let tmp = element.getAttribute('view');
-  if(tmp=="card") return showCard(element,dataAOH);
   let template;
   if(tmp.match('#')) {
     template = document.querySelector(tmp).innerHTML;
@@ -86,7 +143,17 @@ export async function fillTemplate(element,dataAOH){
        row[key] ||= "";
      }
      try {
-       resultsString += template.interpolate(row);
+/*
+resultsString += template.replace(/\${(.*?)(\s*\?\s*(.*?)\s*:\s*(.*?))?}/g, (match, expression, _, trueValue, falseValue) => {
+  if (expression.trim() in row) {
+    return row[expression.trim()] ? (trueValue ? trueValue.trim() : row[expression.trim()]) : (falseValue ? falseValue.trim() : "");
+  } else {
+    return match;
+  }
+});
+*/
+       resultsString += template.interp(row);
+//       resultsString += interpz(template,row);
      } 
      catch(e){console.log(e)}
   }
@@ -100,6 +167,42 @@ String.prototype.interp = function(params) {
     params[n] ||= ""; // MISSING VALUES DO NOT ERROR
   };
   const vals =  Object.values(params);
-  return new Function(...names, `return \`${this}\`;`)(...vals);
+  try {
+    let results = new Function(...names, `return \`${this}\`;`)(...vals);
+    return results;
+  }
+  catch(e){console.log(e)}
 }   
 
+function interpz(template, row) {
+  for(let k of row) row[k] ||= "";
+  template.replace(/\${(.*?)}/g, (match, variable) => {
+  const expr = variable.trim();
+  try {
+    return eval(`(${expr})`);
+  } catch (error) {
+    console.error(`Error evaluating expression "${expr}": ${error}`);
+    return template;
+  }
+});
+
+
+  template = template;
+  return template;
+  let result = template;
+  let match;
+  const names = Object.keys(data);
+  for(let n of names){
+    data[n] ||= ""; // MISSING VALUES DO NOT ERROR
+  };
+
+    while ((match = regex.exec(template)) !== null) {
+        const expression = match[1];
+        let value;
+        if(typeof data[expression] !="undefined") value = data[expression];
+        else value = Function(`return ${expression}`).call(data);
+        result = result.replace(match[0], value);
+    }
+
+    return result;
+}

@@ -1,11 +1,33 @@
+<div class="sol-header">
 
-<div class="sol-header"></div>
+  <sol-menu>
 
+    <link  label="<span style='font-size:140%'>&#x2302;</span>" source="./dashboard-home.html" />
+    <submenu label="Workspaces" wanted="keywords workspace"   linkType="container" /></submenu>
+    <submenu label="Tools"      wanted="keywords solidosTool" linkType="solidos"   /></submenu>
+    <submenu label="Dev Tools"  wanted="keywords devTool"/></submenu>
+    <link label="&#9881;" source="./ui/manage.html"/>
+    <link label="?" source="./ui/help-components.html" />
+
+  </sol-menu>
+
+</div>
 <div class="sol-main">
   <div class="sol-display"></div>
-  <div class="sol-sidebar-right"></div>
-</div>
+  <div class="sol-sidebar-right">
 
+    <sol-tabset type="rdf" view="links">
+      <link label="solid links" wanted="keywords solidLink" />
+      <link label="to check" wanted="keywords toCheckLink" />
+      <link label="my links" wanted="keywords myLink" />
+    </sol-tabset>
+   
+    <sol-searchbar wanted="keywords searchEngine"></sol-searchbar>
+
+    <sol-rss wanted="keywords rssFeed"></sol-rss>
+
+  </div>
+</div>
 <div class="sol-sidebarButton" 
     onclick="this.classList.toggle('hidden');this.parentNode.parentNode.querySelector('.sol-main').classList.toggle('hidden')";
 ></div>
@@ -15,7 +37,7 @@
 .sol-main { 
   display:grid; 
   height:calc( 100% - 3rem );
-  grid-template-columns: auto 19rem; 
+  grid-template-columns: auto 360px; 
 }
 .sol-main.hidden { grid-template-columns:auto !important; }
 .sol-main.hidden .sol-sidebar-right { display:none !important; }

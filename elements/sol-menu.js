@@ -1,6 +1,7 @@
 import {getDefaults,rel2absIRI} from './utils/utils.js';
-import {getSingletonStore,fetchRdfData} from './utils/rdf-utils.js';
+import {getSingletonStore,fetchRdfData,filterRdf} from './utils/rdf-utils.js';
 import {menuCSS} from './utils/view-menu-template.js';
+import {showLink} from './utils/view.js';
 
 export class SolMenu extends HTMLElement {
   constructor() { 
@@ -11,7 +12,9 @@ export class SolMenu extends HTMLElement {
     await getSingletonStore();
     // let data = await getMenuDataFromRdf(this.source);
     let data = await this.getMenuDataFromElement(this);
-    this.createMenu(data,this);
+    await this.createMenu(data,this);
+    let first = this.querySelector('.item');
+    first.click();
   }
 
 async getMenuDataFromElement(el){
@@ -22,13 +25,17 @@ async getMenuDataFromElement(el){
     let label = item.getAttribute('label')
     let link = rel2absIRI( item.getAttribute('source')||"" );
     if(item.tagName=='SUBMENU'){
-      let source = rel2absIRI( item.getAttribute('source') );
+      let source = item.getAttribute('source') || el.getAttribute('source');
+      source = rel2absIRI( source );
+      source ||= el.source;
       let wanted = item.getAttribute('wanted');
       let linkType = item.getAttribute('linkType');
-      let fromRdf = await fetchRdfData({source,wanted});
+      let fromRdf = await fetchRdfData({source});
+//      let fromRdf = await fetchRdfData({source,wanted,raw:true});
+      fromRdf = filterRdf(fromRdf,item)
       let parts = [];
       for(let row of fromRdf){
-        parts.push({label:row.label.trim(),link:row.recalls.trim(),linkType});
+        parts.push({label:(row.label||"").trim(),link:(row.recalls||"").trim(),linkType});
       }
       data.push({label,parts});
     }
@@ -113,7 +120,7 @@ async  getMenuDataFromRdf(uri){
       li.addEventListener('click',(event,data)=>{
         event.preventDefault();
         data||=row;
-        self.showMenuLink(event,data);
+        self.showMenuLink(event,data,element);
       });
     }
     else {
@@ -138,7 +145,7 @@ async  getMenuDataFromRdf(uri){
     let topUL = doc.createElement('UL')
     element.classList.add('sol-dropdown-menu');
     for(var row of data){
-      topUL.appendChild( await this.renderMenuItem(row,doc) )
+      topUL.appendChild( await this.renderMenuItem(row,doc,element) )
     }
     element.appendChild(topUL);
     let style = doc.createElement('style');
@@ -146,7 +153,7 @@ async  getMenuDataFromRdf(uri){
     document.head.appendChild(style);
   }
 
-  async  renderMenuItem(row,doc){
+  async  renderMenuItem(row,doc,element){
     const li = doc.createElement('LI')
     const span =  doc.createElement('SPAN')
     span.innerHTML = row.label
@@ -165,7 +172,7 @@ async  getMenuDataFromRdf(uri){
       li.addEventListener('click',(event,data)=>{
         event.preventDefault();
         data||=row;
-        self.showMenuLink(event,data);
+        self.showMenuLink(event,data,element);
       });
     }
     else {
@@ -176,32 +183,42 @@ async  getMenuDataFromRdf(uri){
       ul2.setAttribute('linkType',row.component)     
       for(var m in row.parts){
         let newItem = row.parts[m]
-        ul2.appendChild( await this.renderMenuItem(newItem,doc) )
+        ul2.appendChild( await this.renderMenuItem(newItem,doc,element) )
       }
     }
     return li
   }
 
-  showMenuLink = (event,data)=>{
+  showMenuLink = (event,data,element)=>{
+      let clicked = event.target;
       let defaults=document.body.querySelector('sol-defaults') || {};
       let menu = event.target.closest('.sol-menu');
-      let display = event.target.closest('.sol-wrapper').querySelector('.sol-display');
       let label = data.label;
       let wanted = data.wanted || "";
       let limit = data.limit || "";
-      let view = data.view || defaults.getAttribute('view') || "";
+      let type = data.type  || element.getAttribute('type') ;
+      let view = data.view || element.getAttribute('view') ;
+      let tabset = clicked.closest('.sol-tabset');
+      if(!type && tabset) type = tabset.getAttribute('type');
+      if(!view && tabset) view = tabset.getAttribute('view');
       let compact = data.compact || "";
-      let source  = defaults.getAttribute('source') || data.link;
-      let linkType = data.linkType || defaults.getAttribute('linkType') || 'component';
-      display.innerHTML = `
+      let source  = data.link;
+      let currentUrl = window.origin + window.location.pathname;
+      if(source == currentUrl || source+'index.html'==currentUrl)  source = element.source;
+      let linkType = data.linkType || element.getAttribute('linkType') || type || 'component';
+/*
+*/
+      element.linkContent = `
 <sol-${linkType}
-  label = "${label}"
   source = "${source}"
   wanted = "${wanted}"
-  view = "${view}"
+  ${view ?'view = '+view :""}
+  ${limit ?'limit = '+limit :""}
+  label = "${label}"
   compact = "${compact}"
 /></sol-${linkType}>
       `;
+    showLink(clicked,element);
     }
 }
 customElements.define("sol-menu",SolMenu);

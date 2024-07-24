@@ -11,10 +11,16 @@
 }
 .sol-codeResults { width:960px; } 
 .sol-help h1, .sol-help h2, .sol-help h3 { font-size:100%; margin:0;  margin-bottom:0.2rem !important; }
-.sol-help h2 { margin-left:0.75rem; clear:left; !important;  
+.sol-help h2 { 
+  clear:left; !important;  
   padding-top:1rem !important; 
+  margin-bottom:0 !important;
 }
+
 .sol-help h3 { 
+  margin-top:1.4rem;
+  margin-left:0.5rem;
+/*
   font-weight:normal;
   margin:0;
   margin-left:1.5rem; 
@@ -23,6 +29,7 @@
   padding:0.25rem;
   background-color:#99B3B3;
   display:inline-block !important;  
+*/
 }
 .sol-help > div,
 .sol-modal {
@@ -43,6 +50,9 @@
   min-width:420px;
   margin-left:3rem;
   margin-bottom:2rem;
+}
+.sol-codeview {
+  width:fit-content;
 }
 .sol-help > div.hidden { 
   display:none;
@@ -85,28 +95,7 @@ body {
 .sol-rdf .formFieldValue input {
   width:60ch !important;
 }
-.sol-selector {
-  border-radius: 0.3rem 0.3rem 0 0;
-  background:white;
-  opacity:60%;
 
-}
-.sol-selector-wrapper .sol-links {
-  height:16rem !important;
-  overflow-y:scroll;
-  border-radius: 0 0 0.3rem 0.3rem;
-  border:1px solid gray;
-  border-top:0;
-}
-.sol-selector-wrapper a {
-  display:block;
-  text-decoration:none;
-  padding:0.5rem;
-  border-bottom:1px solid gray;
-  background:white;
-  opacity:70%;
-  color:black !important;
-}
 .button-links a {
   margin-right:0.5rem;
   text-decoration:none;
@@ -117,20 +106,7 @@ body {
   opacity:70%;
   color:black !important;
 }
-.sol-searchbar {
-  border-radius:0.3rem;
-  background:white;
-  opacity:70%;
-  display:inine-block !important;
-  padding:0 !important;
-  padding-top:0.5rem !important;
-  padding-left:0.5rem !important;
-  padding-right:0.5rem !important;
-}
-.sol-searchbar button,
-.sol-searchbar input {
-  border-radius:0.3rem;
-}
+
 .sol-reader {
   height:100%;
   overflow:hidden;

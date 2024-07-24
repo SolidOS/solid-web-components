@@ -40,6 +40,7 @@ class SolText extends SolBase { constructor() { super(); } }
 class SolComponent extends SolBase { constructor() { super(); } }
 class SolSparql extends SolBase { constructor() { super(); } }
 
+customElements.define("sol-base",SolBase);
 customElements.define("sol-rdf",SolRdf);
 customElements.define("sol-html",SolHTML);
 customElements.define("sol-markdown",SolMarkdown);

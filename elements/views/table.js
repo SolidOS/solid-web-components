@@ -14,8 +14,9 @@ export function table(aoh,element){
     let mostKeys = {};
     for(let row of aoh){
       let rowKeys = Object.keys(row);
-      let curKeys = Object.keys(mostKeys);
-      if(rowKeys.length > curKeys.length) mostKeys = row
+      for(let rk of rowKeys){
+        mostKeys[rk] ||= row[rk]
+      }
     }
     return Object.keys(mostKeys);
   }

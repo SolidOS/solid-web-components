@@ -1,0 +1,255 @@
+@prefix : <#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix bk: <http://www.w3.org/2002/01/bookmark#>.
+@prefix s: <http://schema.org/>.
+
+###
+# keywords
+#  searchEngine rssFeed workspace solidosTool devTool
+#  solidLink toCheckLink personalLink
+#  
+###
+:s001
+    a bk:Bookmark;
+    s:keywords "searchEngine" ;
+    rdfs:label "google";
+    bk:recalls <https://google.com/search?q=>.
+:s002
+    a bk:Bookmark;
+    s:keywords "searchEngine" ;
+    rdfs:label "ddg";
+    bk:recalls <https://duckduckgo.com/q=>.
+:s003
+    a bk:Bookmark;
+    s:keywords "searchEngine" ;
+    rdfs:label "wikipedia";
+    bk:recalls <https://en.wikipedia.org/w/index.php?search=>.
+:s004
+    a bk:Bookmark;
+    s:keywords "searchEngine" ;
+    rdfs:label "lov";
+    bk:recalls <https://lov.linkeddata.es/dataset/lov/terms?q=>.
+:s005
+    a bk:Bookmark;
+    s:keywords "searchEngine" ;
+    rdfs:label "prefix";
+    bk:recalls <https://prefix.cc/>.
+:s006
+    a bk:Bookmark;
+    s:keywords "searchEngine" ;
+    rdfs:label "etymology";
+    bk:recalls <https://www.etymonline.com/search?q=>.
+:s007
+    a bk:Bookmark;
+    s:keywords "searchEngine" ;
+    rdfs:label "youtube";
+    bk:recalls <https://www.youtube.com/results?search_query=>.
+
+:n001
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Oregon Public Broadcasting";
+    bk:hasTopic "General News";
+    bk:recalls <https://api.opb.arcpublishing.com/feeds/rss/?website=opb>.
+:n002
+    a bk:Bookmark;
+    rdfs:label "Al Jazeera";
+    bk:hasTopic "General News";
+    bk:recalls <http://www.aljazeera.com/xml/rss/all.xml>.
+:n003
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "NY Times";
+    bk:hasTopic "General News";
+    bk:recalls <https://rss.nytimes.com/services/xml/rss/nyt/World.xml>.
+:n004
+    a bk:Bookmark;
+    rdfs:label "Democracy Now";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.democracynow.org/democracynow.rss>.
+:n005
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Smithsonian";
+    bk:hasTopic "Science News";
+    bk:recalls <https://www.smithsonianmag.com/rss/latest_articles/>.
+:n006
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Scientific American";
+    bk:hasTopic "Science News";
+    bk:recalls <http://rss.sciam.com/ScientificAmerican-Global>.
+:n007
+    a bk:Bookmark;
+    rdfs:label "Wired";
+    bk:hasTopic "Tech News";
+    bk:recalls <https://www.wired.com/feed/rss>.
+:n008
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Engadget";
+    bk:hasTopic "Tech News";
+    bk:recalls <https://www.engadget.com/rss.xml>.
+:n009
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "The Verge";
+    bk:hasTopic "Tech News";
+    bk:recalls <https://www.theverge.com/rss/index.xml>.
+:n010
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Ars Technica";
+    bk:hasTopic "Tech News";
+    bk:recalls  <https://feeds.arstechnica.com/arstechnica/index>.
+
+:n011
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Truthout";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.truth-out.org/feed?format=feed>.
+:n012
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "The Intercept";
+    bk:hasTopic "General News";
+    bk:recalls <https://theintercept.com/feed/?lang=en>.
+:n013
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Counterspin";
+    bk:hasTopic "General News";
+    bk:recalls <https://fair.org/feed/>.
+:n014
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Vox";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.vox.com/rss/index.xml>.
+:n015
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "ProPublica";
+    bk:hasTopic "General News";
+    bk:recalls <http://feeds.propublica.org/propublica/main>.
+:n016
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "CNN";
+    bk:hasTopic "General News";
+    bk:recalls <http://rss.cnn.com/rss/edition.rss>.
+:n017
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Slate";
+    bk:hasTopic "General News";
+    bk:recalls <https://slate.com/feeds/all.rss>.
+:n018
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "The Conversation";
+    bk:hasTopic "General News";
+    bk:recalls <https://theconversation.com/us/articles.atom>.
+:n019
+    a bk:Bookmark;
+    s:keywords "rssFeed" ;
+    rdfs:label "Open Culture";
+    bk:hasTopic "General News";
+    bk:recalls <https://www.openculture.com/feed/rss2>.
+:w001
+    a bk:Bookmark;
+    rdfs:label "Desktop Root";
+    s:keywords "workspace" ;
+    bk:recalls </home/> .
+
+:w002 
+    a bk:Bookmark;
+    s:keywords "workspace" ;
+    rdfs:label "Community Pod Root";
+    bk:recalls <https://jeff-zucker.solidcommunity.net/> .
+
+:w003
+    a bk:Bookmark;
+    s:keywords "workspace" ;
+    rdfs:label "Web Components"; 
+    bk:recalls  </home/s/solid-web-components>.
+
+:t001
+    a bk:Bookmark;
+    s:keywords "solidosTool" ;
+    rdfs:label "Address Book";
+    bk:recalls </home/s/solid-web-components/dashboard/plugins/MyAddressBook/index.ttl#this>.
+:t002
+    a bk:Bookmark;
+    s:keywords "solidosTool" ;
+    rdfs:label "Tracker";
+    bk:recalls <../plugins/MyTracker/index.ttl#this>.
+:t003
+    a bk:Bookmark;
+    s:keywords "solidosTool" ;
+    rdfs:label "Chat";
+    bk:recalls  <../plugins/MyLongChat/index.ttl#this>.
+:t004
+    a bk:Bookmark;
+    s:keywords "solidosTool" ;
+    rdfs:label "Profile Editor";
+    bk:recalls </profile/card>.
+:t005
+    a bk:Bookmark;
+    s:keywords "solidosTool" ;
+    rdfs:label "Preferences Editor";
+    bk:recalls </settings/prefs.ttl>.
+
+:d001
+    a bk:Bookmark;
+    s:keywords "devTool" ;
+    rdfs:label "Ontology Browser";
+    bk:recalls <../plugins/ontology.html>.
+:d002
+    a bk:Bookmark;
+    s:keywords "devTool" ;
+    rdfs:label "Solid Specifications";
+    bk:recalls <../plugins/specifications.html>.
+:d003
+    a bk:Bookmark;
+    s:keywords "devTool" ;
+    rdfs:label "Components Playground";
+    bk:recalls  <../plugins/sol-components-playground.html>.
+:d004
+    a bk:Bookmark;
+    s:keywords "devTool" ;
+    rdfs:label "RDF-Converter";
+    bk:recalls <../plugins/rdf-converter.html>.
+:d005
+    a bk:Bookmark;
+    s:keywords "devTool" ;
+    rdfs:label "SPARQL Playground";
+    bk:recalls <../plugins/sparql-playground.html>.
+:d006
+    a bk:Bookmark;
+    s:keywords "devTool" ;
+    rdfs:label "SHAQL Playground";
+    bk:recalls <../plugins/shacl-playground.html>.
+
+:l001
+    a bk:Bookmark;
+    s:keywords "solidLink" ;
+    rdfs:label "Team";
+    bk:recalls <https://meet.jit.si/solid-team>.
+:l002
+    a bk:Bookmark;
+    s:keywords "solidLink videoCall" ;
+    rdfs:label "SolidOS";
+    bk:recalls <https://meet.jit.si/solid-operating-system>.
+
+:l003
+    a bk:Bookmark;
+    s:keywords "solidLink videoCall" ;
+    rdfs:label "CG";
+    bk:recalls <https://meet.jit.si/solid-cg>.
+:l004
+    a bk:Bookmark;
+    s:keywords "solidLink videoCall" ;
+    rdfs:label "Practitioners";
+    bk:recalls <https://meet.jit.si/solid-practitioners>.

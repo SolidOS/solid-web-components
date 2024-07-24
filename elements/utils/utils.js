@@ -75,8 +75,7 @@ export async function getDefaults(element){
   if(el && el.hasAttribute('defer')) element.defer=true;
   if(el){
     for(let attr of el.attributes) {
-      if(Object.keys(attr).length===0) continue;
-      this[attr.name] ||= attr.value;
+      if(!element.getAttribute(attr.name)) element.setAttribute(attr.name,attr.value);
     }
   }
   const tag = element.tagName.toLowerCase();

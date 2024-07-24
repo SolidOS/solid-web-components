@@ -1,4 +1,15 @@
-import 'https://cdn.jsdelivr.net/npm/solid-ui@latest/dist/solid-ui.min.js';
+const host = "http://localhost:8444";
+window.SolidAppContext = {
+  noAuth : host,
+  webId : host + "/profile/card#me",
+  scroll : 200 // for eyeFocus, should be height of top banner
+}
+window.$SolidTestEnvironment = {
+  iconBase : "/assets/icons/",
+  originalIconBase : "/assets/originalIcons/",
+}
+//import 'https://cdn.jsdelivr.net/npm/solid-ui@latest/dist/solid-ui.min.js';
+import 'https://cdn.jsdelivr.net/npm/mashlib@latest/dist/mashlib.min.js';
 import "https://cdn.jsdelivr.net/npm/marked/marked.min.js";
 import "https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js";
 

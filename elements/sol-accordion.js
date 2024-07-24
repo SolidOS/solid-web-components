@@ -1,4 +1,4 @@
-import {isoWin} from './isomorphic.js';
+import {demo} from './utils/view.js';
 
 export class SolAccordion extends HTMLElement {
   constructor() { 
@@ -10,11 +10,12 @@ export class SolAccordion extends HTMLElement {
     for(let node of nodes){
       let inner = node.nextSibling;
       inner.className = "hidden";
-      inner.classList.add('sol-modal');
+  //    inner.classList.add('sol-modal');
       let closeButton = document.createElement('DIV');
       closeButton.style = "color:red;font-size: 2rem;font-weight:bold;cursor:pointer;position:relative;right:0; top:0;text-align:right";
       closeButton.setAttribute('onclick',"this.parentNode.classList.toggle('hidden')");
       closeButton.innerHTML = "&times;";
+//      if(inner.hasAttribute('demo')) inner.innerHTML = demo(inner.innerHTML) + innerHTML;
       inner.innerHTML = closeButton.outerHTML+inner.innerHTML;
       node.style.cursor="pointer";
       node.style.display="inline-block !important";

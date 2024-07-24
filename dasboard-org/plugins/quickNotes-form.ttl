@@ -1,0 +1,16 @@
+@prefix : <#>.
+@prefix ui: <http://www.w3.org/ns/ui#>.
+
+:QuickNotesForm
+    a ui:Form ;
+    ui:parts ( :QuickNotesField ) .
+
+:QuickNotesField
+  a ui:MultiLineTextField ;
+  ui:property ui:content .
+
+:Data ui:content """
+
+  Quick notes - type and it gets auto-saved to your pod!
+
+""".

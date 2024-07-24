@@ -1,8 +1,9 @@
 import {SolBase} from './sol-base.js';
 import {getLinks} from './utils/utils.js';
+import { showLink } from './utils/view.js';
 
 class SolSearchbar extends SolBase {
-  constructor() { super(); }
+  constructor() { super(); this.type="rdf"; }
   async showData(data,element) {
     self=this;
     const isoDoc = element.ownerDocument;
@@ -39,27 +40,29 @@ class SolSearchbar extends SolBase {
         self.searchbarClick(self);
       }
     }); 
-    newEl.style.border="1px solid grey";
+//    newEl.style.border="1px solid grey";
     newEl.style['border-radius']="0.3rem";
-    newEl.style['padding-top']="0.5rem";
-    newEl.style['padding-left']="0.5rem";
-    newEl.style.margin="0.5rem";
+    newEl.style['padding-top']="0.75rem";
+    newEl.style['padding-left']="0.3rem";
+//    newEl.style.margin="0.5rem";
     newEl.style.display="inline-block";
-    newEl.style.width="18em";
     const button = newEl.querySelector('button');
+    button.style["border-radius"] = "0.3rem";
+    button.style["padding"] = "0.4rem";
     button.addEventListener('click',(event)=>{
       event.preventDefault();
-      self.searchbarClick(self);
+      self.searchbarClick(event.target,self);
     });
     if(typeof window !="undefined") element.appendChild(newEl);
     return newEl;
   }
   
-  searchbarClick(element,flag){
+  searchbarClick(clickedElement,element){
     let engine = element.querySelector('input[type="radio"]:checked').value;
     let query = element.querySelector('input[type="text"]').value;
-    let uri = engine + query;
-    window.open(uri,"oneWin","top=200px,left=100px,height=640px,width=1024px,");
+    element.linkUrl = engine + query;
+    element.linkTarget ||= "popup";
+    showLink(clickedElement,element);
   }
 
 } 

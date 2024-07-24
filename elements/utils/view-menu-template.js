@@ -5,6 +5,9 @@ export const menuCSS = `
   //  top:0;
   border-radius:0.3rem;
 }
+.sol-dropdown {
+  padding:2rem !important;
+}
 
 .sol-dropdown-menu *, 
 .sol-dropdown-menu *:before, 
@@ -18,7 +21,7 @@ export const menuCSS = `
   list-style: none;
   position: relative;
   display:inline-block;
-  height:fit-content;
+//  height:fit-content;
   width:fit-content;
 }
 .sol-dropdown-menu ul li {
@@ -29,6 +32,7 @@ export const menuCSS = `
   display: none;
   position: absolute; 
   top: 60px; 
+  top: 40px; 
 }
 .sol-dropdown-menu .main, h2 {
   text-align:left;
@@ -90,6 +94,7 @@ export const menuCSS = `
 .sol-dropdown-menu ul ul ul li {
   position: relative;
   top:-60px; 
+  top:-40px; 
   left:230px;
   z-index:10001;
 }

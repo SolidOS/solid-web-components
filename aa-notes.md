@@ -1,3 +1,34 @@
+# defaults
+  * source ./ui/ui-data.ttl
+
+# header
+
+  * sol-menu
+    * [Home]("./ui/home.html") {linkType="html"}
+    * [Workspaces]()           {linkType="container"} {wanted="tag container || tag workspace"}
+    * [Tools]()                {linkType="solidos"}   {wanted="tag solidos tool"}
+  * sol-time
+  * sol-login
+
+# sidebar-right
+
+  * sol-tabset
+    * [solid links]() {view="links"}   {wanted="tag solid video link || tag solid link")
+    * [to check]()    {view="links"}   {wanted="tag to check"}      
+    * [my stuff]()    {view="links"}   {wanted="tag personal"}      
+  * sol-searchbar     {viewIn="popup"} {wanted="tag Search Engine"} 
+  * sol-rss           {viewIn="popup"} {wanted="tag RssFeed"}       
+
+
+* [Oregon Public Broadcasting](https://api.opb.arcpublishing.com/feeds/rss/?website=opb)
+    {a Bookmark}
+    {tag RssFeed}
+    {hasTopic General News}
+    This is some descriptive text
+
+-----------------------------------------------------------------------------
+
+
 a URI ending in a slash might be
 
  * a container on a pod

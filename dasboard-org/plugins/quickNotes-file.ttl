@@ -1,0 +1,6 @@
+@prefix : <#>.
+@prefix ui: <http://www.w3.org/ns/ui#>.
+
+:Data
+    ui:content
+    "\n\n   Quick notes - type and it gets auto-saved to your pod!\ndfadfadf\n".

@@ -15,7 +15,7 @@ export async function isoGetUI(){
     return config;
 }
 export async function getSingletonStore() {
-  if(store) { store,fetcher,updater,UI };
+  if(store) { store,fetcher,updater,UI,sym,ns,lit };
   let config = await isoGetUI();
   if(!sym){
     sym = config.sym ;
@@ -26,7 +26,7 @@ export async function getSingletonStore() {
     updater= config.updater ;
     UI=config.UI;
   }
-  return { store,fetcher,updater,UI };
+  return { store,fetcher,updater,UI,sym,ns,lit };
 }  
 
 export async function markdownString2HTML(markdownString,dom){
@@ -51,24 +51,27 @@ export async function markdownString2HTML(markdownString,dom){
 }
 
 export function filterRdf(data,element){
+  const wanted = element.wanted || element.getAttribute ?element.getAttribute('wanted') :null;
+  const limit = element.limit || element.getAttribute ?element.getAttribute('limit') :null;
   let url = element.source;
-  if(element.wanted) data = data.filter( (row)=> {
-    let clauses = element.wanted.split(/\s*\|\|\s*/);
+  if(wanted) data = data.filter( (row)=> {
+    let clauses = wanted.split(/\s*\|\|\s*/);
     for(let clause of clauses){
       let pred,obj;
       const ary = clause.split(/\s+/).filter(Boolean);
       pred = ary.shift();
       if(pred=='a') pred = "type";
-	obj = ary.join(' ');
+      obj = ary.join(' ');
+      if(typeof row[pred] =="undefined") row[pred] = "";
+      if(typeof row[pred] !="string") row[pred] = row[pred].join(' ');
       if(row.id.match(url)&&(row[pred]||"").match(obj)) return row;
     }
   });
-  if(element.limit) data = data.slice(0,element.limit);
+  if(limit) data = data.slice(0,limit);
   return data;
 }
 
 export async function fetchRdfData(component){ 
-//  let config = await getSingletonStore();
   let config={store,fetcher,updater}
   let url = config.source = component.source;
   config.shapeUrl = component.shape;
@@ -99,16 +102,17 @@ export class RDFfetcher {
   async getAll(url) {
     let all = [];
     try {
+      let node = sym(url);
       await this.fetcher.load(url);
       let data;
       if(this.targetClass){
-        data = this.store.match( null, nsp('rdf:type'), nsp(this.targetClass) )
+        data = this.store.match( null, nsp('rdf:type'), nsp(this.targetClass), node.doc() )
         for(let row of data){
           all.push(await this.getOne(row.subject))
         }
       }
       else {
-        let subjects = this.store.match(null,null,null,sym(url).doc()).map(stmt => {
+        let subjects = this.store.match(null,null,null,node.doc()).map(stmt => {
           if(typeof stmt.subject.vaue !=undefined) return stmt.subject.value;
         });
         subjects = subjects.filter((value, index, self) => self.indexOf(value) === index);
@@ -121,7 +125,7 @@ export class RDFfetcher {
     catch(e) { console.log(e); }
   }
   async getOne(subject) {
-    const predicates = this.store.statementsMatching(subject).map(stmt => stmt.predicate);
+    const predicates = this.store.statementsMatching(subject,null,null,subject.doc()).map(stmt => stmt.predicate);
     let row = {
       id: subject.value,
     };
@@ -136,8 +140,10 @@ export class RDFfetcher {
   getObjects(row,key,subjectNode,predicate){
     let all=[];
     row[key] = [];
-    let objects = this.store.each( subjectNode, predicate );
+    let objects = this.store.each( subjectNode, predicate, null, subjectNode.doc() );
     for(let object of objects){
+        all.push(object.value);
+/*
       if(key==='image') {
         let image = object.value;
         if(image){
@@ -167,6 +173,7 @@ export class RDFfetcher {
           all.push(label);
         }
       }
+*/
     }
     if(this.raw) {
       all = all.length===1 ?all[0] :all;
@@ -212,7 +219,25 @@ export function nsp(prefixedTerm){
   if(! ns[prefix]) { console.log( `unrecognized prefix '${prefixedTerm}'`); }
   return sym( ns[prefix](term) );
 }
-/*
+
+export function rmp(unPrefixedTerm){
+  let term = unPrefixedTerm.match(/#/)
+           ? unPrefixedTerm.replace(/.*#/,'')  
+           : unPrefixedTerm.replace(/.*\//,'') ;
+  let vocab = unPrefixedTerm.match(/#/)
+            ? unPrefixedTerm.replace(/#.*/,'#')  
+            : unPrefixedTerm.replace(/\/[^\/]+$/,'/') ;
+  let prefix;
+  if(vocab=="https://github.com/solid/organizations/vocabulary/oar.ttl#") prefix="oar:";
+  if(vocab=="http://rdfs.org/sioc/services#") prefix="siocs:";
+  if(vocab=="http://rdfs.org/sioc/types#") prefix="sioct:";
+  if(vocab=="http://www.w3.org/ns/shacl#") prefix="shacl:";
+  if(vocab=="http://www.w3.org/2004/02/skos/core#") prefix="skos:";
+  if(!prefix){
+    prefix = Object.keys(ns).find(key => ns[key] === $rdf.Namespace(fullUri).uri);
+  }
+}
+
 export function bestComment(subject,graph){
   return UI.store.any(subject,UI.ns.rdfs('comment'),null,graph)
       || UI.store.any(subject,UI.ns.schema('description'),null,graph);
@@ -226,20 +251,18 @@ export function bestLink(subject,graph){
 export function bestLabel(node){
   try{
     if(typeof node==="string")  node = sym(node) ;
-    const best = 
-        || store.any(node,nsp('vcard:fn'))
+    let label = store.any(node,nsp('vcard:fn'))
         || store.any(node,nsp('foaf:fname'))
         || store.any(node,nsp('schema:name'))
         || store.any(node,nsp('doap:name'))
         || store.any(node,nsp('dct:title'))
         || store.any(node,nsp('rdfs:label'))
         || store.any(node,nsp('skos:label')
-        || store.any(node,nsp('ui:label'))
-        || node.value.replace(/.*\//,'').replace(/.*#/,'');
-    return best;
+        || store.any(node,nsp('ui:label')) );
+     return label ?label.value :node.value.replace(/.*\//,'').replace(/.*#/,'');
   }
   catch(e) { console.log(e); return node }
 }
-*/
+
 
 
