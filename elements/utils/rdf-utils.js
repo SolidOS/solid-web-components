@@ -63,8 +63,8 @@ export function filterRdf(data,element){
       if(pred=='a') pred = "type";
       obj = ary.join(' ');
       if(typeof row[pred] =="undefined") row[pred] = "";
-      if(typeof row[pred] !="string") row[pred] = row[pred].join(' ');
-      if(row.id.match(url)&&(row[pred]||"").match(obj)) return row;
+      const tmpval = (typeof row[pred] =="string") ?row[pred] :row[pred].join(' ');
+      if(row.id.match(url)&&(tmpval||"").match(obj)) return row;
     }
   });
   if(limit) data = data.slice(0,limit);
@@ -113,13 +113,16 @@ export class RDFfetcher {
       }
       else {
         let subjects = this.store.match(null,null,null,node.doc()).map(stmt => {
-          if(typeof stmt.subject.vaue !=undefined) return stmt.subject.value;
+          if(typeof stmt.subject.value !=undefined) return stmt.subject.value;
         });
+        // get unique subjects (include only the first occurrence of an element in an array)
         subjects = subjects.filter((value, index, self) => self.indexOf(value) === index);
         for(let subject of subjects){
           all.push(await this.getOne(sym(subject)));
         }
       }
+for(let a of all) { if( a.id.match(/n0/)) console.log(44,a.id) }
+
       return(all)
     }
     catch(e) { console.log(e); }

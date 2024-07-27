@@ -126,10 +126,13 @@ export function getTemplateVariables(templateString){
   }
   return Object.keys(variables);
 }
-export async function fillTemplate(element,dataAOH){
+export async function fillTemplateORG(element,dataAOH){
   const document = element.ownerDocument;
   let tmp = element.getAttribute('view');
   let template;
+  let pkg = await import(template);
+  let content = pkg.default({name:"FOO"});
+  console.log(content)
   if(tmp.match('#')) {
     template = document.querySelector(tmp).innerHTML;
   }
@@ -143,17 +146,23 @@ export async function fillTemplate(element,dataAOH){
        row[key] ||= "";
      }
      try {
-/*
-resultsString += template.replace(/\${(.*?)(\s*\?\s*(.*?)\s*:\s*(.*?))?}/g, (match, expression, _, trueValue, falseValue) => {
-  if (expression.trim() in row) {
-    return row[expression.trim()] ? (trueValue ? trueValue.trim() : row[expression.trim()]) : (falseValue ? falseValue.trim() : "");
-  } else {
-    return match;
-  }
-});
-*/
        resultsString += template.interp(row);
 //       resultsString += interpz(template,row);
+     } 
+     catch(e){console.log(e)}
+  }
+  const el = document.createElement('DIV');
+  el.innerHTML = resultsString;
+  return el;
+}
+export async function fillTemplate(element,table){
+  const document = element.ownerDocument;
+  let templateUrl = element.view;
+  let interpolate = await import(templateUrl);
+  let resultsString = "";
+  for(let row of table){
+     try {
+       resultsString += interpolate.default(row);
      } 
      catch(e){console.log(e)}
   }

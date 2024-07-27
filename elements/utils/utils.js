@@ -123,8 +123,8 @@ export async function getDefaults(element){
    if we are running in JSDOM, must pass the dom.windowbject
 */
 export function rel2absIRI(rel,domWindow){
+  if(typeof window=="undefined") return rel;
   domWindow ||= window;
-  if(!domWindow) return rel;
 // ABSOLUTE
   let abs = rel;
 // RELATIVE TO HOST ROOT

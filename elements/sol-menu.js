@@ -172,6 +172,8 @@ async  getMenuDataFromRdf(uri){
       li.addEventListener('click',(event,data)=>{
         event.preventDefault();
         data||=row;
+        for(let link of element.querySelectorAll('li')){link.classList.remove('selected')}
+        li.classList.add('selected');
         self.showMenuLink(event,data,element);
       });
     }

@@ -2,14 +2,14 @@ import {rel2absIRI,sanitize,domFromContent} from './utils.js';
 import {webOp} from './rdf-utils.js';
 
 export async function fetchNonRdfData(element){
-    let queryParam = element.queryParam;
-    let wanted = element.wanted;
-    let url = element.source;
-    if(element.getAttribute){
+  let queryParam = element.queryParam;
+  let wanted = element.wanted;
+  let url = element.source;
+  if(element.getAttribute){
       queryParam ||= element.getAttribute('queryParam');
       wanted ||= element.getAttribute('wanted');
       url ||= element.getAttribute('source');
-    }
+  }
   url = rel2absIRI(url);
   let ctype = element.type || element.getAttribute('type');
   if(!url || !ctype) return;
@@ -27,7 +27,10 @@ export async function fetchNonRdfData(element){
   if( !ctype.match(/(raw|component)/) ){
     // content = await filterByQuerySelector(content,wanted,element);
     if(!element.trusted && ctype.match(/(html|markdown|text)/i)) {
-      content = await sanitize(content);
+      try {
+        content = await sanitize(content);
+      }
+      catch(e){console.log(e)}
     }
   }
   return content;

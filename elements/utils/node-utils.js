@@ -1,3 +1,5 @@
+import {JSDOM} from 'jsdom';
+global.JSDOM = JSDOM;
 import * as $rdf from 'rdflib';
 import vocab from 'solid-namespace';
 import {SolidNodeClient} from 'solid-node-client';
