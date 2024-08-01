@@ -1,4 +1,5 @@
 import {getSingletonStore,nsp,rmp,bestLabel} from './rdf-utils.js';
+import {wantedProperties,wantedTypes} from './catalog-definition.js';
 let rdf;
 
 const predMap = {
@@ -38,76 +39,111 @@ const predMap = {
 };
 
 function getTerm(value){
-  return value.replace(/.*#/,'').replace(/.*\//,'')
+  if(!value) return "";
+  if(value.value) value = value.value;
+  return value.replace(/.*#/,'').replace(/.*\//,'').replace(/-/g,'_');
 }
 
-export async function catalog(element){
+
+export async function catalog(element,raw){
+  element.raw = raw;
   rdf = await getSingletonStore();
   let url = element.source;
   let node = rdf.sym(url);
   let doc  = node.doc();
-  let initialSubject = (doc.value == url) ?null :node;
+  try { await rdf.fetcher.load(doc); }
+  catch(e){ console.log(e)}
+  let wanted = getWanted(element);
   let table = [];
-  try {
-    await rdf.fetcher.load(doc);
-    const subjects = getUniqueSubjects(initialSubject, null, null, doc );
-    for(let subject of subjects){
-      const subjectsOf = rdf.store.match(null, null, subject, doc );
-      let row = {
-        id : subject.uri,
-        otherPreds : "",
-      };
-      let predicates = getUniquePredicates(subject,null,null,doc);
-      for(let predicate of predicates){
-        let objects = rdf.store.each(subject,predicate,null,doc);
-        let knownPred = predMap[predicate.value];
-        let predLabel = predicate.value.replace(/.*#/,'').replace(/.*\//,'');
-        row[ knownPred ] ||= [] ;
-        if(knownPred) {
-          for(let object of objects){
-            let value = object.value;
-            if(knownPred=="type") value = getTerm(value);
-            if(knownPred.match(/(serviceEndpoint|repository|homepage|webpage|videoCall|landingPage|wiki|webid)/)){
-              row[knownPred].push(`<a href="${value}" target="_BLANK">${knownPred}</a>`);
-            }
-            else {
-              row[knownPred].push( value );
-            }
+  let uniqueSubjects = getUniqueSubjects( null, null, null, doc )
+  for(let subject of uniqueSubjects){
+    if( wanted.predicate==='id' && subject.value != wanted.value ) continue;
+    let row = catalogRow(subject,wanted,element)
+    if(row) table.push(row)
+  }
+  table.sort((a, b) => (a.name||"").localeCompare(b.name||""));
+  // console.log(rdf.store.namespaces) lists prefixes in loaded doc & their urls
+  return(table);
+}
+function catalogRow(subject,wanted,element){
+  let row = { id: subject.value  };
+  let rowPredicates = getUniquePredicates( subject, null, null, subject.doc() );
+  let found = wanted ?false :true;
+  for(let predicate of rowPredicates){
+    let propertyLabel = getTerm(predicate.value)
+    let displayLabel = propertyLabel.replace(/_/g,' ');
+    let objects = rdf.store.each( subject, predicate, null, subject.doc() );
+    row[propertyLabel]=[];
+    row[propertyLabel+'Of']=[];
+    if( !objects || objects.length < 1 ) {
+      row[propertyLabel].push("");
+      objects=[];
+    }
+    for(let o of objects){
+      if( wanted.predicate===propertyLabel && o.value === wanted.value ) found = true ;
+      if( wanted.predicate===propertyLabel && getTerm(o.value) === wanted.value ) found = true ;
+      if(predicate.value.match(/(service-endpoint|repository|homepage|webpage|videoCallPage|landingPage|wiki|webid)/)){
+        if(element.raw){
+          row[propertyLabel].push(o.value);
+        }
+        else {
+          row[propertyLabel].push(`<a href="${o.value}" property="${predicate}" target="_BLANK">${displayLabel}</a>`);
+        }
+      }
+      else {
+        displayLabel = bestLabel(o).replace(/_/g,' ') ;
+        if(o.termType=="NamedNode" || o.termType=="BlankNode"){
+          if(element.raw){
+            row[propertyLabel].push(o.value);
           }
-          for(let o of subjectsOf){
-            let pvalue = bestLabel(o.predicate);
-            let ovalue = bestLabel(o.subject);
-            row.otherPreds += `<div><span style="width:20ch;text-align:right;margin-right:1rem;display:inline-block">${pvalue}:</span><span>${ovalue}</span></div>`;
+          else {
+            row[propertyLabel].push(`<a href="${o.value}" property="${predicate}">${displayLabel}</a>`);
           }
         }
         else {
-          row[predLabel] ||= [] ;
-          for(let object of objects){
-            let ovalue = bestLabel(object);
-/*
-            let ovalue = object.value;
-            if(object.termType=="NamedNode") ovalue = (rdf.store.any(object,nsp('schema:name'))||"").value
-            else {
-              let regex = new RegExp(url);
-              ovalue = getTerm( object.value.replace(regex,'') );
-            }
-*/
-            row.otherPreds += `<div><span style="width:20ch;text-align:right;margin-right:1rem;display:inline-block">${predLabel}:</span><span>${ovalue}</span></div>`;
+          if(element.raw){
+           row[propertyLabel].push(o.value);
+          }
+          else {
+            row[propertyLabel].push(`<span property="${predicate}">${o.value}</span>`);
           }
         }
       }
-      /* Empty Array -> "", One-MemberArray = array[0] */
-      for(let key of Object.keys(row)){ 
-        if(row[key].length===0) row[key]="";
-        if(row[key].length===1) row[key]=row[key][0] 
-      }
-      table.push(row)
     }
-    /* SORT ON NAME */
-    table.sort((a, b) => (a.name||"").localeCompare(b.name||""));
-    return(table);
   }
-  catch(e){console.log(e)}
+  if(wanted.predicate==="ft"){
+    for(let k of Object.keys(row)){
+      let got = row[k];
+      if(typeof got != "string") got = got.join(' ');
+      if(got.toLowerCase().match(wanted.value.toLowerCase())) found = true;
+    }
+  }
+  if(!found) return null;
+  /* get data in which subject is the object of a triple */
+  let stmts = rdf.store.match( null, null, subject, subject.doc() );
+  for(let s of stmts){
+    let propertyLabel = getTerm(s.predicate);
+    let displayLabel = (bestLabel(s.subject)||getTerm(s.subject.value)).replace(/_/g,' ') ;
+    row[propertyLabel+"Of"]||=[];
+    row[propertyLabel+"Of"].push(`<a href="${s.subject.value}" property="${s.predicate.value}">${displayLabel}</a>`);
+  }
+  for(let key of Object.keys(row)){ 
+    row[key]||=[""];
+    if(row[key].length<2) row[key]=row[key][0];
+  }
+  for(let key of wantedProperties){ 
+    key = getTerm(key);
+    if(!row[key]) row[key]= "";
+  }
+  return(row)
+}
+function getWanted(element){
+    if(!element.wanted) return {};
+    const ary = element.wanted.split(/\s+/).filter(Boolean);
+    let predicate = ary.shift();
+    if(predicate=='a') predicate = "type";
+    let value = ary.join(' ');
+    return {predicate,value};
 }
 
 function getUniqueSubjects(s,p,o,g){
@@ -145,45 +181,43 @@ async function count(url){
     for(let t of types){
       let typeStmts = rdf.store.match(null,null,t,node.doc()  );
       let key = getTerm(t.value)
-      if(" MessageBoard, ChatChannel, MailingList, OngoingMeeting, Community, NGO, Corporation, CommunityGroup, ResarchOrganization, GovernmentalOrganization, ResearchProject, OpenIdService, OpenIdServer, ".match(' '+key)) continue
+      if(" MessageBoard, ChatChannel, MailingList, OngoingMeeting, Community, NGO, Corporation, CommunityGroup, ResarchOrganization, GovernmentalOrganization, ResearchProject, OpenIdService, OpenIdServer, ResearchOrganization, Project ".match(' '+key)) continue
        all[key]=typeStmts.length;
     }
     all.total=0;
     for(let one in all){ if(one=="total") continue; all.total+=all[one]; }
     return all;
 }
-
-async function getIds(url,wantedPred){
+async function getPredicates(url){
     rdf ||= await getSingletonStore();
     const node = rdf.sym(url);
     await rdf.fetcher.load(url);
-    const newUrl = url.replace(/\./,'-new.');
-    const newNodeDoc = (rdf.sym(newUrl));
-    let triples = "";
-//    wantedType = wantedType ?nsp(wantedType) :null;
-//    const subjects = rdf.store.each(null, nsp('rdf:type'), wantedType, node.doc() );
-    wantedPred = wantedPred ?nsp(wantedPred) :null;
-    const subjects = rdf.store.each(null, wantedPred, null, node.doc() );
-    const uniqueLinks = new Set();
-    for(let subject of subjects){
-      let stmts = rdf.store.match(subject,null,null,node.doc());
-      for(let s of stmts){
-        if(!s.object.value.match(url)) continue;
-        if(!s.object.termType=="NamedNode") continue;
-        let found = (rdf.store.any(s.object,null,null,node.doc()) || {}).value;
-        if(!found) uniqueLinks.add(s.object.value);
-        // triples+= `<${s.subject.value}> <${s.predicate.value}> <${s.object.value}> .\n`
-      }
-    }
-    console.log( Array.from(uniqueLinks) );
-    // console.log(triples);
+    const stmts = rdf.store.match(null, null, null, node.doc() );
+    let predicates= new Set();
+    for(let s of stmts){ predicates.add( s.predicate.value );}
+    predicates = Array.from(predicates);
+    console.log(predicates);
 }
+
 // const filteredData = $rdf.serialize(null, filteredStore, 'https://example.com/filtered', 'text/turtle');
+
+async function getMissing(url,wantedPred){
+    rdf ||= await getSingletonStore();
+    const node = rdf.sym(url);
+    await rdf.fetcher.load(url);
+    wantedPred = wantedPred ?nsp(wantedPred) :null;
+    const subjects = getUniqueSubjects(null, null, null, node.doc() );
+    for(let subject of subjects){
+      let found = rdf.store.any(subject,wantedPred,null,node.doc());
+      if(!found) console.log( subject.value );
+    }
+}
 
 /* FOLLOWING WORKS IN NODE */
 (async()=>{ 
-//    await getIds("http://localhost:8444/home/s/solidify/build/all.ttl",'schema:provider')
+//    await getMissing("http://localhost:8444/home/s/solidify/build/all.ttl",'schema:name')
   console.log(
+//    await getPredicates("http://localhost:8444/home/s/solidify/build/all.ttl")
     await count("http://localhost:8444/home/s/solidify/build/all.ttl")
 //    await count("http://localhost:8444/home/s/solidify/build/prozion.ttl")
   )

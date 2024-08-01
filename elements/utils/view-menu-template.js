@@ -48,7 +48,6 @@ export const menuCSS = `
 //  background:"transparent";
 }
 .sol-dropdown-menu button.selected, button:hover {
-//  background:"#ddd";
 }
 .sol-dropdown-menu li > span:after { content:  "\u25BC"; font-size:0.85em;}
 .sol-dropdown-menu li > span:only-child:after { content: ''; }

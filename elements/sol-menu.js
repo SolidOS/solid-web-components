@@ -30,9 +30,8 @@ async getMenuDataFromElement(el){
       source ||= el.source;
       let wanted = item.getAttribute('wanted');
       let linkType = item.getAttribute('linkType');
-      let fromRdf = await fetchRdfData({source});
-//      let fromRdf = await fetchRdfData({source,wanted,raw:true});
-      fromRdf = filterRdf(fromRdf,item)
+      let fromRdf = await fetchRdfData({source,wanted},'raw');
+      // fromRdf = filterRdf(fromRdf,item)
       let parts = [];
       for(let row of fromRdf){
         parts.push({label:(row.label||"").trim(),link:(row.recalls||"").trim(),linkType});
@@ -54,8 +53,8 @@ async getMenuDataFromElement(el){
       let wanted = item.getAttribute('wanted');
       let limit = item.getAttribute('limit');
       let view = item.getAttribute('view');
-      let compact = item.getAttribute('compact');
-      data.push({label,link,linkType,wanted,limit,view});
+      let count = item.getAttribute('count');
+      data.push({label,link,linkType,wanted,limit,view,count});
     }
   }
   return data;
@@ -156,16 +155,21 @@ async  getMenuDataFromRdf(uri){
   async  renderMenuItem(row,doc,element){
     const li = doc.createElement('LI')
     const span =  doc.createElement('SPAN')
-    span.innerHTML = row.label
+    span.innerHTML = row.label;
+    if(row.count){
+      span.innerHTML += ` (${row.count})`;
+    }
     li.appendChild(span)
     li.style.cursor="pointer"
     li.style.display = "inline-block";
     li.style.padding = "0.5em";
     if(!row.parts){
+/*
       if(!row.link){
         li.classList.add('unclickable-item');
         return li;
       }
+*/
       li.classList.add('item');
       li.name = row.link;
       const self = this

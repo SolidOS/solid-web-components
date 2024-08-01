@@ -1,3 +1,8 @@
+export function getLinkFromAttr(element, attr){
+  let  value = element.atttr || element.getAttribute(attr);
+  return rel2absIRI( value )
+}
+
 export function attrs2props(element){
   for (let attr of element.attributes) {
     element[attr.name] = rel2absIRI(attr.value);
@@ -123,7 +128,7 @@ export async function getDefaults(element){
    if we are running in JSDOM, must pass the dom.windowbject
 */
 export function rel2absIRI(rel,domWindow){
-  if(typeof window=="undefined") return rel;
+  if(!rel || typeof window=="undefined") return rel;
   domWindow ||= window;
 // ABSOLUTE
   let abs = rel;

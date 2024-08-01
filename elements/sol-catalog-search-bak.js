@@ -6,7 +6,10 @@ export class SolCatalogSearch extends HTMLElement {
   }
   async connectedCallback(){ 
     await getDefaults(this);    
-    this.innerHTML = `<input type="text" /> <button>search</button>`;
+    this.innerHTML = `
+      <input type="text" />
+      <button onclick="window.sol.catalogSearch(event)">search</button>
+    `;
     this.querySelector('button').addEventListener('click',(event)=>{runSearch(event,this)});
     this.querySelector('input').addEventListener('keypress',(event)=>{checkEnter(event,this)});
   }
@@ -18,12 +21,12 @@ function checkEnter(event,element){
 }
 function runSearch(event,element){
   event.preventDefault();
-  let source = element.source || element.closest('.sol-catalog').source;
-  let view = element.view || element.closest('.sol-catalog').view;
+  let source = element.source;
+  let view = element.view;
   const currentLink = event.target;
   const display = currentLink.closest('.sol-wrapper').querySelector('.sol-display');
-  const input = currentLink.parentNode.querySelector('input') || "";
-  if(input) display.innerHTML=`<sol-catalog source="${source}" view="${view}" wanted="${input.value}"></sol-rdf>`;
+  const input = currentLink.parentNode.querySelector('input');
+  display.innerHTML=`<sol-catalog source="${source}" view="${view}" wanted="${input.value}"></sol-rdf>`;
 }
 
 
