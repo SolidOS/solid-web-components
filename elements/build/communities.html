@@ -1,0 +1,77 @@
+<sol-rdf
+  source="./all.ttl"
+  wanted="a Forum || additionalType OngoingMeeting"
+    view="card" 
+></sol-rdf>
+
+<!--
+<h1>
+  Collaboration Opportunities
+</h1>
+<p>
+  Discover ways to join and contribute to the Solid community.
+</p>
+
+<sol-rdf
+  source="./all.ttl"
+  targetClass="sioc:Forum"
+  view="/home/s/solid-web-components/oar/views/Forum.tmpl"
+></sol-rdf>
+
+<sol-sparql
+  endpoint="./all.ttl"
+  template="#ForumsView"
+  query="#ForumsQuery"
+></sol-sparql>
+
+<script id="ForumsQuery">
+    PREFIX schema: <http://schema.org/>
+    PREFIX sioc: <http://rdfs.org/sioc/ns#> 
+    PREFIX siocs: <http://rdfs.org/sioc/services#> 
+    PREFIX sioct: <http://rdfs.org/sioc/types#> 
+    PREFIX oar: <http://localhost:8444/home/s/solidify/build/oar.ttl#> 
+    SELECT ?name ?type ?endpoint ?admin ?mod ?providerUrl ?providerName ?description ?platform
+    WHERE {
+      ?x a sioc:Forum.
+      ?x schema:additionalType ?type.
+      ?x schema:name ?name.
+      ?x siocs:service_endpoint ?endpoint.
+      ?x schema:provider ?providerUrl. 
+      ?providerUrl schema:name ?providerName.
+      OPTIONAL {
+        ?x oar:implementedUsing ?platform. 
+      }
+      OPTIONAL {
+        ?x schema:description ?description. 
+      }
+      OPTIONAL {
+        ?x sioc:has_adminsitrator admin.
+      }
+      OPTIONAL {
+        ?x sioc:has_moderator ?mod.
+      }
+    }
+    GROUP BY ?name.
+</script>
+
+<template id="ForumsView">
+
+  <div class="card">
+    <div class="header">
+      <div class="name">${name}</div>
+      <div class="type">a ${type.replace(/.*#/,'')}</div>
+    </div>
+    ${description ?"<p>"+description+"</p>" : ""}
+    <div>endpoint: <a href="${endpoint}">${endpoint}</a></div>
+    <div>provider: <a href="${providerUrl}">${providerName}</a></div>
+    <div>admin: ${admin||"?"}</div>
+    <div>moderator: ${mod ?mod.replace(/.*#/,'') :"?"}</div>
+    <div class="footer">
+      <span class="left">is free: yes</span>
+    </div>
+  </div>
+
+</template>
+<script src="/home/s/solid-web-components/sol-local.js" type="module"></script>
+-->
+

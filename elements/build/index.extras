@@ -1,0 +1,8 @@
+<!--
+<sol-catalog wanted="a Service"></sol-catalog>
+<sol-catalog source="./all-practitioners.ttl" view="card"></sol-catalog>
+<sol-rdf
+   source="./all-practitioners.ttl"
+   view="card"
+></sol-rdf>
+-->

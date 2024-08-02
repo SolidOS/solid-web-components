@@ -101,7 +101,7 @@ export async function getDefaults(element){
   element.winprefs   = element.getAttribute('winprefs') || "height=640,width=1024,top=200,left=2024";
   element.trusted    = element.hasAttribute('trusted')
   element.label      = element.getAttribute('label') || element.label || "";
-  element.wanted     = element.getAttribute('wanted') || element.waneted;
+  element.wanted     = element.getAttribute('wanted') || element.wanted;
   let container = element.closest('sol-settings');
   if(container){
     if(!element.source) element.source = container.getAttribute('source');

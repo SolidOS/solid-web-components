@@ -1,0 +1,85 @@
+.sol-wrapper form { display:inline-block; }
+.sol-wrapper input, .sol-wrapper button  {
+  padding:0.5rem;
+  border-radius:0.3rem;
+}
+  .sol-wrapper input {
+    width:40ch;
+  }
+.sol-dropdown-menu ul li:hover {
+  background-color:#a0a0cc;
+}
+.sol-dropdown-menu ul li span:hover {
+  color:black !important;
+}
+                                                                                                                                 .s.sol-dropdown-menu ul ul li {
+  background-color:#a0a0cc;
+  color:black;
+}
+
+    .card p {
+       padding:0.5rem;
+       max-width:40ch;
+     }
+    .sol-menu {
+      width:100% !important;
+      margin-right:0;
+      text-align:right;
+      background:transparent;
+      padding:1rem;
+    }
+    .sol-menu * {
+      color:white;
+      padding:1rem;
+      font-size:1.25rem;
+      line-height:1.25rem;
+    }
+    .sol-display {
+      padding:1rem;
+      background:white;
+      background-color:#a0a0cc;
+      line-height:1.25rem;
+    }
+    .unclickable-item * {
+      color:red;
+    }
+  * {
+    font-family:Sans-Serif;
+    font-size:100%;
+  }
+  h1{
+    font-size:150%;
+  }
+  sol-rdf {
+    display:inline-block !important;
+    margin:0;
+  }
+  blockquote {
+    margin-left:1rem;
+    margin-right:1rem;
+    max-width : 60ch;
+  }
+  .card {
+    width:28rem !important;
+    background-color:white;
+  }
+  .card  .row-wrapper {
+    margin-left:0.5rem;
+    margin-right:0.5rem;
+  }
+  .card .links {
+    text-align:center;
+  }
+  .card .links a {
+    display:inline-block;
+    border:1px solid grey;
+    border-radius:0.2rem;
+    margin:0.5rem;
+    padding:0.25rem;
+    background-color:#7C4DFF;
+    color:white !important;   
+  }
+  .card img {
+    padding:1rem;
+    height:3rem;
+  }

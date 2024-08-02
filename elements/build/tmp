@@ -1,0 +1,101 @@
+<sol-defaults
+   source="./all.ttl"
+   view="./card.js"
+   linkType="catalog"
+></sol-defaults>
+
+<div class="sol-wrapper">
+  <div class="sol-header">
+    <span style="inline-block;padding-left:1rem;padding-right:1rem;">Solid Project Resources</span>
+    <sol-catalog-search></sol-catalog-search>
+  </div>
+  <div class="sol-main">
+    <div class="left-column">
+      <sol-menu>
+        <link label="Pod Hosting Services" wanted="a PodService" />
+        <link label="Learning Resources" wanted="a LearningResource"/>
+        <link label="Communication Channels" wanted="a Forum"/>
+        <link label="Events" wanted="a Event"/>
+        <link label="Services for specific Communities" wanted="a SpecializedPodService"/>
+        <link label="Solid Server Software" wanted="a SolidStorageServer"/>
+        <link label="Applications" wanted="a SoftwareApplication"/>
+        <link label="Developer Tools" wanted="a SoftwareLibrary"/>
+        <link label="Specifications"/>
+        <link label="Vocabularies" wanted="a Ontology"/>
+        <link label="Communities & Organizations" wanted="a Organization"/>
+       <link label="People" wanted="a Person"/>
+      </sol-menu>
+    </div>
+    <div class="sol-display" style="width:100%;"></div>
+  </div>
+</div>
+
+<style>
+.card-body {
+  padding:1rem;
+  padding-bottom:0.5rem;
+}
+.row-wrapper {  margin-left:0 !important; }
+.row-wrapper div {  margin-bottom:0.25rem !important; }
+
+.card-links a {
+  padding:0.5rem;
+  border-radius:0.2rem;
+  text-decoration:none;
+}
+* {
+  font-family:Sans-Serif;
+}
+body {
+  font-size:100%;
+}
+.sol-wrapper {
+  display:grid;
+  grid-template-rows: 4rem auto;
+}
+.sol-main {
+  display:grid;
+  grid-template-columns: 26rem auto;
+}
+.sol-header {
+  padding-top:1rem;
+  font-size:150%;
+  font-weight:bold;
+}
+.sol-catalog-search input {
+  width:40ch;
+}
+.sol-catalog-search * {
+  padding:0.25rem;
+  border-radius:0.3rem;
+  font-size:1rem;
+}
+a { text-decoration:none; }
+.left-column         {margin:1rem;height:fit-content;border-radius:0.2rem;padding-bottom:1rem;}
+
+body, .selected      {  background:#001;}
+.sol-catalog-search input,
+.card-body           { background:#cce; }
+.sol-catalog-search button,
+.card-links a        { background:#88b; }
+.card .header,
+.left-column         { background:#77a;}
+
+
+.card-links a,
+.card .header a       { color:black !important; }
+a                     { color:blue !important; }
+.sol-header,.sol-menu li.selected * { color:#eef !important; }
+.card .fieldLabel     { color:#433; }
+.sol-menu li *        { color:black; }
+
+.sol-menu {  background:transparent !important;margin:1rem !important; margin-left:0 !important; border-radius:0.3rem;width:100%;}
+.sol-menu span {width:21rem !important;}
+.sol-menu * { font-size:110% !important; }
+.sol-menu ul { margin-top:1rem; margin-left:0 !important; padding-left:0 !important; }
+.sol-menu li {  display:block !important; margin-left:0 !important; padding-left:0 !important; margin-right:0; padding-right:0; }
+</style>
+
+<script src="/home/s/solid-web-components/elements/sol-menu.js" type="module"></script>
+<script src="/home/s/solid-web-components/elements/sol-catalog-search.js" type="module"></script>
+<script src="/home/s/solid-web-components/elements/sol-catalog.js" type="module"></script>

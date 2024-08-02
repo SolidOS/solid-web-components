@@ -1,0 +1,47 @@
+<h2>Developer Tutorials</h2>
+<p>
+See the tutorials below to support you in building a Solid app.
+</p>
+
+<sol-sparql
+  endpoint="./all.ttl"
+  template="#TutorialView"
+  query="#TutorialQuery"
+></sol-sparql>
+
+<script id="TutorialQuery">
+
+    PREFIX schema: <http://schema.org/>
+    PREFIX oar: <http://localhost:8444/home/s/solidify/build/oar.ttl#> 
+    PREFIX doap: <http://usefulinc.com/ns/doap#> 
+    SELECT ?name ?creatorUrl ?creatorName ?url ?language
+    WHERE {
+      ?x a oar:LearningResource.
+      ?x schema:name ?name.
+      ?x schema:url ?url.
+      ?x schema:availableLanguage ?language.
+      ?x schema:creator ?creatorUrl.
+      OPTIONAL { ?creatorUrl schema:name ?creatorName. }
+    }
+
+</script>
+
+<template id="TutorialView">
+
+  <div class="card">
+    <div class="header">
+      <div class="name">${name}</div>
+      <div class="type">a LearningResource</div>
+    </div>
+    <div>see: <a href="${url}">online tutorial</a> </div>
+    <div>creator <a href="${creatorUrl}">${creatorName||creatorUrl.replace(/.*#/,'')}</a> </div>
+    <div>language: ${language||"?"}</div>
+    <div class="footer">
+      <span class="left">is free: yes</span>
+    </div>
+  </div>
+
+</template>
+
+
+

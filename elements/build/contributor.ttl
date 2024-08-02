@@ -1,0 +1,11 @@
+:Solid_client_authn_js  schema:contributor :Emelia_Smith, :Jack_Lawson, :Jaxon_Creed, :Jesse_Wright, :Kay_Kim, :Nicolas_Seydoux, :Pat_McBennett, :Vincent_Tunru .
+:Solid_client_js  schema:contributor :Alexander_James_Phillips, :Anna_Kallenborn-Bolden, :Chelsea_Pinka, :Dan_Barclay, :Emelia_Smith, :Jack_Lawson, :Jesse_Wright, :Kay_Kim, :Matthieu_Bosquet, :Nicolas_Mondada, :Nicolas_Seydoux, :Pat_McBennett, :Vincent_Tunru, :Virginia_Balseiro .
+:Rdflib_js schema:contributor :Alain_Bourgeois, :Dmitri_Zagidulin, :Henry_Story, :Michiel_de_Jong, :Ruben_Verborgh, :Tim_Berners-Lee .
+:Solid_namespace schema:contributor :Alain_Bourgeois, :Arne_Hassel, :Dmitri_Zagidulin, :J_Reynolds, :Jeff_Zucker, :Michiel_de_Jong .
+:SolidFlix  schema:contributor :Hunar_Batra, :JunZhao, :RuiZhao .
+:Comunica schema:contributor :Jacopo_Scazzosi, :Jesse_Wright, :Jitse_de_Smet, :Joachim_van_Herwegen, :Ruben_Taelman, :Ruben_Verborgh, :Thomas_Tanon, :Wout_Schellaert .
+:Solid_UI schema:contributor :Alain_Bourgeois, :Angelo_Veltens, :Arne_Hassel, :Daniel_Friedman, :Dmitri_Zagidulin, :Jaxon_Creed, :Jeff_Zucker, :Melvin_Carvalho, :Michiel_de_Jong, :Ruben_Verborgh, :Sharon_Stratsianis, :Ted_Thibodeau, :Tim_Berners-Lee, :Timea_Turdean, :Vincent_Tunru .
+:Solid_node_client  schema:contributor :Michiel_de_Jong, :Soto_Estevez 
+:Solid_rest schema:contributor :Alain_Bourgeois, :Michiel_de_Jong, :Otto_AA, :RahulGupta .
+:Solid_file_client maintainer :Alain_Bourgeois .
+:Solid_file_client contributor :Alain_Bourgeois, :David_Faveris, :Otto_AA .

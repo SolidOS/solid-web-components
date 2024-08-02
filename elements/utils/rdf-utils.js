@@ -22,8 +22,9 @@ export async function catalog(element,raw,wantedProperties,wantedTypes){
   catch(e){ console.log(e)}
   let table = [];
   let wanted = getWanted(element);
+  let allPredicates = getUniquePredicates( null, null, null, doc );
   let subjects = wanted.length > 0
-     ? getMatchingSubjects(wanted,doc,wantedTypes,wantedProperties)
+     ? getMatchingSubjects()
      : getUniqueSubjects( null, null, null, doc );
   for(let subject of subjects){
     let row = await catalogRow(subject,wanted,element,wantedProperties)
@@ -31,7 +32,57 @@ export async function catalog(element,raw,wantedProperties,wantedTypes){
   }
   table.sort((a, b) => (a.name||"").localeCompare(b.name||""));
   return(table);
+
+  function getMatchingSubjects(){
+    let matchingSubjects = [];
+    let found = {};
+    let uniqueSubjects;
+    for(let clause of wanted){
+      clause.value = typeFromLabel(clause.value);
+      if( clause.predicate =="ft"){
+        uniqueSubjects = getUniqueSubjects( null, null, null, doc );
+        wanted.isFullText = true;
+        wanted.fullTextvalue = clause.value;
+      }
+      else if(clause.predicate==="id") uniqueSubjects = getUniqueSubjects( sym(clause.value), null, null, doc );
+      else if(clause.predicate==="type") uniqueSubjects = getUniqueSubjects( null,nsp('rdf:type'),sym(clause.value), doc );
+      else {
+        let predicate = predicateFromLabel(clause.predicate);
+        let object    = lit(clause.value);
+        uniqueSubjects = getUniqueSubjects( null, predicate, object, doc )
+      }
+      for(let s of uniqueSubjects){
+        if(found[s]) continue;
+        found[s]=true;
+        matchingSubjects.push(s);
+      }
+    }
+    return matchingSubjects;
+  }
+
+  function predicateFromLabel(label){
+    if(wantedProperties && wantedProperties[label]) return sym(wantedProperties[label]);
+    for(let p of allPredicates){
+      if(p.value.match(label)) return p;
+    }
+    alert(`Unrecognized property label: '${label}'!`)
+  }
+
+  function typeFromLabel(label){
+    if(!wantedTypes) return label;
+    if(wantedTypes && wantedTypes[label]) return sym(wantedTypes[label].type);
+    for(let t of Object.keys(wantedTypes)){
+      let subtypes = wantedTypes[t].subtypes;
+      if(!subtypes)continue;
+      for(let s of Object.keys(subtypes)){
+        if(s==label) return sym(subtypes[s].type);
+      }
+    }
+    return sym(label);
+  }
+
 }
+
 async function catalogRow(subject,wanted,element,wantedProperties){
   let row = { id: subject.value  };
   let rowPredicates = getUniquePredicates( subject, null, null, subject.doc() );
@@ -113,7 +164,10 @@ export async function catalogMenu(element,wantedTypes){
    let total = showTypes.shift();   
    let menu = "<sol-menu>";
    for(let t of showTypes){
-     menu += `<link label="${t.name}" view="${view}" source="${source}" wanted="a ${getTerm(t.type)}" count="${t.count}" linkType="catalog"/>\n`;
+     if(t.page){
+       menu += `<link label="${t.name}" source="${t.page}" count="${t.count}" linkType="component" />\n`;
+     }
+     else menu += `<link label="${t.name}" view="${view}" source="${source}" wanted="a ${t.type}" count="${t.count}" linkType="catalog" />\n`;
    }
    menu += "</sol-menu>\n";
    menu += `<p style="text-align:center;font-size:110%">total resources cataloged: ${total}<p>`;
@@ -202,10 +256,10 @@ export function count(url,types){
     const node = sym(url);
     let showTypes = [];
     for(let name in types){
-      let type = types[name];
+      let type = types[name] ?types[name].type :type;
       let stmts = store.match(null,nsp('rdf:type'),sym(type),node.doc()  );
       let count = stmts.length;
-      showTypes.push( { name,count,type } );
+      showTypes.push( { name:types[name].label,count,type,page:types[name].page,tag:name } );
     }
     let total=0;
     for(let one in showTypes){ if(one=="total") continue; total+=showTypes[one].count; }
@@ -277,7 +331,8 @@ export async function webOp(method,uri,options) {
 export function nsp(prefixedTerm){
   if(prefixedTerm.startsWith('http')) return sym(prefixedTerm);
   const [prefix,term] = prefixedTerm.split(/:/);
-  if(prefix==="oar") return sym("https://github.com/solid/organizations/vocabulary/oar.ttl#"+term);
+//  if(prefix==="oar") return sym("https://github.com/solid/organizations/vocabulary/oar.ttl#"+term);
+  if(prefix==="soar") return sym("http://example.com/soar#"+term);
   if(prefix==="siocs") return sym("http://rdfs.org/sioc/services#"+term);
   if(prefix==="sioct") return sym("http://rdfs.org/sioc/types#"+term);
   if(prefix==="sh") return sym("http://www.w3.org/ns/shacl#"+term);
@@ -354,32 +409,6 @@ function getWanted(element){
       if(predicate=='a') predicate = "type";
       let value = ary.join(' ').trim();
       searchAry.push( {predicate,value} );
-     console.log( predicate,value );
   }
   return searchAry;
-}
-function getMatchingSubjects(wanted,doc,wantedTypes,wantedProperties){
-  let matchingSubjects = [];
-  let found = {};
-  let uniqueSubjects;
-  for(let clause of wanted){
-    if( clause.predicate =="ft"){
-      uniqueSubjects = getUniqueSubjects( null, null, null, doc );
-      wanted.isFullText = true;
-      wanted.fullTextvalue = clause.value;
-    }
-    else if(clause.predicate==="id") uniqueSubjects = getUniqueSubjects( sym(clause.value), null, null, doc );
-    else if(clause.predicate==="type") uniqueSubjects = getUniqueSubjects( null,nsp('rdf:type'),sym(wantedTypes[clause.value]), doc );
-    else {
-      let predicate = sym(wantedProperties[clause.predicate]);
-      let object    = lit(clause.value);
-      uniqueSubjects = getUniqueSubjects( null, predicate, object, doc )
-    }
-    for(let s of uniqueSubjects){
-      if(found[s]) continue;
-      found[s]=true;
-      matchingSubjects.push(s);
-    }
-  }
-  return matchingSubjects;
 }

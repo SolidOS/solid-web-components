@@ -1,0 +1,44 @@
+:Server
+  a rdfs:Class ;
+  rdfs:subClassOf :Product .
+
+:Service
+  a rdfs:Class ;
+  rdfs:subClassOf s:Service, gr:ProductOrService .
+
+:StorageProvider
+  a rdfs:Class ;
+  rdfs:subClassOf pto:Storage_server, :Service .
+
+schema:SoftwareApplication
+  a rdfs:Class ;
+  rdfs:subClassOf :Product .
+
+:CommunicationChannel
+  a rdfs:Class ;
+  rdfs:subClassOf :Service .
+
+:InformationResource
+  a rdfs:Class ;
+  rdfs:subClassOf :Service .
+
+:OnboardingResource
+  a rdfs:Class ;
+  rdfs:subClassOf :Service .
+
+org:Organization
+  a rdfs:Class ;
+  rdfs:subClassOf foaf:Agent .
+
+:Product
+  a rdfs:Class ;
+  rdfs:subClassOf s:Product, gr:ProductOrService .
+
+s:Person
+  a rdfs:Class ;
+  rdfs:subClassOf foaf:Agent .
+
+:SolidIdentityProvider
+  a rdfs:Class ;
+  rdfs:subClassOf :Service .
+
