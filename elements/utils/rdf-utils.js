@@ -38,14 +38,16 @@ export async function catalog(element,raw,wantedProperties,wantedTypes){
     let found = {};
     let uniqueSubjects;
     for(let clause of wanted){
-      clause.value = typeFromLabel(clause.value);
       if( clause.predicate =="ft"){
         uniqueSubjects = getUniqueSubjects( null, null, null, doc );
         wanted.isFullText = true;
         wanted.fullTextvalue = clause.value;
       }
       else if(clause.predicate==="id") uniqueSubjects = getUniqueSubjects( sym(clause.value), null, null, doc );
-      else if(clause.predicate==="type") uniqueSubjects = getUniqueSubjects( null,nsp('rdf:type'),sym(clause.value), doc );
+      else if(clause.predicate==="type"){
+        clause.value = typeFromLabel(clause.value);
+        uniqueSubjects = getUniqueSubjects( null,nsp('rdf:type'),sym(clause.value), doc );
+      }
       else {
         let predicate = predicateFromLabel(clause.predicate);
         let object    = lit(clause.value);

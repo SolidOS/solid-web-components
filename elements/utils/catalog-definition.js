@@ -16,6 +16,7 @@ export var wantedProperties = {
   "audience":                 'http://schema.org/audience'                      ,
   "implements":               'http://usefulinc.com/ns/doap#implements'         ,
   "programming_language":     'http://usefulinc.com/ns/doap#programming_language',
+  "platform":     'http://usefulinc.com/ns/doap#platform',
 //only SoftwareApplication
   "screenshot":               'http://schema.org/screenshot'                    ,
 //only Service
@@ -61,6 +62,7 @@ export var wantedTypes = {
   "SoftwareLibrary"       :{
     type: 'http://example.com/soar#SoftwareLibrary',
     label: "Developer Tools",
+    page: "./catalog-libraries.html",
   },
   "Specification"         :{
     type: 'http://usefulinc.com/ns/doap#Specification',

@@ -27,6 +27,10 @@ export default (r)=> {
         ?"<div><span class='fieldLabel'>programming language: </span>"+r.programming_language+"</div>"
         :""
       }
+      ${r.platform
+        ?"<div><span class='fieldLabel'>platform: </span>"+r.platform+"</div>"
+        :""
+      }
       ${r.license
         ?"<div><span class='fieldLabel'>license: </span>"+r.license+"</div>"
         :""
