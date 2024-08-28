@@ -1,0 +1,27 @@
+<sol-catalog
+       source= "./catalog-data.ttl"
+         view= "./catalog-view.js"
+   definition= "./catalog-definition.js"
+         logo= "https://solidproject.org/image/logo.svg"
+        title= "Solid Project Resources"
+></sol-catalog>
+
+<link href="./catalog.css" rel="stylesheet" />
+
+<template id="libraries">
+  "SoftwareLibrary"       :{
+    
+    label: "Developer Tools",
+//    page: "./catalog-libraries.html",
+    page: "#libraries",
+  },
+  <link label="Developer Tools" type="http://example.com/soar#SoftwareLibrary">
+  <sol-tabset>
+    <link label="FetchClients" wanted="keywords solid client" />
+    <link label="Multi-Purpose Libraries" wanted="keywords general purpose library" />
+    <link label="Auth & Access" wanted="keywords authentication || keywords access control" />
+  </sol-tabst>
+
+</template>
+
+<script src="/home/s/solid-web-components/elements/sol-catalog.js" type="module"></script>

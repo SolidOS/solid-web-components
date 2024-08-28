@@ -29,7 +29,7 @@ export async function links(data,element){
     anchor.addEventListener('click',(event)=>{
       event.preventDefault();
       const clickedElement = event.target;
-      element.linkUrl = link;
+      element.linkUrl = anchor.href = link;
       element.linkTarget ||= 'popup';
       showLink(clickedElement,element);
     });

@@ -16,6 +16,7 @@
     rdfs:label "Oregon Public Broadcasting";
     bookmark:hasTopic "General News";
     bookmark:recalls <https://api.opb.arcpublishing.com/feeds/rss/?website=opb>.
+
 :002
     a bookmark:Bookmark;
     rdfs:label "Al Jazeera";

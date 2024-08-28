@@ -1,178 +1,120 @@
-import {getSingletonStore,nsp,rmp,bestLabel} from './rdf-utils.js';
-import {wantedProperties,wantedTypes} from './catalog-definition.js';
-let rdf;
+import {nsp,getTerm,getSingletonStore} from './rdf-utils.js';
+import {getLinkFromAttr} from './utils.js';
 
-const predMap = {
-  "https://github.com/solid/organizations/vocabulary/oar.ttl#name" : "name",
-  'http://purl.org/dc/terms/title'              : "name",
-  'http://www.w3.org/2000/01/rdf-schema#label'  : "name",
-  'http://xmlns.com/foaf/0.1/fname'              : "name",
-  'http://www.w3.org/2006/vcard/ns#fn'           : "name",
-  'http://schema.org/name'                       : "name",
-  'http://usefulinc.com/ns/doap#name'            : "name",
-  'http://www.w3.org/2004/02/skos/core#label'    : "name",
-  'http://www.w3.org/ns/ui#label'                : "name",
-  "https://github.com/solid/organizations/vocabulary/oar.ttl#description" : "description",
-  'http://schema.org/description'                : "description",
-  'http://usefulinc.com/ns/doap#description'     : "description",
-  'http://www.w3.org/2000/01/rdf-schema#comment' : "description",
-  "https://github.com/solid/organizations/vocabulary/oar.ttl#type" : "type",
-  'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' : "type",
-  'http://schema.org/additionalType'                : "type",
-  "https://github.com/solid/organizations/vocabulary/oar.ttl#image" : "image",
-  'http://schema.org/image'                         : "image",
-  'http://schema.org/screenshot'                    : "image",
-  'http://schema.org/logo'                          : "image",
-  "https://github.com/solid/organizations/tree/main/vocabularies/oar.ttl#videoCallPage" : "videoCall",
-  'http://schema.org/service-endpoint'              : "serviceEndpoint",
-  'http://rdfs.org/sioc/services#service_endpoint'  : "serviceEndpoint",
-  'http://usefulinc.com/ns/doap#service_endpoint'   : "serviceEndpoint",
-  'http://usefulinc.com/ns/doap#repository'         : "repository",
-  'http://usefulinc.com/ns/doap#homepage'           : "homepage",
-  'http://usefulinc.com/ns/doap#wiki'               : "wiki",
-  'http://www.w3.org/ns/solid/terms#webid'          : "webid",
-  'http://schema.org/webpage'                       : "homepage",
-  'http://schema.org/alternateName'                 : "alternateName",
-  'http://schema.org/url'                           : "webpage",
-  'http://xmlns.com/foaf/0.1/homepage'              : "homepage",
-  "http://www.w3.org/ns/dcat#landingPage"           : "landingPage"
-};
-
-function getTerm(value){
-  if(!value) return "";
-  if(value.value) value = value.value;
-  return value.replace(/.*#/,'').replace(/.*\//,'').replace(/-/g,'_');
+export async function getShacl(shape){
+   if(!shape) return ;
+   let wantedProperties = {};
+   let wantedTypes = {};
+   try {
+     let rdf = await getSingletonStore();
+     let node = rdf.sym(shape);
+     let doc = node.doc();
+     await rdf.fetcher.load(doc);
+     let properties = rdf.store.each(node,nsp('sh:property'),null,doc);     
+     for(let property of properties){
+       let path = rdf.store.any(property,nsp('sh:path'),null,doc);
+       let label = rdf.store.any(property,nsp('rdfs:label'),null,doc);
+       wantedProperties[label.value] = path.value ;
+     }
+     let types = rdf.store.any(node,nsp('sh:or'),null,doc);     
+     for(let type of types.elements){
+       let tclass = rdf.store.any(type,nsp('sh:targetClass'),null,doc);
+       wantedTypes[ getTerm(tclass) ] = {
+          type : tclass.value,
+         label : (rdf.store.any(tclass,nsp('rdfs:label'),null,doc)||{}).value,
+       };
+       let subclasses = rdf.store.each(null,nsp('rdfs:subClassOf'),tclass,doc);
+       if(!subclasses.length) continue;
+       let row = wantedTypes[ getTerm(tclass) ].subtypes = {};
+       for(let sub of subclasses){
+         row[ getTerm(sub) ] = {
+              type : sub.value,
+             label : (rdf.store.any(sub,nsp('rdfs:label'),null,doc)||{}).value,
+         }
+       }
+       
+     }
+     return( [wantedProperties,wantedTypes]);
+   }
+   catch(e){ console.log(e) }
 }
 
-
-export async function catalog(element,raw){
-  element.raw = raw;
-  rdf = await getSingletonStore();
-  let url = element.source;
-  let node = rdf.sym(url);
-  let doc  = node.doc();
-  try { await rdf.fetcher.load(doc); }
-  catch(e){ console.log(e)}
-  let wanted = getWanted(element);
-  let table = [];
-  let uniqueSubjects = getUniqueSubjects( null, null, null, doc )
-  for(let subject of uniqueSubjects){
-    if( wanted.predicate==='id' && subject.value != wanted.value ) continue;
-    let row = catalogRow(subject,wanted,element)
-    if(row) table.push(row)
-  }
-  table.sort((a, b) => (a.name||"").localeCompare(b.name||""));
-  // console.log(rdf.store.namespaces) lists prefixes in loaded doc & their urls
-  return(table);
+export async function catalogMenu(element){
+   const source = getLinkFromAttr(element,'source');
+   const view = getLinkFromAttr(element,'view');
+   let rdf = await getSingletonStore();
+   await rdf.fetcher.load(source);   
+   let showTypes = count(source,rdf,element.wantedTypes);
+   let total = showTypes.shift();   
+   let menu = "<sol-menu>";
+   for(let t of showTypes){
+     if(t.page){
+       menu += `<link label="${t.name}" source="${t.page}" count="${t.count}" linkType="component" />\n`;
+     }
+     else if(t.subtypes && Object.values(t.subtypes)[0].label ){
+       menu += `<link label="${t.name}" view="${view}" source="${source}" wanted="a ${t.type}" count="${t.count}" linkType="catalog-tabset" />\n`;
+     }
+     else {
+       menu += `<link label="${t.name}" view="${view}" source="${source}" wanted="a ${t.type}" count="${t.count}" linkType="catalog-page" />\n`;
+     }
+   }
+   menu += "</sol-menu>\n";
+   menu += `<p style="text-align:center;font-size:110%">total resources cataloged: ${total}<p>`;
+   return menu;
 }
-function catalogRow(subject,wanted,element){
-  let row = { id: subject.value  };
-  let rowPredicates = getUniquePredicates( subject, null, null, subject.doc() );
-  let found = wanted ?false :true;
-  for(let predicate of rowPredicates){
-    let propertyLabel = getTerm(predicate.value)
-    let displayLabel = propertyLabel.replace(/_/g,' ');
-    let objects = rdf.store.each( subject, predicate, null, subject.doc() );
-    row[propertyLabel]=[];
-    row[propertyLabel+'Of']=[];
-    if( !objects || objects.length < 1 ) {
-      row[propertyLabel].push("");
-      objects=[];
-    }
-    for(let o of objects){
-      if( wanted.predicate===propertyLabel && o.value === wanted.value ) found = true ;
-      if( wanted.predicate===propertyLabel && getTerm(o.value) === wanted.value ) found = true ;
-      if(predicate.value.match(/(service-endpoint|repository|homepage|webpage|videoCallPage|landingPage|wiki|webid)/)){
-        if(element.raw){
-          row[propertyLabel].push(o.value);
-        }
-        else {
-          row[propertyLabel].push(`<a href="${o.value}" property="${predicate}" target="_BLANK">${displayLabel}</a>`);
+
+export function count(url,rdf,types){
+    const node = rdf.sym(url);
+    let showTypes = [];
+    for(let name in types){
+      let typeObj = types[name];
+      let type = typeObj ?typeObj.type :type;
+      let stmts;
+      let count=0;
+      if( typeObj.subtypes ){
+        for(let sub of Object.values(typeObj.subtypes)){
+          stmts = rdf.store.match(null,nsp('rdf:type'),rdf.sym(sub.type),node.doc()  );
+          count = count + stmts.length;
         }
       }
       else {
-        displayLabel = bestLabel(o).replace(/_/g,' ') ;
-        if(o.termType=="NamedNode" || o.termType=="BlankNode"){
-          if(element.raw){
-            row[propertyLabel].push(o.value);
-          }
-          else {
-            row[propertyLabel].push(`<a href="${o.value}" property="${predicate}">${displayLabel}</a>`);
-          }
-        }
-        else {
-          if(element.raw){
-           row[propertyLabel].push(o.value);
-          }
-          else {
-            row[propertyLabel].push(`<span property="${predicate}">${o.value}</span>`);
-          }
-        }
+        stmts = rdf.store.match(null,nsp('rdf:type'),rdf.sym(type),node.doc()  );
+        count = stmts.length;
+      }
+      showTypes.push( { name:types[name].label,count,type,page:types[name].page,tag:name,subtypes:types[name]['subtypes'] } );
+    }
+    let total=0;
+    for(let one in showTypes){ if(one=="total") continue; total+=showTypes[one].count; }
+    showTypes.unshift(total);
+    return showTypes;
+}
+
+/* DATA MANAGEMENT UTILITIES
+*/
+export function unknownTypes(url,types,doc){
+  if(!types) return null;
+  const node = sym(url);
+  let knownTypes = {};
+  for(let key of Object.keys(types)){
+    let type = types[key];
+    knownTypes[type.type]=1
+    if(type.subtypes){
+      for(let key2 of Object.keys(type.subtypes)){
+        let ktype = type.subtypes[key2];
+        knownTypes[ktype.type]=1
       }
     }
   }
-  if(wanted.predicate==="ft"){
-    for(let k of Object.keys(row)){
-      let got = row[k];
-      if(typeof got != "string") got = got.join(' ');
-      if(got.toLowerCase().match(wanted.value.toLowerCase())) found = true;
-    }
+  let unknownTypes = {};
+  let allTypes = store.match(null,nsp('rdf:type'),null,doc);
+  for(let stmt of allTypes){
+    let t = stmt.object.value;      
+    if(!knownTypes[t]) unknownTypes[t]=1;
   }
-  if(!found) return null;
-  /* get data in which subject is the object of a triple */
-  let stmts = rdf.store.match( null, null, subject, subject.doc() );
-  for(let s of stmts){
-    let propertyLabel = getTerm(s.predicate);
-    let displayLabel = (bestLabel(s.subject)||getTerm(s.subject.value)).replace(/_/g,' ') ;
-    row[propertyLabel+"Of"]||=[];
-    row[propertyLabel+"Of"].push(`<a href="${s.subject.value}" property="${s.predicate.value}">${displayLabel}</a>`);
-  }
-  for(let key of Object.keys(row)){ 
-    row[key]||=[""];
-    if(row[key].length<2) row[key]=row[key][0];
-  }
-  for(let key of wantedProperties){ 
-    key = getTerm(key);
-    if(!row[key]) row[key]= "";
-  }
-  return(row)
+  if(Object.keys(unknownTypes).length<1)   console.log("There are no unknown Types!")
+  else console.log("There are unknown types : ",unknownTypes)
 }
-function getWanted(element){
-    if(!element.wanted) return {};
-    const ary = element.wanted.split(/\s+/).filter(Boolean);
-    let predicate = ary.shift();
-    if(predicate=='a') predicate = "type";
-    let value = ary.join(' ');
-    return {predicate,value};
-}
-
-function getUniqueSubjects(s,p,o,g){
-  const uniqueSubjects = new Set();
-  let stmts = rdf.store.match(s,p,o,g); 
-  for(let stmt of stmts) {
-    uniqueSubjects.add(stmt.subject);
-  };
-  return Array.from(uniqueSubjects);
-}
-function getUniquePredicates(s,p,o,g){
-  const uniquePredicates = new Set();
-  let stmts = rdf.store.match(s,p,o,g); 
-  for(let stmt of stmts) {
-    uniquePredicates.add(stmt.predicate);
-  };
-  return Array.from(uniquePredicates);
-}
-function getUniqueTypes(s,p,o,g){
-  o =  nsp('rdf:type');
-  const uniqueTypes = new Set();
-  let stmts = rdf.store.match(null,null,null,g);
-  for(let s of stmts){
-    if(s.predicate.value==o.value) uniqueTypes.add(s.object);
-  }
-  return Array.from(uniqueTypes);
-}
-
-async function count(url){
+export async function countOLD(url){
     rdf ||= await getSingletonStore();
     const node = rdf.sym(url);
     await rdf.fetcher.load(url);
@@ -213,12 +155,12 @@ async function getMissing(url,wantedPred){
     }
 }
 
-/* FOLLOWING WORKS IN NODE */
-(async()=>{ 
-//    await getMissing("http://localhost:8444/home/s/solidify/build/all.ttl",'schema:name')
-  console.log(
-//    await getPredicates("http://localhost:8444/home/s/solidify/build/all.ttl")
-    await count("http://localhost:8444/home/s/solidify/build/all.ttl")
-//    await count("http://localhost:8444/home/s/solidify/build/prozion.ttl")
-  )
+
+/*
+(async()=>{
+  const shape = 'http:localhost:8444/home/s/solid-web-components/elements/build/catalog.ttl#SolidProjectResourceShape';
+  let [p,t] = await getShacl(shape);
+  console.log(p,t);
 })();
+*/
+

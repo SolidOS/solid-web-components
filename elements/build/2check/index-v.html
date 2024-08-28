@@ -1,0 +1,40 @@
+<sol-defaults
+   source="./all.ttl"
+   linkType="rdf"
+   view="card"
+></sol-defaults>
+
+<div class="sol-wrapper">
+    <sol-catalog-search></sol-catalog-search>
+    <div class="sol-main">
+      <link label="About" type="component" source="about.html"></link>
+      <sol-menu direction="vertical">
+        <submenu-manual label="For Users">
+          <link label="Pod Hosting Services"               wanted="additionalType SolidStorageService"></link>
+          <link label="Collaboration Channels" wanted="a Forum || additionalType OngoingMeeting"></link>
+        </submenu-manual>
+        <submenu-manual label="For Developers">
+          <link label="Servers"                wanted="additionalType SolidStorageServer"></link>
+        </submenu-manual>
+      </sol-menu>
+      <div class="sol-display"></div>
+    </div>
+</div>
+
+<style>
+.sol-main {
+  display:grid;
+  grid-template-columns:20rem auto;
+  background:white;
+  color:black;
+}
+</style>
+  <link rel="stylesheet" href="./base.css" />
+<!--
+  <link rel="stylesheet" href="./index.css" />
+-->
+<link rel="stylesheet" href="./card.css" />
+
+<script src="/home/s/solid-web-components/src/sol-menu.js" type="module"></script>
+<script src="/home/s/solid-web-components/src/sol-rdf.js" type="module"></script>
+<script src="/home/s/solid-web-components/src/sol-catalog-search.js" type="module"></script>

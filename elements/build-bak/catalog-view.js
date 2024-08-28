@@ -1,6 +1,6 @@
 export default (r)=> { 
   return `
-<div class="card" style="background:white;border:1px solid grey;margin:1rem; border-radius:0.2rem; display:inline-block; width:fit-content;height:fit-content;max-width:60ch;">
+<div about="${r.id}" class="card" style="background:white;border:1px solid grey;margin:1rem; border-radius:0.2rem; display:inline-block; width:fit-content;height:fit-content;max-width:60ch;">
   <div class="header" style="background:#99c;padding:1em;">
     <div style="font-size:125%"><b> ${r.name||r.label||r.title}  </b>
        ${r.alternateName ?"("+r.alternateName+")" :""}

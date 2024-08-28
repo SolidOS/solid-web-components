@@ -1,0 +1,35 @@
+PersonalProductivity
+LeisureAndEntertainment
+Communication
+ForCommunities
+
+tasks bookmarks notes calendar contacts
+movies food places games weather
+chat
+
+:Node_sparql_client
+:OpenLink_Smart_Data_Bot
+:OpenLink_Structured_Data_Editor
+:OpenLink_Structured_Data_Sniffer
+:OpenLink_YouID
+
+
+NON-SOLID TOOLS
+:OpenLink_Smart_Data_Bot
+:OpenLink_Structured_Data_Editor
+:OpenLink_Structured_Data_Sniffer
+:OpenLink_YouID
+:URIBurner
+
+LIBRARY
+  :Shighl
+  :Comunica
+  :Conformance_Test_Harness
+  :Cypress_Solid
+  :Generator
+  :Linked_Pipes
+  :Node_sparql_client
+TUTORIAL
+  :0data_hello
+
+

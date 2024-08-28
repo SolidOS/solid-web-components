@@ -1,0 +1,38 @@
+<div typeof="sioc:Forum" class="card">
+  <div class="header">
+    <div property="schema:name" class="name">${name}</div>
+    <div>a ${additionalType}</div>
+  </div>
+  <div>provider: <span>${provider}</span></div>
+  <div>administrator: <span>${has_administrator}</span></div>
+  <div>moderator: <span>${has_moderator}</span></div>
+  <div class="footer">
+   visit: <span>${service_endpoint}</span>
+  </div>
+</div>
+
+<!--
+<sol-catalog shapes-definition="./shapes-definition">
+<div targetClass="sioc:Forum" view="../assets/Forum.tmpl" 
+</sol>
+
+<sol-shape
+  targetClass = "sioc:Forum"
+       source = "./data/all.ttl"
+        shape = "../modules/Forum.ttl" 
+         view = "../assets/Forum.tmpl" 
+/></sol-shape>
+
+
+<sol-shape
+       source = URI of an RDF source of data (required)
+  targetClass = a Class of data to retrieve  (required)
+        shape = URI of a SHACL shape file    (optional,default = built-in shape)
+         view = an html template             (optional,default = built-in template)
+       wanted = pattern to match             (optional,default = want everything)
+        limit = number wanted                (optional,default = no limit
+></sol-shape>
+
+Source and targetClass are required, all others are optional.
+Wanted defaults to
+-->

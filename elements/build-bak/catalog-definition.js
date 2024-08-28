@@ -42,22 +42,43 @@ export var wantedTypes = {
   "Forum"                 :{
     type: 'http://rdfs.org/sioc/ns#Forum',             
     label: "Communication Channels",
-  },
+    subtypes: { 
+      "ChatChannel" :{
+        type: "http://rdfs.org/sioc/types#ChatChannel",
+        label: "Chat Channel",
+      },
+      "MessageBoard" :{
+        type: "http://rdfs.org/sioc/types#MessageBoard",
+        label: "Message Board",
+      },
+      "MailingList" :{
+        type: "http://rdfs.org/sioc/types#MailingList",
+        label: "Mailing List",
+      },
+    },
+ },
   "Event"                 :{
     type: "http://schema.org/Event",                   
     label: "Events",
+    subtypes: {
+      "Meeting" :{
+        type: "https://www.w3.org/ns/pim/meeting#Meeting",
+        label: "Online Meeting",
+      },
+    },
   },
   "SpecializedPodService" :{
     type: 'http://example.com/soar#SpecializedPodService',
     label: "Services for specific Communities",
   },
-  'SolidStorageServer'    :{
-    type: 'http://example.com/soar#SolidStorageServer',
+  'PodServer'    :{
+    type: 'http://example.com/soar#PodServer',
     label: 'Solid Servers',
   },
   "SoftwareApplication"   :{
     type: "http://schema.org/SoftwareApplication",
     label: "Applications",
+    page: "./catalog-apps.html",
   },
   "SoftwareLibrary"       :{
     type: 'http://example.com/soar#SoftwareLibrary',
@@ -103,12 +124,8 @@ export var wantedTypes = {
     type: "http://schema.org/Person",    
     label: "People",
   },
+  "Offer"                :{
+    type: "http://schema.org/Offer",    
+    label: "Resources Offered/Wanted",
+  },
 };
-
- 
-
-
-
-
-
-

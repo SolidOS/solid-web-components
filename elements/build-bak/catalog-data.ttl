@@ -200,7 +200,7 @@
 ###
 
 :CSS
-  a soar:OpenIdServer, soar:SolidStorageServer ;
+  a soar:PodServer ;
   schema:name "Community Solid Server" ;
   schema:alternateName "CSS" ;
   schema:provider :Imec ;
@@ -211,7 +211,7 @@
   schema:license "MIT" .
 
 :PHP_Solid_Server
-  a soar:OpenIdServer, soar:SolidStorageServer ;
+  a soar:PodServer ;
   schema:name "PHP Solid Server" ;
   schema:provider :PDSINTEROP ;
   doap:repository <https://github.com/pdsinterop/php-solid-server>;
@@ -221,7 +221,7 @@
   doap:programming_language "PHP" .
 
 :Manas
-  a soar:OpenIdServer, soar:SolidStorageServer ;
+  a soar:PodServer ;
   schema:name "Manas" ;
   schema:alternateName "मनस्";
   doap:repository <https://github.com/manomayam/manas> ;
@@ -232,7 +232,7 @@
   doap:programming_language "Rust" .
 
 :Trinpod
-  a soar:OpenIdServer, soar:SolidStorageServer ;
+  a soar:PodServer ;
   schema:name "Trinpod" ;
   doap:homepage <https://graphmetrix.com/trinpod-server> ;
   schema:provider :Graphmetrix ;
@@ -240,7 +240,7 @@
   schema:license "proprietary" .
 
 :NSS
-  a soar:OpenIdServer, soar:SolidStorageServer ;
+  a soar:PodServer ;
   # schema:isAccessibleForFree true ;
   doap:repository <https://github.com/node-solid-server> ;
   schema:name "Node Solid Server" ;
@@ -250,7 +250,7 @@
   schema:license "MIT" .
 
 :ESS
-  a soar:OpenIdServer, soar:SolidStorageServer ;
+  a soar:PodServer ;
   doap:homepage <https://www.inrupt.com/products/enterprise-solid-server>;
   # schema:isAccessibleForFree false ;
   schema:provider :Inrupt ;
@@ -266,7 +266,7 @@
 
 :Gold
   schema:name "Gold";
-  a soar:OpenIdServer, soar:SolidStorageServer ;
+  a soar:PodServer ;
   # schema:isAccessibleForFree true ;
   doap:repository <https://github.com/linkeddata/gold> ;
   schema:license "MIT" ;
@@ -275,7 +275,7 @@
 
 :Solid-Lite
   schema:name "Solid Lite";
-  a soar:SolidStorageServer ;
+  a soar:PodServer ;
   doap:repository <https://github.com/solid-lite/server> ;
   schema:license "MIT" ;
   # schema:isAccessibleForFree true ;
@@ -403,7 +403,7 @@
 
 :SolidPractitioners-WeeklyCall
   schema:name "Solid Practitioners Video Call" ;
-  a schema:Event, soar:OngoingMeeting ;
+  a schema:Event, meet:Meeting ;
   schema:provider :SolidPractitioners, :SolidTeam ;
   meet:videoCallPage  <https://meet.jit.si/solid-practitioners> ;
   doap:repository <https://github.com/solid-contrib/practitioners/tree/main/meetings> ;
@@ -413,7 +413,7 @@
 
 :SolidCG-WeeklyCall
   schema:name "W3C Solid Community Group Video Call" ;
-  a schema:Event, soar:OngoingMeeting ;
+  a schema:Event, meet:Meeting ;
   schema:provider :SolidCG ;
   meet:videoCallPage  <https://meet.jit.si/solid-cg> ;
   doap:repository <https://github.com/solid/specification/tree/main/meetings> ;
@@ -427,7 +427,7 @@
 :SolidOS-WeeklyCall
   schema:name "SolidOS Video Call" ;
   a schema:Event ;
-  a soar:OngoingMeeting ;
+  a meet:Meeting ;
   schema:provider :SolidOSteam ;
   meet:videoCallPage  <https://meet.jit.si/solid-os> ;
   doap:repository <https://github.com/solid-contrib/practitioners/tree/main/meetings> ;
@@ -437,7 +437,7 @@
 
 :DataModulesVideoCall
   schema:name "Data Modules Video Call" ;
-  a schema:Event, soar:OngoingMeeting .
+  a schema:Event, meet:Meeting .
 
 ###
 # Social Apps
@@ -542,7 +542,7 @@
   """ .
 
 :Espresso
-  a schema:Organization, soar:ResearchProject ;
+  a schema:Organization, schema:ResearchOrganization ;
   schema:name        "Espresso" ;
   schema:audience    "App Developers" ;
   schema:provider    :UofSouthhampton, :UofLondon, :UofSingapore, :DataSwift ;
@@ -553,7 +553,7 @@
   """ .
 
 :LiquidSurfFedCM
-  a schema:Organization,  soar:ResearchProject ;
+  a schema:Organization,  schema:ResearchOrganization ;
   schema:name        "Liquid Surf FedCM Demo" ;
   doap:repository <https://github.com/liquid-surf/fedcm-demo> ;
   schema:description      """
@@ -827,7 +827,7 @@
   schema:name "Solid OS" ;
   schema:alternateName "mashlib" ;
   a soar:SoftwareLibrary, schema:SoftwareApplication ;
-  schema:keywords "pod front end","general purpose library" ;
+  schema:keywords "pod frontend","general purpose library" ;
   schema:description "Solid-compatible data mashup library and Data Browser." ;
   doap:homepage <https://solidos.solidcomunity.net/> ;
   solid:webid  <https://solidos.solidcomunity.net/profile/card#me> ;
@@ -885,23 +885,16 @@
     A movie tracking and sharing application with personalised recommendations.
   """ .
 
-:SolidFocus
-  a schema:SoftwareApplication ;
-  schema:name "Solid Focus";
-  doap:homepage  <https://noeldemartin.github.io/solid-focus/> .
-
 :MediaKraken
   schema:name "Media Kraken" ;
   a schema:SoftwareApplication ;
   doap:homepage  <https://noeldemartin.github.io/media-kraken/> .
 
-:Umai
-  doap:homepage  <https://umai.noeldemartin.com/> .
-
 :TrinAppSuite
   schema:name "TrinApp Suite" ;
   doap:homepage <https://graphmetrix.com/trinapp> ;
   a schema:SoftwareApplication .
+
 
 ###
 # POD FRONT ENDS
@@ -910,29 +903,30 @@
   a schema:SoftwareApplication ;
   doap:repository <https://github.com/manomayam/solvent> ;
   schema:provider :Manomayam ;
-  schema:keywords "pod front-end","self-hosted pod" ;
+  schema:keywords "pod frontend","self-hosted pod" ;
   schema:name "Solvent" .
 
 :DataKitchen
   schema:name "Data Kitchen" ;
   doap:repository <https://github.com/solidos/data-kitchen> ;
   schema:provider :JeffZucker ;
-  schema:keywords "pod front-end","self-hosted pod" ;
+  schema:description "The solid databrowser technology as a stand-alone electron app." ;
+  schema:keywords "pod frontend","self-hosted pod" ;
   a schema:SoftwareApplication .
 
 :Penny
   schema:description "Pod data inspector" ;
   schema:provider :Vincent_Tunru ;
   a schema:SoftwareApplication ;
-  schema:keywords "pod front-end";
+  schema:keywords "pod frontend";
   schema:name "Penny" .
 
 :PodOS
   schema:provider :AngeloVeltens ;
   schema:name "PodOS" ;
   doap:repository <https://github.com/pod-os/PodOS> ;
-  schema:keywords "pod front end" ;
-  a soar:SoftwareApplication .
+  schema:keywords "pod frontend" ;
+  a schema:SoftwareApplication .
 
 :SolidOSWebApp
   schema:name "SolidOS Webapp" ;
@@ -1041,7 +1035,7 @@ solid:webid_Profile_editor
   schema:provider :Vincent_Tunru ;
   schema:name "Martin" .
 
-:Visited_Countries_and_Places
+:Visited_Countries
   schema:description "Tracks the countries and places you visited, and see all the visited countries and places shared by the other users of this application." ;
   schema:name "Visited Countries and Places" ;
   schema:provider :Walter_Almeida ;
@@ -1169,14 +1163,6 @@ solid:webid_Profile_editor
   a schema:SoftwareApplication ;
   solid:webid <https://solidarity.inrupt.net/profile/card#me> ;
   schema:name "Solidarity" .
-
-:Solidflix
-  schema:description "A movie tracking and sharing application with personalised recommendations." ;
-  a schema:SoftwareApplication ;
-  schema:provider :OxfordCenterforHumanCenteredComputing;
-  doap:repository <https://github.com/OxfordHCC/solid-medi> ;
-  schema:name "Solidflix" .
-
 
 :SolidVC
   doap:repository <https://github.com/kezike/solid-vc> ;
@@ -1396,13 +1382,6 @@ solid:webid_Profile_editor
   a schema:SoftwareApplication ;
   schema:name "Darcy" .
 
-:Data_Kitchen
-  schema:description "The solid databrowser technology as a stand-alone electron app." ;
-  schema:name "Data Kitchen" ;
-  a schema:SoftwareApplication ;
-  doap:repository <https://github.com/solidos/data-kitchen> ;
-  schema:provider :Jeff_Zucker .
-
 :Datasister
   a schema:SoftwareApplication ;
   schema:name "Datasister" .
@@ -1435,7 +1414,7 @@ solid:webid_Profile_editor
   schema:provider :Noel_De_Martin ;
   schema:name "Focus" .
 
-:Friend_Requests_Exploration
+:Friend_Requests
   schema:description "For given webid shows friends in common" ;
   schema:name "Friend Requests Exploration" ;
   a schema:SoftwareApplication .
@@ -1575,7 +1554,7 @@ solid:webid_Profile_editor
   doap:repository <https://github.com/OpenHospitalityNetwork> .
 
 :SolidProject
-  a schema:Organization, schema:OpenSourceProject;
+  a schema:Organization, soar:OpenSourceProject;
   schema:name "The Solid Project" .
 
 :SolidTeam
@@ -1623,7 +1602,7 @@ solid:webid_Profile_editor
   schema:name "O-Team" .
 
 :Imec
-  a schema:Organization, schema:ResarchOrganization ;
+  a schema:Organization, schema:ResearchOrganization ;
   schema:name "Imec" .
 
 :SolidGrassroots
@@ -1640,7 +1619,7 @@ solid:webid_Profile_editor
   schema:name "Solid Practitioners" .
 
 :PDSINTEROP
-  a schema:Organization, schema:ResarchOrganization ;
+  a schema:Organization, schema:ResearchOrganization ;
   schema:name "PDS Interop" ;
   doap:homepage <https://pdsinterop.org/> .
 
@@ -1655,7 +1634,7 @@ solid:webid_Profile_editor
   schema:name "Akamai Technologies" .
 
 :AUnationalU
-  a schema:Organization, schema:ResarchOrganization ;
+  a schema:Organization, schema:ResearchOrganization ;
   doap:homepage <https://sii.anu.edu.au/index.html>;
   schema:name "Australian National University Software Innovation Institute" .
 
@@ -3286,3 +3265,241 @@ solid:webid_Profile_editor
   rdfs:label "XML Schema" ;
   vann:preferredNamespaceURI "http://www.w3.org/2001/XMLSchema#" ;
   vann:preferredNamespacePrefix "xsd:" .
+
+#####
+# Keywords for apps
+#####
+  :Focus             schema:keywords "personal productivity","tasks" .
+  :Booklice          schema:keywords "personal productivity","bookmarks" .
+  :Bookmarker        schema:keywords "personal productivity","bookmarks" .
+  :Poddit            schema:keywords "personal productivity","bookmarks" .
+  :Notepod           schema:keywords "personal productivity","editors" .
+  :Mdr_Notes         schema:keywords "personal productivity","editors" .
+  :Tiddlywiki        schema:keywords "personal productivity","editors" .
+  :Solid_Text_editor schema:keywords "personal productivity","editors" .
+  :Plume             schema:keywords "personal productivity","editors","blogs" .
+  :Dokieli           schema:keywords "personal productivity","editors","RDFa" .
+  :SolidCalendar     schema:keywords "personal productivity","calendars" .
+  :Solid_Calendar_1  schema:keywords "personal productivity","calendars" .
+  :Friend_Requests   schema:keywords "personal productivity","calendars" .
+  :Solid_Groups      schema:keywords "personal productivity","calendars" .
+  :Contacts          schema:keywords "personal productivity","calendars" .
+  :Pixolid           schema:keywords "leisure activities","movies" .
+  :SolidFlix         schema:keywords "leisure activities","movies" .
+  :MediaKraken       schema:keywords "leisure activities","movies" .
+  :Tadanime          schema:keywords "leisure activities","movies" .
+  :Solid_Weather     schema:keywords "leisure activities","weather" .
+  :Ramen             schema:keywords "leisure activities","food and drink" .
+  :Umai              schema:keywords "leisure activities","food and drink" .
+  :Beer_counter      schema:keywords "leisure activities","food and drink" .
+  :Social_linked_beer schema:keywords "leisure activities","food and drink" .
+  :Visited_Countries schema:keywords "leisure activities","travel" .
+  :Solid_Chess       schema:keywords "leisure activities","games" .
+  :Planning_Poker    schema:keywords "leisure activities","games" .
+  :Bingokaart        schema:keywords "leisure activities","games" .
+  :Golf_Course_Assistant schema:keywords "leisure activities","games" .
+  :Solid_Chat        schema:keywords "communication" .
+  :Solidarity        schema:keywords "communication" .
+  :Pod_Chat          schema:keywords "communication" .
+  :Darcy             schema:keywords "communication" .
+  :Liqid_Chat        schema:keywords "communication" .
+  :Polymer             schema:keywords "pod tool","pod frontend" .
+  :Graphmetrix_browser schema:keywords "pod tool","pod frontend" .
+  :Solid_Migrator      schema:keywords "pod tool","pod management" .
+  :Solid_Profile_Viewer schema:keywords "pod tool","pod management" .
+  :Solid_Signup        schema:keywords "pod tool","pod management" .
+  :Solid_wrap        schema:keywords "pod tool","pod management" .
+  :Solside           schema:keywords "pod tool","pod management" .
+  :Peditor           schema:keywords "pod tool","pod management" .
+  :Ohmypod           schema:keywords "pod tool","pod management" .
+  :Socialid          schema:keywords "pod tool","pod management" .
+  :Inbox             schema:keywords "pod tool","pod management" .
+  :Inbox_App         schema:keywords "pod tool","pod management" .
+  :TrinAppSuite      schema:keywords "general purpose app" .
+  :Syntropize        schema:keywords "general purpose app" .
+  :WebClip           schema:keywords "general purpose app" .
+  :Solid_Health      schema:keywords "general purpose app" .
+  :OKH_Solid_App     schema:keywords "general purpose app" .
+  :Hypey             schema:keywords "general purpose app","visualization" .
+  :Ess_table         schema:keywords "general purpose app","visualization" .
+  :KNoodle           schema:keywords "general purpose app","visualization" .
+  :Smag0             schema:keywords "general purpose app" .
+  :Markbook             schema:keywords "general purpose app" .
+  :Martin             schema:keywords "general purpose app" .
+  :Useconcept             schema:keywords "general purpose app" .
+  :Taisukef             schema:keywords "general purpose app" .
+  :Stash-Dat             schema:keywords "general purpose app" .
+  :Solid_LBS             schema:keywords "general purpose app" .
+  :SolidVC             schema:keywords "general purpose app" .
+  :PROV4ITDaTa             schema:keywords "general purpose app" .
+  :PoPock             schema:keywords "general purpose app" .
+  :Spoggy             schema:keywords "general purpose app" .
+  :Portal             schema:keywords "general purpose app" .
+  :ODS_Briefcase             schema:keywords "general purpose app" .
+  :Assemblage             schema:keywords "general purpose app" .
+  :Collectie_registratie_systeem             schema:keywords "general purpose app" .
+  :Datasister             schema:keywords "general purpose app" .
+  :DataVillage_platform             schema:keywords "general purpose app" .
+  :Drive             schema:keywords "general purpose app" .
+  :Inox             schema:keywords "general purpose app" .
+  :IPGS             schema:keywords "general purpose app" .
+  :Holon             schema:keywords "general purpose app" .
+  :Ibex             schema:keywords "general purpose app" .
+
+###
+# SPECS
+###
+
+
+:Solid_Protocol
+  a doap:Specification ;
+  schema:name "Solid Protocol" ;
+  doap:homepage <https://solidproject.org/TR/protocol> ;
+  doap:repository <https://github.com/solid/specification> .
+    
+:Solid_WebID_Profile
+  a doap:Specification ;
+  schema:name "Solid WebID Profile" ;
+  doap:homepage <https://solid.github.io/webid-profile/> ;
+  doap:repository <https://github.com/solid/webid-profile> .
+    
+:Solid-OIDC
+  a doap:Specification ;
+  schema:name "Solid-OIDC" ;
+  doap:homepage <https://solidproject.org/TR/oidc> ;
+  doap:repository <https://github.com/solid/solid-oidc> .
+    
+:HTTPSig_Authentication_for_Solid
+  a doap:Specification ;
+  schema:name "HTTPSig Authentication for Solid" ;
+  doap:homepage <https://solid.github.io/httpsig/> ;
+  doap:repository <https://github.com/solid/httpsig> .
+    
+:Web_Access_Control
+  a doap:Specification ;
+  schema:name "Web Access Control" ;
+  doap:homepage <https://solidproject.org/TR/wac> ;
+  doap:repository <https://github.com/solid/web-access-control-spec/> .
+    
+:Access_Control_Policy
+  a doap:Specification ;
+  schema:name "Access Control Policy" ;
+  doap:homepage <https://solidproject.org/TR/acp> ;
+  doap:repository <https://github.com/solid/authorization-panel> .
+    
+:Solid_Application_Interoperability
+  a doap:Specification ;
+  schema:name "Solid Application Interoperability" ;
+  doap:homepage <https://solid.github.io/data-interoperability-panel/specification/> ;
+  doap:repository <https://github.com/solid/data-interoperability-panel> .
+    
+:Shape_Trees
+  a doap:Specification ;
+  schema:name "Shape Trees" ;
+  doap:homepage <https://shapetrees.org/TR/specification/> ;
+  doap:repository <https://github.com/shapetrees/specification> .
+    
+:Solid_DID_Method
+  a doap:Specification ;
+  schema:name "Solid DID Method" ;
+  doap:homepage <https://solid.github.io/did-method-solid/> ;
+  doap:repository <https://github.com/solid/did-method-solid> .
+    
+:Solid_Notifications_Protocol
+  a doap:Specification ;
+  schema:name "Solid Notifications Protocol" ;
+  doap:homepage <https://solidproject.org/TR/notifications-protocol> ;
+  doap:repository <https://github.com/solid/notifications> .
+    
+:EventSourceChannel2023
+  a doap:Specification ;
+  schema:name "EventSourceChannel2023" ;
+  doap:homepage <https://solid.github.io/notifications/eventsource-channel-2023> ;
+  doap:repository <https://github.com/solid/notifications> .
+    
+:LDNChannel2023
+  a doap:Specification ;
+  schema:name "LDNChannel2023" ;
+  doap:homepage <https://solid.github.io/notifications/ldn-channel-2023> ;
+  doap:repository <https://github.com/solid/notifications> .
+    
+:StreamingHTTPChannel2023
+  a doap:Specification ;
+  schema:name "StreamingHTTPChannel2023" ;
+  doap:homepage <https://solid.github.io/notifications/streaming-http-channel-2023> ;
+  doap:repository <https://github.com/solid/notifications> .
+    
+:WebSocketChannel2023
+  a doap:Specification ;
+  schema:name "WebSocketChannel2023" ;
+  doap:homepage <https://solid.github.io/notifications/websocket-channel-2023> ;
+  doap:repository <https://github.com/solid/notifications> .
+    
+:WebhookChannel2023
+  a doap:Specification ;
+  schema:name "WebhookChannel2023" ;
+  doap:homepage <https://solid.github.io/notifications/webhook-channel-2023> ;
+  doap:repository <https://github.com/solid/notifications> .
+    
+:Solid-PREP
+  a doap:Specification ;
+  schema:name "Solid-PREP" ;
+  doap:homepage <https://solid.github.io/solid-prep/protocol/> ;
+  doap:repository <https://github.com/solid/solid-prep> .
+    
+:Solid_Chat
+  a doap:Specification ;
+  schema:name "Solid Chat" ;
+  doap:homepage <https://solid.github.io/chat/> ;
+  doap:repository <https://github.com/solid/chat> .
+    
+:Solid_QA
+  a schema:LearningResource ;
+  schema:name "Solid QA" ;
+  schema:keywords "solid","quality assurance","specifications" ;
+  doap:homepage <https://solidproject.org/ED/qa> ;
+  doap:repository <https://github.com/solid/specification> .
+    
+:Solid_Security_Considerations
+  schema:name "Solid Security Considerations" ;
+  a schema:LearningResource ;
+  schema:keywords "solid","security","specifications" ;
+  doap:homepage <https://solid.github.io/security-considerations/> ;
+  doap:repository <https://github.com/solid/security-considerations> .
+    
+:Solid_OIDC_Primer
+  schema:name "Solid OIDC Primer" ;
+  schema:about :Solid-OIDC ;
+  a schema:LearningResource ;
+  schema:keywords "solid-OIDC","authentication","specifications" ;
+  doap:homepage <https://solidproject.org/TR/oidc-primer> ;
+  doap:repository <https://github.com/solid/solid-oidc> .
+    
+:Authorization_Use_Cases_and_Requirements
+  a schema:LearningResource ;
+  schema:keywords "authorization","use case","requirement","specifications" ;
+  schema:name "Authorization Use Cases and Requirements" ;
+  doap:homepage <https://solid.github.io/authorization-panel/authorization-ucr/> ;
+  doap:repository <https://github.com/solid/authorization-panel> .
+    
+:Authorization_Use_Cases_Survey
+  a schema:LearningResource ;
+  schema:keywords "authorization","use case","requirement","specifications" ;
+  schema:name "Authorization Use Cases Survey" ;
+  doap:homepage <https://github.com/solid/authorization-panel/blob/master/proposals/authorization-ucr/uc-survey.md> ;
+  doap:repository <https://github.com/solid/authorization-panel> .
+    
+:Solid_Application_Interoperability__Application_Primer
+  schema:name "Solid Application Interoperability: Application Primer" ;
+  a schema:LearningResource ;
+  schema:keywords "interoperability","applications","specifications" ;
+  doap:homepage <https://solid.github.io/data-interoperability-panel/primer/application.html> ;
+  doap:repository <https://github.com/solid/data-interoperability-panel> .
+    
+:Solid_Application_Interoperability__Authorization_Agent_Primer
+  a schema:LearningResource ;
+  schema:keywords "interoperability","authorization agent","specifications" ;
+  schema:name "Solid Application Interoperability: Authorization Agent Primer" ;
+  doap:homepage <https://solid.github.io/data-interoperability-panel/primer/authorization-agent.html> ;
+  doap:repository <https://github.com/solid/data-interoperability-panel> .
+    

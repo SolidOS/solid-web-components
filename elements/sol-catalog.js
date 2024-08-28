@@ -1,27 +1,36 @@
-import {SolBase} from './sol-base.js';
-import {catalog,catalogMenu} from './utils/rdf-utils.js';
-import {wantedTypes,wantedProperties} from './utils/catalog-definition.js';
-let menuShown = false;
+import {SolCatalogPage} from './sol-catalog-page.js';
+import {SolCatalogTabset} from './sol-catalog-tabset.js';
+import {SolCatalogSearch} from './sol-catalog-search.js';
+import {SolMenu} from './sol-menu.js';
+import {SolTabset} from './sol-tabset.js';
+import {getLinkFromAttr} from './utils/utils.js';
+import {getShacl,catalogMenu} from './utils/catalog-utils.js';
 
-class SolCatalog extends SolBase {
-  constructor() { super(); this.type="rdf"; this.isCatalog=true}
-  async fetchData(element) {
-    let showingMenu = await this.showMenu(element);
-    if(showingMenu)return [];
-    return await catalog(element,null,wantedProperties,wantedTypes);    
+class SolCatalog extends HTMLElement {
+  constructor() {
+     super();
+     this.type="rdf"; 
+     this.isCatalog=true
   }
-  async filterData(data,element) {
-    return data;
-  }
-  async showMenu(element) {
-    if(menuShown) return 0;
-    menuShown=true;
-    let menu = await catalogMenu(element,wantedTypes);
-    element.innerHTML = `
+  async connectedCallback() {
+    const shape = getLinkFromAttr(this,'shape');
+    [this.wantedProperties,this.wantedTypes] = await getShacl(shape);
+    let menu = await catalogMenu(this,this.wantedProperties,this.wantedTypes);
+    let title = this.getAttribute('title') || "Catalog";
+    let logo = getLinkFromAttr(this,'logo');
+    logo = logo ?`<img src="${logo}" class="logo" />`   :"";
+    this.innerHTML = `
 <div class="sol-wrapper">
   <div class="sol-header">
-    <span style="inline-block;padding-left:1rem;padding-right:1rem;">Solid Project Resources</span>
+    ${logo}
+    <span class="sol-header-content">
+    <span style="display:inline-block;padding-left:1rem;padding-right:1rem;">
+      ${title}
+    </span>
     <sol-catalog-search></sol-catalog-search>
+    <button class="sol-keywords">keyword index</button>
+    <button class="about-link" source="./catalog-about.html">about</button>
+    </span>
   </div>
   <div class="sol-main">
     <div class="left-column">
@@ -31,30 +40,21 @@ class SolCatalog extends SolBase {
   </div>
 </div>
     `;
-    return(1)
+    let button = this.querySelector('.sol-keywords');
+    let self = this;
+    button.addEventListener('click',(event)=>{
+      let clicked = event.target;
+      let element = clicked.closest('.sol-catalog-page');
+      element.setAttribute('isIndex',true);
+      let source = getLinkFromAttr(element,'source');
+      let displayArea = clicked.closest('.sol-wrapper').querySelector('.sol-display');
+      let view = getLinkFromAttr(element,'view');
+      view = view ?`view="${element.view}" ` :"";
+      displayArea.innerHTML = `<sol-catalog-page wanted="keywordsIndex" ${view} source="${source}"></sol-catalog-page>`;
+    });  
+    return(true)
   }
-  async showData(data,element) {
-    if(data.length<1) return;
-    await super.showData(data,element);
-    let anchors = element.querySelectorAll('a');
-    let source = `source="${element.source}" `;
-    let view   = `view="${element.view}" `;
-    for(let anchor of anchors){
-      let href = anchor.getAttribute('href') ;
-      if( href.match(element.source)) {
-        anchor.addEventListener('click',async(event)=>{
-          event.preventDefault();
-          let clickedElement=event.target;
-          let displayArea = element.closest('.sol-wrapper').querySelector('.sol-display');
-          if(anchor.hasAttribute('isKeyword')){
-            displayArea.innerHTML = `<sol-catalog wanted="keywords ${anchor.textContent}" ${source} ${view}></sol-catalog>`;
-          }
-          else displayArea.innerHTML = `<sol-catalog ${source} ${view} wanted="id ${href}"></sol-catalog>`;
-        });
-      }
-    }
-  }
-} 
+}
 customElements.define("sol-catalog",SolCatalog);
 
 /*

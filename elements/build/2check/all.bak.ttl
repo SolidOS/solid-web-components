@@ -1,0 +1,738 @@
+@prefix : <#> .
+@prefix oar: <https://github.com/solid/organizations/tree/main/vocabularies/oar.ttl#> .
+@prefix schema: <http://schema.org/> .
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix dc: <http://purl.org/dc/terms/> .
+@prefix sioc: <http://rdfs.org/sioc/ns#> .
+@prefix siocs: <http://rdfs.org/sioc/services#> .
+@prefix sioct: <http://rdfs.org/sioc/types#> .
+@prefix meet: <https://www.w3.org/ns/pim/meeting#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/homepage> .
+#@prefix fabio: <http://purl.org/spar/fabio/> .
+#@prefix pto: <http://productontology.org/id/> .
+
+###
+# SERVICES
+###
+
+:InruptPodSpaces      
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "Inrupt Pod Spaces" ;
+  schema:provider :Inrupt ;
+  schema:isAccessibleForFree false ;
+  # schema:image <https://cdn.prod.website-files.com/62d722f9cc456d1fb015d3e7/62d7239e66227a7c641e22dc_dark.webp>;
+  # schema:description "Inrupt Pod Spaces is an instance of the Enterprise Solid Server provided by Inrupt, Inc., hosted by Amazon and in Alpha stadium."@en ;
+  doap:service_endpoint <https://start.inrupt.com/> ;
+  # schema:termsOfService <https://inrupt.com/terms-of-service> ;
+  # oar:platformProvider external:Amazon ;
+  # schema:location "Germany" ;
+  oar:implementedUsing :ESS .
+
+:SolidCommunityDotNet
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "solidcommunity.net" ;
+  schema:isAccessibleForFree true ;
+  schema:provider :SolidTeam ;
+  # schema:image <https://solid.inrupt.com/themes/custom/solid/logo.svg>;
+  # schema:description "solidcommunity.net is a public Solid server maintained by the Solid Team.";
+  doap:service_endpoint <https://solidcommunity.net> ;
+  # schema:termsOfService <https://github.com/solid/solidcommunity.net?tab=readme-ov-file#Solidcommunitynet-Acceptable-Use-Policy> ;
+  # oar:platformProvider external:DigitalOcean ;
+  # schema:location "UK" ;
+  oar:implementedUsing :NSS .
+
+:SolidWebDotOrg  
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "solidweb.org" ;
+  schema:isAccessibleForFree true ;
+  schema:provider :SolidGrassroots ;
+  # schema:location "France" ;
+  # oar:platformProvider external:Hosteurope ;
+  # schema:image "https://www.serverproject.de/logo2.png";
+  # schema:description "solidweb.org is a public Solid server based in Germany which is in an experimental state.";
+  # schema:termsOfService <https://www.serverproject.de/files/solidweb_org_terms.txt> ;
+  doap:service_endpoint <https://solidweb.org> ;
+  oar:implementedUsing :NSS .
+
+:SolidWebDotMe  
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "solidweb.me" ;
+  schema:isAccessibleForFree true ;
+  schema:provider :Meisdata ;
+  # schema:location "France" ;
+  # schema:termsOfService <https://gitlab.com/groups/solidweb.org/-/group_members> ;
+  doap:service_endpoint <https://solidweb.me> ;
+  # oar:platformProvider external:Hosteurope ;
+  oar:implementedUsing :CSS .
+
+:TrinpodService
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:isAccessibleForFree true ;
+  schema:name "Trinpod" ;
+  # schema:termsOfService <https://graphmetrix.com/terms> ;
+  schema:provider :Graphmetrix ;
+  # schema:location "USA" ;
+  # schema:image <https://trinpod.us/img/gmx_logo.5a794ad6.png> ;
+  # schema:description "trinpod.us is a public Solid server provided by Graphmetrix, U.S.A..";
+  doap:service_endpoint <https://trinpod.com> ;
+  # oar:platformProvider external:Hetzner ;
+  oar:implementedUsing :Trinpod .
+
+:TrinpodEU
+# a oar:OpenIdService, oar:SolidStorageService ;
+  schema:isAccessibleForFree true ;
+  schema:name "trinpod.eu" ;
+  # schema:termsOfService <https://graphmetrix.com/terms> ;
+  schema:provider :Graphmetrix ;
+  # schema:location "Finland" ;
+  # schema:image <https://trinpod.us/img/gmx_logo.5a794ad6.png> ;
+  # schema:description "trinpod.eu is a public Solid server provided by Graphmetrix";
+  doap:service_endpoint <https://trinpod.eu> ;
+  # oar:platformProvider external:Hetzner ;
+  oar:implementedUsing :Trinpod .
+
+:StartinBloxDotCom
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:isAccessibleForFree true ;
+  schema:name "Startin'Blox" ;
+  schema:provider   :StartinBlox ;
+  doap:service_endpoint <https://startinblox.com/> ;
+  oar:implementedUsing :CSS .
+
+:Mastopod
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name        "Mastopod" ;
+  schema:isAccessibleForFree true ;
+  doap:service_endpoint <https://mastopod.com/> ;
+  schema:provider    :ActivityPods .
+
+:PodDotLiquidSurf
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name        "Liquid Surf" ;
+  schema:provider :LiquidSurf ;
+  doap:service_endpoint <https://pod.liquid.surf/> ;
+  doap:repository <https://github.com/liquid-surf/easy-penny> ;
+  oar:implementedUsing :CSS .
+
+:TeamIdLive
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:isAccessibleForFree true ;
+  doap:service_endpoint <https://teamid.live/> ;
+  schema:name "teamid.live" ;
+  schema:provider :Meisdata;
+  # schema:termsOfService <https://github.com/serverproject-dev> ;
+  # schema:location "EU" ;
+  oar:implementedUsing :CSS .
+
+:IgrantIo
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "Data Pod" ;
+  schema:provider :IgrantIoOrg ;
+  # schema:location "Sweden" ;
+  doap:service_endpoint <https://datapod.igrant.io/> ;
+  # schema:termsOfService <https://igrant.io/> ;
+  oar:implementedUsing :NSS ;
+  schema:isAccessibleForFree true .
+
+:RedpencilService
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "redpencil.io" ;
+  schema:provider :Redpencil ;
+  # schema:termsOfService <https://redpencil.io/> ;
+  schema:isAccessibleForFree true ;
+  doap:service_endpoint <https://solid.redpencil.io/> ;
+  oar:implementedUsing :CSS .
+
+:SolidCommunityAUpods
+  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "Solid Community AU" ;
+  doap:homepage <https://www.solidproject.au/> ;
+  doap:service_endpoint <https://pods.solidcommunity.au/> ;  
+  schema:provider :SolidCommunityAU, :AkamiTechnologies ;
+  schema:location "AU" ;
+  oar:implementedUsing :CSS .
+
+:UseId
+  a oar:OpenIdService, oar:SolidStorageService ;
+  doap:service_endpoint <https://get.use.id/> ;
+  schema:name "use.id" ;
+  schema:provider :Digita ;
+  # schema:termsOfService <https://get.use.id/> ;
+  # schema:location "EU" ;
+  schema:isAccessibleForFree true ;
+  # oar:platformProvider external:DigitalOcean ;
+  oar:implementedUsing "CSS" .
+
+:OpenLinks2
+#  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "OpenLinks Solid Server #2";
+  doap:service_endpoint <https://solid.openlinksw.com:8445/>;
+  #schema:termsOfService <https://solid.openlinksw.com:8445/>;
+  schema:provider :OpenLink;
+  oar:implementedUsing :OpenLinkNSSFork .
+
+:OpenLinks1
+#  a oar:OpenIdService, oar:SolidStorageService ;
+  schema:name "OpenLinks Solid Server #1";
+  doap:service_endpoint <https://solid.openlinksw.com:8444/>;
+  schema:termsOfService <https://solid.openlinksw.com:8444/>;
+  schema:provider :OpenLink;
+  oar:implementedUsing :OpenLinkNSSFork .
+
+
+###
+# SERVERS
+###
+
+:CSS
+  a oar:OpenIdServer, oar:SolidStorageServer ;
+  schema:name "Community Solid Server" ;
+  schema:alternateName "CSS" ;
+  schema:provider :Imec ;
+  schema:isAccessibleForFree true ;
+  doap:homepage <https://communitysolidserver.github.io/CommunitySolidServer/latest/>;
+  doap:repository <https://github.com/CommunitySolidServer/CommunitySolidServer> ;
+  doap:programming_language "Typescript" ;
+  doap:license "MIT" .
+
+:PHP_Solid_Server
+  a oar:OpenIdServer, oar:SolidStorageServer ;
+  schema:name "PHP Solid Server" ;
+  schema:provider :PDSINTEROP ;
+  doap:repository <https://github.com/pdsinterop/php-solid-server>;
+  doap:homepage <https://pdsinterop.org/php-solid-server/> ;
+  doap:license "MIT" ;
+  doap:programming_language "PHP" ;
+  schema:isAccessibleForFree true .
+
+:Manas
+  a oar:OpenIdServer, oar:SolidStorageServer ;
+  schema:name "Manas" ;
+  schema:alternateName "मनस्";
+  doap:repository <https://github.com/manomayam/manas> ;
+  doap:homepage <https://manomayam.github.io/manas/introduction.html>;
+  doap:license "MIT or Apache" ;
+  schema:provider :Manomayam ;
+  doap:programming_language "Rust" ;
+  schema:isAccessibleForFree true .
+
+:Trinpod
+  a oar:OpenIdServer, oar:SolidStorageServer ;
+  schema:name "Trinpod" ;
+  doap:homepage <https://graphmetrix.com/trinpod-server> ;
+  schema:provider :Graphmetrix ;
+  doap:license "proprietary" ;
+  schema:isAccessibleForFree false .
+
+:NSS
+  a oar:OpenIdServer, oar:SolidStorageServer ;
+  schema:isAccessibleForFree true ;
+  doap:repository <https://github.com/node-solid-server> ;
+  schema:name "Node Solid Server" ;
+  schema:alternateName "NSS" ;
+  schema:isAccessibleForFree true ;
+  doap:programming_language "Javascript" ;
+  doap:license "MIT" .
+
+:ESS
+  a oar:OpenIdServer, oar:SolidStorageServer ;
+  doap:homepage <https://www.inrupt.com/products/enterprise-solid-server>;
+  schema:isAccessibleForFree false ;
+  schema:provider :Inrupt ;
+  schema:name "Enterprise Solid Server" ;
+  schema:alternateName "ESS" ;
+  doap:license "proprietary" .
+
+:OpenLinkNSSFork
+  # a oar:OpenIdServer, oar:SolidStorageServer ;
+  schema:provider :OpenLink ;
+  schema:isAccessibleForFree true ;
+  schema:name "OpenLink NSS Fork" .
+
+:Gold
+  schema:name "Gold";
+  a oar:OpenIdServer, oar:SolidStorageServer ;
+  schema:isAccessibleForFree true ;
+  doap:repository <https://github.com/linkeddata/gold> ;
+  doap:license "MIT" ;
+  doap:programming_language "Go" ;
+  schema:isAccessibleForFree true .
+
+:Solid-Lite
+  schema:name "Solid Lite";
+  a oar:SolidStorageServer ;
+  doap:repository <https://github.com/solid-lite/server> ;
+  doap:license "MIT" ;
+  doap:programming_language "Javascript" ;
+  schema:isAccessibleForFree true .
+
+###
+# LEARNING RESOURCES
+###
+
+:RDF-JS
+  schema:name "RDF+JS = &hearts;" ;
+  doap:homepage <https://rdfjs.dev/> ;
+  a oar:LearningResource .
+
+:WebComponentsDiscussion
+  schema:name "Solid Web Components Discussion" ;
+  a oar:LearningResource .
+
+:SolidShapesWiki
+  schema:name "Solid Shapes Wiki" ;
+  a oar:LearningResource .
+
+:GettingStarted
+  schema:name "Getting Started withSolid" ;
+  doap:repository <https://github.com/solid-contrib/getting-started/> ;
+  a oar:LearningResource .
+
+:JavaTutorial
+  a oar:LearningResource;
+  schema:name "Java tutorial";
+  schema:availableLanguage "English" ;
+  schema:creator :Inrupt;
+  schema:url <https://docs.inrupt.com/developer-tools/java/client-libraries/getting-started/>  .
+
+:JavaScriptTutorial
+  a oar:LearningResource;
+  schema:name "Javascript tutorial";
+  schema:availableLanguage "English" ;
+  schema:creator :Inrupt;
+  schema:url <https://docs.inrupt.com/developer-tools/javascript/client-libraries/tutorial/getting-started/> .
+
+:LDOtutorial
+  a oar:LearningResource;
+  schema:name "Using LDO to build a Solid Application for React";
+  schema:availableLanguage "English" ;
+  schema:creator :Oteam;
+  schema:url <https://ldo.js.org/guides/solid_react/> .
+                  
+:VocabsTutorial
+  a oar:LearningResource;
+  schema:name "Creating Vocabularies";
+  schema:availableLanguage "English" ;
+  schema:creator :SolidTeam;
+  schema:url <https://github.com/solid/solidproject.org/wiki/Vocabularies-Overview> .
+
+
+:TodoApp
+  a oar:LearningResource ;
+  schema:name "How to Build a Solid To-Do App with React" ;
+  schema:availableLanguage "English" ;
+  schema:creator :VirginiaBalseiro ;
+  schema:url <https://virginiabalseiro.com/blogposts/tutorial-create-a-solid-to-do-app> .
+
+
+:EmberSolid
+  a oar:LearningResource ;
+  schema:name "Ember Solid" ;
+  schema:availableLanguage "English" ;
+  schema:creator :AadVersteden ;
+  schema:url <https://nextcloud.hellofuture.be/s/nYYNwGceFSNotJY> .
+
+###
+# COMMUNICATIONS
+###
+:SolidForum
+  schema:name "Solid Forum" ;
+  a sioc:Forum, sioct:MessageBoard ;
+  doap:service_endpoint <https://forum.solidproject.org> ;
+  # sioc:has_administrator :JustinBingham, :JacksonMorgan;
+  # sioc:has_moderator :ArneHassel, :JeffZucker ;
+  schema:isAccessibleForFree true ;
+  schema:provider :SolidTeam ;
+  schema:description """
+     Create and respond to comments, questions, and discussions happening
+     in the community.
+  """ .
+
+:SolidMatrixChat
+  schema:name "Solid Matrix Chat" ;
+  schema:isAccessibleForFree true ;
+  a sioct:ChatChannel, sioc:Forum ;
+  doap:service_endpoint <https://matrix.to/to/#/#solid_project> ;
+  schema:provider :SolidTeam ;
+  schema:description """
+    The Solid Matrix Chat is a live chat where community members can connect.
+  """ .
+
+:CG-mailingList
+  schema:name "W3C Solid Community Group Mailing List" ;
+  a sioc:Forum, sioct:MailingList ;
+  doap:service_endpoint <mailto:public-solid-request@w3.org?subject=subscribe> ;
+  doap:repository <https://lists.w3.org/Archives/Public/public-solid/> ;
+  schema:isAccessibleForFree true ;
+  schema:provider :SolidCG .
+
+:SolidReddit
+  schema:name "Solid Sub-Reddit" ;
+  schema:isAccessibleForFree true ;
+  a sioc:Forum, sioct:MessageBoard ;
+  doap:service_endpoint <https://www.reddit.com/r/SOLID/> ;
+  schema:provider :SolidTeam .
+
+###
+# EVENTS
+###
+:SolidWorld
+  schema:name "Solid World" ;
+  a schema:Event.
+
+:SolidSymposium
+  schema:name "Solid Symposium" ;
+  a schema:Event .
+
+:SolidPractitioners-WeeklyCall
+  schema:name "Solid Practitioners Video Call" ;
+  a schema:Event, oar:OngoingMeeting ;
+  schema:provider :SolidPractitioners, :SolidTeam ;
+  oar:videoCallPage  <https://meet.jit.si/solid-practitioners> ;
+  doap:repository <https://github.com/solid-contrib/practitioners/tree/main/meetings> ;
+  schema:description "A hub for those putting the Solid vision into practice." ;
+  schema:isAccessibleForFree true ;
+  oar:Schedule "Every other Monday at 18:00 UTC" .
+
+:SolidCG-WeeklyCall
+  schema:name "W3C Solid Community Group Video Call" ;
+  a schema:Event, oar:OngoingMeeting ;
+  schema:provider :SolidCG ;
+  oar:videoCallPage  <https://meet.jit.si/solid-cg> ;
+  doap:repository <https://github.com/solid/specification/tree/main/meetings> ;
+  # schema:keywords "Solid, Internet, Specifications, Implmentation Experience" ;
+  # schema:audience :TBD ;
+  # schema:about :TBD ;
+  schema:description "Learn and work on Solid specifications." ;
+  schema:isAccessibleForFree true ;
+  oar:Schedule "Every Wednesday at 15:00 UTC" ;
+  rdfs:seeAlso <https://www.w3.org/events/meetings/a810b828-7a85-47b8-8a6d-2359a491a7f7/20240703T140000/>.
+
+:SolidOS-WeeklyCall
+  schema:name "SolidOS Video Call" ;
+  a schema:Event ;
+  a oar:OngoingMeeting ;
+  schema:provider :SolidOSteam ;
+  oar:videoCallPage  <https://meet.jit.si/solid-os> ;
+  doap:repository <https://github.com/solid-contrib/practitioners/tree/main/meetings> ;
+  schema:description "Coding discussion to support the SolidOS stack of libraries and apps." ;
+  schema:isAccessibleForFree true ;
+  oar:Schedule "Every Wednesday at 17:00 UTC" .
+
+:DataModulesVideoCall
+  schema:name "Data Modules Video Call" ;
+  a schema:Event, oar:OngoingMeeting .
+
+###
+# ORGANIZATIONS
+###
+:SolidProject
+  a schema:Organization, sioc:Community;
+  schema:name "The Solid Project" .
+
+:SolidTeam
+  schema:name "The Solid Team" ;
+  a schema:Organization, schema:NGO.
+
+:SolidCG
+  schema:name "W3C Solid Community Group" ;
+  a schema:Organization, schema:NGO.
+
+:Inrupt
+  a schema:Organization, schema:Corporation ;
+  schema:name "Inrupt, Inc.".
+
+:Graphmetrix
+  a schema:Organization, schema:Corporation ;
+  schema:name "Graphmetrix, Inc." .
+
+:Digita
+  a schema:Organization, schema:Corporation ;
+  schema:url <https://www.digita.ai/> ;
+  schema:name "Digita" .
+
+:IgrantIoOrg
+  a schema:Organization, schema:NGO ;
+  # schema:location "Sweden" ;
+  schema:name "iGrant.IO" .
+
+:Redpencil
+  a schema:Organization, schema:NGO ;
+  schema:url <https://redpencil.io/> ;
+  schema:name "redpencil.io" .
+
+:Meisdata
+  a schema:Organization, oar:CommunityGroup ;
+  schema:name "Meisdata" .
+
+:Manomayam
+  a schema:Organization, oar:CommunityGroup ;
+  schema:name "Manomayam" ;
+  schema:url <https://github.com/manomayam> .
+
+:Imec
+  a schema:Organization, schema:ResarchOrganization ;
+  schema:name "Imec" .
+
+:SolidGrassroots
+  a schema:Organization, oar:CommunityGroup ;
+  schema:url <https://gitlab.com/groups/solidweb.org/-/group_members> ;
+  schema:name "Solid Grassroots" .
+
+:OpenLink
+  a schema:Organization, schema:Corporation ;
+  schema:name "OpenLink Software" .
+
+:SolidPractitioners
+  a schema:Organization, sioc:Community ;
+  schema:name "Solid Practitioners" .
+
+:PDSINTEROP
+  a schema:Organization, schema:ResarchOrganization ;
+  schema:name "PDS Interop" ;
+  schema:url <https://pdsinterop.org/> .
+
+:SolidCommunityAU
+  a schema:Organization, schema:NGO ;
+  schema:name "Solid Community AU" ;
+  doap:homepage <https://solidcommunity.au/> .
+
+:AkamiTechnologies
+  a schema:Corporation ;
+  doap:homepage <https://www.akamai.com/>;
+  schema:name "Akamai Technologies" .
+
+:AUnationalU
+  a schema:Organization, schema:ResarchOrganization ;
+  doap:homepage <https://sii.anu.edu.au/index.html>;
+  schema:name "Australian National University Software Innovation Institute" .
+
+:Pounder
+  schema:name "Pounder" ;
+  a schema:Organization .
+
+:GurrinyHealthClinic 
+  a schema:Organization, schema:NGO ;
+  schema:name "Gurriny Health Clinic" ;
+  schema:homepage <https://www.gyhsac.org.au/> .
+
+:DigitalFlanders
+  schema:name "Digital Flanders" ;
+  a schema:Organization, schema:GovernmentalOrganization .
+  
+###
+# Social Apps
+###
+:SolidHealth
+  a oar:SocialSoftwareApplication ;
+  schema:name "Solid Health" ;
+  schema:provider :AUnationalU, :GurrinyHealthClinic ;
+  schema:isAccessibleForFree true ;
+  doap:homepage <https://sii.anu.edu.au/projects.html> ;
+  schema:description """
+   Members of the Yarrabah Aboriginal Community in Queenland each have a POD hosted on the Yarrabah Solid Server containing their own private health data.
+  """ .
+
+:WelcomeToMyPlace
+  a oar:SocialSoftwareApplication ;
+  schema:name        "Welcome to My Place" ;
+  doap:service_endpoint <https://mastopod.com/> ;
+  schema:provider    :ActivityPods ;
+  schema:description      """
+    Private meetings at home that promote a living together based on welcome,
+    trust and mutuall aid.
+  """ .
+
+:MutualAid
+  a  oar:SocialSoftwareApplication ;
+  schema:name        "Mutual Aid" ;
+  doap:service_endpoint <https://mutual-aid.app/> ;
+  schema:provider   :ActivityPods ;
+  schema:description      """
+    Classified ads to support each other within a trusted neteork.
+  """ .
+
+:SleepyBike
+  a  oar:SocialSoftwareApplication ;
+  schema:name             "Sleepy.bike" ;
+  doap:service_endpoint <https://sleepy.bike/> ;
+  doap:repository       <https://github.com/OpenHospitalityNetwork/sleepy.bike> ;
+  schema:description      """
+    A decentralized hospitality exchange community for slow travellers
+  """ .
+
+:PASS
+  a  oar:SocialSoftwareApplication ;
+  schema:name       "Personalized Access System for Services" ;
+  schema:provider   :CodePDX ;
+  oar:wiki       <https://github.com/codeforpdx/PASS/wiki> ;
+  doap:repository <https://github.com/codeforpdx/PASS> ;
+  schema:description """
+    An open source digital wallet for providing home-insecure individuals a safe
+    place to store documents within their control. PASS additionally aims to assist 
+    caseworkers with processing and providing documents needed to complete the 
+    housing-assistance application process.
+  """ .
+
+:Mycelium
+  a  oar:SocialSoftwareApplication ;
+  schema:name "Mycelium Project" ;
+  schema:provider :INRIA, :StartinBlox ;
+  dc:references :DataFoodNetwork ;
+  schema:description """
+    applications to manage farms (products, harvests, sales, accounting, etc.) using taxonomies for short food supply chains.
+  """ .
+
+:HUBL
+  a  oar:SocialSoftwareApplication ;
+  schema:name "HUBL" ;
+  schema:provider :INRIA, :StartinBlox ;
+  schema:description """
+    allows you to find freelancers in a community of users
+  """ .
+
+###
+#
+###
+:ActivityPods
+  a schema:Organization, oar:ResearchProject ;
+  schema:name        "ActivityPods" ;
+  schema:audience    "everyone" ;
+  doap:homepage <https://activitypods.org/> ;
+  doap:repository  <https://github.com/activitypods/activitypods> ;
+  schema:description      """
+    Brings together two game-changing technologies, ActivityPub and Solid Pods, 
+    and empowers developers to create truly decentralized applications
+  """ .
+
+:Espresso
+  a schema:Organization, oar:ResearchProject ;
+  schema:name        "Espresso" ;
+  schema:audience    "App Developers" ;
+  schema:provider    :UofSouthhampton, :UofLondon, :UofSingapore, :DataSwift ;
+  schema:status      :Development ;
+  doap:homepage <https://espressoproject.org/> ;
+  schema:description """
+    Efficient Search over Personal Repositories - Secure and Sovereign
+  """ .
+
+:LiquidSurfFedCM
+  a schema:Organization,  oar:ResearchProject ;
+  schema:name        "Liquid Surf FedCM Demo" ;
+  doap:repository <https://github.com/liquid-surf/fedcm-demo> ;
+  schema:description      """
+    an experiment with FedCM and Solid-OIDC integration
+  """ .
+
+###
+# Libraries
+###
+:AerogelJS
+  schema:name "AerogelJS" ;
+  doap:homepage  <https://aerogel.js.org/>;
+  a oar:SoftwareLibrary .
+
+:PodOS
+  schema:name "PodOS" ;
+  doap:repository <https://github.com/pod-os/PodOS> ;
+  a oar:SoftwareLibrary .
+
+:SolidWebComponents
+  schema:name "Solid Web Components" ;
+  doap:repository <https://github.com/solidos/solid-web-components> ;
+  a oar:SoftwareLibrary .
+
+:SolidOSLibraries
+  schema:name "SolidOS libraries" ;
+  a oar:SoftwareLibrary .
+
+:LDO
+  schema:name "LDO - Linked Data Objects" ;
+  a oar:SoftwareLibrary .
+
+###
+# APPS
+####
+
+:SolidCalendar
+  a schema:SoftwareApplication .
+
+:Solvent
+  a schema:SoftwareApplication ;
+ doap:homepage <https://github.com/manomayam/solvent> .
+
+:DataKitchen
+  a schema:SoftwareApplication .
+
+
+:Syntropize
+  a schema:SoftwareApplication ;
+  schema:name "Syntropize" ;
+  schema:audience "everyone" ;
+  schema:status     :Production ;
+  schema:provider   :RahulGupta ;
+  doap:homepage <https://syntropize.com/> ;
+  doap:repository <https://gitlab.com/syntropize/syntropize> ;
+  schema:description """
+     a proposal to reclaim the original vision of the personal computer as the means for
+     intelligence augmentation and seamless collaboration
+  """ .
+
+:SolidFlix
+  a schema:SoftwareApplication ;
+  schema:name "SolidFlix" ;
+  doap:homepage <https://oxfordhcc.github.io/solid-media/login/?redirect=%2Fsolid-media%2F> ;
+  schema:provider    :RuiZhao, :JunZhao ;
+  schema:partOf      :OxfordHumanCenteredComputingGroup, :EDWADAproject ;
+  schema:status      :Development ;
+  doap:repository  <https://github.com/OxfordHCC/solid-media> ;
+  schema:description      """
+    A movie tracking and sharing application with personalised recommendations.
+  """ .
+
+:SolidFocus
+  a schema:SoftwareApplication ;
+  doap:homepage  <https://noeldemartin.github.io/solid-focus/> .
+
+:MediaKraken
+  a schema:SoftwareApplication ;
+  doap:homepage  <https://noeldemartin.github.io/media-kraken/> .
+
+:Umai
+  doap:homepage  <https://umai.noeldemartin.com/> .
+
+:SolidOSWebApp
+  a schema:SoftwareApplication .
+
+:solidpod
+  a schema:SoftwareApplication ;
+  doap:repository <https://pub.dev/packages/solidpod> ;
+  schema:description """
+    Support easy access to data stored on Solid Pod servers.
+  """ .
+
+:TrinAppSuite
+  doap:homepage <https://graphmetrix.com/trinapp> ;
+  a schema:SoftwareApplication .
+
+
+###
+# PEOPLE
+###
+
+:PedroGomez
+  a schema:Person .
+:LudwigShubert
+  a schema:Person .
+:JesseWright
+  a schema:Person .
+
+:Dtou
+  a oar:Specification ;
+  schema:name "DToU - Terms of Use of Data Specificationa" ;
+  doap:homepage <https://me.ryey.icu/solid-dtou/dtou-spec.html> ;
+  schema:provider    :RuiZhao, :JunZhao ;
+  schema:partOf      :OxfordHumanCenteredComputingGroup ;
+  schema:status      :Development ;
+  doap:repository <https://github.com/OxfordHCC/solid-dtou/> .

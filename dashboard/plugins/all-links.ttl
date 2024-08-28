@@ -55,7 +55,7 @@
     s:keywords "rssFeed" ;
     rdfs:label "Oregon Public Broadcasting";
     bk:hasTopic "General News";
-    bk:recalls <https://api.opb.arcpublishing.com/feeds/rss/?website=opb>.
+    bk:recalls <https://www.opb.org/arc/outboundfeeds/rss/?outputType=xml>.
 
 :n002
     a bk:Bookmark;

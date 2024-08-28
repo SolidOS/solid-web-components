@@ -10,6 +10,7 @@ window.$SolidTestEnvironment = {
 }
 //import 'https://cdn.jsdelivr.net/npm/solid-ui@latest/dist/solid-ui.min.js';
 import 'https://cdn.jsdelivr.net/npm/mashlib@latest/dist/mashlib.min.js';
+//import '/home/s/solid-web-components/node_modules/mashlib/dist/mashlib.min.js';
 import "https://cdn.jsdelivr.net/npm/marked/marked.min.js";
 import "https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js";
 

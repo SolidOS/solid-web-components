@@ -45,6 +45,7 @@ export async function filterByQuerySelector(content,element){
     for(let el of tmpDom.querySelectorAll(wanted)){
       contentHolder.appendChild(el);
     }
+console.log(contentHolder)
     return contentHolder.innerHTML;
   }
   catch(e){ console.log("Could not parse as HTML",e); return ""; }

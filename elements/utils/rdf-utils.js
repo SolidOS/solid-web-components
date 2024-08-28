@@ -1,6 +1,7 @@
 import {getLinkFromAttr} from './utils.js';
 
 let lit,sym,ns,store,fetcher,updater,UI;
+//let wantedTypes,wantedProperties;
 
 export {sym,lit};
 
@@ -12,28 +13,63 @@ export async function fetchRdfData(component){
   return await catalog(component,'raw');
 }
 
-export async function catalog(element,raw,wantedProperties,wantedTypes){
+export async function catalog(element,raw){
   element.raw = raw;
   rdf = await getSingletonStore();
   let url = element.source;
   let node = rdf.sym(url);
   let doc  = node.doc();
+//  unknownTypes(url,wantedTypes,doc);
   try { await rdf.fetcher.load(doc); }
   catch(e){ console.log(e)}
   let table = [];
   let wanted = getWanted(element);
   let allPredicates = getUniquePredicates( null, null, null, doc );
+  if(wanted[0]=="keywordsIndex"){
+    let keywords = store.match(null,nsp('schema:keywords'),null, doc);
+    let source = getLinkFromAttr(element,'source');
+    let kfound = {};
+    for(let k of keywords){
+      let kword = k.object.value;
+      if(kfound[kword]) continue;
+      kfound[kword]=1;
+      table.push(`<a href="${source}" isKeyword property="schema:keywords">${kword}</a>`);
+    }
+    table.sort((a, b) => (a||"").localeCompare(b||""));
+    element.wanted = null;    
+    let div = element.ownerDocument.createElement('DIV');        
+    div.classList.add('sol-links');
+    div.innerHTML = table.join('\n');
+    let anchors = div.querySelectorAll('A');
+    let view = getLinkFromAttr(element.closest('.sol-catalog'),'view');
+    if(view) view = `view="${view}"`;
+    for(let anchor of anchors){
+        anchor.addEventListener('click',async(event)=>{
+          event.preventDefault();
+          let clickedElement=event.target;
+          let displayArea = element.closest('.sol-wrapper').querySelector('.sol-display');
+          if(anchor.hasAttribute('isKeyword')){
+            displayArea.innerHTML = `<sol-catalog wanted="keywords ${anchor.textContent}" ${view} source="${source}"></sol-catalog>`;
+          }
+          else displayArea.innerHTML = `<sol-catalog ${source} ${view} wanted="id ${href}"></sol-catalog>`;
+        });
+    }
+    element.innerHTML="";
+    element.appendChild(div);
+    return div;
+  }
   let subjects = wanted.length > 0
-     ? getMatchingSubjects()
+     ? getMatchingSubjects(element.wantedProperties,element.wantedTypes)
      : getUniqueSubjects( null, null, null, doc );
   for(let subject of subjects){
-    let row = await catalogRow(subject,wanted,element,wantedProperties)
+//    let row = await catalogRow(subject,wanted,element,wantedProperties)
+    let row = await catalogRow(subject,wanted,element)
     if(row) table.push(row)
   }
   table.sort((a, b) => (a.name||"").localeCompare(b.name||""));
   return(table);
 
-  function getMatchingSubjects(){
+  function getMatchingSubjects(wantedTypes,wantedProperties){
     let matchingSubjects = [];
     let found = {};
     let uniqueSubjects;
@@ -45,11 +81,11 @@ export async function catalog(element,raw,wantedProperties,wantedTypes){
       }
       else if(clause.predicate==="id") uniqueSubjects = getUniqueSubjects( sym(clause.value), null, null, doc );
       else if(clause.predicate==="type"){
-        clause.value = typeFromLabel(clause.value);
+        clause.value = typeFromLabel(clause.value,wantedTypes);
         uniqueSubjects = getUniqueSubjects( null,nsp('rdf:type'),sym(clause.value), doc );
       }
       else {
-        let predicate = predicateFromLabel(clause.predicate);
+        let predicate = predicateFromLabel(clause.predicate,wantedProperties);
         let object    = lit(clause.value);
         uniqueSubjects = getUniqueSubjects( null, predicate, object, doc )
       }
@@ -62,7 +98,7 @@ export async function catalog(element,raw,wantedProperties,wantedTypes){
     return matchingSubjects;
   }
 
-  function predicateFromLabel(label){
+  function predicateFromLabel(label,wantedProperties){
     if(wantedProperties && wantedProperties[label]) return sym(wantedProperties[label]);
     for(let p of allPredicates){
       if(p.value.match(label)) return p;
@@ -70,7 +106,7 @@ export async function catalog(element,raw,wantedProperties,wantedTypes){
     alert(`Unrecognized property label: '${label}'!`)
   }
 
-  function typeFromLabel(label){
+  function typeFromLabel(label,wantedTypes){
     if(!wantedTypes) return label;
     if(wantedTypes && wantedTypes[label]) return sym(wantedTypes[label].type);
     for(let t of Object.keys(wantedTypes)){
@@ -85,7 +121,8 @@ export async function catalog(element,raw,wantedProperties,wantedTypes){
 
 }
 
-async function catalogRow(subject,wanted,element,wantedProperties){
+//async function catalogRow(subject,wanted,element,wantedProperties){
+async function catalogRow(subject,wanted,element){
   let row = { id: subject.value  };
   let rowPredicates = getUniquePredicates( subject, null, null, subject.doc() );
   for(let predicate of rowPredicates){
@@ -121,7 +158,7 @@ async function catalogRow(subject,wanted,element,wantedProperties){
       }
     }
   }
-  if(wanted[0].predicate=="ft"){
+  if(wanted && wanted[0] && wanted[0].predicate=="ft"){
     let found =false
     for(let k of Object.keys(row)){
       let got = row[k];
@@ -144,6 +181,7 @@ async function catalogRow(subject,wanted,element,wantedProperties){
     if(row[key].length<2) row[key]=row[key][0];
   }
   if(element.isCatalog){
+    let wantedProperties = element.wantedProperties || element.closest('sol-catalog').wantedProperties;
     for(let key of Object.keys(wantedProperties)){ 
       if(!row[key]) row[key]= "";
       if(!row[key+'Of']) row[key+'Of']= "";
@@ -151,31 +189,6 @@ async function catalogRow(subject,wanted,element,wantedProperties){
   }
   return(row)
 }
-
-export async function catalogMenu(element,wantedTypes){
-   const source = getLinkFromAttr(element,'source');
-   const view = getLinkFromAttr(element,'view');
-   const definition = getLinkFromAttr(element,'definition');
-   await fetcher.load(source);   
-   if(definition){
-     let pkg = await import(definition);
-     wantedTypes = pkg.wantedTypes;
-     wantedProperties = pkg.wantedProperties;
-   }
-   let showTypes = count(source,wantedTypes);
-   let total = showTypes.shift();   
-   let menu = "<sol-menu>";
-   for(let t of showTypes){
-     if(t.page){
-       menu += `<link label="${t.name}" source="${t.page}" count="${t.count}" linkType="component" />\n`;
-     }
-     else menu += `<link label="${t.name}" view="${view}" source="${source}" wanted="a ${t.type}" count="${t.count}" linkType="catalog" />\n`;
-   }
-   menu += "</sol-menu>\n";
-   menu += `<p style="text-align:center;font-size:110%">total resources cataloged: ${total}<p>`;
-   return menu;
-}
-
 
 export function filterRdf(data,element){
   const wanted = element.wanted || element.getAttribute ?element.getAttribute('wanted') :null;
@@ -251,64 +264,6 @@ export async function getSingletonStore() {
   return { store,fetcher,updater,UI,sym,ns,lit };
 }  
 
-
-/* DATA MANAGEMENT UTILITIES
-*/
-export function count(url,types){
-    const node = sym(url);
-    let showTypes = [];
-    for(let name in types){
-      let type = types[name] ?types[name].type :type;
-      let stmts = store.match(null,nsp('rdf:type'),sym(type),node.doc()  );
-      let count = stmts.length;
-      showTypes.push( { name:types[name].label,count,type,page:types[name].page,tag:name } );
-    }
-    let total=0;
-    for(let one in showTypes){ if(one=="total") continue; total+=showTypes[one].count; }
-    showTypes.unshift(total);
-    return showTypes;
-}
-export async function countOLD(url){
-    rdf ||= await getSingletonStore();
-    const node = rdf.sym(url);
-    await rdf.fetcher.load(url);
-    const types = getUniqueTypes(null, null, null, node.doc() );
-    let all = [];
-    for(let t of types){
-      let typeStmts = rdf.store.match(null,null,t,node.doc()  );
-      let key = getTerm(t.value)
-      if(" MessageBoard, ChatChannel, MailingList, OngoingMeeting, Community, NGO, Corporation, CommunityGroup, ResarchOrganization, GovernmentalOrganization, ResearchProject, OpenIdService, OpenIdServer, ResearchOrganization, Project ".match(' '+key)) continue
-       all[key]=typeStmts.length;
-    }
-    all.total=0;
-    for(let one in all){ if(one=="total") continue; all.total+=all[one]; }
-    return all;
-}
-async function getPredicates(url){
-    rdf ||= await getSingletonStore();
-    const node = rdf.sym(url);
-    await rdf.fetcher.load(url);
-    const stmts = rdf.store.match(null, null, null, node.doc() );
-    let predicates= new Set();
-    for(let s of stmts){ predicates.add( s.predicate.value );}
-    predicates = Array.from(predicates);
-    console.log(predicates);
-}
-
-// const filteredData = $rdf.serialize(null, filteredStore, 'https://example.com/filtered', 'text/turtle');
-
-async function getMissing(url,wantedPred){
-    rdf ||= await getSingletonStore();
-    const node = rdf.sym(url);
-    await rdf.fetcher.load(url);
-    wantedPred = wantedPred ?nsp(wantedPred) :null;
-    const subjects = getUniqueSubjects(null, null, null, node.doc() );
-    for(let subject of subjects){
-      let found = rdf.store.any(subject,wantedPred,null,node.doc());
-      if(!found) console.log( subject.value );
-    }
-}
-
 /* GENERAL UTILITIES
 */
 export async function webOp(method,uri,options) {
@@ -367,7 +322,7 @@ export function bestLabel(node){
   }
   catch(e) { console.log(e); return node }
 }
-function getTerm(value){
+export function getTerm(value){
   if(!value) return "";
   if(value.value) value = value.value;
   return value.replace(/.*#/,'').replace(/.*\//,'').replace(/-/g,'_');
@@ -403,6 +358,7 @@ function getUniqueTypes(s,p,o,g){
 function getWanted(element){
     element.wanted ||= element.getAttribute ?element.getAttribute('wanted') :null;
     if(!element.wanted) return {};
+    if(element.wanted=="keywordsIndex") return ["keywordsIndex"];
     let clauses = element.wanted.split(/\|\|/);
     let searchAry = [];
     for(let clause of clauses){

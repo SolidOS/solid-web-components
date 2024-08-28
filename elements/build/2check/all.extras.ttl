@@ -1,0 +1,9 @@
+:Dtou
+  a oar:Specification ;
+  schema:name "DToU - Terms of Use of Data Specificationa" ;
+  doap:homepage <https://me.ryey.icu/solid-dtou/dtou-spec.html> ;
+  schema:provider    :RuiZhao, :JunZhao ;
+  schema:partOf      :OxfordHumanCenteredComputingGroup ;
+  schema:status      oar:Development ;
+  doap:repository <https://github.com/OxfordHCC/solid-dtou/> .
+
