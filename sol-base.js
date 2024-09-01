@@ -48,4 +48,5 @@ customElements.define("sol-text",SolText);
 customElements.define("sol-component",SolComponent);
 customElements.define("sol-sparql",SolSparql);
 
+
 /* END */
