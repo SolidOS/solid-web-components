@@ -1,12 +1,343 @@
-<sol-component
-  source="./documentation.html"
-  template="reader"
-></sol-component>
-<div></div>
+<style>
+.sol-help p {margin-left:1.4rem}
+</style>
+<div class="sol-help">
 
-<link rel="stylesheet" href="../sol-core.css" />
+<h1>Solid Web Components Overview</h1>
 
-<script src="https://cdn.jsdelivr.net/npm/solid-ui@2.4.33-alpha/dist/solid-ui.min.js" type="module"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" type="module"></script>
-<script src="../sol-core.js" type="module"></script>
-</script>
+<h2>Using from a CDN</h2>
+
+To use components on any pod or web page, all you have to do is to import the components from a CDN, for example:
+<pre><code>
+&lt;script 
+  src="https://cdn.jsdelivr.net/npm/solid-web-components@1.0.6/sol-cdn.js"
+  type="module"
+>&lt/script>
+</code></pre>
+<h2>Using from a local install</h2>
+
+<h2>Note on URLs</h2>
+  <p>
+    In sol components, anytime URLs are required, you can use absolute URLs or URLs relative to the server root (e.g. /home) or relative to the current webpage (e.g. ./assets/foo.png).
+  </p>
+
+<h2></h2>
+
+<h1>Solid Web Components by Function</h1>
+
+
+<h2>Embed Non-Rdf Content</h2>
+
+  <p>
+    You can insert snippets from HTML, Markdown, and Text documents by supplying the URL of the document.
+  </p>
+
+  <H3>HTML</H3>
+
+    <sol-demo>
+      <sol-html source="./data/sample-html-2.html"></sol-html>
+    </sol-demo>
+
+  <H3>Markdown</H3>
+     <p>
+       If the tag specifies `Markdown`, the document will be converted to HTML.
+     </p>
+  <sol-demo>
+    <sol-markdown source="./data/sample-markdown.md"></sol-markdown>
+  </sol-demo>
+
+  <H3>Text</H3>
+     <p>
+       If the tag specifies `Text`, the document will not be converted, regardless of orignal format.
+     </p>
+  <sol-demo>
+      <sol-text source="./data/sample-markdown.md"></sol-text>
+  </sol-demo>
+
+  <H3>Javascript</H3>
+     <p>
+       By default all HTML and Markdown documents are sanitized with DOMPurify which means that javascript will be disabled, including onclick actions. 
+     </p>
+<sol-demo>
+    <sol-html source="./data/sample-html.html"></sol-html>
+</sol-demo>
+     <p>
+       If you supply the `trusted` attribute, the sanitizing will be bypassed and onclick and other inline javasript will be active.  Needless to say, use with caution.
+     </p>
+<sol-demo>
+    <sol-html source="./data/sample-html.html" trusted></sol-html>
+  </sol-demo>  
+
+  <H3>Components</H3>
+    <p>
+      Components can call other components.  For example a header component might call a banner component and a menu component.  Components are trusted by default so only include components you control or trust.
+    </p>
+    <sol-demo>
+      <sol-component source="./data/sample-component.html"></sol-component>
+    </sol-demo>  
+
+<h2>Embed, Query, & Filter RDF Content</h2>
+
+
+  <H3>A single subject</H3>
+    <p>
+      
+    </p>
+<sol-demo>  
+<sol-rdf source="./data/sample-rdf.ttl#004" view="table"></sol-rdf>
+</sol-demo>
+    <H3>Multiple subjects</H3><sol-demo>  
+      <sol-rdf source="./data/sample-rdf.ttl" view="table"></sol-rdf>
+</sol-demo>
+
+  <H3>Simple RDF queries</H3><sol-demo>
+<!--
+  The `wanted` attribute, when used with an RDF source, should be a triple pattern using an asterisk for null.
+-->
+  <sol-rdf
+    view="table"
+    source="./data/sample-rdf.ttl"
+    wanted="hasTopic Science News"
+    demo
+  ></sol-rdf>
+  </sol-demo>
+
+  <H3>SPARQL queries</H3><sol-demo>
+<!--
+    <p>
+      A SPARQL component uses these attributes : <ul>
+      <li><b>source</b> attribute points to a document containing a SPARQL query
+      <li><b>endpoint</b> attribute points to the data the query will search
+      <li><b>view </b> attribute indicates method of display
+      </ul>
+      The query can omit prefix statements for all common vocabularies (listed in <a href="https://github.com/solid/solid-namespace">solid-namespace</a>), so if the query contains <i>:thing rdfs:label "foo"</i>, the necessary prefix statements will be prepended to the query.
+    </p>
+    <p>
+      By default, the rdflib query engine is used.  However, if  you add comunica with a script tag in your topmost HTML, the comunica engine you specify will be used instead.
+      Rdflib is sufficient for basic querying but, for full SPARQL 1.1, you probably want comunica.
+    </p>
+    <p>
+      If you are using comunica and the endpoint is an actual SPARQL endpoint, the querying will be done server-side.  If you are using rdflib or the endpoint is a plain RDF endpoint, the querying will be done client-side.
+    </p>
+-->
+    <sol-sparql
+        source="./data/sparql.rq"
+        endpoint="./data/sample-rdf.ttl"
+        view="table"
+    demo
+    ></sol-sparql>
+</sol-demo>  
+  <H3>Replaceable query parameters</H3><sol-demo>
+<!--
+    <p>
+    If your SPARQL document has <i>${queryParam}</i> in it, you can replace that at runtime.
+    So, given this SPARQL : 
+-->
+    <pre style="color:teal">SELECT ?Feedname
+    WHERE {
+       ?x rdfs:label ?Feedname; bookmark:hasTopic "${queryParam}" .
+    }</pre>
+  </p>
+<sol-sparql
+style="color:teal"
+source="./data/sparql-replaceable.rq"
+endpoint="./data/sample-rdf.ttl"
+view="table"
+queryParam="Tech News"
+    demo
+></sol-sparql>
+</sol-demo>
+
+<H3>HTML/RDFa filtering</H3><sol-demo>
+<!--
+  <p>The `wanted` attribute, when used with an HTML, HTML/RDFa, or Markdown source, can be any CSS selector and will return only elements matching the selctor.</p>
+-->
+  <sol-markdown
+     source="./data/sample-markdown.md"
+     wanted="H1"
+    demo
+  ></sol-markdown>
+</sol-demo>
+
+<H2>Access Solid Pods</H2>
+
+    <H3>Login</H3><sol-demo>
+
+    <p>
+      <pre><code>&lt;sol-login>&lt;/sol-login></code></pre>
+      <sol-login></sol-login>
+    </p>
+
+    <p>&nbsp;</p>
+    </sol-demo>
+
+    <H3>Containers</H3><sol-demo>  
+    </sol-demo>
+
+    <H3>Forms</H3><sol-demo>  
+      <pre><code>&lt;<b>sol-rdf</b>
+       <b>source</b>="./data/sample-rdf.ttl#004"
+       <b>form</b>="./data/sample-form.ttl#MyForm"
+       <b>wanted</b>="* a Bookmark"
+       <b>view</b>="form"
+&lt;/sol-rdf></code></pre>
+
+      <sol-rdf source="./data/sample-rdf.ttl#004" form="./data/sample-form.ttl#MyForm" wanted="* a Bookmark" view="form"></sol-rdf>
+      </sol-demo>
+
+    <H3>SolidOS Apps</H3><sol-demo>  
+    </sol-demo>
+
+<H2>Create GUIs</H2>
+
+  <H3>Table</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Menu</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Custom views</H3><sol-demo>
+  <sol-rdf
+  source="./data/sample-rdf.ttl"
+wanted="* hasTopic Science News"
+view="./data/news-view.html"
+demo
+></sol-rdf>
+<p><pre><code>&lt;sol-demo style="display:inline-block;margin-right:1rem;">
+  &lt;sol-demo style="border:1px solid grey; padding:1rem; width:20ch;background:lightgrey;">
+   ${label}
+  &lt;/sol-demo>
+  &lt;sol-demo  style="border:1px solid grey; padding:1rem; width:20ch;">
+    ${hasTopic}
+  &lt;/sol-demo>
+&lt;/sol-demo></code></pre></p>
+</sol-demo>
+
+
+<H3>Links</H3><sol-demo>
+<sol-rdf
+source="./data/sample-rdf.ttl"
+wanted="* hasTopic Science News"
+view="links"
+></sol-rdf></sol-demo>
+
+
+<H3>Selector</H3><sol-demo>
+  <sol-rdf
+    source="./data/sample-rdf.ttl"
+    view="selector"
+  ></sol-rdf>
+  </sol-demo>
+
+  <H3>Page</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Tree</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Tabs</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Accordion</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Modal</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Draggable</H3><sol-demo>
+  </sol-demo>
+
+  <H3>Droppable</H3><sol-demo>
+  </sol-demo>
+
+<H2>Add Plugins, Apps, & Widgets</H2>
+
+  <H3>Document Editor</H3><sol-demo>
+  </sol-demo>
+  <H3>Searchbar</H3><sol-demo>
+  </sol-demo>
+  <H3>RSS</H3><sol-demo>
+  </sol-demo>
+  <H3>UTC/Local</H3><sol-demo>
+  </sol-demo>
+
+</div><!-- sol-help -->
+
+<!--
+reader
+accordion
+demo
+modal
+
+<H3>Reader</H3>
+
+  This documentation is a "reader" - it has a menu on the left which displays the chosen items on the right.  You can hide and display the menu with the menu button.  You can use next and previous buttons to navigate through the documentation.  This particular reader was made from an HTML page, but readers can also be generated from Markdown, and RDF.  More info coming soon.  Here's exampe code:
+  <pre><code>
+  &lt;sol-rdf
+    id="reader1"
+    source="./data/sample-rdf.ttl"
+    view="reader"
+  >&lt;/sol-rdf>
+-</code></pre>
+  <style>
+    reader1 .sol-link {padding:1rem;border-bottom:1px solid grey;}
+  </style>
+
+
+<h3>searchbar</h3>
+  <sol-rdf
+    source="./data/search.ttl"
+    view="searchbar"
+  ></sol-rdf>
+
+
+</sol-demo>
+
+<H2>Components Playground</H2><sol-component source="./playground.html" nodemo></sol-component>
+
+<H2>Contribute & Extend</H2><sol-demo>
+
+  <H3 >Bug Reporting & Feedback</H3><sol-demo>
+    Please report bugs and provide feedback at <a  style="color:blue;text-decoration:underline" href="https://github.com/solidos/solid-web-components/issues.">https://github.com/solidos/solid-web-components/issues.</a>
+  </sol-demo>
+  
+  <H3 >Contributing</H3><sol-demo>
+    If you create new components, model or view plugins that are generally applicable, please add them to the code here <a style="color:blue;text-decoration:underline"    
+    href="https://github.com/SolidOS/solid-web-components/pulls">https://github.com/SolidOS/solid-web-components/pulls</a>
+  </sol-demo>
+
+  <H3 >Extending - View Plugins</H3>
+    <sol-markdown source="./data/extending.md" nodemo></sol-markdown>
+ 
+
+ <H3 >Extending - Model Plugins</H3><sol-demo>
+  Coming Soon!
+ </sol-demo>
+
+ <H3 >Extending - Query/Fiter Plugins</H3><sol-demo>
+  Coming Soon!
+ </sol-demo>
+  
+</sol-demo>
+
+<H2>About</H2><sol-demo>
+  Solid Web Components, originally created by <a href="#">Jeff Zucker</a>, are based on the SolidOS software stack - <a href="#">rdfllib</a>,  <a href="#">solid-ui</a>, <a href="#">mashlib</a>.  My profound thanks go out to the other members of the SolidOS team - Angelo Vetens, Alain Bourgeois, Aad Verstein, Timea Turdean, Rahul Gupta, Noel DiMartin, Chase Hunt, Jon Wilson, Mathias Evering, Tim Berners-Lee, and the many others who have contributed.
+  
+</sol-demo>
+</sol-demo>
+-->
+
+<script src="../sol-login.js" type="module"></script>
+<!--
+<script src="../sol-base.js" type="module"></script>
+<script src="../sol-page.js" type="module"></script>
+<script src="../sol-menu.js" type="module"></script>
+<script src="../sol-time.js" type="module"></script>
+<script src="../sol-searchbar.js" type="module"></script>
+<script src="../sol-rss.js" type="module"></script>
+<script src="../sol-container.js" type="module"></script>
+<script src="../sol-solidos.js" type="module"></script>
+<script src="../sol-tabset.js" type="module"></script>
+<script src="../sol-demo.js" type="module"></script>
+-->
+

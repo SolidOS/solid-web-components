@@ -1,4 +1,6 @@
+PREFIX bookmark: <http://www.w3.org/2002/01/bookmark#> 
 SELECT ?Feedname
  WHERE {
-    ?x rdfs:label ?Feedname; bookmark:hasTopic "Science News" .
+    ?x rdfs:label ?Feedname.
+    ?x bookmark:hasTopic "Science News" .
  }
