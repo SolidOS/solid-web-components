@@ -12,15 +12,19 @@ export class SolContainer extends SolBase {
     super(); 
   }
   async connectedCallback(){ 
-    await getDefaults(this)
-    this.solidosMode = false;
-    await prepContainerWrapper(this);
+    try {
+      await getDefaults(this)
+      this.solidosMode = false;
+      await prepContainerWrapper(this);
+    }
+    catch(e){console.log(e)}
   }
 }
 customElements.define("sol-container",SolContainer);
 
 
 async function prepContainerWrapper(element){
+try {
   element.themeString = containerTheme ;
   await page(element)
   let header = element.querySelector('.sol-container-header');
@@ -37,6 +41,10 @@ async function prepContainerWrapper(element){
   fileHeader.style['text-align']="center";
   setHeader(currentFile,element);
   showLink(files[0],element);
+} catch(e){
+    alert(e);
+    console.log(e);
+  }
 }
 
 function setHeader(currentFile,element){

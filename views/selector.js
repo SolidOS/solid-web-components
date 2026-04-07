@@ -9,6 +9,10 @@ export async function selector(data,element){
     select.classList.add('sol-selector')
     display.classList.add('sol-selector-display')
     select.style.width = "100%";
+    let options = "";
+    for(let row of data){
+        options += `<option value="${row.value}">${row.label}</option>`;
+    }
     select.innerHTML = getOptions(data);
     select.style.padding = "0.75rem";
     wrapper.appendChild(select);

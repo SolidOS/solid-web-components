@@ -8,8 +8,15 @@ window.$SolidTestEnvironment = {
   iconBase : "/assets/icons/",
   originalIconBase : "/assets/originalIcons/",
 }
+/*
+  import * as $rdf from 'https://esm.sh/rdflib'
+  import * as SolidLogic from 'https://esm.sh/solid-logic'
+  import * as UI from 'https://esm.sh/solid-ui'
+window.UI.store = SolidLogic.store;
+*/
+
 //import 'https://cdn.jsdelivr.net/npm/solid-ui@latest/dist/solid-ui.min.js';
-import 'https://cdn.jsdelivr.net/npm/mashlib@latest/dist/mashlib.min.js';
+import 'https://cdn.jsdelivr.net/npm/mashlib@1.11.1/dist/mashlib.min.js';
 //import '/home/s/solid-web-components/node_modules/mashlib/dist/mashlib.min.js';
 import "https://cdn.jsdelivr.net/npm/marked/marked.min.js";
 import "https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js";

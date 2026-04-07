@@ -14,8 +14,8 @@ export class SolTime extends HTMLElement {
     var now = new Date();
     var localTime = formatTime(now.getHours()) + ':' + formatTime(now.getMinutes());
     var utcTime = formatTime(now.getUTCHours()) + ':' + formatTime(now.getUTCMinutes());
-    element.innerHTML = `<div class="sol-time" style="display:inline-block; text-align:right;padding:0.5rem;padding-left:0.10rem;border-radius:0.3rem;border:1px solid grey;font-size:0.8rem;width:5rem;background:white;color:black;opacity:80%;line-height:1.4em;">
-      <div style="white-space:nowrap !important">Local : ${localTime}</div>
+    element.innerHTML = `<div class="sol-time" style="padding:0.5rem;padding-left:0.10rem;border-radius:0.3rem;border:1px solid grey; text-align:center">
+      <span style="white-space:nowrap !important">Local : ${localTime}</span> | 
       <span style="white-space:nowrap !important">UTC : </span><span>${utcTime}</span>
     </div>`;
     function formatTime(time) {
@@ -25,3 +25,9 @@ export class SolTime extends HTMLElement {
 }
 customElements.define("sol-time",SolTime);
 
+/*
+    element.innerHTML = `<div class="sol-time" style="display:inline-block; text-align:right;padding:0.5rem;padding-left:0.10rem;border-radius:0.3rem;border:1px solid grey;font-size:0.8rem;width:5rem;background:white;color:black;opacity:80%;line-height:1.4em;">
+      <span style="white-space:nowrap !important">Local : ${localTime}</span> | 
+      <span style="white-space:nowrap !important">UTC : </span><span>${utcTime}</span>
+    </div>`;
+*/

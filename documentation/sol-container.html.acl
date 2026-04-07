@@ -1,0 +1,10 @@
+@prefix : <#>.
+@prefix acl: <http://www.w3.org/ns/auth/acl#>.
+@prefix foaf: <http://xmlns.com/foaf/0.1/>.
+
+:authorization
+    a acl:Authorization;
+    acl:accessTo
+        <sol-container.html?uri=http%3A%2F%2Flocalhost%3A3000%2Flocal-solid-user%2Fpublic%2Ftest.html>;
+    acl:agentClass foaf:Agent;
+    acl:mode acl:Append, acl:Control, acl:Delete, acl:Read, acl:Write.

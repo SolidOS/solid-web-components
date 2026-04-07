@@ -190,6 +190,8 @@ async function catalogRow(subject,wanted,element){
   return(row)
 }
 
+
+
 export function filterRdf(data,element){
   const wanted = element.wanted || element.getAttribute ?element.getAttribute('wanted') :null;
   const limit = element.limit || element.getAttribute ?element.getAttribute('limit') :null;

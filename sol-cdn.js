@@ -1,3 +1,7 @@
+import * as $rdf from 'https://esm.sh/rdflib'
+import * as SolidLogic from 'https://esm.sh/solid-logic'
+import * as UI from 'https://esm.sh/solid-ui'
+
 import 'https://cdn.jsdelivr.net/npm/mashlib@latest/dist/mashlib.min.js';
 import "https://cdn.jsdelivr.net/npm/marked/marked.min.js";
 import "https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js";

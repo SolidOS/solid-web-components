@@ -43,9 +43,10 @@ class SolCatalog extends HTMLElement {
   </div>
 </div>
     `;
-    let button = this.querySelector('.sol-keywords');
+    alert(3)
     let self = this;
-    button.addEventListener('click',(event)=>{
+    let keywordsButton = this.querySelector('.sol-keywords');
+    keywordsButton.addEventListener('click',(event)=>{
       let clicked = event.target;
       let element = clicked.closest('.sol-catalog-page') || clicked.closest('.sol-catalog');
       element.setAttribute('isIndex',true);
@@ -54,6 +55,18 @@ class SolCatalog extends HTMLElement {
       let view = getLinkFromAttr(element,'view');
       view = view ?`view="${element.view}" ` :"";
       displayArea.innerHTML = `<sol-catalog-page wanted="keywordsIndex" ${view} source="${source}"></sol-catalog-page>`;
+    });  
+    let aboutButton = this.querySelector('.about-link');
+    alert(aboutButton)
+    aboutButton.addEventListener('click',(event)=>{
+      alert(9)
+      let clicked = event.target;
+      let element = clicked.closest('.sol-catalog-page') || clicked.closest('.sol-catalog');
+      let source = getLinkFromAttr(aboutButton,'source');
+      let displayArea = clicked.closest('.sol-wrapper').querySelector('.sol-display');
+      let view = getLinkFromAttr(element,'view');
+      view = view ?`view="${element.view}" ` :"";
+      displayArea.innerHTML = `<sol-component ${view} source="${source}"></sol-component>`;
     });  
     return(true)
   }
