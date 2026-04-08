@@ -4,4 +4,4 @@ These components provide access to Solid and other linked-data resources allowin
 
 Version 2.0 is in progress. Should be complete mid-April. See the [documentation](https://solidos.github.io/solid-web-components/).
 
-&copy; Jeff Zucker 2024-2026, may be freely used with an MIT or Apache license
+&copy; Jeff Zucker 2023-2026, may be freely used with an MIT or Apache license
