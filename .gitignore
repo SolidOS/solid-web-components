@@ -1,0 +1,14 @@
+*~
+#*
+*#
+.#*
+drafts
+drafts-*
+node_modules
+dist
+coverage
+lib
+test-folder
+log.txt
+myPod
+testall.sh

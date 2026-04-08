@@ -1,0 +1,43 @@
+{
+  "name": "solid-web-components",
+  "version": "2.0.0",
+  "description": "Web components for querying, including, and editing RDF/Linked Data",
+  "type": "module",
+  "main": "sol-query.js",
+  "exports": {
+    ".":          "./sol-query.js",
+    "./rdf":      "./shared/rdf-utils.js",
+    "./ui":       "./utils/sol-query-ui.js",
+    "./mini":     "./utils/sol-query-mini.js",
+    "./include":  "./sol-include.js",
+    "./live-edit": "./sol-live-edit.js"
+  },
+  "scripts": {
+    "test":       "node --experimental-vm-modules node_modules/.bin/jest --coverage",
+    "bundle": "rollup -c rollup.config.js --environment MINIFY:true"
+  },
+  "devDependencies": {
+    "@babel/core":                  "^7.24.0",
+    "@babel/preset-env":            "^7.24.0",
+    "babel-jest":                   "^29.7.0",
+    "jest":                         "^29.7.0",
+    "jest-environment-jsdom":       "^29.7.0",
+    "rollup":                       "^4.13.0",
+    "@rollup/plugin-node-resolve":  "^15.2.3",
+    "@rollup/plugin-terser":        "^0.4.4"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "transform": {
+      "^.+\\.js$": "babel-jest"
+    },
+    "transformIgnorePatterns": ["node_modules/(?!(your-esm-pkg)/)"],
+    "moduleNameMapper": {
+      "^rdflib$":     "<rootDir>/tests/__mocks__/rdflib-esm.js",
+      "^dompurify$":  "<rootDir>/tests/__mocks__/dompurify.js",
+      "^marked$":     "<rootDir>/tests/__mocks__/marked.js"
+    },
+    "setupFiles": ["<rootDir>/tests/setup.js"],
+    "testMatch": ["**/tests/**/*.test.js"]
+  }
+}

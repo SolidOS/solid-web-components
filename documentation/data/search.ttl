@@ -1,0 +1,42 @@
+@prefix : <#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix bk: <http://www.w3.org/2002/01/bookmark#>.
+@prefix pre: <https://prefix.cc/>.
+
+<> rdfs:label "Search Engines".
+
+:001
+    a bk:Bookmark;
+    rdfs:label "google";
+    bk:hasTopic "Search Engine";
+    bk:recalls <https://google.com/search?q=>.
+:002
+    a bk:Bookmark;
+    rdfs:label "ddg";
+    bk:hasTopic "Search Engine";
+    bk:recalls <https://duckduckgo.com/q=>.
+:003
+    a bk:Bookmark;
+    rdfs:label "wikipedia";
+    bk:hasTopic "Search Engine";
+    bk:recalls <https://en.wikipedia.org/w/index.php?search=>.
+:004
+    a bk:Bookmark;
+    rdfs:label "lov";
+    bk:hasTopic "Search Engine";
+    bk:recalls <https://lov.linkeddata.es/dataset/lov/terms?q=>.
+:005
+    a bk:Bookmark;
+    rdfs:label "prefix";
+    bk:hasTopic "Search Engine";
+    bk:recalls pre:.
+:006
+    a bk:Bookmark;
+    rdfs:label "etymology";
+    bk:hasTopic "Search Engine";
+    bk:recalls <https://www.etymonline.com/search?q=>.
+:007
+    a bk:Bookmark;
+    rdfs:label "youtube";
+    bk:hasTopic "Search Engine";
+    bk:recalls <https://www.youtube.com/results?search_query=>.

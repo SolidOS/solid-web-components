@@ -1,0 +1,36 @@
+<body>
+  <div id="topmenu">
+    <span id="sidebarButton" style="font-weight:900;font-size:240%;cursor:pointer;"
+      onclick="document.getElementById('main').classList.toggle('hidden')";
+    >&equiv;</span>
+  </div>
+  <div id="main">
+    <div id="sidebar"></div>
+    <div id="display"></div>
+  </div>
+</body>
+
+<style>
+
+/* POSITIONING */
+body  { margin:0; display:grid; grid-template-rows:2rem auto;}
+#main { display:grid;grid-template-columns:33% auto; }
+#main.hidden #sidebar { display:none; }
+#main.hidden { grid-template-columns:auto !important; }
+#sidebarButton { margin-left:1rem; }
+
+/* COLORS */
+body { color:wheat;}
+#topmenu { background:#101010;}
+#sidebar { background:#181818;}
+#display { background:#1f1f1f;}
+
+/* FONTS */
+body { 
+  font-size:18px; 
+  font-family:Verdana,Arial,Helvetica,Sans-Serif;
+}
+/* OVERFLOW */
+body,sidebar,display { overflow:hidden }
+
+</style>

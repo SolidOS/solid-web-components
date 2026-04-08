@@ -1,0 +1,12 @@
+@prefix :  <#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix bk: <http://www.w3.org/2002/01/bookmark#> .
+
+<> rdfs:label "Dashboard".
+
+:1 a bk:Bookmark; bk:recalls <./news.ttl>; rdfs:label "News Feeds".
+:2 a bk:Bookmark; bk:recalls <./search.ttl>; rdfs:label "Search Engines".
+:3 a bk:Bookmark; bk:recalls <./links.ttl>; rdfs:label "Personal Links".
+:4 a bk:Bookmark; bk:recalls <./projects.ttl>; rdfs:label "Dashboard".
+
+

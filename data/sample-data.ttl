@@ -1,0 +1,27 @@
+@prefix schema: <http://schema.org/> .
+
+[
+  a schema:Person ;
+  schema:name "Aisha" ;
+  schema:age  35;
+].
+[
+  a schema:Person ;
+  schema:name "Raj" ;
+  schema:age  42;
+].
+[
+  a schema:Person ;
+  schema:name "Amara" ;
+  schema:age  23;
+].
+[
+  a schema:Person ;
+  schema:name "Juan" ;
+  schema:age  15;
+].
+[
+  a schema:Person ;
+  schema:name "Al" ;
+  schema:age  87;
+].

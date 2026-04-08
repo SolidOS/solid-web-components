@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-query Component - Help & Playground</title>
+  <script src="https://rdf.js.org/comunica-browser/versions/v4/engines/query-sparql/comunica-browser.js"></script>
+
+  <link rel="stylesheet" href="../shared/sol-query-help.css">
+  <script type="importmap">{"imports":{"rdflib":"https://esm.sh/rdflib","dompurify":"https://esm.sh/dompurify"}}</script>
+  <script type="module">
+    import * as $rdf from 'rdflib'; window.$rdf = $rdf;
+    import DOMPurify from 'dompurify'; window.DOMPurify = DOMPurify;
+  </script>
+</head>
+<body>
+  <h1>sol-query : flexibly query Linked Data</h1><ul>
+<li> its a plug-and-play web component - no coding needed
+<li> supports querying with simple triple patterns or full SPARQL with replaceable parameters
+<li> presents results as HTML table or HTML description list or in a user-supplied custom template
+<li> uses the Comunica SPARQL engine with a fallback to the rdflib SPARQL engine
+<li> handles SPARQL endpoints and simple RDF documents, including RDFa documents
+<li> uses authenticated Solid fetch when available
+<li> has safeguards against JavaScript and SPARQL injection</ul>
+<style> 
+  li { margin-bottom:0; } 
+  body {padding-top:8px;}
+  h1 {display:inline-block;}
+  span {font-size:110%;}
+  ul { padding-bottom:1rem !important;}
+</style><pre>
+retrieve         using attributes
+---------------------------------
+all statements : endpoint="RDF DOCUMENT URI"
+one subject    : endpoint="SUBJECT URI INSIDE A RDF DOCUMENT"
+mini query     : endpoint="RDF DOCUMENT URI" wanted="TRIPLE PATTERN"
+RDFa query     : endpoint="RDFa DOCUMENT URI" wanted="CSS SELECTOR PATTERN"
+inline SPARQL  : endpoint="SPARQL ENDPOINT" sparql="LITERAL SPARQL STRING"
+stored SPARQL  : endpoint="SPARQL ENDPOINT" sparql="URI OF A SPARQL QUERY"
+replace param  : endpoint="SPARQL ENDPOINT" sparql="URI OF A SPARQL QUERY" var-paramName="paramValue"
+
+format           using attributes
+---------------------------------
+as HTML table            : format="table" # or omit format attribute - table is the default
+as HTML description list : format="dl"
+</pre>
+
+  <h2>Usage Details</h2>
+
+  <nav class="page-nav" aria-label="Page sections">
+    <a href="#section-1">All Statements</a>
+    <a href="#section-2">Subject Query</a>
+    <a href="#section-3">Mini-Query</a>
+    <a href="#section-4">Stored SPARQL</a>
+    <a href="#section-5">Inline SPARQL</a>
+    <a href="#section-6">Replaceable Parameters</a>
+    <a href="#playground">Playground</a>
+    <a href="sol-query-script.html">Script API →</a>
+    <a href="sol-query-browser.html">Browser/CDN →</a>
+    <a href="sol-include-help.html">sol-include →</a>
+    <a href="sol-query-custom-format.html">Custom format →</a>
+    <a href="sol-live-edit-help.html">sol-live-edit →</a>
+  </nav>
+
+  <div id="section-1" class="usage-section">
+    <h3>1. View All Statements in a Document</h3>
+    <p>The <code>endpoint</code> attribute points to an RDF document</p>
+    <pre><code>&lt;sol-query endpoint="http://example.com/foo.ttl"&gt;&lt;/sol-query&gt;</code></pre>
+  </div>
+
+  <div id="section-2" class="usage-section">
+    <h3>2. View All Statements About a Subject</h3>
+    <p>The <code>endpoint</code> attribute points to a subject inside an RDF document</p>
+    <pre><code>&lt;sol-query endpoint="http://example.com/foo.ttl#BarTopic"&gt;&lt;/sol-query&gt;</code></pre>
+  </div>
+
+  <div id="section-3" class="usage-section">
+    <h3>3. Mini-Query Pattern</h3>
+    <p>The <code>endpoint</code> attribute points to an RDF document</p>
+    <p>The <code>wanted</code> attribute holds a simplified triple query (see below)</p>
+    <pre><code>&lt;sol-query
+  endpoint="http://example.com/foo.ttl"
+  wanted="? skos:broader Software"
+&gt;&lt;/sol-query&gt;</code></pre>
+    <p><strong>Mini-query syntax:</strong> Three space-separated parts representing subject, predicate, and object.</p>
+    <ul>
+      <li><code>?</code> or <code>?var</code> — wildcard (matches anything)</li>
+      <li><code>prefix:term</code> — CURIE expanded via built-in prefix table (rdf, rdfs, foaf, schema, dct, skos, ldp, solid…)</li>
+      <li><code>&lt;http://...&gt;</code> — full URI in angle brackets</li>
+      <li><code>literal</code> except for URIs and CURIES, all text after the predicate is treated as a single literal.</li>
+    </ul>
+  </div>
+
+  <div id="section-4" class="usage-section">
+    <h3>4. Stored SPARQL Query</h3>
+    <p>The <code>endpoint</code> attribute points to a SPARQL endpoint.</p>
+    <p>The <code>sparql</code> attribute points to a SPARQL query inside an RDF document.</p>
+    <pre><code>&lt;sol-query
+  endpoint="http://example.com/foo.ttl"
+  sparql="http://example.com/MyQueries.ttl#Query1"
+&gt;&lt;/sol-query&gt;</code></pre>
+    <p><strong>Query storage:</strong> The RDF document should contain the query using this format<code><pre><#MyQuery>
+   a &lt;http://www.w3.org/ns/sparql#query> ;
+   &lt;http://www.w3.org/2000/01/rdf-schema#comment> """
+     PREFIX schema: &lt;http://schema.org/>
+     SELECT ?name WHERE {
+       ?person a schema:Person; schema:name ?name.
+     }
+   """ .</code></pre>
+  </div>
+
+  <div id="section-5" class="usage-section">
+    <h3>5. Inline SPARQL Query</h3>
+    <p>The <code>sparql</code> attribute points to the full text of a SPARQL.</p>
+    <pre><code>&lt;sol-query
+  endpoint="http://example.com/foo.ttl"
+  sparql="SELECT ?s WHERE { ?s ?p ?o . }"
+&gt;&lt;/sol-query&gt;</code></pre>
+  </div>
+
+  <div id="section-6" class="usage-section">
+    <h3>6. Replaceable Parameters in SPARQL Queries</h3>
+    <pre><code>&lt;sol-query
+  endpoint="http://example.com/foo.ttl"
+  sparql="SELECT ?s WHERE { ?s ?p ?o } LIMIT {{limit}}"
+  var-limit="5"
+&gt;&lt;/sol-query&gt;</code></pre>
+    <p><strong>Replaceable Parameter syntax:</strong></p>
+    <ul>
+      <li>In query: <code>{{paramaterName}}</code></li>
+      <li>In attribute: <code>var-parameterName="value"</code></li>
+    </ul>
+    <p>Multiple named parameters can be used in a single query.</p>
+  </div>
+
+  <h2 id="playground">Interactive Playground</h2>
+
+  <div class="playground">
+    <div class="examples-grid">
+      <button class="button example-btn" type="button" onclick="loadExample(0)">All Statements</button>
+      <button class="button example-btn" type="button" onclick="loadExample(1)">Subject Query</button>
+      <button class="button example-btn" type="button" onclick="loadExample(2)">Mini-Query</button>
+      <button class="button example-btn" type="button" onclick="loadExample(3)">Inline SPARQL</button>
+      <button class="button example-btn" type="button" onclick="loadExample(4)">Replaceable Parameters</button>
+      <button class="button example-btn" type="button" onclick="loadExample(5)">RDFa</button>
+    </div>
+
+    <textarea
+      id="queryInput"
+      aria-label="Query input"
+      placeholder="Enter your sol-query tag here..."
+    ></textarea>
+
+    <button class="button" type="button" onclick="executeQuery()">Execute Query</button>
+  </div>
+
+  <div id="modal" class="modal" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+    <div class="modal-content">
+      <button class="modal-close" type="button" onclick="closeModal()" aria-label="Close modal">×</button>
+      <h2 id="modal-title">Query Result</h2>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script src="../sol-query.js" type="module"></script>
+  <script src="sol-query-help.js"></script>
+</body>
+</html>

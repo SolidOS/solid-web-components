@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Turtle RDF Live Editor</title>
+  <link rel="stylesheet" href="../shared/page.css">
+</head>
+<body>
+<header>
+  <h1>Turtle RDF Live Editor</h1>
+  <button class="hdr-btn" id="loadBtn">Load</button>
+  <button class="hdr-btn" id="saveBtn">Save</button>
+  <button class="hdr-btn" id="zmOutBtn">−</button>
+  <span class="hdr-zoom" id="zmPct">100%</span>
+  <button class="hdr-btn" id="zmInBtn">+</button>
+  <button class="hdr-btn" id="cfgBtn">⚙</button>
+  <button class="hdr-btn" id="hlpBtn">?</button>
+</header>
+<sol-live-edit format="turtle" id="editor"></sol-live-edit>
+<script type="module">
+  import '../sol-live-edit.js';
+  import { initTheme, setupLoadSave } from '../shared/page-utils.js';
+  initTheme();
+  setupLoadSave('editor', '.ttl,.n3,.turtle,.txt', 'data.ttl', 'text/turtle');
+  const ed = document.getElementById('editor');
+  document.getElementById('zmOutBtn').onclick = () => ed.zoomOut();
+  document.getElementById('zmInBtn').onclick  = () => ed.zoomIn();
+  document.getElementById('cfgBtn').onclick   = () => ed.toggleSettings();
+  document.getElementById('hlpBtn').onclick   = () => ed.toggleHelp();
+  ed.addEventListener('sol-zoom', e => { document.getElementById('zmPct').textContent = e.detail.pct + '%'; });
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+@prefix : <#> .
+@prefix solid: <http://www.w3.org/ns/solid/terms#> .
+@prefix bk: <http://www.w3.org/2002/01/bookmark#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+
+:MyForm
+  a ui:Form ;
+  ui:parts( :LabelField :UrlField :TopicField ) .
+
+:LabelField
+  a ui:SingleLineTextField ;
+  ui:property rdfs:label ;
+  ui:label "Label"@en .
+
+:UrlField
+  a ui:SingleLineTextField ;
+  ui:property bk:recalls ;
+  ui:label "URL"@en .
+
+:TopicField
+  a ui:SingleLineTextField ;
+  ui:property bk:hasTopic ;
+  ui:label "Topic"@en  .
+
+
+
