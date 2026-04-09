@@ -51,6 +51,57 @@ export class SparqlResultsRenderer {
       return;
     }
 
+    // Pivot s,p,o results: predicates become column headers, objects become cells.
+    // Multiple subjects → one table per subject with a jump menu at the top.
+    const pivoted = this._pivotSPO(data);
+    if (pivoted) {
+      this.container.innerHTML = '';
+      if (pivoted.length === 1) {
+        this._renderOnePivot(pivoted[0], format, options);
+      } else {
+        // Jump menu
+        const nav = document.createElement('nav');
+        nav.className = 'subject-nav';
+        pivoted.forEach((p, i) => {
+          const a = document.createElement('a');
+          a.href = `#spo-subj-${i}`;
+          a.textContent = p.label;
+          a.title = p.uri || p.label;
+          nav.appendChild(a);
+        });
+        this.container.appendChild(nav);
+        // One section per subject
+        pivoted.forEach((p, i) => {
+          const section = document.createElement('div');
+          section.className = 'subject-section';
+          section.id = `spo-subj-${i}`;
+          const heading = document.createElement('h3');
+          heading.className = 'subject-heading';
+          if (p.uri) {
+            const link = document.createElement('a');
+            link.href = p.uri;
+            link.textContent = p.label;
+            link.title = p.uri;
+            link.dataset.uri = p.uri;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            heading.appendChild(link);
+          } else {
+            heading.textContent = p.label;
+          }
+          section.appendChild(heading);
+          const sub = document.createElement('div');
+          section.appendChild(sub);
+          this.container.appendChild(section);
+          // Render the table into the sub-container
+          const subRenderer = new SparqlResultsRenderer(sub);
+          subRenderer._bnodeData = this._bnodeData;
+          subRenderer._renderOnePivot(p.data, format, options);
+        });
+      }
+      return;
+    }
+
     // Group rows that share the same predicate (when 'o' column present)
     const grouped = this._groupByPredicate(data);
 
@@ -64,6 +115,83 @@ export class SparqlResultsRenderer {
       this.container.appendChild(table);
       if (!options.hideHeader) this._addSort(table);
     }
+  }
+
+  // ── Render a single pivoted dataset ──────────────────────────────────────────
+  _renderOnePivot(data, format, options) {
+    if (format === 'dl') {
+      this.container.appendChild(this._mkDl(data));
+    } else if (format === 'list') {
+      this.container.appendChild(this._mkList(data));
+    } else {
+      const table = this._mkTable(data, options);
+      this.container.appendChild(table);
+      if (!options.hideHeader) this._addSort(table);
+    }
+  }
+
+  // ── Pivot s,p,o → predicates as columns ─────────────────────────────────────
+  // Returns null if not an s,p,o pattern.
+  // Returns an array of { label, uri, data: {vars, results} } — one per subject.
+  _pivotSPO(data) {
+    const v = data.vars;
+    const hasSPO = v.length === 3 && v[0]==='s' && v[1]==='p' && v[2]==='o';
+    const hasPO  = v.length === 2 && v[0]==='p' && v[1]==='o';
+    if (!hasSPO && !hasPO) return null;
+
+    // Group rows by subject, collect predicates per subject
+    const subjectOrder = [];
+    const subjects     = new Map();
+
+    for (const row of data.results) {
+      const sKey = hasSPO ? (row.s?.value ?? '') : '';
+      const pURI = row.p?.value ?? '';
+
+      if (!subjects.has(sKey)) {
+        subjectOrder.push(sKey);
+        subjects.set(sKey, { s: row.s, predOrder: [], predSet: new Set(), preds: new Map() });
+      }
+      const subj = subjects.get(sKey);
+      if (!subj.predSet.has(pURI)) { subj.predSet.add(pURI); subj.predOrder.push(pURI); }
+      if (!subj.preds.has(pURI)) subj.preds.set(pURI, []);
+      if (row.o) subj.preds.get(pURI).push(row.o);
+    }
+
+    const _short = uri => uri.replace(/.*[/#]([^/#]+)\/?$/, '$1') || uri;
+
+    // Build one pivoted dataset per subject
+    return subjectOrder.map(sKey => {
+      const subj = subjects.get(sKey);
+
+      // Short column names with collision resolution
+      const names = subj.predOrder.map(_short);
+      const seen  = {};
+      for (let i = 0; i < names.length; i++) {
+        const n = names[i];
+        if (seen[n] !== undefined) {
+          names[seen[n]] = subj.predOrder[seen[n]];
+          names[i] = subj.predOrder[i];
+        } else { seen[n] = i; }
+      }
+
+      const row = {};
+      for (let i = 0; i < subj.predOrder.length; i++) {
+        const vals = subj.preds.get(subj.predOrder[i]);
+        if (!vals || vals.length === 0) {
+          row[names[i]] = { type: 'literal', value: '' };
+        } else if (vals.length === 1) {
+          row[names[i]] = vals[0];
+        } else {
+          row[names[i]] = { type: 'multi', values: vals };
+        }
+      }
+
+      return {
+        label: subj.s ? _short(subj.s.value) : 'Result',
+        uri:   subj.s?.type === 'uri' ? subj.s.value : null,
+        data:  { vars: names, results: [row] },
+      };
+    });
   }
 
   // ── Group rows by non-object columns, collect 'o' values ───────────────────
@@ -344,6 +472,22 @@ export function getDefaultStyles() {
     a.bnode-link { font-style: italic; color: var(--muted, #777); }
     a.bnode-link:hover { color: var(--link-color, #0066cc); }
 
+    /* ── subject nav + sections (multi-subject pivot) ── */
+    .subject-nav {
+      display: flex; flex-wrap: wrap; gap: 6px; padding: .5rem 0 .75rem;
+      border-bottom: 1px solid #ddd; margin-bottom: .75rem;
+    }
+    .subject-nav a {
+      display: inline-block; padding: .25rem .6rem; border-radius: 4px;
+      border: 1px solid #ccc; font-size: .82em; background: #f5f5f5;
+    }
+    .subject-nav a:hover { background: #e8f0fe; border-color: #4a9eff; }
+    .subject-section { margin-bottom: 1.5rem; }
+    .subject-heading {
+      font-size: .95em; font-weight: 600; margin: 0 0 .35rem;
+      padding-bottom: .25rem; border-bottom: 1px solid #eee;
+    }
+
     /* ── blank-node modal ── */
     .bnode-modal {
       display: none;
@@ -359,12 +503,13 @@ export function getDefaultStyles() {
       background: white;
       border-radius: 6px;
       padding: 1.25rem 1.5rem 1.5rem;
-      max-width: min(90vw, 560px);
+      max-width: min(90vw, 700px);
       max-height: 80vh;
       overflow: auto;
       position: relative;
       box-shadow: 0 8px 24px rgba(0,0,0,0.25);
     }
+    .bnode-modal-body { overflow-x: auto; }
     .bnode-modal-close {
       position: absolute;
       top: .5rem; right: .5rem;

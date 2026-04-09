@@ -12,6 +12,7 @@
       --surface: #ffffff;
       --border: #d0dce8;
       --text: #2c3e50;
+      --link: #0066dd;
       --text-muted: #7f8c8d;
       --accent: #3498db;
       --hover: #eaf2fb;
@@ -22,28 +23,51 @@
     body { display: flex; }
 
     /* ── Sidebar ─────────────────────────────────────────── */
-    nav {
-      width: var(--sidebar-w); flex-shrink: 0;
-      background: var(--surface); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      overflow-y: auto;
-    }
-    nav h1 {
-      font-size: .95rem; font-weight: 700; padding: 1rem 1.2rem .6rem;
-      color: var(--text); letter-spacing: .02em;
-    }
-    nav h2 {
-      font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
-      color: var(--text-muted); padding: .9rem 1.2rem .3rem;
-    }
-    nav a {
-      display: block; padding: .45rem 1.2rem; font-size: .88rem;
-      color: var(--text); text-decoration: none;
-      border-left: 3px solid transparent;
-      transition: background .12s, border-color .12s;
-    }
-    nav a:hover { background: var(--hover); }
-    nav a.active { background: var(--active); border-left-color: var(--accent); font-weight: 600; color: var(--accent); }
+nav h1 {
+  font-size: 1.2rem;
+  padding-left:1rem;
+  padding-top:1rem;
+}
+nav h2 {
+  padding-left:1rem;
+  padding-right:1rem;
+  border-bottom:1px solid var(--text-muted);
+}
+nav h2, nav a {
+  display: inline-block;
+  font-size: 1rem;
+  vertical-align: baseline;
+}
+nav div {
+//  border-top:1px solid var(--text-muted);
+  margin-left:2rem;
+  color:var(--text-muted);
+}
+nav h2 {
+  font-size: 1rem;
+  font-weight: 600;
+//  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  padding-left: 1.2rem;
+  padding-top: 0.9rem;
+}
+
+nav a {
+  color: var(--link);
+  text-decoration: none;
+  transition: background 0.12s;
+}
+
+nav a:hover {
+  background: var(--hover);
+}
+
+nav a.active {
+  background: var(--active);
+  font-weight: 600;
+  color: var(--accent);
+}
 
     /* ── Content ─────────────────────────────────────────── */
     main { flex: 1; min-width: 0; }
@@ -63,24 +87,53 @@
 <nav>
   <h1>Solid Web Components</h1>
 
-  <h2>sol-query</h2>
-  <a href="help/sol-query-help.html" data-page="sol-query-help.html">Component docs</a>
-  <a href="help/sol-query-browser.html" data-page="sol-query-browser.html">Browser / CDN</a>
-  <a href="help/sol-query-script.html" data-page="sol-query-script.html">Script API</a>
-  <a href="help/sol-query-custom-format.html" data-page="sol-query-custom-format.html">Custom format</a>
+  <p><div><a href="">Overview</a> |
+     <a href="">Customizing Views</a>
+  </div></p>
+
+  <h2>sol-query</h2> 
+     <a href="help/sol-query-help.html" data-page="sol-query-help.html">docs</a> |
+     <a href="help/sol-query-help.html#playground" data-page="sol-query-help.html">playground</a>
+     <div>use triples or SPARQL to search RDF</div>
 
   <h2>sol-include</h2>
-  <a href="help/sol-include-help.html" data-page="sol-include-help.html">Component docs</a>
+     <a href="help/sol-include-help.html" data-page="sol-query-include-help.html">docs</a> |
+     <a href="help/sol-include-help.html#playground" data-page="sol-include-help.html">playground</a>
+     <div>safely include external documents</div>
 
   <h2>sol-live-edit</h2>
+    <a href="help/sol-live-edit-help.html" data-page="sol-live-edit-help.html">docs</a>
+     <div>live edit with visualizers/formatters</div>
+<!--
   <a href="help/sol-live-edit-help.html" data-page="sol-live-edit-help.html">Component docs</a>
-  <a href="help/live-edit-turtle.html" data-page="live-edit-turtle.html">Turtle editor</a>
-  <a href="help/live-edit-jsonld.html" data-page="live-edit-jsonld.html">JSON-LD editor</a>
-  <a href="help/live-edit-csv.html" data-page="live-edit-csv.html">CSV editor</a>
-  <a href="help/live-edit-markdown.html" data-page="live-edit-markdown.html">Markdown editor</a>
-  <a href="help/live-edit-mermaid.html" data-page="live-edit-mermaid.html">Mermaid editor</a>
-  <a href="help/live-edit-html.html" data-page="live-edit-html.html">HTML editor</a>
-  <a href="help/live-edit-graphviz.html" data-page="live-edit-graphviz.html">Graphviz editor</a>
+-->
+<div>
+  <a href="help/live-edit-turtle.html" data-page="live-edit-turtle.html">Turtle</a> |
+  <a href="help/live-edit-jsonld.html" data-page="live-edit-jsonld.html">JSON-LD</a> |
+  <a href="help/live-edit-csv.html" data-page="live-edit-csv.html">CSV</a> |
+  <a href="help/live-edit-markdown.html" data-page="live-edit-markdown.html">Markdown</a>
+</div>
+<div>
+  <a href="help/live-edit-mermaid.html" data-page="live-edit-mermaid.html">Mermaid</a> |
+  <a href="help/live-edit-html.html" data-page="live-edit-html.html">HTML</a> |
+  <a href="help/live-edit-graphviz.html" data-page="live-edit-graphviz.html">Graphviz</a>
+</div>
+
+<h2>sol-login</h2>
+<div>coming soon</div>
+
+<h2>pod</h2>
+<div>coming soon</div>
+
+<h2>form</h2>
+<div>coming soon</div>
+
+<h2>modal</h2>
+<div>coming soon</div>
+
+<h2>help</h2>
+<div>coming soon</div>
+
 </nav>
 
 <main id="main">

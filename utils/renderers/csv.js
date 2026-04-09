@@ -42,7 +42,8 @@ export function renderCSV(content, outputEl) {
     const tr = document.createElement('tr');
     row.forEach(cell => {
       const el = document.createElement(ri === 0 ? 'th' : 'td');
-      el.textContent = cell;
+      const n = Number(cell);
+      el.textContent = (cell !== '' && !isNaN(n) && isFinite(n)) ? _fmt(n) : cell;
       tr.appendChild(el);
     });
     (ri === 0 ? thead : tbody).appendChild(tr);
@@ -80,11 +81,18 @@ export function calcStats(rows) {
     } else {
       const freq = {};
       col.forEach(v => { freq[v] = (freq[v] || 0) + 1; });
-      const mostCommon = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0];
+      const entries = Object.entries(freq);
+      const maxCount = Math.max(...entries.map(e => e[1]));
+      const atMax = entries.filter(e => e[1] === maxCount);
+      const mostCommon = atMax.length === 1 ? atMax[0][0] : null;
       stats[h] = { type: 'text', count: col.length, unique: new Set(col).size, mostCommon };
     }
   });
   return stats;
+}
+
+function _fmt(n) {
+  return Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 export function renderStats(stats, containerEl) {
@@ -96,18 +104,18 @@ export function renderStats(stats, containerEl) {
       html += '<p>No data</p>';
     } else if (s.type === 'numeric') {
       html += `<table class="stat-table">
-        <tr><td>Count</td><td>${s.count}</td></tr>
-        <tr><td>Min</td><td>${s.min}</td></tr>
-        <tr><td>Max</td><td>${s.max}</td></tr>
-        <tr><td>Sum</td><td>${s.sum}</td></tr>
-        <tr><td>Mean</td><td>${s.mean}</td></tr>
-        <tr><td>Median</td><td>${s.median}</td></tr>
+        <tr><td>Count</td><td>${_fmt(s.count)}</td></tr>
+        <tr><td>Min</td><td>${_fmt(s.min)}</td></tr>
+        <tr><td>Max</td><td>${_fmt(s.max)}</td></tr>
+        <tr><td>Sum</td><td>${_fmt(s.sum)}</td></tr>
+        <tr><td>Mean</td><td>${_fmt(s.mean)}</td></tr>
+        <tr><td>Median</td><td>${_fmt(s.median)}</td></tr>
       </table>`;
     } else {
       html += `<table class="stat-table">
-        <tr><td>Count</td><td>${s.count}</td></tr>
-        <tr><td>Unique</td><td>${s.unique}</td></tr>
-        <tr><td>Most common</td><td>"${s.mostCommon}"</td></tr>
+        <tr><td>Count</td><td>${_fmt(s.count)}</td></tr>
+        <tr><td>Unique</td><td>${_fmt(s.unique)}</td></tr>
+        <tr><td>Most common</td><td>${s.mostCommon != null ? `"${s.mostCommon}"` : '(no unique leader)'}</td></tr>
       </table>`;
     }
     html += '</div>';

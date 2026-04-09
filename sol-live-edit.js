@@ -70,7 +70,6 @@ class SolLiveEdit extends HTMLElement {
     this.attachShadow({mode:'open'});
   }
   get fetchFn(){return this._fn;} set fetchFn(f){this._fn=f;}
-  // _cm is always normalised to { getValue, setValue, destroy }
   get content(){return this._cm?this._cm.getValue():'';}
   set content(t){this._setContent(t);}
   get format(){return this._fmt;}
@@ -97,17 +96,53 @@ class SolLiveEdit extends HTMLElement {
     const s=this.shadowRoot;
     s.innerHTML=`<style>${CSS}</style>
 <div class="er" id="er"></div>
-<div class="cf" id="cf" style="display:none"><div class="cg"><b>View</b><label><input type="radio" name="sle-view" value="both">Show Both</label><label><input type="radio" name="sle-view" value="editor">Hide Preview</label><label><input type="radio" name="sle-view" value="preview">Hide Editor</label></div><div class="cg"><b>Keys</b><label><input type="radio" name="sle-keys" value="default">Default</label><label><input type="radio" name="sle-keys" value="emacs">Emacs</label><label><input type="radio" name="sle-keys" value="vim">Vim</label></div></div>
-<div class="body"><div class="ep" id="ep"></div>
-<div class="pp" id="pp"><div class="hl" id="hl"></div>
-<div id="po" style="width:100%;height:100%;position:relative"></div>
-<div class="st" id="st" style="display:none"></div></div></div>`;
+<div class="cf" id="cf">
+  <div class="cg">
+    <b>View</b>
+    <label><input type="radio" name="sle-view" value="both"> Both</label>
+    <label><input type="radio" name="sle-view" value="editor"> Editor only</label>
+    <label><input type="radio" name="sle-view" value="preview"> Preview only</label>
+  </div>
+  <div class="cg">
+    <b>Key bindings</b>
+    <label><input type="radio" name="sle-keys" value="default"> Default</label>
+    <label><input type="radio" name="sle-keys" value="emacs"> Emacs</label>
+    <label><input type="radio" name="sle-keys" value="vim"> Vim</label>
+  </div>
+</div>
+<div class="modal-backdrop" id="modal">
+  <div class="modal-box" id="modalBox">
+    <button class="modal-close" id="modalClose">\u00d7</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+<div class="body">
+  <div class="ep" id="ep"></div>
+  <div class="pp" id="pp">
+    <div id="po" style="width:100%;height:100%;position:relative"></div>
+  </div>
+</div>`;
+
+    // Settings dropdown change handler
     s.getElementById('cf').addEventListener('change',e=>{
       const nm=e.target.name;if(!nm?.startsWith('sle-'))return;
       const k=nm.slice(4);this._cfg[k]=e.target.value;this._saveCfg();
       if(k==='view')this._applyView();
       else{const p=this.content;this._buildEditor().then(()=>this._setContent(p));}
     });
+
+    // Close modal on backdrop click or close button
+    s.getElementById('modal').addEventListener('click',e=>{
+      if(e.target===s.getElementById('modal'))this._closeModal();
+    });
+    s.getElementById('modalClose').addEventListener('click',()=>this._closeModal());
+
+    // Close settings dropdown when clicking outside
+    s.addEventListener('click',e=>{
+      const cf=s.getElementById('cf');
+      if(cf.classList.contains('on')&&!cf.contains(e.target))cf.classList.remove('on');
+    });
+
     this._loadCfg();
     const src=this.getAttribute('source');
     const fmt=this.getAttribute('format')||EXT[src?.split('.').pop()?.toLowerCase()]||'markdown';
@@ -120,7 +155,8 @@ class SolLiveEdit extends HTMLElement {
   async _setFmt(fmt){
     this._fmt=fmt||'markdown';
     this._zoom=1.0;
-    const po=this.shadowRoot.getElementById('po');if(po)po.style.zoom='';
+    const po=this.shadowRoot.getElementById('po');
+    if(po){po.style.transform='';po.style.transformOrigin='';po.style.width='';}
     this.dispatchEvent(new CustomEvent('sol-format',{detail:{format:this._fmt,canZoom:this.canZoom,canStats:this.canStats},bubbles:true,composed:true}));
     await this._buildEditor();
   }
@@ -131,12 +167,10 @@ class SolLiveEdit extends HTMLElement {
     if(this._cm){this._cm.destroy();this._cm=null;}
     const extKey=CM_EXT[this._fmt]||null;
     try{
-      // podz-editor.js already returns { getValue, setValue, destroy }
       const {createEditor}=await import('../src/podz-editor.js');
       this._cm=await createEditor(pane,'',extKey?`f.${extKey}`:'f.txt',
         {dark:false,keyBindings:this._cfg.keys,onChange:()=>this._change()});
     }catch(_){
-      // standalone fallback — wrap raw EditorView in same interface
       const view=await buildEditor(pane,extKey,this.shadowRoot,()=>this._change());
       this._cm={
         getValue:()=>view.state.doc.toString(),
@@ -209,15 +243,52 @@ class SolLiveEdit extends HTMLElement {
     }
   }
 
+  // ── Modal helpers ───────────────────────────────────────────────────────────
+  _openModal(html,wide){
+    const s=this.shadowRoot;
+    const box=s.getElementById('modalBox');
+    s.getElementById('modalBody').innerHTML=html;
+    box.classList.toggle('wide',!!wide);
+    s.getElementById('modal').classList.add('on');
+  }
+  _closeModal(){
+    this.shadowRoot.getElementById('modal').classList.remove('on');
+  }
+
+  // ── Help → modal ───────────────────────────────────────────────────────────
   async _toggleHelp(){
-    const ov=this.shadowRoot.getElementById('hl');if(!ov)return;
-    if(ov.classList.contains('on')){ov.classList.remove('on');return;}
-    if(!ov.dataset.loaded){
-      const ldr=HELP[this._fmt];
-      ov.innerHTML=ldr?_helpHtml(await ldr()):'<p>No help.</p>';
-      ov.dataset.loaded='1';
+    const modal=this.shadowRoot.getElementById('modal');
+    if(modal.classList.contains('on')){this._closeModal();return;}
+    const ldr=HELP[this._fmt];
+    const html=ldr?_helpHtml(await ldr()):'<p>No help available for this format.</p>';
+    this._openModal(html);
+  }
+
+  // ── Settings → dropdown ────────────────────────────────────────────────────
+  _toggleCfg(){
+    const cf=this.shadowRoot.getElementById('cf');
+    if(!cf)return;
+    const opening=!cf.classList.contains('on');
+    cf.classList.toggle('on');
+    if(opening){
+      this.shadowRoot.querySelectorAll('[name^="sle-"]').forEach(r=>{
+        r.checked=r.value===this._cfg[r.name.slice(4)];
+      });
     }
-    ov.classList.add('on');
+  }
+
+  // ── Statistics → modal ─────────────────────────────────────────────────────
+  async _toggleStats(){
+    const modal=this.shadowRoot.getElementById('modal');
+    if(modal.classList.contains('on')){this._closeModal();return;}
+    try{
+      const {parseCSV,calcStats,renderStats}=await import(`${R}csv.js`);
+      const container=document.createElement('div');
+      renderStats(calcStats(parseCSV(this.content)),container);
+      this._openModal(container.innerHTML,true);
+    }catch(e){
+      this._openModal(`<p style="color:#c0392b">${_esc(e.message)}</p>`);
+    }
   }
 
   _loadCfg(){try{Object.assign(this._cfg,JSON.parse(localStorage.getItem('sle-cfg')||'{}'));}catch(_){}}
@@ -226,28 +297,23 @@ class SolLiveEdit extends HTMLElement {
     this._zoom=Math.max(0.2,Math.min(5.0,Math.round(z*5)/5));
     const pct=Math.round(this._zoom*100);
     const po=this.shadowRoot.getElementById('po');
-    if(po)po.style.zoom=this._zoom===1?'':this._zoom;
+    if(po){
+      if(this._zoom===1){
+        po.style.transform='';po.style.transformOrigin='';po.style.width='';
+      }else{
+        po.style.transformOrigin='0 0';
+        po.style.transform=`scale(${this._zoom})`;
+        po.style.width=`${100/this._zoom}%`;
+      }
+    }
     this.dispatchEvent(new CustomEvent('sol-zoom',{detail:{zoom:this._zoom,pct},bubbles:true,composed:true}));
   }
   _applyView(){const v=this._cfg.view,sr=this.shadowRoot,ep=sr.getElementById('ep'),pp=sr.getElementById('pp');if(ep)ep.style.display=v==='preview'?'none':'';if(pp)pp.style.display=v==='editor'?'none':'';}
-  _toggleCfg(){const p=this.shadowRoot.getElementById('cf');if(!p)return;const o=p.style.display!=='none';p.style.display=o?'none':'';if(!o)this.shadowRoot.querySelectorAll('[name^="sle-"]').forEach(r=>{r.checked=r.value===this._cfg[r.name.slice(4)];});}
-
-  async _toggleStats(){
-    const sp=this.shadowRoot.getElementById('st');const out=this.shadowRoot.getElementById('po');
-    this._statsOn=!this._statsOn;
-    if(this._statsOn){
-      try{
-        const {parseCSV,calcStats,renderStats}=await import(`${R}csv.js`);
-        renderStats(calcStats(parseCSV(this.content)),sp);
-      }catch(e){sp.innerHTML=`<p>${e.message}</p>`;}
-      sp.style.display='';if(out)out.style.display='none';
-    }else{sp.style.display='none';if(out)out.style.display='';}
-  }
 }
 
 function _helpHtml(h){
   if(!h)return'';
-  let s=`<button onclick="this.closest('.hl').classList.remove('on')" style="float:right;font-size:1.1em;border:none;background:none;cursor:pointer">✕</button><h2>${h.title}</h2>`;
+  let s=`<h2>${h.title}</h2>`;
   for(const sec of h.sections){
     s+=`<h3>${sec.heading}</h3>`;
     for(const item of sec.items)s+=`<h4>${item.title}</h4><p>${item.description}</p><code>${_esc(item.code)}</code>`;
