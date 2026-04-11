@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>sol-query — Custom Format Renderers</title>
+  <title>sol-query — Custom View Renderers</title>
   <link rel="stylesheet" href="../shared/sol-query-help.css">
   <style>
     .api-block { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); padding:1.5rem; margin-bottom:1.5rem; }
@@ -23,8 +23,8 @@
   <script type="module" src="../sol-query.js"></script>
 </head>
 <body>
-  <h1>sol-query — Custom Format Renderers</h1>
-  <p>When the <code>format</code> attribute is a URL, <code>sol-query</code> dynamically imports
+  <h1>sol-query — Custom View Renderers</h1>
+  <p>When the <code>view</code> attribute is a URL, <code>sol-query</code> dynamically imports
      that module and calls its <code>render(container, data)</code> export instead of using the
      built-in table/dl/list renderers.</p>
 
@@ -59,17 +59,17 @@ export function render(container, data) {
     <h3 style="margin-top:1.2rem">Usage</h3>
     <pre><code>&lt;sol-query
   endpoint="data.ttl"
-  format="./my-renderer.js"
+  view="./my-renderer.js"
 &gt;&lt;/sol-query&gt;
 
 &lt;!-- Any URL works — absolute or relative --&gt;
 &lt;sol-query
   endpoint="https://dbpedia.org/sparql"
   sparql="SELECT ?name ?birth WHERE { … }"
-  format="https://example.org/renderers/timeline.js"
+  view="https://example.org/renderers/timeline.js"
 &gt;&lt;/sol-query&gt;</code></pre>
 
-    <p>A <code>format</code> value is treated as a URL (and triggers the custom renderer) when it
+    <p>A <code>view</code> value is treated as a URL (and triggers the custom renderer) when it
        starts with <code>http://</code>, <code>https://</code>, <code>./</code>, <code>../</code>,
        or <code>/</code>. The built-in values <code>table</code>, <code>dl</code>, and <code>list</code>
        are never treated as URLs.</p>
@@ -175,14 +175,14 @@ export function render(container, data) {
     OPTIONAL { ?person dbo:nationality ?nationality }
     FILTER(!isLiteral(?name) || lang(?name) = 'en' || lang(?name) = '')
   } LIMIT 20"
-  format="../data/card-renderer.js"
+  view="../data/card-renderer.js"
 &gt;&lt;/sol-query&gt;</code></pre>
     <p>Result:</p>
     <div id="live-demo">
       <sol-query
         endpoint="https://dbpedia.org/sparql"
         sparql="SELECT ?name ?birthDate ?almaMater ?nationality WHERE { VALUES ?person { <http://dbpedia.org/resource/Tim_Berners-Lee> <http://dbpedia.org/resource/Ada_Lovelace> } ?person <http://xmlns.com/foaf/0.1/name> ?name . OPTIONAL { ?person <http://dbpedia.org/ontology/birthDate> ?birthDate } OPTIONAL { ?person <http://dbpedia.org/ontology/almaMater> ?almaMater } OPTIONAL { ?person <http://dbpedia.org/ontology/nationality> ?nationality } FILTER(!isLiteral(?name) || lang(?name) = 'en' || lang(?name) = '') } LIMIT 20"
-        format="../data/card-renderer.js"
+        view="../data/card-renderer.js"
       ></sol-query>
     </div>
 
@@ -205,7 +205,7 @@ export function render(container, data) {
       if (!url) return;
       const sq = document.querySelector('sol-query');
       if (sq) {
-        sq.setAttribute('format', url);
+        sq.setAttribute('view', url);
       } else {
         err.textContent = 'Could not find sol-query element.';
       }

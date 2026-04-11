@@ -93,6 +93,10 @@ export async function loadRdfStore(endpoint, fetchFn = fetch) {
   const rdflib = await getRdflib();
   if (!rdflib) throw new Error('rdflib not available');
 
+  // Parsers (notably JSON-LD) require an absolute base IRI, so resolve relative
+  // endpoints against the current document before handing them to rdflib.parse.
+  try { endpoint = new URL(endpoint, document.baseURI).href; } catch {}
+
   const store = rdflib.graph();
   const diagnostics = [];
   let lastError = null;
@@ -382,6 +386,10 @@ export async function fetchQueryFromRdf(queryUrl, fetchFn = fetch) {
   const rdflib = await getRdflib();
   if (!rdflib) throw new Error('rdflib not available');
 
+  // rdflib's NamedNode requires an absolute IRI; resolve relative refs
+  // (e.g. "./data/myQueries.ttl#MyBasicQuery") against the document base.
+  try { queryUrl = new URL(queryUrl, document.baseURI).href; } catch {}
+
   const docUrl = queryUrl.split('#')[0];
   const store  = await loadRdfStore(docUrl, fetchFn);
 
@@ -472,9 +480,9 @@ async function _localSparql(queryText, endpoint) {
           const allKeys = bindings.length
             ? Object.keys(bindings[0]).map(k => k.replace(/^\?/, ''))
             : [];
-          const vars = selectVars
-            ? allKeys.filter(v => selectVars.includes(v))
-            : allKeys;
+          // Preserve SELECT-clause order; only fall back to binding order
+          // for SELECT *.
+          const vars = selectVars ?? allKeys;
           const results = bindings.map(b => {
             const row = {};
             for (const v of vars) {
@@ -492,18 +500,30 @@ async function _localSparql(queryText, endpoint) {
   });
 }
 
-// ─── SPARQL execution: RDF docs run locally; SPARQL endpoints use protocol ───
+// ─── SPARQL execution ────────────────────────────────────────────────────────
+// For every endpoint (static RDF doc or SPARQL service) Comunica is tried first
+// because it supports full SPARQL 1.1 (including ORDER BY, OPTIONAL, FILTER).
+// rdflib's built-in SPARQLToQuery engine — used only as a fallback for static
+// RDF docs — implements a much smaller subset and hangs on unsupported syntax.
 export async function execSparql(query, endpoint) {
-  // Static RDF file → load store, run locally (never appends ?query=… params)
-  if (_isRdfDoc(endpoint)) {
-    return await _localSparql(query, endpoint);
-  }
+  // Resolve relative endpoints before handing off; Comunica's source loader
+  // and rdflib's parser both need an absolute URL.
+  try { endpoint = new URL(endpoint, document.baseURI).href; } catch {}
 
-  // Remote SPARQL endpoint → adapter fallback chain
+  const isRdfDoc = _isRdfDoc(endpoint);
+
+  // Comunica first — handles both local .ttl files (via `sources`) and services.
   const comunicaFactory = ComunicaSparqlAdapter.getComunicaEngine();
   if (comunicaFactory) {
     try { return await new ComunicaSparqlAdapter(comunicaFactory).executeQuery(query, endpoint); } catch {}
   }
+
+  // Static RDF doc fallback: load via rdflib and run the legacy query engine.
+  if (isRdfDoc) {
+    return await _localSparql(query, endpoint);
+  }
+
+  // Remote SPARQL service fallback chain.
   const rdflibAdapter = new RdflibSparqlAdapter();
   if (rdflibAdapter.isAvailable()) {
     try { return await rdflibAdapter.executeQuery(query, endpoint, true); } catch {
@@ -540,7 +560,10 @@ export class RdflibSparqlAdapter {
 
   async _attempt(rdflib, query, endpoint, withCredentials) {
     const results = await rdflib.sparqlQuery(query, { endpoint, withCredentials });
-    const vars = results.length ? Object.keys(results[0]).filter(k => !k.startsWith('?')) : [];
+    // Preserve SELECT-clause order; fall back to binding keys for SELECT *.
+    const selectVars = _selectVars(query);
+    const vars = selectVars
+      ?? (results.length ? Object.keys(results[0]).filter(k => !k.startsWith('?')) : []);
     const formatted = results.map(binding => {
       const row = {};
       vars.forEach(v => {

@@ -1,0 +1,38 @@
+* {
+  font-family:var(--font-ui);
+  font-size:var(--font-size,210%);
+}
+h2 {
+  font-size:125%;
+  display:inline-block;
+}
+.code {
+  margin-left:3rem;
+  margin-top:0.25rem;
+  margin-bottom:0.25rem;
+  padding:0.5rem;
+  background:#2C3E51;
+  color:white;
+  width:fit-content;
+  border-radius:1rem;
+  display:inline-block;
+}
+li {
+  list-style:none;
+}
+li {
+  vertical-align:top;
+  margin-left:1rem;
+  margin-bottom:1rem;
+  display:inline-block;
+}
+p {
+  font-size:110%;
+  margin-left:1rem;
+}
+sol-query {
+  margin:0.5rem;
+  padding:0.5rem;
+  border:2px solid #666;
+  width:fit-content;
+}

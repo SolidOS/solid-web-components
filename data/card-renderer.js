@@ -1,9 +1,9 @@
 /**
- * Example custom format renderer for sol-query.
+ * Example custom view renderer for sol-query.
  * Receives (container, data) where data = { vars, results }.
  * Renders each row as a card.
  *
- * Use as: <sol-query ... format="./data/card-renderer.js">
+ * Use as: <sol-query ... view="./data/card-renderer.js">
  */
 export function render(container, data) {
   const { vars, results } = data;

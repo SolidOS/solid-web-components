@@ -21,7 +21,7 @@ class SolQuery extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['endpoint', 'wanted', 'sparql', 'format'];
+    return ['endpoint', 'wanted', 'sparql', 'query', 'view'];
   }
 
   connectedCallback() {
@@ -30,10 +30,15 @@ class SolQuery extends HTMLElement {
 
   attributeChangedCallback(name, oldValue, newValue) {
     if (oldValue !== newValue && this.isConnected) {
-      if (['endpoint', 'wanted', 'sparql'].includes(name) || name.startsWith('var-')) {
+      if (['endpoint', 'wanted', 'sparql', 'query'].includes(name) || name.startsWith('var-')) {
         this.initializeQuery();
       }
     }
+  }
+
+  // `query` is accepted as an alias for `sparql` so authors can write either.
+  _sparqlAttr() {
+    return this.getAttribute('sparql') ?? this.getAttribute('query');
   }
 
   render() {
@@ -69,7 +74,7 @@ class SolQuery extends HTMLElement {
     const endpoint = this.getAttribute('endpoint');
     if (!endpoint) { this.renderer.showError('No endpoint provided'); return; }
 
-    if (this.hasAttribute('sparql')) {
+    if (this.hasAttribute('sparql') || this.hasAttribute('query')) {
       await this.handleSparqlQuery();
     } else if (this.hasAttribute('wanted')) {
       await this.handleMiniQuery();
@@ -80,7 +85,7 @@ class SolQuery extends HTMLElement {
 
   // ─── SPARQL query (inline text or URL pointing to RDF file) ────────────────
   async handleSparqlQuery() {
-    const sparqlAttr = this.getAttribute('sparql');
+    const sparqlAttr = this._sparqlAttr();
     // A stored-query reference is a bare URL: no whitespace, starts with http(s):// or a path.
     // Everything else — including all valid SPARQL text — is treated as inline.
     const isStoredRef = !/\s/.test(sparqlAttr) && /^https?:\/\/|^\/|^\.\.?\//.test(sparqlAttr.trim());
@@ -158,26 +163,41 @@ class SolQuery extends HTMLElement {
     }
   }
 
-  // ─── Dispatch results through built-in renderer or custom format module ──────
+  // ─── Dispatch results through built-in renderer or custom view module ──────
   async _dispatchResults(results, options = {}) {
-    const format = this.getAttribute('format') || 'table';
-    // Custom format: a URI → dynamic import, call render(container, data)
-    if (/^https?:\/\/|^\.\/|^\.\.\/|^\//.test(format)) {
-      const container = this.shadowRoot.querySelector('.container');
-      container.innerHTML = '<div class="loading">Loading renderer…</div>';
-      try {
-        const mod = await import(/* @vite-ignore */ format);
-        const fn  = mod.render ?? mod.default;
-        if (typeof fn !== 'function')
-          throw new Error(`Module must export render(container, data)`);
-        container.innerHTML = '';
-        fn(container, results);
-      } catch (err) {
-        this.renderer.showError(`Custom renderer error: ${err.message}`);
-      }
+    const view = this.getAttribute('view') || 'table';
+
+    // Custom view by URL: dynamic import, call render(container, data)
+    if (/^https?:\/\/|^\.\/|^\.\.\/|^\//.test(view)) {
+      await this._loadAndRenderView(view, results, /* byUrl */ true);
       return;
     }
-    this.renderer.renderResults(results, format, options);
+
+    // Legacy built-in views live inside the renderer class.
+    if (view === 'table' || view === 'dl' || view === 'list') {
+      this.renderer.renderResults(results, view, options);
+      return;
+    }
+
+    // Built-in view module under ./views/<name>.js next to this file.
+    const builtinUrl = new URL(`./views/${view}.js`, import.meta.url).href;
+    await this._loadAndRenderView(builtinUrl, results, /* byUrl */ false, view);
+  }
+
+  async _loadAndRenderView(url, results, byUrl, viewName = null) {
+    const container = this.shadowRoot.querySelector('.container');
+    container.innerHTML = '<div class="loading">Loading view…</div>';
+    try {
+      const mod = await import(/* @vite-ignore */ url);
+      const fn  = mod.render ?? mod.default;
+      if (typeof fn !== 'function')
+        throw new Error(`Module must export render(container, data)`);
+      container.innerHTML = '';
+      fn(container, results, this);
+    } catch (err) {
+      const label = byUrl ? 'Custom view' : `View "${viewName}"`;
+      this.renderer.showError(`${label} error: ${err.message}`);
+    }
   }
 
   // ─── SPARQL safety ────────────────────────────────────────────────────────

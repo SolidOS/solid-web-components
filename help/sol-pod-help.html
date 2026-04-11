@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-pod Component - Help & Playground</title>
+  <link rel="stylesheet" href="../shared/sol-query-help.css">
+  <script type="importmap">{"imports":{"rdflib":"https://esm.sh/rdflib"}}</script>
+  <style>
+    li { margin-bottom:0; }
+    body { padding-top:8px; }
+    h1 { display:inline-block; }
+    ul { padding-bottom:1rem !important; }
+  </style>
+</head>
+<body>
+  <h1>sol-pod : browse and manage Solid pods</h1>
+  <ul>
+    <li>Full-featured single-panel pod file browser as a web component</li>
+    <li>Browse containers, view/edit files, manage permissions (WAC ACL)</li>
+    <li>Drag-and-drop, rename, delete, create files and folders</li>
+    <li>Live editing for Turtle, JSON-LD, CSV, Markdown, Mermaid, HTML, Graphviz</li>
+    <li>Auto-discovers pods from the current origin, or use the <code>source</code> attribute</li>
+    <li>Pairs with <code>&lt;sol-login&gt;</code> for authenticated access</li>
+  </ul>
+
+  <pre>
+attribute        description
+-------------------------------------------
+source           pod storage URL to browse (discovers from origin if omitted)
+login            CSS selector pointing to a &lt;sol-login&gt; element
+
+event            detail                  description
+-------------------------------------------------------------------
+sol-navigate     { url }                 user navigated to a container
+sol-drag-start   { item }                file drag started (for cross-panel copy)
+sol-auth-needed  { url }                 401/403 encountered
+sol-status       { message, type }       status update (copy progress, errors, etc.)
+
+file action tabs (shown contextually)
+-------------------------------------------
+Live Edit        Turtle, JSON-LD, CSV, Markdown, Mermaid, HTML, Graphviz
+View             text, images, audio, video, PDF
+Edit             text-based files (CodeMirror)
+Graph            RDF files (D3 force-directed)
+Download         all files
+Rename           all
+Delete           all (recursive for folders)
+Permissions      WAC ACL editor (role-based form + raw Turtle)
+</pre>
+
+  <h2>Usage</h2>
+
+  <nav class="page-nav" aria-label="Page sections">
+    <a href="#section-1">Basic</a>
+    <a href="#section-2">With Login</a>
+    <a href="#section-3">Two Panels</a>
+    <a href="#section-4">Events</a>
+    <a href="#playground">Playground</a>
+    <a href="sol-pod-script.html">Script API &rarr;</a>
+    <a href="sol-login-help.html">sol-login &rarr;</a>
+    <a href="sol-modal-help.html">sol-modal &rarr;</a>
+  </nav>
+
+  <div id="section-1" class="usage-section">
+    <h3>1. Browse a Public Pod</h3>
+    <p>Point <code>source</code> at any publicly readable pod storage root.</p>
+    <pre><code>&lt;sol-pod source="https://solidcommunity.net/jeff-zucker/"&gt;&lt;/sol-pod&gt;</code></pre>
+  </div>
+
+  <div id="section-2" class="usage-section">
+    <h3>2. With Authentication</h3>
+    <p>Pair with <code>&lt;sol-login&gt;</code> for authenticated access. The <code>login</code> attribute is a CSS selector.</p>
+    <pre><code>&lt;sol-login id="auth" issuers="https://solidcommunity.net"&gt;&lt;/sol-login&gt;
+&lt;sol-pod source="https://myserver.example/" login="#auth"&gt;&lt;/sol-pod&gt;</code></pre>
+  </div>
+
+  <div id="section-3" class="usage-section">
+    <h3>3. Two-Panel Layout</h3>
+    <p>Use two <code>&lt;sol-pod&gt;</code> elements side by side. Drag files between panels to copy.</p>
+    <pre><code>&lt;sol-login id="auth"&gt;&lt;/sol-login&gt;
+&lt;div style="display:flex; gap:8px; height:500px"&gt;
+  &lt;sol-pod source="https://pod-a.example/" login="#auth" style="flex:1"&gt;&lt;/sol-pod&gt;
+  &lt;sol-pod source="https://pod-b.example/" login="#auth" style="flex:1"&gt;&lt;/sol-pod&gt;
+&lt;/div&gt;</code></pre>
+  </div>
+
+  <div id="section-4" class="usage-section">
+    <h3>4. Listening to Events</h3>
+    <pre><code>&lt;sol-pod id="browser" source="https://pod.example/"&gt;&lt;/sol-pod&gt;
+&lt;script&gt;
+  document.getElementById('browser').addEventListener('sol-navigate', (e) =&gt; {
+    console.log('Navigated to:', e.detail.url);
+  });
+  document.getElementById('browser').addEventListener('sol-status', (e) =&gt; {
+    console.log('[' + (e.detail.type || 'info') + ']', e.detail.message);
+  });
+&lt;/script&gt;</code></pre>
+  </div>
+
+  <h2 id="playground">sol-pod - Interactive Playground</h2>
+
+  <div class="playground">
+    <div class="examples-grid">
+      <button class="button example-btn" type="button" onclick="loadExample(0)">Public Pod</button>
+      <button class="button example-btn" type="button" onclick="loadExample(1)">With Login</button>
+      <button class="button example-btn" type="button" onclick="loadExample(2)">Two Panels</button>
+      <button class="button example-btn" type="button" onclick="loadExample(3)">Custom Source</button>
+    </div>
+
+    <textarea
+      id="queryInput"
+      aria-label="Component input"
+      placeholder="Enter your sol-pod tag here..."
+    ></textarea>
+
+    <button class="button" type="button" onclick="executeTag()">Render Component</button>
+  </div>
+
+  <div id="modal" class="modal" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+    <div class="modal-content" style="width:90%;max-width:900px;height:80vh">
+      <button class="modal-close" type="button" onclick="closeModal()" aria-label="Close modal">&times;</button>
+      <h2 id="modal-title">sol-pod</h2>
+      <div id="modalBody" style="height:calc(100% - 3rem);overflow:hidden"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Stub Session so sol-login renders without the full Inrupt auth library
+    if (!window.solidClientAuthn) {
+      window.solidClientAuthn = {
+        Session: class StubSession {
+          constructor(opts, id) { this.info = { isLoggedIn: false, webId: null, sessionId: id }; }
+          async login() { alert('Login redirect would happen here (stub — no auth library loaded in playground)'); }
+          async logout() {}
+          async handleIncomingRedirect() {}
+          fetch(url, opts) { return fetch(url, opts); }
+        }
+      };
+    }
+
+    import * as $rdf from 'rdflib'; window.$rdf = $rdf;
+    import '../sol-login.js';
+    import '../sol-modal.js';
+    import '../sol-pod.js';
+  </script>
+
+  <script>
+    const examples = [
+      `<sol-pod source="https://solidcommunity.net/jeff-zucker/"></sol-pod>`,
+      `<sol-login id="auth" issuers="https://solidcommunity.net"></sol-login>\n<sol-pod source="https://solidcommunity.net/jeff-zucker/" login="#auth"></sol-pod>`,
+      `<sol-login id="auth"></sol-login>\n<div style="display:flex;gap:8px;height:100%">\n  <sol-pod source="https://solidcommunity.net/jeff-zucker/" login="#auth" style="flex:1"></sol-pod>\n  <sol-pod source="https://solidcommunity.net/jeff-zucker/public/" login="#auth" style="flex:1"></sol-pod>\n</div>`,
+      `<sol-pod source="https://solidcommunity.net/jeff-zucker/public/"></sol-pod>`,
+    ];
+
+    const modal = document.getElementById('modal');
+    const modalBody = document.getElementById('modalBody');
+
+    window.loadExample = function(index) {
+      document.getElementById('queryInput').value = examples[index] || '';
+    };
+
+    window.closeModal = function() {
+      modal.classList.remove('active');
+      while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
+    };
+
+    window.executeTag = function() {
+      const raw = document.getElementById('queryInput').value.trim();
+      if (!raw) { alert('Please enter a <sol-pod> tag.'); return; }
+
+      while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
+
+      // Parse the HTML — may contain sol-login + wrapper div + sol-pod
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'height:100%;display:flex;flex-direction:column;gap:8px';
+
+      const tmp = document.createElement('div');
+      tmp.innerHTML = raw;
+
+      // Handle sol-login if present
+      let loginEl = tmp.querySelector('sol-login');
+      if (loginEl) {
+        const liveLogin = document.createElement('sol-login');
+        for (const attr of loginEl.attributes) liveLogin.setAttribute(attr.name, attr.value);
+        liveLogin._manualInit = true;
+        wrapper.appendChild(liveLogin);
+        liveLogin.initialize();
+      }
+
+      // Handle wrapper divs (for two-panel layout)
+      const containerDiv = tmp.querySelector('div[style]');
+
+      // Find all sol-pod elements
+      const pods = tmp.querySelectorAll('sol-pod');
+      if (pods.length === 0) {
+        alert('Could not find a <sol-pod> tag.');
+        return;
+      }
+
+      // Build the layout
+      if (containerDiv && pods.length > 1) {
+        // Multi-panel
+        const liveContainer = document.createElement('div');
+        liveContainer.style.cssText = containerDiv.getAttribute('style') + ';flex:1;min-height:0';
+
+        pods.forEach(parsed => {
+          const live = document.createElement('sol-pod');
+          for (const attr of parsed.attributes) {
+            if (attr.name === 'login' && wrapper.querySelector('sol-login')) {
+              // Re-point login to the live element
+              live.login = wrapper.querySelector('sol-login');
+            } else {
+              live.setAttribute(attr.name, attr.value);
+            }
+          }
+          live.style.cssText = (parsed.getAttribute('style') || '') + ';min-height:0';
+          liveContainer.appendChild(live);
+          live.initialize();
+        });
+        wrapper.appendChild(liveContainer);
+      } else {
+        // Single panel
+        const parsed = pods[0];
+        const live = document.createElement('sol-pod');
+        for (const attr of parsed.attributes) {
+          if (attr.name === 'login' && wrapper.querySelector('sol-login')) {
+            live.login = wrapper.querySelector('sol-login');
+          } else {
+            live.setAttribute(attr.name, attr.value);
+          }
+        }
+        live.style.cssText = 'flex:1;min-height:0';
+        wrapper.appendChild(live);
+        live.initialize();
+      }
+
+      modalBody.appendChild(wrapper);
+      modal.classList.add('active');
+    };
+
+    document.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('queryInput').value = examples[0];
+    });
+  </script>
+</body>
+</html>

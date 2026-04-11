@@ -28,7 +28,7 @@ export class SparqlResultsRenderer {
   }
 
   // ── Main entry point ────────────────────────────────────────────────────────
-  renderResults(data, format = 'table', options = {}) {
+  renderResults(data, view = 'table', options = {}) {
     this._bnodeData.clear();
 
     if (!data.results || data.results.length === 0) {
@@ -51,54 +51,13 @@ export class SparqlResultsRenderer {
       return;
     }
 
-    // Pivot s,p,o results: predicates become column headers, objects become cells.
-    // Multiple subjects → one table per subject with a jump menu at the top.
+    // Pivot s,p,o results into a single table: predicates become column
+    // headings, each unique subject becomes one row. The subject URI itself
+    // is not shown — rows are the instances, columns are the properties.
     const pivoted = this._pivotSPO(data);
     if (pivoted) {
       this.container.innerHTML = '';
-      if (pivoted.length === 1) {
-        this._renderOnePivot(pivoted[0], format, options);
-      } else {
-        // Jump menu
-        const nav = document.createElement('nav');
-        nav.className = 'subject-nav';
-        pivoted.forEach((p, i) => {
-          const a = document.createElement('a');
-          a.href = `#spo-subj-${i}`;
-          a.textContent = p.label;
-          a.title = p.uri || p.label;
-          nav.appendChild(a);
-        });
-        this.container.appendChild(nav);
-        // One section per subject
-        pivoted.forEach((p, i) => {
-          const section = document.createElement('div');
-          section.className = 'subject-section';
-          section.id = `spo-subj-${i}`;
-          const heading = document.createElement('h3');
-          heading.className = 'subject-heading';
-          if (p.uri) {
-            const link = document.createElement('a');
-            link.href = p.uri;
-            link.textContent = p.label;
-            link.title = p.uri;
-            link.dataset.uri = p.uri;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            heading.appendChild(link);
-          } else {
-            heading.textContent = p.label;
-          }
-          section.appendChild(heading);
-          const sub = document.createElement('div');
-          section.appendChild(sub);
-          this.container.appendChild(section);
-          // Render the table into the sub-container
-          const subRenderer = new SparqlResultsRenderer(sub);
-          subRenderer._bnodeData = this._bnodeData;
-          subRenderer._renderOnePivot(p.data, format, options);
-        });
-      }
+      this._renderOnePivot(pivoted, view, options);
       return;
     }
 
@@ -106,9 +65,9 @@ export class SparqlResultsRenderer {
     const grouped = this._groupByPredicate(data);
 
     this.container.innerHTML = '';
-    if (format === 'dl') {
+    if (view === 'dl') {
       this.container.appendChild(this._mkDl(grouped));
-    } else if (format === 'list') {
+    } else if (view === 'list') {
       this.container.appendChild(this._mkList(grouped));
     } else {
       const table = this._mkTable(grouped, options);
@@ -118,10 +77,10 @@ export class SparqlResultsRenderer {
   }
 
   // ── Render a single pivoted dataset ──────────────────────────────────────────
-  _renderOnePivot(data, format, options) {
-    if (format === 'dl') {
+  _renderOnePivot(data, view, options) {
+    if (view === 'dl') {
       this.container.appendChild(this._mkDl(data));
-    } else if (format === 'list') {
+    } else if (view === 'list') {
       this.container.appendChild(this._mkList(data));
     } else {
       const table = this._mkTable(data, options);
@@ -130,18 +89,24 @@ export class SparqlResultsRenderer {
     }
   }
 
-  // ── Pivot s,p,o → predicates as columns ─────────────────────────────────────
+  // ── Pivot s,p,o → predicates as columns, subjects as rows ─────────────────
   // Returns null if not an s,p,o pattern.
-  // Returns an array of { label, uri, data: {vars, results} } — one per subject.
+  // Returns a single { vars, results } dataset. Each unique subject becomes
+  // one row; predicates (union across all subjects, in first-seen order)
+  // become the columns. The subject URI is intentionally not included as a
+  // column — it's the row identity, not a data field.
   _pivotSPO(data) {
     const v = data.vars;
     const hasSPO = v.length === 3 && v[0]==='s' && v[1]==='p' && v[2]==='o';
     const hasPO  = v.length === 2 && v[0]==='p' && v[1]==='o';
     if (!hasSPO && !hasPO) return null;
 
-    // Group rows by subject, collect predicates per subject
+    // Collect subject order and per-subject predicate→values map, plus the
+    // union of predicates across all subjects (first-seen order).
     const subjectOrder = [];
     const subjects     = new Map();
+    const predOrder    = [];
+    const predSet      = new Set();
 
     for (const row of data.results) {
       const sKey = hasSPO ? (row.s?.value ?? '') : '';
@@ -149,34 +114,34 @@ export class SparqlResultsRenderer {
 
       if (!subjects.has(sKey)) {
         subjectOrder.push(sKey);
-        subjects.set(sKey, { s: row.s, predOrder: [], predSet: new Set(), preds: new Map() });
+        subjects.set(sKey, new Map());
       }
-      const subj = subjects.get(sKey);
-      if (!subj.predSet.has(pURI)) { subj.predSet.add(pURI); subj.predOrder.push(pURI); }
-      if (!subj.preds.has(pURI)) subj.preds.set(pURI, []);
-      if (row.o) subj.preds.get(pURI).push(row.o);
+      if (!predSet.has(pURI)) { predSet.add(pURI); predOrder.push(pURI); }
+
+      const predMap = subjects.get(sKey);
+      if (!predMap.has(pURI)) predMap.set(pURI, []);
+      if (row.o) predMap.get(pURI).push(row.o);
     }
 
+    // Short column names with collision resolution (fall back to full URI).
     const _short = uri => uri.replace(/.*[/#]([^/#]+)\/?$/, '$1') || uri;
+    const names  = predOrder.map(_short);
+    const seen   = {};
+    for (let i = 0; i < names.length; i++) {
+      const n = names[i];
+      if (seen[n] !== undefined) {
+        names[seen[n]] = predOrder[seen[n]];
+        names[i]       = predOrder[i];
+      } else { seen[n] = i; }
+    }
 
-    // Build one pivoted dataset per subject
-    return subjectOrder.map(sKey => {
-      const subj = subjects.get(sKey);
-
-      // Short column names with collision resolution
-      const names = subj.predOrder.map(_short);
-      const seen  = {};
-      for (let i = 0; i < names.length; i++) {
-        const n = names[i];
-        if (seen[n] !== undefined) {
-          names[seen[n]] = subj.predOrder[seen[n]];
-          names[i] = subj.predOrder[i];
-        } else { seen[n] = i; }
-      }
-
+    // One row per subject; cells default to empty when the subject lacks a
+    // given predicate.
+    const results = subjectOrder.map(sKey => {
+      const predMap = subjects.get(sKey);
       const row = {};
-      for (let i = 0; i < subj.predOrder.length; i++) {
-        const vals = subj.preds.get(subj.predOrder[i]);
+      for (let i = 0; i < predOrder.length; i++) {
+        const vals = predMap.get(predOrder[i]);
         if (!vals || vals.length === 0) {
           row[names[i]] = { type: 'literal', value: '' };
         } else if (vals.length === 1) {
@@ -185,13 +150,10 @@ export class SparqlResultsRenderer {
           row[names[i]] = { type: 'multi', values: vals };
         }
       }
-
-      return {
-        label: subj.s ? _short(subj.s.value) : 'Result',
-        uri:   subj.s?.type === 'uri' ? subj.s.value : null,
-        data:  { vars: names, results: [row] },
-      };
+      return row;
     });
+
+    return { vars: names, results };
   }
 
   // ── Group rows by non-object columns, collect 'o' values ───────────────────
@@ -305,33 +267,46 @@ export class SparqlResultsRenderer {
   }
 
   // ── Definition list ─────────────────────────────────────────────────────────
-  // Uses col[0] as <dt>, col[1] as <dd>.  Falls back to table if < 2 columns.
+  // Per row: <dt> is the first column's value (the row's "name"); one <dd>
+  // per remaining column, formatted as "fieldname value".
   _mkDl(data) {
-    if (data.vars.length < 2) return this._mkTable(data);
-    const [kc, vc] = data.vars;
-    const dl = document.createElement('dl');
+    const dl       = document.createElement('dl');
+    const nameVar  = data.vars[0];
+    const restVars = data.vars.slice(1);
+
+    const appendCell = (parent, cell) => {
+      if (cell?.type === 'multi') {
+        cell.values.forEach((cv, i) => {
+          if (i > 0) parent.appendChild(document.createTextNode(', '));
+          if (cv.type === 'uri')        parent.appendChild(this._mkLink(cv));
+          else if (cv.type === 'bnode') parent.appendChild(this._mkBnodeLink(cv));
+          else parent.appendChild(document.createTextNode(cv.value ?? ''));
+        });
+      } else if (cell?.type === 'bnode') {
+        parent.appendChild(this._mkBnodeLink(cell));
+      } else if (cell?.type === 'uri') {
+        parent.appendChild(this._mkLink(cell));
+      } else {
+        parent.appendChild(document.createTextNode(cell ? cell.value : ''));
+      }
+    };
+
     data.results.forEach(row => {
       const dt = document.createElement('dt');
-      dt.textContent = this._termText(row[kc]);
-      if (row[kc]?.type === 'uri') dt.title = row[kc].value;
+      const nameCell = row[nameVar];
+      dt.textContent = this._termText(nameCell);
+      if (nameCell?.type === 'uri') dt.title = nameCell.value;
       dl.appendChild(dt);
-      const dd = document.createElement('dd');
-      const vv = row[vc];
-      if (vv?.type === 'multi') {
-        vv.values.forEach((v, i) => {
-          if (i > 0) dd.appendChild(document.createTextNode(',  '));
-          if (v.type === 'uri')   dd.appendChild(this._mkLink(v));
-          else if (v.type === 'bnode') dd.appendChild(this._mkBnodeLink(v));
-          else dd.appendChild(document.createTextNode(v.value ?? ''));
-        });
-      } else if (vv?.type === 'bnode') {
-        dd.appendChild(this._mkBnodeLink(vv));
-      } else if (vv?.type === 'uri') {
-        dd.appendChild(this._mkLink(vv));
-      } else {
-        dd.textContent = vv ? vv.value : '';
-      }
-      dl.appendChild(dd);
+
+      restVars.forEach(v => {
+        const dd = document.createElement('dd');
+        const label = document.createElement('span');
+        label.className = 'dl-field';
+        label.textContent = `${v} `;
+        dd.appendChild(label);
+        appendCell(dd, row[v]);
+        dl.appendChild(dd);
+      });
     });
     return dl;
   }
@@ -434,27 +409,30 @@ export function getDefaultStyles() {
     .container { overflow-x: auto; }
 
     /* ── table ── */
-    table { border-collapse: collapse; margin: 0 0 .5rem; }
+    table { border-collapse: collapse; margin: 0 0 .5rem; font-size: 1rem; }
     th, td {
       padding: 0.4rem 0.65rem; text-align: left; border: 1px solid #ddd;
       overflow-wrap: break-word; word-break: break-word;
     }
     th {
-      background-color: var(--th-color, #f5f5f5);
+      background-color: var(--th-color, #2C3E51);
+      color: var(--th-text-color, #fff);
       font-weight: 600;
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
     }
-    th::after { content: '⇅'; margin-left: 5px; font-size: .75em; opacity: .35; }
+    th::after { content: '⇅'; margin-left: 5px; font-size: .75em; opacity: .55; }
     th[data-sort="asc"]::after  { content: '▲'; opacity: 1; }
     th[data-sort="desc"]::after { content: '▼'; opacity: 1; }
     tr:nth-child(even) { background-color: var(--even-color, #fafafa); }
 
     /* ── dl ── */
     dl { margin: 0 0 .5rem; }
-    dt { font-weight: 600; font-size: .85em; color: var(--muted, #777); margin-top: .6rem; }
+    dt { font-weight: 600; margin-top: .75rem; }
+    dt:first-child { margin-top: 0; }
     dd { margin: .1rem 0 .2rem 1rem; }
+    dd .dl-field { font-size: .85em; color: var(--muted, #777); font-weight: 600; }
 
     /* ── list ── */
     ul.result-list { margin: .5rem 0 .5rem 1.5rem; }

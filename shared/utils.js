@@ -1,5 +1,32 @@
 // Shared utilities that do not depend on rdflib.
 
+/* loadStyleRules
+*    accepts comma-sep list of css file names (no path or extension)
+*    returns a style element to be appended into the shadow DOM
+*/
+export async function loadStyleRules(...uris) {
+  if (!window.styleCache) {
+    window.styleCache = new Map();
+  }
+  
+  const baseUrl = new URL('../styles/', import.meta.url);
+  const style = document.createElement('style');
+  
+  for (const uri of uris) {
+    const filename = uri + '.css';
+    if (!window.styleCache.has(filename)) {
+      const url = new URL(filename, baseUrl);
+      const response = await fetch(url);
+      const cssText = await response.text();
+      window.styleCache.set(filename, cssText);
+    }
+    style.textContent += window.styleCache.get(filename) + '\n';
+  }
+  
+  return style;
+}
+
+
 // ─── DOMPurify (lazy, cached) ─────────────────────────────────────────────────
 let _purify = null;
 async function _getDOMPurify() {
@@ -81,6 +108,19 @@ export function toPlainResults(data, wantedVars) {
 
 // ─── SPARQL adapters (non-rdflib) ────────────────────────────────────────────
 
+// Extract the projected variable names from a SPARQL SELECT clause, preserving
+// author order. Returns null for `SELECT *` or non-SELECT queries — callers
+// should fall back to whatever order the engine produced.
+export function parseSelectVars(queryText) {
+  const stripped = queryText.replace(/#[^\n]*/g, '');
+  const m = stripped.match(/\bSELECT\s+(?:DISTINCT\s+|REDUCED\s+)?(.*?)\s+WHERE\b/is);
+  if (!m) return null;
+  const clause = m[1].trim();
+  if (clause === '*') return null;
+  const vars = clause.match(/\?(\w+)/g);
+  return vars ? vars.map(v => v.slice(1)) : null;
+}
+
 export class ComunicaSparqlAdapter {
   constructor(engineFactory) {
     this.engineFactory = engineFactory;
@@ -100,7 +140,11 @@ export class ComunicaSparqlAdapter {
     const bindings = await stream.toArray();
     if (!bindings.length) return { vars: [], results: [] };
 
-    const vars = Array.from(bindings[0].keys()).map(v => v.value);
+    // Prefer the explicit SELECT order from the query text; fall back to the
+    // engine's binding order for SELECT * / non-SELECT.
+    const selectVars = parseSelectVars(query);
+    const vars = selectVars ?? Array.from(bindings[0].keys()).map(v => v.value);
+
     const results = bindings.map(binding => {
       const row = {};
       vars.forEach(v => {

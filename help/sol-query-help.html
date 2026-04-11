@@ -39,10 +39,10 @@ inline SPARQL  : endpoint="SPARQL ENDPOINT" sparql="LITERAL SPARQL STRING"
 stored SPARQL  : endpoint="SPARQL ENDPOINT" sparql="URI OF A SPARQL QUERY"
 replace param  : endpoint="SPARQL ENDPOINT" sparql="URI OF A SPARQL QUERY" var-paramName="paramValue"
 
-format           using attributes
+view             using attributes
 ---------------------------------
-as HTML table            : format="table" # or omit format attribute - table is the default
-as HTML description list : format="dl"
+as HTML table            : view="table" # or omit view attribute - table is the default
+as HTML description list : view="dl"
 </pre>
 
   <h2>Usage Details</h2>
@@ -54,6 +54,7 @@ as HTML description list : format="dl"
     <a href="#section-4">Stored SPARQL</a>
     <a href="#section-5">Inline SPARQL</a>
     <a href="#section-6">Replaceable Parameters</a>
+    <a href="#views-playground">Views</a>
     <a href="#playground">Playground</a>
     <a href="sol-query-script.html">Script API →</a>
     <a href="sol-query-browser.html">Browser/CDN →</a>
@@ -132,6 +133,201 @@ as HTML description list : format="dl"
     </ul>
     <p>Multiple named parameters can be used in a single query.</p>
   </div>
+
+  <h2 id="views-playground">Views Playground</h2>
+  <p>Each <code>view</code> renders the same query differently. Built-in legacy views
+     (<code>table</code>, <code>dl</code>, <code>list</code>) are handled inline; the
+     others are lazy-loaded from <code>./views/&lt;name&gt;.js</code> next to
+     <code>sol-query.js</code>. A URL in the <code>view</code> attribute loads a custom
+     renderer module instead (see <a href="sol-query-custom-format.html">Custom view →</a>).</p>
+
+  <p>All demos below query <a href="../data/sample-data.ttl"><code>../data/sample-data.ttl</code></a>,
+     which contains five <code>schema:Person</code> blank nodes with <code>schema:name</code>
+     and <code>schema:age</code> properties.</p>
+
+  <div class="views-grid">
+    <div class="view-card">
+      <h3><code>view="table"</code> (default)</h3>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="dl"</code></h3>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+  view="dl"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+          view="dl"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="list"</code></h3>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name WHERE {
+    ?p schema:name ?name
+  } ORDER BY ?name"
+  view="list"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name WHERE { ?p schema:name ?name } ORDER BY ?name"
+          view="list"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="select"</code></h3>
+      <p class="view-note">Dropdown whose options come from result rows. Dispatches a
+         <code>sol-select</code> event on selection.</p>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+  view="select"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+          view="select"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="accordion"</code></h3>
+      <p class="view-note">Each row becomes a collapsible <code>&lt;details&gt;</code> panel.
+         First column is the summary, remaining columns are key/value pairs in the body.</p>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+  view="accordion"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+          view="accordion"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="anchorlist"</code></h3>
+      <p class="view-note">Flat list — picks the first URI cell of each row for
+         <code>href</code> and the first literal cell for the label. With literal-only
+         data (like this sample) it falls back to plain list items.</p>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name WHERE {
+    ?p schema:name ?name
+  } ORDER BY ?name"
+  view="anchorlist"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name WHERE { ?p schema:name ?name } ORDER BY ?name"
+          view="anchorlist"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="auto-complete"</code></h3>
+      <p class="view-note">Text input with a filtered suggestion list. Typing narrows
+         matches against the first column. Selection fires <code>sol-select</code>.</p>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+  view="auto-complete"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+          view="auto-complete"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="rolodex"</code></h3>
+      <p class="view-note">One record per card with prev/next buttons and an
+         "N of M" counter. Arrow keys navigate when the card is focused.</p>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+  view="rolodex"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+          view="rolodex"
+        ></sol-query>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .views-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+      margin: 1rem 0 2rem;
+    }
+    .view-card {
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 1rem;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    .view-card h3 { margin-top: 0; }
+    .view-card .view-note { font-size: .9em; color: #555; margin: .25rem 0 .6rem; }
+    .view-card pre { font-size: .78em; }
+    .view-demo {
+      border: 1px dashed #ccc;
+      border-radius: 4px;
+      padding: .75rem;
+      background: #fafafa;
+      flex: 1;
+      overflow: auto;
+      max-height: 320px;
+    }
+  </style>
 
   <h2 id="playground">sol-query - Interactive Playground</h2>
 

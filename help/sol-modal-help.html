@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-modal Component - Help & Playground</title>
+  <link rel="stylesheet" href="../shared/sol-query-help.css">
+  <style>
+    li { margin-bottom:0; }
+    body { padding-top:8px; }
+    h1 { display:inline-block; }
+    ul { padding-bottom:1rem !important; }
+  </style>
+</head>
+<body>
+  <h1>sol-modal : dialog with tabs</h1>
+  <ul>
+    <li>Generic modal dialog web component with optional tabbed interface</li>
+    <li>Content rendered via tab callbacks &mdash; fully dynamic</li>
+    <li>Built-in <code>SolModal.prompt()</code> for quick input dialogs</li>
+    <li>Closes on Escape, backdrop click, or close button</li>
+    <li>Shadow DOM with CSS custom properties for theming</li>
+  </ul>
+
+  <pre>
+attribute        description
+-------------------------------------------
+title            modal header title
+size             "small" for compact prompt-style dialogs
+
+event            description
+-------------------------------------------
+sol-close        fired when the modal closes (bubbles, composed)
+</pre>
+
+  <h2>Usage</h2>
+
+  <nav class="page-nav" aria-label="Page sections">
+    <a href="#section-1">Single Tab</a>
+    <a href="#section-2">Multi Tab</a>
+    <a href="#section-3">Prompt</a>
+    <a href="#playground">Playground</a>
+    <a href="sol-modal-script.html">Script API &rarr;</a>
+    <a href="sol-login-help.html">sol-login &rarr;</a>
+    <a href="sol-pod-help.html">sol-pod &rarr;</a>
+  </nav>
+
+  <div id="section-1" class="usage-section">
+    <h3>1. Single-Tab Modal</h3>
+    <p>Create a <code>&lt;sol-modal&gt;</code> element, set its title and a single tab. The tab bar is hidden when there is only one tab.</p>
+    <pre><code>&lt;sol-modal title="File Details"&gt;&lt;/sol-modal&gt;</code></pre>
+    <p>Content is added programmatically via the tab's <code>render(body, footer, actions)</code> callback (see <a href="sol-modal-script.html">Script API</a>).</p>
+  </div>
+
+  <div id="section-2" class="usage-section">
+    <h3>2. Multi-Tab Modal</h3>
+    <p>With multiple tabs, a tab bar appears. Users click tabs to switch views.</p>
+    <pre><code>&lt;sol-modal title="config.ttl"&gt;&lt;/sol-modal&gt;
+&lt;!-- tabs: View, Edit, Info — set via .tabs property --&gt;</code></pre>
+  </div>
+
+  <div id="section-3" class="usage-section">
+    <h3>3. Quick Prompt</h3>
+    <p>Use the static <code>SolModal.prompt()</code> method for a simple input dialog. Returns the entered value or <code>null</code> if cancelled.</p>
+    <pre><code>&lt;script type="module"&gt;
+  import { SolModal } from './sol-modal.js';
+  const name = await SolModal.prompt('Enter file name:', 'untitled.ttl');
+  if (name) console.log('User entered:', name);
+&lt;/script&gt;</code></pre>
+  </div>
+
+  <h2 id="playground">sol-modal - Interactive Playground</h2>
+
+  <div class="playground">
+    <div class="examples-grid">
+      <button class="button example-btn" type="button" onclick="loadExample(0)">Single Tab</button>
+      <button class="button example-btn" type="button" onclick="loadExample(1)">Two Tabs</button>
+      <button class="button example-btn" type="button" onclick="loadExample(2)">Three Tabs</button>
+      <button class="button example-btn" type="button" onclick="loadExample(3)">Small / Prompt</button>
+      <button class="button example-btn" type="button" onclick="loadExample(4)">With Title</button>
+    </div>
+
+    <textarea
+      id="queryInput"
+      aria-label="Component input"
+      placeholder="Enter your sol-modal tag here..."
+    ></textarea>
+
+    <button class="button" type="button" onclick="executeTag()">Render Component</button>
+  </div>
+
+  <script type="module">
+    import '../sol-modal.js';
+  </script>
+
+  <script>
+    const examples = [
+      `<sol-modal title="Hello"></sol-modal>`,
+      `<sol-modal title="Document Viewer" tabs="Preview, Source"></sol-modal>`,
+      `<sol-modal title="config.ttl" tabs="View, Edit, Info"></sol-modal>`,
+      `<sol-modal title="Enter file name:" size="small"></sol-modal>`,
+      `<sol-modal title="My Custom Modal" tabs="Details, Settings, About"></sol-modal>`,
+    ];
+
+    window.loadExample = function(index) {
+      document.getElementById('queryInput').value = examples[index] || '';
+    };
+
+    window.executeTag = function() {
+      const raw = document.getElementById('queryInput').value.trim();
+      if (!raw) { alert('Please enter a <sol-modal> tag.'); return; }
+
+      const div = document.createElement('div');
+      div.innerHTML = raw;
+      let parsed = div.querySelector('sol-modal');
+      if (!parsed) {
+        div.innerHTML = `<sol-modal ${raw}></sol-modal>`;
+        parsed = div.querySelector('sol-modal');
+      }
+      if (!parsed) { alert('Could not parse sol-modal tag.'); return; }
+
+      const live = document.createElement('sol-modal');
+      const title = parsed.getAttribute('title') || 'Modal';
+      live.modalTitle = title;
+
+      // Parse tabs from attribute or default to one
+      const tabsAttr = parsed.getAttribute('tabs');
+      const isSmall = parsed.getAttribute('size') === 'small';
+
+      if (isSmall) {
+        // Render as prompt-style
+        live.setAttribute('size', 'small');
+        live.tabs = [{
+          name: '_prompt',
+          render(body, footer) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.placeholder = 'Type something...';
+            input.className = 'modal-input';
+            body.style.padding = '16px 20px';
+            body.appendChild(input);
+
+            const ok = document.createElement('button');
+            ok.className = 'modal-header-btn modal-header-btn-primary';
+            ok.textContent = 'OK';
+            const cancel = document.createElement('button');
+            cancel.className = 'modal-header-btn';
+            cancel.textContent = 'Cancel';
+            footer.appendChild(cancel);
+            footer.appendChild(ok);
+
+            ok.onclick = () => { alert('You entered: ' + input.value); live.close(); };
+            cancel.onclick = () => live.close();
+            input.onkeydown = (e) => {
+              if (e.key === 'Enter') { alert('You entered: ' + input.value); live.close(); }
+            };
+            setTimeout(() => input.focus(), 50);
+          }
+        }];
+      } else {
+        const tabNames = tabsAttr
+          ? tabsAttr.split(',').map(s => s.trim()).filter(Boolean)
+          : ['Content'];
+
+        live.tabs = tabNames.map((name, i) => ({
+          name,
+          render(body, footer) {
+            body.innerHTML = `<div style="padding:20px">
+              <h3>${name}</h3>
+              <p style="color:#666;margin-top:8px">This is the "${name}" tab (${i + 1} of ${tabNames.length}).</p>
+              <p style="margin-top:8px">In a real app, the <code>render(body, footer, actions)</code> callback populates this area with live content.</p>
+            </div>`;
+
+            if (i === 0) {
+              const closeBtn = document.createElement('button');
+              closeBtn.textContent = 'Close';
+              closeBtn.className = 'modal-header-btn';
+              closeBtn.onclick = () => live.close();
+              footer.appendChild(closeBtn);
+            }
+          }
+        }));
+      }
+
+      live.addEventListener('sol-close', () => {
+        console.log('sol-close event fired');
+      });
+      live.open();
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('queryInput').value = examples[0];
+    });
+  </script>
+</body>
+</html>

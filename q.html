@@ -1,0 +1,161 @@
+<sol-rolodex>
+  <div>hello <b>rolodex</b> world</div>
+  <div>page 2 content</div>
+  <div>page 3 content</div>
+</sol-rolodex>
+
+<style>
+sol-accordion {
+  display:block;
+  width:40ch;
+  border:2px solid #666;
+  border-radius:4px;
+  padding:0.5rem;
+  margin:0.5rem;
+}
+</style>
+<sol-accordion>
+  <div>
+    <div>Panel 1 Title</div>
+    <div>First content section</div>
+    <div>Second content section</div>
+    <div>Third content section</div>
+  </div>
+  <div>
+    <div>Panel 2 Title</div>
+    <div>Only one content section here</div>
+  </div>
+  <div>
+    <div>Panel 3 Title</div>
+    <div><p>Content with <strong>HTML</strong></p></div>
+    <div><p>More content with <em>markup</em></p></div>
+  </div>
+</sol-accordion>
+
+<sol-query
+  endpoint="./data/sample-data.ttl"
+  wanted="? ? ?"
+></sol-query>
+<!--
+query modes :
+ * simple RDF file import
+ * triple patterns
+ * RDFa selectors
+ * inline SPARQL
+ * stored SPARQL with replaceable parameters
+output views
+ * table
+ * description list
+ * rolodex
+ * autocomplete
+ * accordion
+ * select
+ * anchorlist
+-->
+
+<link rel="stylesheet" href="./styles/root.css"> 
+<link rel="stylesheet" href="q.css">
+
+<h2>sol-query -- search Solid and Linked Data resources</h2>
+<p>Query RDF files and SPARQL endpoints using triple patterns, CSS selectors, and SPARQL.
+<br>
+Display results as a table, a rolodex, an autocomplete field and other built-in and custom vies.
+</p>
+<!--<div>simple RDF file import, triple pattern, RDFa selector, inline SPARQL, stored SPARQL with replaceable parameters</div>-->
+
+<li><b>triple patterns</b>
+<div class="code"><code>
+  &lt;sol-query <b>endpoint</b>="foo.ttl" <b>wanted</b>="? schema:location Mumbai">&lt;/sol-query></code></div>
+</li>
+
+<li><b>RDFa selectors</b>
+<div class="code"><code>
+  &lt;sol-query <b>endpoint</b>="foo.html" <b>wanted</b>="[property=schema:name]">&lt;/sol-query></code>
+</code></div>
+</li>
+
+<li><b>stored SPARQL</b>
+<div class="code"><code>
+  &lt;sol-query <b>endpoint</b>="/foo/bar" <b>sparql</b>="./myQueries.ttl#BazQuery">&lt;/sol-query></code>
+</code></div>
+</li>
+</ul>
+
+<li><b>inline SPARQL</b>
+<div class="code"><code>
+  &lt;sol-query <b>endpoint</b>="/foo/bar" <b>sparql</b>="SELECT ?name WHERE {?p schema:name ?name.}">&lt;/sol-query></code>
+</code></div>
+</li>
+<ul>
+
+<!--
+<li><b>stored SPARQL with replaceable parameters</b> - same as stored SPARQL but with <i>var-variablename</i> set to the parmeter's value
+<div class="code"><code>
+  &lt;sol-query <b>endpoint</b>="..." <b>sparql</b>="SELECT ... WHERE {...} LIMIT {{limit}}" <b>var-limit</b>="4">&lt;/sol-query></code>
+</code></div>
+</li>
+-->
+
+<li><b>view="rolodex"</b>
+<sol-query 
+  endpoint="./data/sample-data.ttl"
+  query="./data/myQueries.ttl#MyBasicQuery"
+  view="rolodex"
+></sol-query>
+
+<li><b>view="table"</b>
+<sol-query 
+  endpoint="./data/sample-data.ttl"
+  query="./data/myQueries.ttl#MyBasicQuery"
+  view="table"
+></sol-query>
+
+<li><b>view="auto-complete"</b>
+<sol-query 
+  endpoint="./data/sample-data.ttl"
+  query="./data/myQueries.ttl#MyBasicQuery"
+  view="auto-complete"
+></sol-query>
+
+<!--
+<li><b>view="select"</b>
+<sol-query 
+  endpoint="./data/sample-data.ttl"
+  query="./data/myQueries.ttl#MyBasicQuery"
+  view="select"
+></sol-query>
+-->
+
+<li><b>view="accordion"</b>
+<sol-query 
+  endpoint="./data/sample-data.ttl"
+  query="./data/myQueries.ttl#MyBasicQuery"
+  view="accordion"
+></sol-query>
+
+<li><b>view="dl"</b> (description list)
+<sol-query 
+  endpoint="./data/sample-data.ttl"
+  query="./data/myQueries.ttl#MyBasicQuery"
+  view="dl"
+></sol-query>
+
+<script src="https://cdn.jsdelivr.net/npm/@inrupt/solid-client-authn-browser/dist/solid-client-authn.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/rdflib/dist/rdflib.min.js"></script>
+<script src="sol-accordion.js" type="module"></script>
+<script src="sol-query.js" type="module"></script>
+<script src="sol-rolodex.js" type="module"></script>
+
+
+<!--
+<script src="./dist/solid-web-components.bundle.min.js" type="module"></script>
+
+ - set <i>endpoint</i> to an RDF document; set <i>wanted</i> to a triple pattern
+ - set <i>endpoint</i> to an RDFa document; set <i>wanted</i> to a CSS selector
+ - set <i>endpoint</i> to a SPARQL endpoint or RDF document; set <i>sparql</i> to a SPARQL string
+ - set <i>endpoint</i> to a SPARQL endpoint or RDF document; set <i>sparql</i> to the subject of an RDF document
+<h2>Output Views</h2>
+The <i>view</i> attribute may be added to any query. If omitted, the default view is <i>table</i>.
+
+
+-->

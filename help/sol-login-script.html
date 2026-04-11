@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-login &mdash; Script API</title>
+  <link rel="stylesheet" href="../shared/sol-query-help.css">
+  <style>
+    .api-block { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); padding:1.5rem; margin-bottom:1.5rem; }
+    .sig { background:#1e2a38; color:#7ec8e3; padding:.8rem 1rem; border-radius:5px; font-family:'Courier New',monospace; font-size:.95rem; margin:.5rem 0 1rem; white-space:pre; overflow-x:auto; }
+    .param-table { width:100%; border-collapse:collapse; font-size:.9rem; margin:.5rem 0 1rem; }
+    .param-table th { background:#f0f4f8; text-align:left; padding:.5rem .75rem; border:1px solid #d0dce8; }
+    .param-table td { padding:.45rem .75rem; border:1px solid #e0e8f0; vertical-align:top; }
+    .param-table td:first-child { font-family:'Courier New',monospace; color:#2c6e9e; white-space:nowrap; }
+    .param-table td:nth-child(2) { color:#666; white-space:nowrap; }
+    .ret { display:inline-block; background:#e8f4e8; color:#2e7d32; border-radius:4px; padding:.15rem .5rem; font-family:'Courier New',monospace; font-size:.9rem; }
+    .note-box { background:#fff8e1; border-left:4px solid #f9a825; padding:.75rem 1rem; border-radius:4px; font-size:.9rem; margin:.75rem 0; }
+    .ex-label { font-size:.78rem; font-weight:600; color:#7f8c8d; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem; }
+  </style>
+</head>
+<body>
+  <h1>sol-login &mdash; Script API</h1>
+  <p>Use <code>AuthManager</code> directly from JavaScript for full control over multi-session authentication, authenticated fetch, and login flows.</p>
+
+  <nav class="page-nav" aria-label="Page sections">
+    <a href="#setup">Setup</a>
+    <a href="#authmanager">AuthManager</a>
+    <a href="#fetchfor">fetchFor</a>
+    <a href="#sessions">Sessions</a>
+    <a href="#manual-init">Manual Init</a>
+    <a href="#examples">Examples</a>
+    <a href="sol-login-help.html">&larr; Component docs</a>
+  </nav>
+
+  <!-- ── Setup ──────────────────────────────────────────────────────── -->
+  <h2 id="setup">Setup</h2>
+
+  <div class="api-block">
+    <h3>Prerequisites</h3>
+    <p><code>@inrupt/solid-client-authn-browser</code> must be available as a UMD global at <code>window.solidClientAuthn.Session</code> before importing <code>sol-login.js</code>.</p>
+
+    <div class="ex-label">UMD bundle (simplest)</div>
+    <pre><code>&lt;script src="solid-client-authn-browser.bundle.js"&gt;&lt;/script&gt;
+&lt;script type="module"&gt;
+  import { AuthManager } from './sol-login.js';
+&lt;/script&gt;</code></pre>
+
+    <div class="ex-label">From npm (e.g. in a bundled app)</div>
+    <pre><code>import { Session } from '@inrupt/solid-client-authn-browser';
+window.solidClientAuthn = { Session };
+
+import { AuthManager } from './sol-login.js';</code></pre>
+
+    <div class="note-box">The Session class must be set on <code>window.solidClientAuthn</code> <em>before</em> any AuthManager method creates a session.</div>
+  </div>
+
+  <!-- ── AuthManager ────────────────────────────────────────────────── -->
+  <h2 id="authmanager">AuthManager</h2>
+
+  <div class="api-block">
+    <h3>Constructor</h3>
+    <div class="sig">const auth = new AuthManager();</div>
+    <p>Creates a new manager. Sessions are created lazily via <code>sessionFor(tag)</code>.</p>
+
+    <h3 style="margin-top:1.2rem">Properties</h3>
+    <table class="param-table">
+      <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>sessions</td><td>Map</td><td>Map of tag &rarr; Session objects</td></tr>
+        <tr><td>noAuth</td><td>string|string[]</td><td>Origins that should always use plain <code>fetch</code> (write-only setter)</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:1.2rem">Methods</h3>
+    <table class="param-table">
+      <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>fetchFor(url, tag?)</td>
+          <td><span class="ret">Function</span></td>
+          <td>Returns authenticated fetch for the URL. If no session covers it, returns plain <code>fetch</code>.</td>
+        </tr>
+        <tr>
+          <td>isLoggedIn(url, tag?)</td>
+          <td><span class="ret">boolean</span></td>
+          <td>Whether a session covering the URL is logged in.</td>
+        </tr>
+        <tr>
+          <td>isNoAuth(url)</td>
+          <td><span class="ret">boolean</span></td>
+          <td>Whether the URL's origin is in the noAuth list.</td>
+        </tr>
+        <tr>
+          <td>sessionFor(tag, origin?)</td>
+          <td><span class="ret">Session</span></td>
+          <td>Gets or creates a Session for the given tag. If origin is provided, the session ID is scoped to it.</td>
+        </tr>
+        <tr>
+          <td>setSideOrigin(tag, url)</td>
+          <td><span class="ret">void</span></td>
+          <td>Associates a tag with the origin of the URL. Creates a new session if the origin changed.</td>
+        </tr>
+        <tr>
+          <td>getSessionFor(url, tag)</td>
+          <td><span class="ret">Session|null</span></td>
+          <td>Finds the best session for the URL: own session first, then any session covering the origin.</td>
+        </tr>
+        <tr>
+          <td>getWebId(tag)</td>
+          <td><span class="ret">string|null</span></td>
+          <td>WebID of the session for the given tag.</td>
+        </tr>
+        <tr>
+          <td>getFirstLoggedIn()</td>
+          <td><span class="ret">Session|null</span></td>
+          <td>First session that is currently logged in.</td>
+        </tr>
+        <tr>
+          <td>handleIncomingRedirect()</td>
+          <td><span class="ret">Promise</span></td>
+          <td>Handles the OAuth redirect for all sessions. Call once on page load.</td>
+        </tr>
+        <tr>
+          <td>ensureAuthenticated(url, tag?)</td>
+          <td><span class="ret">Promise&lt;boolean&gt;</span></td>
+          <td>If not logged in for the URL, triggers a login redirect. Returns <code>true</code> if already authenticated, <code>false</code> if redirecting.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── fetchFor ───────────────────────────────────────────────────── -->
+  <h2 id="fetchfor">fetchFor</h2>
+
+  <div class="api-block">
+    <div class="sig">const authFetch = auth.fetchFor(url, tag?);
+const response = await authFetch(url, { method: 'GET' });</div>
+
+    <p><code>fetchFor</code> returns a fetch function, not a response. Call the returned function like you would call <code>fetch()</code>.</p>
+
+    <p>When called without a tag, it searches all sessions for one whose issuer or WebID covers the URL's origin. When called with a tag, it uses that tag's session.</p>
+
+    <div class="note-box">If no session covers the URL, <code>fetchFor</code> returns the global <code>fetch</code> — so unauthenticated requests always work.</div>
+  </div>
+
+  <!-- ── Sessions ───────────────────────────────────────────────────── -->
+  <h2 id="sessions">Sessions &amp; Cross-Origin Coverage</h2>
+
+  <div class="api-block">
+    <p>Sessions are identified by a session ID derived from the tag and origin: <code>sol_&lt;tag&gt;_&lt;origin&gt;</code>. This means each tag can have an independent session per origin.</p>
+
+    <p>A session "covers" an origin if:</p>
+    <ul>
+      <li>The session's issuer or WebID host matches the target host</li>
+      <li>The target host is a subdomain of the issuer/WebID host</li>
+      <li>They share the same base domain (e.g. <code>pod.example.com</code> and <code>login.example.com</code>)</li>
+    </ul>
+
+    <p>This allows a single login to work across related services on the same domain.</p>
+  </div>
+
+  <!-- ── Manual Init ────────────────────────────────────────────────── -->
+  <h2 id="manual-init">Manual Initialization</h2>
+
+  <div class="api-block">
+    <p>When used inside a larger app (e.g. Podz), you typically want to control when initialization happens:</p>
+    <pre><code>const login = document.createElement('sol-login');
+login._manualInit = true;  // prevent auto-init on DOMContentLoaded
+document.body.appendChild(login);
+
+// Set up sessions with custom tags
+const auth = login.auth;
+
+// Later, after your app is ready:
+await login.initialize(['left', 'right']);
+
+// Now use auth
+const resp = await auth.fetchFor(url, 'left')(url);</code></pre>
+
+    <div class="note-box"><code>initialize()</code> calls <code>handleIncomingRedirect()</code> for all tags and fires the <code>sol-login</code> event if a session was restored from a redirect.</div>
+  </div>
+
+  <!-- ── Examples ───────────────────────────────────────────────────── -->
+  <h2 id="examples">Examples</h2>
+
+  <div class="api-block">
+    <h3>Read a private file</h3>
+    <pre><code>const auth = new AuthManager();
+auth.sessionFor('default');
+await auth.handleIncomingRedirect();
+
+const url = 'https://pod.example/private/data.ttl';
+const authFetch = auth.fetchFor(url, 'default');
+const resp = await authFetch(url);
+const text = await resp.text();</code></pre>
+
+    <h3>Write to a pod</h3>
+    <pre><code>const authFetch = auth.fetchFor(url, 'default');
+await authFetch(url, {
+  method: 'PUT',
+  headers: { 'Content-Type': 'text/turtle' },
+  body: '@prefix foaf: &lt;http://xmlns.com/foaf/0.1/&gt; .\n&lt;&gt; a foaf:Person .'
+});</code></pre>
+
+    <h3>Skip auth for public data</h3>
+    <pre><code>auth.noAuth = ['https://dbpedia.org', 'https://www.wikidata.org'];
+
+// These will use plain fetch, no OIDC headers
+const resp = await auth.fetchFor('https://dbpedia.org/data/Berlin.ttl')('https://dbpedia.org/data/Berlin.ttl');</code></pre>
+
+    <h3>Multi-session (two panels)</h3>
+    <pre><code>auth.setSideOrigin('left',  'https://pod-a.example/');
+auth.setSideOrigin('right', 'https://pod-b.example/');
+
+const fetchA = auth.fetchFor('https://pod-a.example/file.ttl', 'left');
+const fetchB = auth.fetchFor('https://pod-b.example/file.ttl', 'right');</code></pre>
+
+    <h3>Trigger login if needed</h3>
+    <pre><code>const authenticated = await auth.ensureAuthenticated('https://pod.example/', 'default');
+if (!authenticated) {
+  // Page is redirecting to the OIDC provider — save state first
+}</code></pre>
+  </div>
+</body>
+</html>

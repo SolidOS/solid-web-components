@@ -1,4 +1,6 @@
 import resolve  from '@rollup/plugin-node-resolve';
+import commonjs from '@rollup/plugin-commonjs';
+import json     from '@rollup/plugin-json';
 import terser   from '@rollup/plugin-terser';
 
 const minify = !!process.env.MINIFY;
@@ -6,8 +8,37 @@ const minify = !!process.env.MINIFY;
 // External dependencies — never bundled; supplied by the host page.
 const external = ['rdflib', 'dompurify', 'marked'];
 
-const plugins = [resolve()];
+// Runtime-optional dynamic imports that live outside this repo
+// (e.g. `../src/podz-editor.js`, which only resolves when sol-live-edit is
+// consumed from within podz). Mark them external so rollup emits the bare
+// `import()` call; the host wraps it in try/catch, so runtime failure is fine.
+const stubMissingDynamic = () => ({
+  name: 'externalize-missing-dynamic',
+  resolveId(id) {
+    if (id.includes('podz-editor')) return { id, external: true };
+    // Stub Node built-ins pulled in transitively (e.g. `node:diagnostics_channel`
+    // from Comunica's HTTP stack). They're never executed in the browser.
+    if (id.startsWith('node:')) return { id: '\0stub:node-builtin', external: false };
+    return null;
+  },
+  load(id) {
+    if (id === '\0stub:node-builtin') return 'export default {}; export const channel = () => ({ publish: () => {}, hasSubscribers: false });';
+    return null;
+  },
+});
+
+const plugins = [stubMissingDynamic(), resolve()];
 if (minify) plugins.push(terser());
+
+// Plugins for the all-in-one bundle (bundles CJS deps like rdflib internals,
+// Comunica's many sub-packages, and inrupt auth).
+const bundlePlugins = [
+  stubMissingDynamic(),
+  resolve({ browser: true, preferBuiltins: false }),
+  commonjs({ transformMixedEsModules: true, ignoreDynamicRequires: true }),
+  json(),
+];
+if (minify) bundlePlugins.push(terser());
 
 export default [
   // ── sol-query (component + RDF engine + UI + mini) ─────────────────────────
@@ -60,6 +91,29 @@ export default [
       name:    'SolLiveEdit',
       exports: 'named',
       globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
+    },
+  },
+  // ── all-in-one bundle: every component + rdflib + inrupt auth + Comunica ───
+  {
+    input:   'solid-web-components.bundle.js',
+    // Runtime-only dynamic imports (esm.sh CDN, importmap-provided globals,
+    // node built-ins pulled in by transitive deps that the browser never
+    // actually executes) must stay external so rollup doesn't try to bundle
+    // them.
+    external: (id) =>
+      id.startsWith('https://esm.sh/') ||
+      id === 'marked' ||
+      id === 'dompurify',
+    plugins: bundlePlugins,
+    output: {
+      file:      minify
+        ? 'dist/solid-web-components.bundle.min.js'
+        : 'dist/solid-web-components.bundle.js',
+      format:    'iife',
+      name:      'SolidWebComponents',
+      exports:   'named',
+      inlineDynamicImports: true,
+      globals:   { marked: 'marked', dompurify: 'DOMPurify' },
     },
   },
 ];

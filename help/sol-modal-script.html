@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-modal &mdash; Script API</title>
+  <link rel="stylesheet" href="../shared/sol-query-help.css">
+  <style>
+    .api-block { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); padding:1.5rem; margin-bottom:1.5rem; }
+    .sig { background:#1e2a38; color:#7ec8e3; padding:.8rem 1rem; border-radius:5px; font-family:'Courier New',monospace; font-size:.95rem; margin:.5rem 0 1rem; white-space:pre; overflow-x:auto; }
+    .param-table { width:100%; border-collapse:collapse; font-size:.9rem; margin:.5rem 0 1rem; }
+    .param-table th { background:#f0f4f8; text-align:left; padding:.5rem .75rem; border:1px solid #d0dce8; }
+    .param-table td { padding:.45rem .75rem; border:1px solid #e0e8f0; vertical-align:top; }
+    .param-table td:first-child { font-family:'Courier New',monospace; color:#2c6e9e; white-space:nowrap; }
+    .param-table td:nth-child(2) { color:#666; white-space:nowrap; }
+    .ret { display:inline-block; background:#e8f4e8; color:#2e7d32; border-radius:4px; padding:.15rem .5rem; font-family:'Courier New',monospace; font-size:.9rem; }
+    .note-box { background:#fff8e1; border-left:4px solid #f9a825; padding:.75rem 1rem; border-radius:4px; font-size:.9rem; margin:.75rem 0; }
+    .ex-label { font-size:.78rem; font-weight:600; color:#7f8c8d; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem; }
+  </style>
+</head>
+<body>
+  <h1>sol-modal &mdash; Script API</h1>
+  <p>Create and control modals entirely from JavaScript. The <code>SolModal</code> class is both a custom element and a utility — use it imperatively without ever writing a tag.</p>
+
+  <nav class="page-nav" aria-label="Page sections">
+    <a href="#create">Creating Modals</a>
+    <a href="#tabs">Tab Callbacks</a>
+    <a href="#methods">Methods</a>
+    <a href="#properties">Properties</a>
+    <a href="#prompt">prompt()</a>
+    <a href="#examples">Examples</a>
+    <a href="sol-modal-help.html">&larr; Component docs</a>
+  </nav>
+
+  <!-- ── Creating Modals ────────────────────────────────────────────── -->
+  <h2 id="create">Creating Modals</h2>
+
+  <div class="api-block">
+    <div class="sig">import { SolModal } from './sol-modal.js';
+
+const modal = document.createElement('sol-modal');
+modal.modalTitle = 'My Dialog';
+modal.tabs = [ { name: 'View', render(body, footer, actions) { ... } } ];
+modal.open();</div>
+
+    <p>The modal auto-appends to <code>document.body</code> when <code>open()</code> is called and removes itself on <code>close()</code>.</p>
+  </div>
+
+  <!-- ── Tab Callbacks ──────────────────────────────────────────────── -->
+  <h2 id="tabs">Tab Callbacks</h2>
+
+  <div class="api-block">
+    <p>Each tab is an object with a <code>name</code> and a <code>render</code> function. The render function receives three shadow DOM elements to populate:</p>
+
+    <table class="param-table">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>body</td><td>Element</td><td>Main content area. Cleared before each render.</td></tr>
+        <tr><td>footer</td><td>Element</td><td>Bottom button row. Cleared before each render.</td></tr>
+        <tr><td>actions</td><td>Element</td><td>Header action area (next to the close button). Cleared before each render.</td></tr>
+      </tbody>
+    </table>
+
+    <p>The render function may return a <strong>cleanup callback</strong> that is called when switching to another tab or closing the modal:</p>
+
+    <pre><code>{
+  name: 'Editor',
+  render(body, footer, actions) {
+    const editor = createEditor(body);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save';
+    saveBtn.className = 'modal-header-btn modal-header-btn-primary';
+    footer.appendChild(saveBtn);
+
+    // Cleanup when leaving this tab
+    return () => editor.destroy();
+  }
+}</code></pre>
+
+    <div class="note-box">When there is only one tab, the tab bar is hidden. The single tab's <code>render()</code> is still called normally.</div>
+  </div>
+
+  <!-- ── Methods ────────────────────────────────────────────────────── -->
+  <h2 id="methods">Methods</h2>
+
+  <div class="api-block">
+    <table class="param-table">
+      <thead><tr><th>Method</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>open()</td><td>Renders the modal shell, appends to <code>document.body</code>, and activates the first tab.</td></tr>
+        <tr><td>close()</td><td>Calls any active cleanup, fires <code>sol-close</code>, calls <code>onClose</code>, and removes from DOM.</td></tr>
+        <tr><td>switchTab(name)</td><td>Switches to the named tab (case-insensitive). Calls cleanup on the previous tab, then calls <code>render()</code> on the new one.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Properties ─────────────────────────────────────────────────── -->
+  <h2 id="properties">Properties</h2>
+
+  <div class="api-block">
+    <table class="param-table">
+      <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>modalTitle</td><td>string</td><td>Get/set the title (reflects <code>title</code> attribute).</td></tr>
+        <tr><td>tabs</td><td>Array</td><td>Get/set tab definitions. Setting re-renders the tab bar if the modal is open.</td></tr>
+        <tr><td>onClose</td><td>Function|null</td><td>Callback invoked on close (in addition to the <code>sol-close</code> event).</td></tr>
+        <tr><td>body</td><td>Element</td><td>The modal body container (read-only, available after <code>open()</code>).</td></tr>
+        <tr><td>footer</td><td>Element</td><td>The modal footer container (read-only).</td></tr>
+        <tr><td>headerActions</td><td>Element</td><td>The header actions container (read-only).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── prompt() ───────────────────────────────────────────────────── -->
+  <h2 id="prompt">SolModal.prompt()</h2>
+
+  <div class="api-block">
+    <div class="sig">const value = await SolModal.prompt(message, placeholder?);</div>
+
+    <p>Static method that opens a small modal with an input field. Returns a Promise that resolves to:</p>
+    <ul>
+      <li>The trimmed input string if the user clicks OK or presses Enter</li>
+      <li><code>null</code> if cancelled (Cancel button, Escape, backdrop click, or close button)</li>
+    </ul>
+
+    <table class="param-table">
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>message</td><td>string</td><td>Displayed as the modal title.</td></tr>
+        <tr><td>placeholder</td><td>string</td><td>Input placeholder text. Default: <code>''</code>.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── Examples ───────────────────────────────────────────────────── -->
+  <h2 id="examples">Examples</h2>
+
+  <div class="api-block">
+    <h3>File viewer with tabs</h3>
+    <pre><code>import { SolModal } from './sol-modal.js';
+
+const modal = document.createElement('sol-modal');
+modal.modalTitle = 'profile.ttl';
+modal.tabs = [
+  {
+    name: 'View',
+    render(body) {
+      const pre = document.createElement('pre');
+      pre.textContent = turtleText;
+      pre.style.cssText = 'padding:16px;margin:0;overflow:auto';
+      body.appendChild(pre);
+    }
+  },
+  {
+    name: 'Edit',
+    render(body, footer) {
+      const ta = document.createElement('textarea');
+      ta.value = turtleText;
+      ta.style.cssText = 'width:100%;height:300px;font-family:monospace';
+      body.style.padding = '16px';
+      body.appendChild(ta);
+
+      const btn = document.createElement('button');
+      btn.textContent = 'Save';
+      btn.className = 'modal-header-btn modal-header-btn-primary';
+      btn.onclick = async () => {
+        await saveTurtle(ta.value);
+        modal.close();
+      };
+      footer.appendChild(btn);
+    }
+  }
+];
+modal.open();</code></pre>
+
+    <h3>Confirmation dialog</h3>
+    <pre><code>function confirm(message) {
+  return new Promise(resolve => {
+    const m = document.createElement('sol-modal');
+    m.setAttribute('size', 'small');
+    m.modalTitle = message;
+    m.tabs = [{
+      name: '_confirm',
+      render(body, footer) {
+        const yes = document.createElement('button');
+        yes.textContent = 'Yes';
+        yes.className = 'modal-header-btn modal-header-btn-primary';
+        const no = document.createElement('button');
+        no.textContent = 'No';
+        no.className = 'modal-header-btn';
+
+        footer.appendChild(no);
+        footer.appendChild(yes);
+
+        yes.onclick = () => { m.close(); resolve(true); };
+        no.onclick = () => { m.close(); resolve(false); };
+      }
+    }];
+    m.onClose = () => resolve(false);
+    m.open();
+  });
+}
+
+if (await confirm('Delete this file?')) { ... }</code></pre>
+
+    <h3>Header actions (download button)</h3>
+    <pre><code>const modal = document.createElement('sol-modal');
+modal.modalTitle = 'image.png';
+modal.tabs = [{
+  name: 'View',
+  render(body, footer, actions) {
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.style.maxWidth = '100%';
+    body.appendChild(img);
+
+    // Add download button to header
+    const dl = document.createElement('button');
+    dl.textContent = '\u2B07 Download';
+    dl.className = 'modal-header-btn';
+    dl.onclick = () => window.open(imageUrl);
+    actions.appendChild(dl);
+  }
+}];
+modal.open();</code></pre>
+
+    <h3>Using onClose callback</h3>
+    <pre><code>const modal = document.createElement('sol-modal');
+modal.modalTitle = 'Settings';
+modal.onClose = () => {
+  console.log('Modal was closed');
+  refreshUI();
+};
+// ...</code></pre>
+  </div>
+</body>
+</html>
