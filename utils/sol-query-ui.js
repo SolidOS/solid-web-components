@@ -1,8 +1,11 @@
+import {render} from '../views/dl.js';
+
 export class SparqlResultsRenderer {
   constructor(container) {
     this.container = container;
     this._bnodeData = new Map();
     this._modal     = null;
+    this.render = render.bind(this);
 
     // Bnode-link clicks: open modal with the node's properties
     container.addEventListener('click', e => {
@@ -66,7 +69,8 @@ export class SparqlResultsRenderer {
 
     this.container.innerHTML = '';
     if (view === 'dl') {
-      this.container.appendChild(this._mkDl(grouped));
+//      this.container.appendChild(this._mkDl(grouped));
+      this.container.appendChild(this.render(grouped));
     } else if (view === 'list') {
       this.container.appendChild(this._mkList(grouped));
     } else {
@@ -79,7 +83,8 @@ export class SparqlResultsRenderer {
   // ── Render a single pivoted dataset ──────────────────────────────────────────
   _renderOnePivot(data, view, options) {
     if (view === 'dl') {
-      this.container.appendChild(this._mkDl(data));
+//      this.container.appendChild(this._mkDl(data));
+        this.container.appendChild(this.render(data));
     } else if (view === 'list') {
       this.container.appendChild(this._mkList(data));
     } else {
@@ -266,6 +271,7 @@ export class SparqlResultsRenderer {
     });
   }
 
+/*
   // ── Definition list ─────────────────────────────────────────────────────────
   // Per row: <dt> is the first column's value (the row's "name"); one <dd>
   // per remaining column, formatted as "fieldname value".
@@ -310,7 +316,7 @@ export class SparqlResultsRenderer {
     });
     return dl;
   }
-
+*/
   // ── List ────────────────────────────────────────────────────────────────────
   // Single-column results rendered as <ul>.  Falls back to table if > 1 column.
   _mkList(data) {
@@ -429,10 +435,11 @@ export function getDefaultStyles() {
 
     /* ── dl ── */
     dl { margin: 0 0 .5rem; }
-    dt { font-weight: 600; margin-top: .75rem; }
+    dt { font-weight: 600; margin-top: .75rem; color:black; }
     dt:first-child { margin-top: 0; }
     dd { margin: .1rem 0 .2rem 1rem; }
-    dd .dl-field { font-size: .85em; color: var(--muted, #777); font-weight: 600; }
+    dd .dl-field { font-size: .85em; color: var(--muted,#666); font-weight: 600; }
+    .dl-value { color: black; }
 
     /* ── list ── */
     ul.result-list { margin: .5rem 0 .5rem 1.5rem; }

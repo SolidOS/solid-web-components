@@ -1,16 +1,3 @@
-/**
- * Built-in view renderer for sol-query — "auto-complete".
- * A text input with a filtered suggestion list below it. Typing narrows the
- * list by substring match (case-insensitive) against the first column. Clicking
- * or pressing Enter on a suggestion dispatches a 'sol-select' event with
- * { value, row, index } on the host element.
- *
- * Display rules:
- *   - Suggestion label  = first column's value (URIs shortened).
- *   - Suggestion value  = last column's value (full URI if present).
- *
- * Usage: <sol-query view="auto-complete" endpoint="…"></sol-query>
- */
 export function render(container, data, host) {
   const { vars, results } = data;
   if (!results?.length) {
@@ -29,8 +16,8 @@ export function render(container, data, host) {
   const items = results.map((row, i) => {
     const cells = vars.map(v => row[v]);
     return {
-      label: cellText(cells[0]),
-      value: cellValue(cells[cells.length - 1]),
+      value: cellValue(cells[0]),
+      label: vars.length > 1 ? cellText(cells[1]) : cellText(cells[0]),
       row,
       index: i,
     };
@@ -39,31 +26,64 @@ export function render(container, data, host) {
   const wrapper = document.createElement('div');
   wrapper.className = 'sol-view-autocomplete';
 
+  const inputWrapper = document.createElement('div');
+  inputWrapper.className = 'ac-input-wrapper';
+
   const input = document.createElement('input');
   input.type = 'text';
   input.setAttribute('role', 'combobox');
   input.setAttribute('aria-autocomplete', 'list');
   input.setAttribute('aria-expanded', 'false');
-  input.placeholder = host?.getAttribute('placeholder')
-    ?? `Search ${items.length} item${items.length === 1 ? '' : 's'}…`;
+  input.placeholder = host?.getAttribute('placeholder') ?? 'type to search...';
+
+  const goButton = document.createElement('button');
+  goButton.type = 'button';
+  goButton.textContent = host?.getAttribute('go-label') ?? 'Go';
+  goButton.className = 'ac-go-button';
+
+  inputWrapper.appendChild(input);
+  inputWrapper.appendChild(goButton);
+
+  const listWrapper = document.createElement('div');
+  listWrapper.className = 'ac-list-wrapper';
+  listWrapper.hidden = true;
 
   const list = document.createElement('ul');
   list.className = 'ac-list';
   list.setAttribute('role', 'listbox');
-  list.hidden = true;
+
+  listWrapper.appendChild(list);
 
   let activeIndex = -1;
   let visible = items;
+  let selectedItem = null;
 
   const fire = item => {
     input.value = item.label;
     input.setAttribute('aria-expanded', 'false');
-    list.hidden = true;
+    listWrapper.hidden = true;
+    selectedItem = item;
     host?.dispatchEvent(new CustomEvent('sol-select', {
       bubbles: true, composed: true,
       detail: { value: item.value, row: item.row, index: item.index },
     }));
   };
+
+  const handleAutoComplete = () => {
+    if (!selectedItem) {
+      alert('No item selected');
+      return;
+    }
+
+    const callbackName = host?.getAttribute('callback');
+    if (callbackName && typeof window[callbackName] === 'function') {
+      window[callbackName](selectedItem.value, selectedItem.label);
+    } else {
+      alert(`ID: ${selectedItem.value}\nLabel: ${selectedItem.label}`);
+    }
+  };
+
+  goButton.addEventListener('click', handleAutoComplete);
 
   const renderList = () => {
     list.innerHTML = '';
@@ -71,65 +91,105 @@ export function render(container, data, host) {
       const li = document.createElement('li');
       li.textContent = item.label;
       li.setAttribute('role', 'option');
-      li.dataset.i = String(i);
-      if (i === activeIndex) li.classList.add('active');
-      li.addEventListener('mousedown', e => {
-        e.preventDefault();
-        fire(item);
-      });
+      li.dataset.index = String(i);
+      if (i === activeIndex) {
+        li.classList.add('active');
+        li.scrollIntoView({ block: 'nearest' });
+      }
       list.appendChild(li);
     });
     const hasItems = visible.length > 0;
-    list.hidden = !hasItems;
+    listWrapper.hidden = !hasItems;
     input.setAttribute('aria-expanded', hasItems ? 'true' : 'false');
   };
+
+  list.addEventListener('mousedown', e => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    e.preventDefault();
+    const idx = parseInt(li.dataset.index, 10);
+    if (!isNaN(idx) && visible[idx]) {
+      fire(visible[idx]);
+    }
+  });
+
+  list.addEventListener('mousemove', e => {
+    const li = e.target.closest('li');
+    if (!li) return;
+    const idx = parseInt(li.dataset.index, 10);
+    if (!isNaN(idx) && idx !== activeIndex) {
+      activeIndex = idx;
+      renderList();
+    }
+  });
 
   const filter = () => {
     const q = input.value.trim().toLowerCase();
     visible = q
-      ? items.filter(it => it.label.toLowerCase().includes(q))
+      ? items.filter(it => it.label.toLowerCase().startsWith(q))
       : items.slice();
-    activeIndex = visible.length ? 0 : -1;
+    activeIndex = -1;
     renderList();
   };
 
   input.addEventListener('input', filter);
-  input.addEventListener('focus', filter);
-  input.addEventListener('blur', () => {
-    // Delay so mousedown on a suggestion still fires select
-    setTimeout(() => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); }, 120);
+  input.addEventListener('click', () => {
+    if (!listWrapper.hidden) return;
+    input.value = '';
+    selectedItem = null;
+    filter();
   });
   input.addEventListener('keydown', e => {
-    if (list.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { filter(); return; }
+    if (listWrapper.hidden && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { 
+      filter(); 
+      return; 
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      activeIndex = Math.min(activeIndex + 1, visible.length - 1);
+      if (activeIndex === -1) {
+        activeIndex = 0;
+      } else {
+        activeIndex = Math.min(activeIndex + 1, visible.length - 1);
+      }
       renderList();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      activeIndex = Math.max(activeIndex - 1, 0);
+      if (activeIndex === -1) {
+        activeIndex = visible.length - 1;
+      } else {
+        activeIndex = Math.max(activeIndex - 1, 0);
+      }
       renderList();
     } else if (e.key === 'Enter') {
-      if (activeIndex >= 0 && visible[activeIndex]) { e.preventDefault(); fire(visible[activeIndex]); }
+      if (activeIndex >= 0 && visible[activeIndex]) { 
+        e.preventDefault(); 
+        fire(visible[activeIndex]); 
+      }
     } else if (e.key === 'Escape') {
-      list.hidden = true;
+      listWrapper.hidden = true;
       input.setAttribute('aria-expanded', 'false');
     }
   });
 
-  wrapper.appendChild(input);
-  wrapper.appendChild(list);
+  wrapper.appendChild(inputWrapper);
+  wrapper.appendChild(listWrapper);
 
   const style = document.createElement('style');
   style.textContent = `
     .sol-view-autocomplete {
-      position: relative;
-      display: inline-block;
-      min-width: 260px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      width: 100%;
       max-width: 100%;
     }
-    .sol-view-autocomplete input {
+    .ac-input-wrapper {
       width: 100%;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .sol-view-autocomplete input {
+      flex: 1;
       padding: .5rem .65rem;
       font: inherit;
       border: 1px solid #ccc;
@@ -140,25 +200,41 @@ export function render(container, data, host) {
       outline: 2px solid #4a9eff;
       outline-offset: 1px;
     }
-    .sol-view-autocomplete .ac-list {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      margin: 2px 0 0;
-      padding: 0;
-      list-style: none;
+    .ac-go-button {
+      padding: .5rem 1rem;
+      font: inherit;
+      background: #4a9eff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ac-go-button:hover {
+      background: #3a8eef;
+    }
+    .ac-go-button:focus {
+      outline: 2px solid #4a9eff;
+      outline-offset: 1px;
+    }
+    .ac-list-wrapper {
+      width: 100%;
       background: #fff;
       border: 1px solid #ccc;
       border-radius: 4px;
       max-height: 220px;
       overflow-y: auto;
-      z-index: 10;
       box-shadow: 0 4px 12px rgba(0,0,0,.08);
+    }
+    .sol-view-autocomplete .ac-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
     }
     .sol-view-autocomplete .ac-list li {
       padding: .4rem .65rem;
       cursor: pointer;
+      color: #000;
     }
     .sol-view-autocomplete .ac-list li.active,
     .sol-view-autocomplete .ac-list li:hover {

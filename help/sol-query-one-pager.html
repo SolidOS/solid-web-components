@@ -1,9 +1,3 @@
-<sol-rolodex>
-  <div>hello <b>rolodex</b> world</div>
-  <div>page 2 content</div>
-  <div>page 3 content</div>
-</sol-rolodex>
-
 <style>
 sol-accordion {
   display:block;
@@ -14,6 +8,13 @@ sol-accordion {
   margin:0.5rem;
 }
 </style>
+<!--
+<sol-rolodex>
+  <div>hello <b>rolodex</b> world</div>
+  <div>page 2 content</div>
+  <div>page 3 content</div>
+</sol-rolodex>
+
 <sol-accordion>
   <div>
     <div>Panel 1 Title</div>
@@ -31,11 +32,12 @@ sol-accordion {
     <div><p>More content with <em>markup</em></p></div>
   </div>
 </sol-accordion>
-
 <sol-query
   endpoint="./data/sample-data.ttl"
   wanted="? ? ?"
 ></sol-query>
+
+-->
 <!--
 query modes :
  * simple RDF file import
@@ -53,8 +55,8 @@ output views
  * anchorlist
 -->
 
-<link rel="stylesheet" href="./styles/root.css"> 
-<link rel="stylesheet" href="q.css">
+<link rel="stylesheet" href="../styles/root.css"> 
+<link rel="stylesheet" href="../styles/sol-query-one-pager.css"> 
 
 <h2>sol-query -- search Solid and Linked Data resources</h2>
 <p>Query RDF files and SPARQL endpoints using triple patterns, CSS selectors, and SPARQL.
@@ -63,7 +65,13 @@ Display results as a table, a rolodex, an autocomplete field and other built-in 
 </p>
 <!--<div>simple RDF file import, triple pattern, RDFa selector, inline SPARQL, stored SPARQL with replaceable parameters</div>-->
 
-<li><b>triple patterns</b>
+<li><b>single subject</b>&nbsp;&nbsp;
+<div class="code"><code>
+  &lt;sol-query <b>endpoint</b>="foo.ttl#MySubject">&lt;/sol-query>
+</code></div>
+</li><br>
+
+<li><b>triple patterns</b>&nbsp;&nbsp;
 <div class="code"><code>
   &lt;sol-query <b>endpoint</b>="foo.ttl" <b>wanted</b>="? schema:location Mumbai">&lt;/sol-query></code></div>
 </li>
@@ -81,7 +89,7 @@ Display results as a table, a rolodex, an autocomplete field and other built-in 
 </li>
 </ul>
 
-<li><b>inline SPARQL</b>
+<li><b>inline SPARQL</b>&nbsp;&nbsp;
 <div class="code"><code>
   &lt;sol-query <b>endpoint</b>="/foo/bar" <b>sparql</b>="SELECT ?name WHERE {?p schema:name ?name.}">&lt;/sol-query></code>
 </code></div>
@@ -98,57 +106,74 @@ Display results as a table, a rolodex, an autocomplete field and other built-in 
 
 <li><b>view="rolodex"</b>
 <sol-query 
-  endpoint="./data/sample-data.ttl"
-  query="./data/myQueries.ttl#MyBasicQuery"
+  endpoint="../data/sample-data.ttl"
+  query="../data/myQueries.ttl#MyBasicQuery"
   view="rolodex"
 ></sol-query>
 
 <li><b>view="table"</b>
 <sol-query 
-  endpoint="./data/sample-data.ttl"
-  query="./data/myQueries.ttl#MyBasicQuery"
+  endpoint="../data/sample-data.ttl"
+  query="../data/myQueries.ttl#MyBasicQuery"
   view="table"
 ></sol-query>
 
 <li><b>view="auto-complete"</b>
 <sol-query 
-  endpoint="./data/sample-data.ttl"
-  query="./data/myQueries.ttl#MyBasicQuery"
+  endpoint="../data/sample-data.ttl"
+  sparql="
+     PREFIX schema: <http://schema.org/>
+     SELECT ?id ?label WHERE { ?id schema:name ?label. }
+  ";
+  placeholder="type to search names ..."
+  go-label="go"
   view="auto-complete"
+  callback="autoCompleteCallback"
 ></sol-query>
+<div id="autoCompleteResults"></div>
+<script>
+function autoCompleteCallback(uri,label){
+  const area = document.querySelector('#autoCompleteResults');
+  area.innerHTML = `<sol-query endpoint="${uri}" view="dl"></sol-query>`
+}
+</script>
 
 <!--
 <li><b>view="select"</b>
 <sol-query 
-  endpoint="./data/sample-data.ttl"
-  query="./data/myQueries.ttl#MyBasicQuery"
+  endpoint="../data/sample-data.ttl"
+  query="../data/myQueries.ttl#MyBasicQuery"
   view="select"
 ></sol-query>
 -->
 
 <li><b>view="accordion"</b>
 <sol-query 
-  endpoint="./data/sample-data.ttl"
-  query="./data/myQueries.ttl#MyBasicQuery"
+  endpoint="../data/sample-data.ttl"
+  query="../data/myQueries.ttl#MyBasicQuery"
   view="accordion"
 ></sol-query>
 
 <li><b>view="dl"</b> (description list)
 <sol-query 
-  endpoint="./data/sample-data.ttl"
-  query="./data/myQueries.ttl#MyBasicQuery"
+  endpoint="../data/sample-data.ttl"
+  query="../data/myQueries.ttl#MyBasicQuery"
   view="dl"
 ></sol-query>
 
+/* INRUPT SCAB */
 <script src="https://cdn.jsdelivr.net/npm/@inrupt/solid-client-authn-browser/dist/solid-client-authn.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/rdflib/dist/rdflib.min.js"></script>
-<script src="sol-accordion.js" type="module"></script>
-<script src="sol-query.js" type="module"></script>
-<script src="sol-rolodex.js" type="module"></script>
 
+/* RDFLIB */
+<script src="https://cdn.jsdelivr.net/npm/rdflib/dist/rdflib.min.js"></script>
+
+/* COMPONENTS */
+<script src="../sol-query.js" type="module"></script>
 
 <!--
-<script src="./dist/solid-web-components.bundle.min.js" type="module"></script>
+<script src="sol-accordion.js" type="module"></script>
+<script src="sol-rolodex.js" type="module"></script>
+
 
  - set <i>endpoint</i> to an RDF document; set <i>wanted</i> to a triple pattern
  - set <i>endpoint</i> to an RDFa document; set <i>wanted</i> to a CSS selector

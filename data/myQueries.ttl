@@ -1,5 +1,6 @@
 @prefix sparql: <http://www.w3.org/ns/sparql#> .
-@prefix rdfs:<http://www.w3.org/2000/01/rdf-schema#>  .
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 
 <#MyBasicQuery>
    a sparql:query ;

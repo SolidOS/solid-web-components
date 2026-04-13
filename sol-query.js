@@ -175,6 +175,7 @@ class SolQuery extends HTMLElement {
 
     // Legacy built-in views live inside the renderer class.
     if (view === 'table' || view === 'dl' || view === 'list') {
+//    if (view === 'table' || view === 'list') {
       this.renderer.renderResults(results, view, options);
       return;
     }
@@ -189,7 +190,7 @@ class SolQuery extends HTMLElement {
     container.innerHTML = '<div class="loading">Loading view…</div>';
     try {
       const mod = await import(/* @vite-ignore */ url);
-      const fn  = mod.render ?? mod.default;
+      let fn  = mod.render ?? mod.default;
       if (typeof fn !== 'function')
         throw new Error(`Module must export render(container, data)`);
       container.innerHTML = '';

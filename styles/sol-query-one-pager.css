@@ -35,4 +35,5 @@ sol-query {
   padding:0.5rem;
   border:2px solid #666;
   width:fit-content;
+  border-radius:var(--radius,4px);
 }
