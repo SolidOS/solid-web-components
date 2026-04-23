@@ -1,10 +1,9 @@
 /**
  * Pod operations — container listing, file operations, discovery.
  * Shared utility used by <sol-pod>.
- * Uses rdflib via the lazy-load pattern from shared/rdf-utils.js.
  */
 
-import { getRdflib } from './rdf-utils.js';
+import { rdf } from './rdf.js';
 
 const LDP_CONTAINS = 'http://www.w3.org/ns/ldp#contains';
 const OWL_SAME_AS  = 'http://www.w3.org/2002/07/owl#sameAs';
@@ -19,6 +18,7 @@ export const MIME_TYPES = {
   png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
   svg:'image/svg+xml', pdf:'application/pdf',
   js:'application/javascript', css:'text/css',
+  acl:'text/turtle',
 };
 
 /** Extension extraction supporting $.ext convention. */
@@ -51,15 +51,14 @@ export function withTimeout(fetchFn, ms = 30000) {
 // ── Container listing ─────────────────────────────────────────────────
 
 async function fetchContainerRaw(url, fetchFn) {
-  const $rdf = await getRdflib();
   const timedFetch = withTimeout(fetchFn, 30000);
   const resp = await timedFetch(url, { headers: { Accept: 'text/turtle' } });
   if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
   const text = await resp.text();
 
-  const store = $rdf.graph();
-  $rdf.parse(text, store, url, 'text/turtle');
-  return store.each($rdf.sym(url), $rdf.sym(LDP_CONTAINS), null, null).map(n => n.value);
+  const store = rdf.graph();
+  rdf.parse(text, store, url, 'text/turtle');
+  return store.each(rdf.sym(url), rdf.sym(LDP_CONTAINS), null, null).map(n => n.value);
 }
 
 function mapResources(resourceUrls) {
@@ -152,39 +151,6 @@ export async function deleteFolder(url, fetchFnForUrl) {
   await fetchFnForUrl(url)(url, { method: 'DELETE' });
 }
 
-// ── ACL discovery ─────────────────────────────────────────────────────
-
-export async function getAclUrl(resourceUrl, fetchFn) {
-  try {
-    const resp = await fetchFn(resourceUrl, { method: 'HEAD', headers: { 'Cache-Control': 'no-cache' } });
-    const link = resp.headers.get('Link') || '';
-    const match = link.match(/<([^>]+)>\s*;\s*rel="acl"/);
-    if (match) return new URL(match[1], resourceUrl).href;
-  } catch (e) {}
-  return resourceUrl + '.acl';
-}
-
-export async function getPermissions(url, fetchFn) {
-  const aclUrl = await getAclUrl(url, fetchFn);
-  const ownResp = await fetchFn(aclUrl, { headers: { 'Cache-Control': 'no-cache' } });
-  if (ownResp.ok) {
-    return { own: await ownResp.text(), aclUrl, inherited: null, inheritedFrom: null };
-  }
-
-  // Walk up to find inherited ACL
-  const urlObj = new URL(url);
-  let parts = urlObj.pathname.replace(/\/$/, '').split('/').filter(Boolean);
-  while (parts.length > 0) {
-    parts = parts.slice(0, -1);
-    const parentUrl = urlObj.origin + '/' + parts.join('/') + (parts.length ? '/' : '');
-    const parentAclUrl = await getAclUrl(parentUrl, fetchFn);
-    const parentResp = await fetchFn(parentAclUrl, { headers: { 'Cache-Control': 'no-cache' } });
-    if (parentResp.ok) {
-      return { own: null, aclUrl, inherited: await parentResp.text(), inheritedFrom: parentUrl };
-    }
-  }
-  return { own: null, aclUrl, inherited: null, inheritedFrom: null };
-}
 
 // ── WebID / storage discovery ─────────────────────────────────────────
 
@@ -262,7 +228,6 @@ export async function discoverOwnerWebIds(origin) {
 }
 
 export async function getStoragesFromWebIds(webIds) {
-  const $rdf = await getRdflib();
   const storages = new Set();
   const visited = new Set();
 
@@ -271,12 +236,12 @@ export async function getStoragesFromWebIds(webIds) {
     visited.add(webId);
     try {
       const profileDoc = webId.split('#')[0];
-      const store = $rdf.graph();
-      const fetcher = new $rdf.Fetcher(store);
+      const store = rdf.graph();
+      const fetcher = rdf.fetcher(store);
       await fetcher.load(profileDoc);
-      const subj = $rdf.sym(webId);
-      store.each(subj, $rdf.sym(PIM_STORAGE), null, null).forEach(n => storages.add(n.value));
-      const sameAs = store.each(subj, $rdf.sym(OWL_SAME_AS), null, null);
+      const subj = rdf.sym(webId);
+      store.each(subj, rdf.sym(PIM_STORAGE), null, null).forEach(n => storages.add(n.value));
+      const sameAs = store.each(subj, rdf.sym(OWL_SAME_AS), null, null);
       for (const linked of sameAs) {
         await processWebId(linked.value);
       }
@@ -289,113 +254,89 @@ export async function getStoragesFromWebIds(webIds) {
   return [...storages].sort();
 }
 
-// ── ACL parsing ───────────────────────────────────────────────────────
+// ── File-type classification ─────────────────────────────────────────
 
-const ACL = 'http://www.w3.org/ns/auth/acl#';
-const FOAF = 'http://xmlns.com/foaf/0.1/';
+const TEXT_VIEWABLE = ['txt','md','csv','json','jsonld','ttl','n3','html','xml','svg','js','css'];
+const EDITABLE      = ['txt','md','csv','json','jsonld','ttl','n3','html','htm','xml','svg','js','css'];
+const IMAGE_TYPES   = ['png','jpg','jpeg','gif','webp','svg','bmp','ico','avif'];
+const VIDEO_TYPES   = ['mp4','webm','ogg','mov','m4v'];
+const AUDIO_TYPES   = ['mp3','ogg','wav','flac','aac','m4a','opus'];
+const PDF_TYPES     = ['pdf'];
+const RDF_EXTS      = ['ttl','n3','trig','nq','nt','rdf','jsonld'];
 
-export const ROLES = [
-  { key: 'viewer',  label: 'Viewer',  modes: [ACL+'Read'] },
-  { key: 'poster',  label: 'Poster',  modes: [ACL+'Read', ACL+'Append'] },
-  { key: 'editor',  label: 'Editor',  modes: [ACL+'Read', ACL+'Write', ACL+'Append'] },
-  { key: 'owner',   label: 'Owner',   modes: [ACL+'Read', ACL+'Write', ACL+'Append', ACL+'Control'] },
-];
+export const isTextViewable = n => TEXT_VIEWABLE.includes(extOf(n));
+export const isEditable     = n => EDITABLE.includes(extOf(n));
+export const isImage        = n => IMAGE_TYPES.includes(extOf(n));
+export const isVideo        = n => VIDEO_TYPES.includes(extOf(n));
+export const isAudio        = n => AUDIO_TYPES.includes(extOf(n));
+export const isPDF          = n => PDF_TYPES.includes(extOf(n));
+export const isViewable     = n => isTextViewable(n) || isImage(n) || isVideo(n) || isAudio(n) || isPDF(n);
+export const isRdf          = n => RDF_EXTS.includes(extOf(n));
 
-export const GRANT_OPTIONS = [
-  { value: 'nobody',        label: 'Nobody' },
-  { value: 'specific',      label: 'Specific people/groups' },
-  { value: 'authenticated', label: 'Anyone logged in' },
-  { value: 'public',        label: 'Everyone (public)' },
-];
+export const CT_TO_EXT = {
+  'text/turtle':'ttl','text/n3':'n3','application/ld+json':'jsonld',
+  'application/json':'json','text/html':'html','text/plain':'txt',
+  'text/markdown':'md','text/csv':'csv','application/xml':'xml',
+  'text/xml':'xml','application/javascript':'js','text/css':'css',
+  'image/png':'png','image/jpeg':'jpg','image/svg+xml':'svg',
+  'audio/mpeg':'mp3','video/mp4':'mp4','application/pdf':'pdf',
+};
 
-export function parseAcl(turtleText, baseUrl) {
-  const auths = [];
-  const blocks = turtleText.split(/\.\s*\n/).filter(b => b.trim());
-  const ns = { acl: ACL, foaf: FOAF };
+export function fileIcon(name) {
+  const ext = extOf(name);
+  if (!ext && name.endsWith('$')) return '\u{1F517}';
+  if (['ttl','n3','trig','nq','nt','rdf','jsonld'].includes(ext)) return '\u{1F537}';
+  if (ext === 'json') return '\u{1F4CB}';
+  if (['csv','tsv'].includes(ext)) return '\u{1F4CA}';
+  if (['md','markdown'].includes(ext)) return '\u{1F4DD}';
+  if (ext === 'txt') return '\u{1F4C4}';
+  if (ext === 'pdf') return '\u{1F4D5}';
+  if (['html','htm'].includes(ext)) return '\u{1F310}';
+  if (['js','mjs','cjs','ts'].includes(ext)) return '\u26A1';
+  if (['css','scss'].includes(ext)) return '\u{1F3A8}';
+  if (['png','jpg','jpeg','gif','webp','avif','bmp','ico'].includes(ext)) return '\u{1F5BC}';
+  if (ext === 'svg') return '\u{1F3AD}';
+  if (['mp3','ogg','wav','flac','aac','m4a','opus'].includes(ext)) return '\u{1F3B5}';
+  if (['mp4','webm','mov','m4v'].includes(ext)) return '\u{1F3AC}';
+  if (['zip','tar','gz','bz2','xz','7z'].includes(ext)) return '\u{1F4E6}';
+  if (['yaml','yml','toml','ini','env'].includes(ext)) return '\u2699';
+  if (ext === 'acl') return '\u{1F512}';
+  if (name.startsWith('.')) return '\u{1F527}';
+  return '\u{1F4C4}';
+}
 
-  const expand = (curie) => {
-    if (curie.startsWith('<') && curie.endsWith('>')) return curie.slice(1, -1);
-    const [prefix, local] = curie.split(':');
-    return (ns[prefix] || '') + (local || '');
-  };
+// ── Live-editor format detection ──────────────────────────────────────
 
-  for (const block of blocks) {
-    const auth = { modes: [], agents: [], agentClasses: [], agentGroups: [], accessTo: [], default: [] };
-    const lines = block.split(';').map(l => l.trim());
-    for (const line of lines) {
-      const m = line.match(/^\s*([\w:]+|<[^>]+>)\s+(.*)/s);
-      if (!m) continue;
-      const pred = expand(m[1]);
-      const vals = m[2].split(',').map(v => v.trim().replace(/\s*\.$/, ''));
-      for (const v of vals) {
-        const expanded = expand(v);
-        if (pred === ACL+'mode') auth.modes.push(expanded);
-        else if (pred === ACL+'agent') auth.agents.push(expanded.startsWith('http') ? expanded : new URL(expanded, baseUrl).href);
-        else if (pred === ACL+'agentClass') auth.agentClasses.push(expanded);
-        else if (pred === ACL+'agentGroup') auth.agentGroups.push(expanded);
-        else if (pred === ACL+'accessTo') auth.accessTo.push(expanded);
-        else if (pred === ACL+'default') auth.default.push(expanded);
-      }
-    }
-    if (auth.modes.length > 0) auths.push(auth);
+const EXT_TO_LIVE_FORMAT = {
+  ttl:'turtle', n3:'turtle', jsonld:'jsonld', csv:'csv', tsv:'csv',
+  md:'markdown', markdown:'markdown', mmd:'mermaid', mermaid:'mermaid',
+  html:'html', htm:'html', dot:'graphviz', gv:'graphviz',
+};
+
+const MIME_TO_LIVE_FORMAT = {
+  'text/turtle':'turtle', 'text/n3':'turtle',
+  'application/ld+json':'jsonld',
+  'text/csv':'csv', 'text/tab-separated-values':'csv',
+  'text/markdown':'markdown', 'text/x-markdown':'markdown',
+  'text/html':'html',
+  'text/x-mermaid':'mermaid',
+  'text/vnd.graphviz':'graphviz', 'text/x-dot':'graphviz',
+};
+
+export function liveFormatFor(url, mime) {
+  if (mime) {
+    const f = MIME_TO_LIVE_FORMAT[mime.split(';')[0].trim()];
+    if (f) return f;
   }
-  return auths;
-}
-
-export function authsToRoleModel(auths) {
-  const model = {};
-  ROLES.forEach(r => {
-    model[r.key] = { grant: 'nobody', webids: [], groups: [], applyToContents: false };
-  });
-
-  for (const auth of auths) {
-    const role = ROLES.slice().reverse().find(r =>
-      r.modes.every(m => auth.modes.includes(m))
-    );
-    if (!role) continue;
-    const rm = model[role.key];
-    if (auth.agentClasses.includes(FOAF+'Agent')) rm.grant = 'public';
-    else if (auth.agentClasses.includes(ACL+'AuthenticatedAgent')) {
-      if (rm.grant !== 'public') rm.grant = 'authenticated';
-    }
-    else if (auth.agents.length > 0 || auth.agentGroups.length > 0) {
-      if (rm.grant === 'nobody') rm.grant = 'specific';
-      rm.webids = [...new Set([...rm.webids, ...auth.agents])];
-      rm.groups = [...new Set([...rm.groups, ...auth.agentGroups])];
-    }
-    if (auth.default.length > 0) rm.applyToContents = true;
+  if (url) {
+    const ext = url.split('?')[0].split('.').pop().toLowerCase();
+    const f = EXT_TO_LIVE_FORMAT[ext];
+    if (f) return f;
   }
-  return model;
+  return null;
 }
 
-export function roleModelToTurtle(model, resourceUrl) {
-  let turtle = '@prefix acl: <http://www.w3.org/ns/auth/acl#>.\n@prefix foaf: <http://xmlns.com/foaf/0.1/>.\n\n';
-  let idx = 0;
-  const isContainer = resourceUrl.endsWith('/');
-
-  for (const role of ROLES) {
-    const rm = model[role.key];
-    if (rm.grant === 'nobody') continue;
-    idx++;
-    turtle += `<#auth${idx}>\n    a acl:Authorization;\n`;
-    turtle += `    acl:accessTo <${resourceUrl}>;\n`;
-    if (isContainer && rm.applyToContents) turtle += `    acl:default <${resourceUrl}>;\n`;
-    turtle += `    acl:mode ${role.modes.map(m => 'acl:' + m.split('#')[1]).join(', ')};\n`;
-
-    if (rm.grant === 'public') turtle += '    acl:agentClass foaf:Agent.\n\n';
-    else if (rm.grant === 'authenticated') turtle += '    acl:agentClass acl:AuthenticatedAgent.\n\n';
-    else {
-      const parts = [];
-      rm.webids.forEach(w => parts.push(`acl:agent <${w}>`));
-      rm.groups.forEach(g => parts.push(`acl:agentGroup <${g}>`));
-      turtle += '    ' + parts.join(';\n    ') + '.\n\n';
-    }
-  }
-  return turtle;
+export function isLiveFormat(url, mime) {
+  return !!liveFormatFor(url, mime);
 }
 
-export function adaptInheritedAcl(inheritedTurtle, parentUrl, resourceUrl) {
-  return inheritedTurtle
-    .replace(new RegExp(`<${parentUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}>`, 'g'), `<${resourceUrl}>`)
-    .replace(/acl:default\s+[^;.]+[;.]\s*/g, '');
-}

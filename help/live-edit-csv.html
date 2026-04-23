@@ -4,21 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CSV Live Editor</title>
-  <link rel="stylesheet" href="../shared/page.css">
+  <link rel="stylesheet" href="../styles/sol-live-edit.css">
 </head>
 <body>
 <header>
   <h1>CSV Live Editor</h1>
-  <button class="hdr-btn" id="loadBtn">Load</button>
-  <button class="hdr-btn" id="saveBtn">Save</button>
-  <button class="hdr-btn" id="statsBtn">Statistics</button>
-  <button class="hdr-btn" id="cfgBtn">⚙</button>
-  <button class="hdr-btn" id="hlpBtn">?</button>
+  <button class="sol-btn sol-btn-sm sol-btn-ghost" id="loadBtn">Load</button>
+  <button class="sol-btn sol-btn-sm sol-btn-ghost" id="saveBtn">Save</button>
+  <button class="sol-btn sol-btn-sm sol-btn-ghost" id="statsBtn">Statistics</button>
+  <button class="sol-btn sol-btn-sm sol-btn-ghost" id="cfgBtn">⚙</button>
+  <button class="sol-btn sol-btn-sm sol-btn-ghost" id="hlpBtn">?</button>
 </header>
 <sol-live-edit format="csv" id="editor"></sol-live-edit>
 <script type="module">
   import '../sol-live-edit.js';
-  import { initTheme, setupLoadSave } from '../shared/page-utils.js';
+  import { initTheme, setupLoadSave } from '../shared/sol-live-edit-utils.js';
   initTheme();
   setupLoadSave('editor', '.csv,.tsv,.txt', 'data.csv', 'text/csv');
   const ed = document.getElementById('editor');

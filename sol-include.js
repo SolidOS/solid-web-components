@@ -1,4 +1,24 @@
+/**
+ * <sol-include> — Fetch and display remote content inline.
+ *
+ * Supports HTML, Markdown, and plain text. Content is sanitized with
+ * DOMPurify by default. An optional CSS selector filters to a section
+ * of the fetched document.
+ *
+ * @element sol-include
+ * @attr {string} source - URL of the resource to fetch (required)
+ * @attr {string} wanted - CSS selector — show only matching elements
+ * @attr {boolean} raw - show source text verbatim without rendering
+ * @attr {boolean} trusted - skip DOMPurify sanitization
+ *
+ * @example
+ * <sol-include source="https://example.org/readme.md"></sol-include>
+ * <sol-include source="page.html" wanted="article"></sol-include>
+ */
 import { sanitizeHtml } from './shared/utils.js';
+import { define } from './shared/define.js';
+import { adopt } from './shared/adopt.js';
+import { CSS as INCLUDE_CSS, sheet as includeSheet } from './styles/sol-include-css.js';
 
 // ─── Lazy marked loader ────────────────────────────────────────────────────────
 let _marked = null;
@@ -20,6 +40,19 @@ async function getMarked() {
 //   wanted   {string}  CSS selector — show only matching elements (HTML / rendered MD)
 //   raw      {bool}    show source text without rendering
 //   trusted  {bool}    skip DOMPurify sanitization
+/**
+ * Fetch and display remote content inline.
+ *
+ * Supports HTML, Markdown, and plain text. Content is sanitized with
+ * DOMPurify by default.
+ *
+ * @class SolInclude
+ * @extends HTMLElement
+ * @attr {string} source - URL to fetch (required)
+ * @attr {string} wanted - CSS selector — show only matching elements
+ * @attr {boolean} raw - show source text verbatim
+ * @attr {boolean} trusted - skip DOMPurify sanitization
+ */
 class SolInclude extends HTMLElement {
   static get observedAttributes() {
     return ['source', 'wanted', 'raw', 'trusted'];
@@ -120,44 +153,11 @@ class SolInclude extends HTMLElement {
   }
 
   _initShadow() {
-    this.shadowRoot.innerHTML = `<style>${SolInclude._styles()}</style>`;
-  }
-
-  static _styles() {
-    return `
-      :host { display: block; }
-      .si-content { }
-      .si-raw {
-        white-space: pre-wrap; font-family: monospace; font-size: .9em;
-        background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto;
-      }
-      .si-loading { color: #888; padding: .75rem; font-style: italic; }
-      .si-error {
-        color: #c00; padding: .75rem 1rem;
-        background: #fee; border: 1px solid #fcc; border-radius: 4px;
-      }
-      /* Basic prose styles for rendered markdown / HTML */
-      .si-content h1,.si-content h2,.si-content h3,
-      .si-content h4,.si-content h5,.si-content h6 {
-        margin: 1.1em 0 .4em; line-height: 1.25;
-      }
-      .si-content p    { margin: 0 0 .75em; }
-      .si-content ul,.si-content ol { margin: 0 0 .75em 1.5em; }
-      .si-content li   { margin: .2em 0; }
-      .si-content pre  { background:#f5f5f5; padding:.75rem; border-radius:4px; overflow-x:auto; }
-      .si-content code { background:#f0f0f0; padding:.1em .3em; border-radius:3px; font-size:.9em; }
-      .si-content pre code { background:none; padding:0; }
-      .si-content blockquote {
-        border-left: 3px solid #ccc; margin: 0 0 .75em 0; padding: .25em 1em; color: #555;
-      }
-      .si-content a { color: #0066cc; }
-      .si-content img { max-width: 100%; }
-      .si-content table { border-collapse: collapse; margin-bottom: .75em; }
-      .si-content th,.si-content td { border: 1px solid #ddd; padding: .3em .6em; }
-      .si-content th { background: #f5f5f5; }
-    `;
+    this.shadowRoot.innerHTML = '';
+    this.shadowRoot.adoptedStyleSheets = [];
+    adopt(this.shadowRoot, { sheet: includeSheet, css: INCLUDE_CSS });
   }
 }
 
-customElements.define('sol-include', SolInclude);
+define('sol-include', SolInclude);
 export { SolInclude };

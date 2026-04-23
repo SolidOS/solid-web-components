@@ -1,3 +1,6 @@
+import { adopt } from '../shared/adopt.js';
+import { CSS as SELECT_VIEW_CSS, sheet as SELECT_SHEET } from '../styles/view-select-css.js';
+
 /**
  * Built-in view renderer for sol-query — "select".
  * Renders results as a <select> dropdown. Each row becomes one <option>.
@@ -70,19 +73,6 @@ export function render(container, data, host) {
     }));
   });
 
-  const style = document.createElement('style');
-  style.textContent = `
-    .sol-view-select {
-      padding: .45rem .6rem;
-      font: inherit;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: #fff;
-      min-width: 240px;
-      max-width: 100%;
-    }
-    .sol-view-select:focus { outline: 2px solid #4a9eff; outline-offset: 1px; }
-  `;
-  container.appendChild(style);
+  adopt(container.getRootNode(), { sheet: SELECT_SHEET, css: SELECT_VIEW_CSS });
   container.appendChild(select);
 }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+p<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,7 +22,10 @@
     html, body { height: 100%; font-family: var(--font-ui); background: var(--bg); color: var(--text); }
     body { display: flex; }
 
+* {font-size:110% !important; } 
+
     /* ── Sidebar ─────────────────────────────────────────── */
+/*
 nav h1 {
   font-size: 1.2rem;
   padding-left:1rem;
@@ -34,7 +37,7 @@ nav h2 {
   border-bottom:1px solid var(--text-muted);
 }
 nav h2, nav a {
-  display: inline-block;
+//  display: inline-block;
   font-size: 1rem;
   vertical-align: baseline;
 }
@@ -68,7 +71,7 @@ nav a.active {
   font-weight: 600;
   color: var(--accent);
 }
-
+*/
     /* ── Content ─────────────────────────────────────────── */
     main { flex: 1; min-width: 0; }
     iframe {
@@ -90,23 +93,16 @@ nav a.active {
 
   <h1>Solid Web Components</h1>
 
-  <p><div><a href="">Overview</a> |
-     <a href="">Customizing Views</a>
-  </div></p>
-
   <h2>sol-query</h2> 
      <a href="help/sol-query-one-pager.html" data-page="sol-query-help.html">docs</a> |
      <a href="help/sol-query-help.html#playground" data-page="sol-query-help.html">playground</a>
      <div>use triples or SPARQL to search RDF</div>
 
-  <h2>sol-include</h2>
-     <a href="help/sol-include-help.html" data-page="sol-query-include-help.html">docs</a> |
-     <a href="help/sol-include-help.html#playground" data-page="sol-include-help.html">playground</a>
-     <div>safely include external documents</div>
 
   <h2>sol-live-edit</h2>
-    <a href="help/sol-live-edit-help.html" data-page="sol-live-edit-help.html">docs</a>
      <div>live edit with visualizers/formatters</div>
+     <a href="help/sol-live-edit-help.html" data-page="sol-live-edit-help.html">docs</a>
+     <div>playgrounds: </div>
 <!--
   <a href="help/sol-live-edit-help.html" data-page="sol-live-edit-help.html">Component docs</a>
 -->
@@ -122,27 +118,40 @@ nav a.active {
   <a href="help/live-edit-graphviz.html" data-page="live-edit-graphviz.html">Graphviz</a>
 </div>
 
-<h2>sol-login</h2>
-   <a href="help/sol-login-help.html" data-page="sol-login-help.html">docs</a> |
-   <a href="help/sol-login-help.html#playground" data-page="sol-login-help.html">playground</a> |
-   <a href="help/sol-login-script.html" data-page="sol-login-script.html">script API</a>
-   <div>Solid OIDC authentication</div>
-
 <h2>sol-pod</h2>
    <a href="help/sol-pod-help.html" data-page="sol-pod-help.html">docs</a> |
-   <a href="help/sol-pod-help.html#playground" data-page="sol-pod-help.html">playground</a> |
-   <a href="help/sol-pod-script.html" data-page="sol-pod-script.html">script API</a>
+   <a href="help/sol-pod-help.html#playground" data-page="sol-pod-help.html">demo</a> |
    <div>browse and manage Solid pods</div>
+
+<h2>sol-acl</h2>
+   <div>mananage permissions with a form or raw RDF</div>
+   <div>coming soon</div>
+
+<h2>sol-login</h2>
+   <a href="help/sol-login-help.html" data-page="sol-login-help.html">docs</a> |
+   <a href="help/sol-login-help.html#playground" data-page="sol-login-help.html">demo</a> |
+<!--
+  ignore script help for now
+   <a href="help/sol-login-script.html" data-page="sol-login-script.html">script API</a>
+-->
+   <div>Solid OIDC authentication</div>
+
+
+<!-- 
+  ignore non rdf/solid comps for now
+  <h2>sol-include</h2>
+     <a href="help/sol-include-help.html" data-page="sol-query-include-help.html">docs</a> |
+     <a href="help/sol-include-help.html#playground" data-page="sol-include-help.html">playground</a>
+     <div>safely include external documents</div>
 
 <h2>sol-modal</h2>
    <a href="help/sol-modal-help.html" data-page="sol-modal-help.html">docs</a> |
    <a href="help/sol-modal-help.html#playground" data-page="sol-modal-help.html">playground</a> |
-   <a href="help/sol-modal-script.html" data-page="sol-modal-script.html">script API</a>
    <div>dialog with tabs</div>
 
 <h2>form</h2>
 <div>coming soon</div>
-
+-->
 </nav>
 
 <main id="main">

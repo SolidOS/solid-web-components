@@ -1,32 +1,5 @@
 // Shared utilities that do not depend on rdflib.
 
-/* loadStyleRules
-*    accepts comma-sep list of css file names (no path or extension)
-*    returns a style element to be appended into the shadow DOM
-*/
-export async function loadStyleRules(...uris) {
-  if (!window.styleCache) {
-    window.styleCache = new Map();
-  }
-  
-  const baseUrl = new URL('../styles/', import.meta.url);
-  const style = document.createElement('style');
-  
-  for (const uri of uris) {
-    const filename = uri + '.css';
-    if (!window.styleCache.has(filename)) {
-      const url = new URL(filename, baseUrl);
-      const response = await fetch(url);
-      const cssText = await response.text();
-      window.styleCache.set(filename, cssText);
-    }
-    style.textContent += window.styleCache.get(filename) + '\n';
-  }
-  
-  return style;
-}
-
-
 // ─── DOMPurify (lazy, cached) ─────────────────────────────────────────────────
 let _purify = null;
 async function _getDOMPurify() {

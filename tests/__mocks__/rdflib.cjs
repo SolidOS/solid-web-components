@@ -48,10 +48,51 @@ function literal(v, langOrDt) { return new Literal(v, langOrDt); }
 function blankNode(v) { return new BlankNode(v || `b${Math.random()}`); }
 
 function parse(text, store, base, format) {
-  // Minimal Turtle parser: handles  <s> <p> <o> .  and  <s> <p> "literal" .
-  const triples = text.matchAll(/<([^>]+)>\s+<([^>]+)>\s+(?:<([^>]+)>|"([^"]*)")\s*\./g);
-  for (const [, s, p, oUri, oLit] of triples) {
-    store.add(sym(s), sym(p), oUri ? sym(oUri) : literal(oLit));
+  const prefixes = {};
+  for (const m of text.matchAll(/@prefix\s+(\w*):\s*<([^>]+)>\s*\./g)) {
+    prefixes[m[1]] = m[2];
+  }
+  const resolve = (tok) => {
+    if (tok.startsWith('<') && tok.endsWith('>')) return tok.slice(1, -1);
+    const ci = tok.indexOf(':');
+    if (ci >= 0) {
+      const pre = tok.slice(0, ci);
+      if (prefixes[pre] !== undefined) return prefixes[pre] + tok.slice(ci + 1);
+    }
+    return tok;
+  };
+  const toNode = (tok) =>
+    tok.startsWith('"') ? literal(tok.slice(1, -1)) : sym(resolve(tok));
+  // Tokenize: full URIs, quoted literals, prefixed names, 'a' keyword
+  const TOKEN = /<[^>]+>|"[^"]*"|[\w][\w./-]*:[\w#./-]*|\ba\b/g;
+  const body = text.replace(/@prefix\s+\w*:\s*<[^>]+>\s*\.\s*/g, '').replace(/#[^\n]*/g, '');
+  // Split on statement-ending '.' (after > or " or prefixed name, before whitespace/end)
+  for (const block of body.split(/\.\s*(?=\s*(?:$|<|[A-Za-z_]))/m)) {
+    const t = block.trim();
+    if (!t) continue;
+    // Split on ';' for predicate-object lists sharing a subject
+    const groups = t.split(/\s*;\s*/);
+    let subject = null;
+    for (const g of groups) {
+      const tokens = g.trim().match(TOKEN);
+      if (!tokens) continue;
+      // Expand 'a' to rdf:type
+      const expanded = tokens.map(tk =>
+        tk === 'a' ? '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>' : tk);
+      if (!subject) {
+        subject = resolve(expanded[0]);
+        // Handle comma-separated objects: s p o1, o2
+        for (let i = 2; i < expanded.length; i++) {
+          if (expanded[i] === ',') continue;
+          store.add(sym(subject), sym(resolve(expanded[1])), toNode(expanded[i]));
+        }
+      } else if (expanded.length >= 2) {
+        for (let i = 1; i < expanded.length; i++) {
+          if (expanded[i] === ',') continue;
+          store.add(sym(subject), sym(resolve(expanded[0])), toNode(expanded[i]));
+        }
+      }
+    }
   }
 }
 

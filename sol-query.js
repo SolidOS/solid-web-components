@@ -1,18 +1,90 @@
+/**
+ * <sol-query> — Query and display RDF / Linked Data from plain HTML.
+ *
+ * Supports triple patterns, inline SPARQL, stored SPARQL queries, and
+ * CSS-selector extraction from RDFa documents. Results render via
+ * pluggable views (table, dl, list, accordion, anchorlist, auto-complete,
+ * menu, rolodex, select, tabs).
+ *
+ * @element sol-query
+ * @attr {string} endpoint - URL of the RDF document or SPARQL endpoint
+ * @attr {string} wanted - triple pattern (e.g. "?s ?p ?o") or CSS selector
+ * @attr {string} sparql - inline SPARQL string or URL of a stored SPARQL query
+ * @attr {string} query - alias for sparql
+ * @attr {string} view - result view: table (default), dl, list, accordion,
+ *   anchorlist, auto-complete, menu, rolodex, select, tabs
+ * @attr {string} var-* - bind SPARQL variables (e.g. var-name="Alice")
+ *
+ * @fires sol-deref — detail: { uri }; cancelable, default navigates endpoint
+ * @fires sol-select — detail: { value, row, index }; from select/auto-complete/rolodex views
+ *
+ * @example
+ * <sol-query endpoint="https://example.org/data.ttl"></sol-query>
+ * <sol-query endpoint="data.ttl" wanted="?s foaf:name ?name"></sol-query>
+ * <sol-query endpoint="https://dbpedia.org/sparql"
+ *            sparql="SELECT ?s ?label WHERE { ?s a dbo:City; rdfs:label ?label } LIMIT 10"
+ *            view="table"></sol-query>
+ */
 import {
   fetchQueryFromRdf,
   loadRdfStore,
   matchStore,
   parseWantedParts,
+  pivotSubjectsToRows,
+  promoteDisplayColumns,
+  wantedVarNames,
   storeToResults,
   expandBnodes,
-  getRdflib,
   runQuery,
   execSparql,
   queryHtmlWithSelector,
 } from './shared/rdf-utils.js';
-import { SparqlResultsRenderer, getDefaultStyles } from './utils/sol-query-ui.js';
-import { MiniQueryValidator } from './utils/sol-query-mini.js';
+import { rdf } from './shared/rdf.js';
+import { SparqlResultsRenderer } from './utils/sol-query-ui.js';
+import { TriplePatternValidator } from './utils/sol-query-triple-patterns.js';
+import { define } from './shared/define.js';
+import { adopt } from './shared/adopt.js';
+import { CSS as QUERY_CSS, sheet as querySheet } from './styles/sol-query-css.js';
+import { render as renderTable }        from './views/table.js';
+import { render as renderDl }           from './views/dl.js';
+import { render as renderList }         from './views/list.js';
+import { render as renderAccordion }    from './views/accordion.js';
+import { render as renderAnchorlist }   from './views/anchorlist.js';
+import { render as renderAutoComplete } from './views/auto-complete.js';
+import { render as renderMenu }         from './views/menu.js';
+import { render as renderRolodex }      from './views/rolodex.js';
+import { render as renderSelect }       from './views/select.js';
+import { render as renderTabs }         from './views/tabs.js';
 
+const BUILTIN_VIEWS = {
+  table:           renderTable,
+  dl:              renderDl,
+  list:            renderList,
+  accordion:       renderAccordion,
+  anchorlist:      renderAnchorlist,
+  'auto-complete': renderAutoComplete,
+  menu:            renderMenu,
+  rolodex:         renderRolodex,
+  select:          renderSelect,
+  tabs:            renderTabs,
+};
+
+/**
+ * Query and display RDF / Linked Data from plain HTML.
+ *
+ * Supports triple patterns, inline/stored SPARQL, and CSS-selector
+ * extraction from RDFa documents. Results render via pluggable views.
+ *
+ * @class SolQuery
+ * @extends HTMLElement
+ * @attr {string} endpoint - URL of the RDF document or SPARQL endpoint
+ * @attr {string} wanted - triple pattern or CSS selector
+ * @attr {string} sparql - inline SPARQL string or URL of a stored query
+ * @attr {string} query - alias for sparql
+ * @attr {string} view - result view: table|dl|list|accordion|anchorlist|auto-complete|menu|rolodex|select|tabs
+ * @fires sol-deref - detail: { uri }; cancelable, default navigates endpoint
+ * @fires sol-select - detail: { value, row, index }; from select/auto-complete/rolodex views
+ */
 class SolQuery extends HTMLElement {
   constructor() {
     super();
@@ -43,11 +115,11 @@ class SolQuery extends HTMLElement {
 
   render() {
     this.shadowRoot.innerHTML = `
-      <style>${getDefaultStyles()}</style>
       <div class="container" role="region" aria-live="polite" aria-label="Query results">
         <div class="loading">Ready to execute query...</div>
       </div>
     `;
+    adopt(this.shadowRoot, { sheet: querySheet, css: QUERY_CSS });
     const container = this.shadowRoot.querySelector('.container');
     this.renderer = new SparqlResultsRenderer(container);
 
@@ -77,7 +149,7 @@ class SolQuery extends HTMLElement {
     if (this.hasAttribute('sparql') || this.hasAttribute('query')) {
       await this.handleSparqlQuery();
     } else if (this.hasAttribute('wanted')) {
-      await this.handleMiniQuery();
+      await this.handleTriplePattern();
     } else {
       await this.handleDefaultQuery();
     }
@@ -105,8 +177,8 @@ class SolQuery extends HTMLElement {
     }
   }
 
-  // ─── Mini-query / CSS selector ───────────────────────────────────────────────
-  async handleMiniQuery() {
+  // ─── Triple pattern / CSS selector ───────────────────────────────────────────
+  async handleTriplePattern() {
     const wanted   = this.getAttribute('wanted');
     const endpoint = this.getAttribute('endpoint');
 
@@ -114,22 +186,42 @@ class SolQuery extends HTMLElement {
     try {
       const store = await loadRdfStore(endpoint);
 
-      // HTML endpoint: if wanted isn't a valid mini-query, treat as CSS selector
+      // HTML endpoint: if wanted isn't a valid triple pattern, treat as CSS selector
       if (store._isHtml) {
-        const validation = MiniQueryValidator.validate(wanted);
+        const validation = TriplePatternValidator.validate(wanted);
         if (!validation.valid) {
           const results = queryHtmlWithSelector(store._rawHtml, endpoint, wanted);
           if (!results.results.length) { this.renderer.showError('No elements matched selector'); return; }
           return this._dispatchResults(results);
         }
       } else {
-        const validation = MiniQueryValidator.validate(wanted);
+        const validation = TriplePatternValidator.validate(wanted);
         if (!validation.valid) { this.renderer.showError(validation.error); return; }
       }
 
-      const rdflib = await getRdflib();
+      const rdflib = rdf;
       const [s, p, o] = parseWantedParts(wanted, rdflib, {}, endpoint);
-      const results = expandBnodes(store, matchStore(store, s, p, o));
+      const names = wantedVarNames(wanted);
+
+      // When only the subject is a variable (e.g. `?person schema:gender "female"`),
+      // widen each matched subject into a row with one column per predicate so
+      // authors get a useful property table instead of a single-column list.
+      let results;
+      if (!s && p && o) {
+        const stmts = store.match(null, p, o, null) || [];
+        const seen = new Set();
+        const subjects = [];
+        for (const st of stmts) {
+          if (!seen.has(st.subject.value)) {
+            seen.add(st.subject.value);
+            subjects.push(st.subject);
+          }
+        }
+        results = pivotSubjectsToRows(store, subjects, names.s || 's');
+      } else {
+        results = expandBnodes(store, matchStore(store, s, p, o, names));
+      }
+      results = promoteDisplayColumns(results, names.s || 's');
       if (!results.results.length) { this.renderer.showError('No matching triples found'); return; }
       this._dispatchResults(results);
     } catch (err) {
@@ -147,19 +239,105 @@ class SolQuery extends HTMLElement {
       let results;
       const isSubjectQuery = endpoint.includes('#');
       if (isSubjectQuery) {
-        const rdflib = await getRdflib();
+        const rdflib = rdf;
         results = matchStore(store, rdflib.sym(endpoint), null, null);
       } else {
-        results = storeToResults(store);
+        // Pivot by subject: one row per subject, columns per predicate —
+        // reads as a property table rather than a flat list of triples.
+        const stmts = typeof store.match === 'function' ? store.match(null, null, null) : [];
+        const seen = new Set();
+        const subjects = [];
+        for (const st of stmts) {
+          if (!seen.has(st.subject.value)) {
+            seen.add(st.subject.value);
+            subjects.push(st.subject);
+          }
+        }
+        results = pivotSubjectsToRows(store, subjects, 's');
       }
       results = expandBnodes(store, results);
       if (!results.results.length) {
         this.renderer.showError(store._isHtml ? 'No RDFa found in HTML page' : 'No RDF data found at endpoint');
         return;
       }
-      this._dispatchResults(results, isSubjectQuery ? { hideHeader: true } : {});
+      if (isSubjectQuery) {
+        this._renderSubject(results);
+      } else {
+        this._dispatchResults(promoteDisplayColumns(results, 's'));
+      }
     } catch (err) {
       this.showDiagnostics(err);
+    }
+  }
+
+  // Single-subject view: H2 banner with name/label/title, then one row per
+  // predicate ("field value") — rdf:type first, other properties after.
+  // Rendered inline so every row is styled the same — no table header,
+  // no promoted <dt>, no special treatment for the type row.
+  _renderSubject(results) {
+    const NAME_PREDS = [
+      'http://xmlns.com/foaf/0.1/name',
+      'https://schema.org/name',
+      'http://schema.org/name',
+      'http://purl.org/dc/terms/title',
+      'http://purl.org/dc/elements/1.1/title',
+      'http://www.w3.org/2000/01/rdf-schema#label',
+    ];
+    const TYPE_PRED = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+    const shortName = uri => (uri || '').replace(/.*[/#]([^/#]+)\/?$/, '$1') || uri;
+
+    const nameRow  = results.results.find(r => NAME_PREDS.includes(r.p?.value));
+    const rest     = nameRow ? results.results.filter(r => r !== nameRow) : results.results;
+    const typeRows = rest.filter(r => r.p?.value === TYPE_PRED);
+    const others   = rest.filter(r => r.p?.value !== TYPE_PRED);
+    const ordered  = [...typeRows, ...others];
+
+    const container = this.shadowRoot.querySelector('.container');
+    container.innerHTML = '';
+
+    if (nameRow?.o?.value) {
+      const h2 = document.createElement('h2');
+      h2.className = 'sol-subject-header';
+      h2.textContent = nameRow.o.value;
+      container.appendChild(h2);
+    }
+
+    const dl = document.createElement('dl');
+    for (const row of ordered) {
+      const dd = document.createElement('dd');
+      const label = document.createElement('span');
+      label.className = 'dl-field';
+      label.textContent = `${shortName(row.p?.value)} `;
+      dd.appendChild(label);
+
+      const value = document.createElement('span');
+      value.className = 'dl-value';
+      this._appendCell(value, row.o);
+      dd.appendChild(value);
+      dl.appendChild(dd);
+    }
+    container.appendChild(dl);
+  }
+
+  _appendCell(parent, cell) {
+    if (!cell) return;
+    if (cell.type === 'uri') {
+      const shortName = uri => (uri || '').replace(/.*[/#]([^/#]+)\/?$/, '$1') || uri;
+      const a = document.createElement('a');
+      a.href = cell.value;
+      a.title = cell.value;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.dataset.uri = cell.value;
+      a.textContent = shortName(cell.value);
+      parent.appendChild(a);
+    } else if (cell.type === 'multi') {
+      cell.values.forEach((v, i) => {
+        if (i > 0) parent.appendChild(document.createTextNode(', '));
+        this._appendCell(parent, v);
+      });
+    } else {
+      parent.appendChild(document.createTextNode(cell.value ?? ''));
     }
   }
 
@@ -173,16 +351,25 @@ class SolQuery extends HTMLElement {
       return;
     }
 
-    // Legacy built-in views live inside the renderer class.
-    if (view === 'table' || view === 'dl' || view === 'list') {
-//    if (view === 'table' || view === 'list') {
-      this.renderer.renderResults(results, view, options);
+    // Built-in view modules are statically imported (so the all-in-one IIFE
+    // bundle inlines them and doesn't try to resolve ./views/<name>.js against
+    // the host page URL at runtime).
+    const fn = BUILTIN_VIEWS[view];
+    if (!fn) {
+      this.renderer.showError(`Unknown view: ${view}`);
       return;
     }
 
-    // Built-in view module under ./views/<name>.js next to this file.
-    const builtinUrl = new URL(`./views/${view}.js`, import.meta.url).href;
-    await this._loadAndRenderView(builtinUrl, results, /* byUrl */ false, view);
+    // Table, dl, list get preprocessing (pivot s/p/o, group predicates, scalar display)
+    if (view === 'table' || view === 'dl' || view === 'list') {
+      this.renderer.renderResults(results, fn, options);
+      return;
+    }
+
+    const container = this.shadowRoot.querySelector('.container');
+    container.innerHTML = '';
+    try { await fn(container, results, this); }
+    catch (err) { this.renderer.showError(`View "${view}" error: ${err.message}`); }
   }
 
   async _loadAndRenderView(url, results, byUrl, viewName = null) {
@@ -190,7 +377,7 @@ class SolQuery extends HTMLElement {
     container.innerHTML = '<div class="loading">Loading view…</div>';
     try {
       const mod = await import(/* @vite-ignore */ url);
-      let fn  = mod.render ?? mod.default;
+      const fn  = mod.render ?? mod.default;
       if (typeof fn !== 'function')
         throw new Error(`Module must export render(container, data)`);
       container.innerHTML = '';
@@ -204,7 +391,7 @@ class SolQuery extends HTMLElement {
   // ─── SPARQL safety ────────────────────────────────────────────────────────
   // Rejects queries containing destructive/modifying SPARQL keywords.
   static _assertSafeQuery(query) {
-    const m = query.match(/\b(INSERT\s+DATA|INSERT\s+INTO|DELETE\s+DATA|DELETE\s+WHERE|DELETE\s+FROM|DROP|CREATE|CLEAR|LOAD|COPY|MOVE|ADD)\b/i);
+    const m = query.match(/\b(INSERT|DELETE|DROP|CREATE|CLEAR|LOAD|COPY|MOVE|ADD)\b/i);
     if (m) throw new Error(`Blocked SPARQL operation: ${m[0].toUpperCase()}`);
   }
 
@@ -264,7 +451,7 @@ class SolQuery extends HTMLElement {
 
   // ─── Instance API ──────────────────────────────────────────────────────────
   setEndpoint(endpoint)  { this.setAttribute('endpoint', endpoint); }
-  setWanted(miniQuery)   { this.setAttribute('wanted', miniQuery); }
+  setWanted(triplePattern) { this.setAttribute('wanted', triplePattern); }
   setSparql(sparql)      { this.setAttribute('sparql', sparql); }
   setVariable(n, v)      { this.setAttribute(`var-${n}`, v); }
   setVariables(obj)      { for (const [k, v] of Object.entries(obj)) this.setVariable(k, v); }
@@ -282,5 +469,5 @@ class SolQuery extends HTMLElement {
   }
 }
 
-customElements.define('sol-query', SolQuery);
+define('sol-query', SolQuery);
 export { SolQuery };

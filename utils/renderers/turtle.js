@@ -1,13 +1,12 @@
 import { drawForceGraph } from './d3-force.js';
-import { getRdflib } from '../../shared/rdf-utils.js';
+import { rdf } from '../../shared/rdf.js';
 
 export async function renderTurtle(content, outputEl) {
-  let $rdf = await getRdflib();
-  if (!$rdf) $rdf = await import('https://esm.sh/rdflib@2');
+  if (!rdf.isReady()) throw new Error('rdflib not available');
 
-  const store = $rdf.graph();
+  const store = rdf.graph();
   try {
-    $rdf.parse(content, store, 'http://example.org/', 'text/turtle');
+    rdf.parse(content, store, 'http://example.org/', 'text/turtle');
   } catch (e) {
     throw new Error(`Turtle parse error: ${e.message}`);
   }

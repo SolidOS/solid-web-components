@@ -11,7 +11,10 @@
  * Expects @inrupt/solid-client-authn-browser loaded as UMD at window.solidClientAuthn
  */
 
-import { CSS } from './utils/sol-login-css.js';
+import { CSS, sheet as LOGIN_SHEET } from './styles/sol-login-css.js';
+import { adopt } from './shared/adopt.js';
+import { define } from './shared/define.js';
+import { rdf } from './shared/rdf.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const login = document.querySelector('sol-login');
@@ -56,7 +59,7 @@ class AuthManager {
     } catch (e) { return false; }
   }
 
-  originOf(url) { return url.match(/^https?:\/\/[^\/]+/)?.[0] || ''; }
+  originOf(url) { return url.match(/^https?:\/\/[^/]+/)?.[0] || ''; }
 
   _sessionId(tag, origin) {
     return `sol_${tag}_${origin.replace(/[^a-z0-9]/gi, '_')}`;
@@ -160,24 +163,16 @@ class AuthManager {
 
   async handleIncomingRedirect() {
     const pendingTag = localStorage.getItem('solLoginPendingTag');
+    localStorage.removeItem('solLoginPendingTag');
 
-    const cleanUrl = (() => {
-      const u = new URL(window.location.href);
-      ['code', 'state', 'iss', 'session_state'].forEach(p => u.searchParams.delete(p));
-      return u.toString();
-    })();
-
-    const tags = pendingTag
-      ? [pendingTag, ...[...this.sessions.keys()].filter(t => t !== pendingTag)]
-      : [...this.sessions.keys()];
-
-    for (const tag of tags) {
-      const session = this.sessions.get(tag);
-      if (!session) continue;
-      await session.handleIncomingRedirect(tag === pendingTag ? window.location.href : cleanUrl);
+    // Ensure the session that initiated login exists so it can process the redirect.
+    if (pendingTag) {
+      this.sessionFor(pendingTag);
     }
 
-    localStorage.removeItem('solLoginPendingTag');
+    for (const [, session] of this.sessions) {
+      await session.handleIncomingRedirect(window.location.href);
+    }
   }
 
   async ensureAuthenticated(url, tag = 'default') {
@@ -194,6 +189,21 @@ class AuthManager {
   }
 }
 
+/**
+ * Solid OIDC login web component.
+ *
+ * Shows a log-in/log-out button with issuer dropdown. Manages OIDC sessions
+ * via @inrupt/solid-client-authn-browser and provides authenticated fetch.
+ *
+ * @class SolLogin
+ * @extends HTMLElement
+ * @attr {string} issuers - comma-separated list of known OIDC issuer origins
+ * @property {Function} fetchFor - fetchFor(url) returns authenticated fetch
+ * @property {string} webId - logged-in user's WebID
+ * @property {boolean} isLoggedIn - whether a session is active
+ * @fires sol-login - detail: { webId, issuer }
+ * @fires sol-logout
+ */
 class SolLogin extends HTMLElement {
   static get observedAttributes() { return ['issuers']; }
 
@@ -289,55 +299,82 @@ async logout() {
 
 _integrateWithRdflib() {
   const win = typeof window !== 'undefined' ? window : {};
-  
-  if (win.$rdf?.Fetcher) {
-    const fetcher = win.$rdf.Fetcher.prototype;
+
+  const authFetchWrapper = (uri, options = {}) => {
+    const authFetch = this._auth.fetchFor(uri);
+    return authFetch(uri, options);
+  };
+
+  const patchFetcherCtor = (FetcherCtor) => {
+    if (!FetcherCtor?.prototype) return;
+    const proto = FetcherCtor.prototype;
+    if (!proto._originalFetch) {
+      proto._originalFetch = proto.fetch || proto._fetch || fetch;
+    }
+    if (proto.fetch)  proto.fetch  = authFetchWrapper;
+    if (proto._fetch) proto._fetch = authFetchWrapper;
+  };
+
+  const patchFetcherInstance = (fetcher) => {
+    if (!fetcher) return;
     if (!fetcher._originalFetch) {
       fetcher._originalFetch = fetcher.fetch || fetcher._fetch || fetch;
     }
-    
-    const authFetchWrapper = (uri, options = {}) => {
-      const authFetch = this._auth.fetchFor(uri);
-      return authFetch(uri, options);
-    };
-    
-    if (fetcher.fetch) fetcher.fetch = authFetchWrapper;
+    if (fetcher.fetch)  fetcher.fetch  = authFetchWrapper;
     if (fetcher._fetch) fetcher._fetch = authFetchWrapper;
+  };
+
+  // 1. Patch Fetcher constructors (host-page global + our singleton) so any
+  //    future `new Fetcher(...)` call gets auth.
+  patchFetcherCtor(win.$rdf?.Fetcher);
+  if (rdf.isReady()) patchFetcherCtor(rdf.Fetcher);
+
+  // 2. Adopt an external shared store if one is already on the page. This
+  //    makes our components and solid-logic / solid-ui / mashlib share one
+  //    rdflib graph (same cache, same subscriptions), so data loaded by
+  //    either side is visible to the other.
+  //    Probes solid-logic (`window.SolidLogic.store`), solid-ui / mashlib
+  //    (`window.UI.store`), and the older `window.panes.store` surface.
+  const externalStore =
+       win.SolidLogic?.store
+    || win.UI?.store
+    || win.panes?.store
+    || null;
+  if (externalStore && rdf.isReady()) rdf.useStore(externalStore);
+
+  // 2b. If nothing was on the page, publish our singleton upward so
+  //     mashlib/solid-ui/solid-logic loaded *after* us share our graph.
+  if (!externalStore && rdf.isReady() && !win.SolidLogic) {
+    win.SolidLogic = { store: rdf.store, fetcher: rdf.storeFetcher };
   }
-  
-  if (win.SolidLogic?.store?.fetcher) {
-    const fetcher = win.SolidLogic.store.fetcher;
-    if (!fetcher._originalFetch) {
-      fetcher._originalFetch = fetcher.fetch || fetcher._fetch || fetch;
-    }
-    
-    const authFetchWrapper = (uri, options = {}) => {
-      const authFetch = this._auth.fetchFor(uri);
-      return authFetch(uri, options);
-    };
-    
-    if (fetcher.fetch) fetcher.fetch = authFetchWrapper;
-    if (fetcher._fetch) fetcher._fetch = authFetchWrapper;
-  }
+
+  // 3. Patch any already-instantiated Fetcher instances hanging off the
+  //    shared store(s), so existing rdflib code paths also get auth.
+  patchFetcherInstance(win.SolidLogic?.store?.fetcher);
+  patchFetcherInstance(win.UI?.store?.fetcher);
+  patchFetcherInstance(win.panes?.store?.fetcher);
+  if (rdf.isReady()) patchFetcherInstance(rdf._fetcher);
 }
 
   _render() {
     const s = this.shadowRoot;
-    s.innerHTML = `<style>${CSS}</style>
+    s.innerHTML = `
       <span class="auth-status"></span>
-      <button class="auth-btn login">Log in</button>
+      <button class="sol-btn sol-btn-sm sol-btn-primary auth-btn">Log in</button>
       <div class="dropdown">
         <div class="issuer-list"></div>
         <div class="custom-row">
-          <input class="issuer-input" type="text" placeholder="https://your-issuer.org">
-          <button class="auth-btn login">Log in</button>
+          <input class="sol-input issuer-input" type="text" placeholder="https://your-issuer.org">
+          <button class="sol-btn sol-btn-sm sol-btn-primary">Log in</button>
         </div>
       </div>`;
+    s.adoptedStyleSheets = [];
+    adopt(s, { sheet: LOGIN_SHEET, css: CSS });
 
     const mainBtn = s.querySelector('.auth-btn');
     mainBtn.addEventListener('click', () => this._handleClick());
 
-    const goBtn = s.querySelector('.custom-row .auth-btn');
+    const goBtn = s.querySelector('.custom-row .sol-btn');
     goBtn.addEventListener('click', () => this._loginCustom());
 
     const input = s.querySelector('.issuer-input');
@@ -429,18 +466,18 @@ _updateUI() {
     status.textContent = displayName;
     status.className = 'auth-status logged-in';
     btn.textContent = 'Log out';
-    btn.className = 'auth-btn logout';
+    btn.className = 'sol-btn sol-btn-sm sol-btn-danger auth-btn';
     btn.title = webId;
   } else {
     status.textContent = '';
     status.className = 'auth-status';
     btn.textContent = 'Log in';
-    btn.className = 'auth-btn login';
+    btn.className = 'sol-btn sol-btn-sm sol-btn-primary auth-btn';
     btn.title = '';
   }
 }
 }
 
-customElements.define('sol-login', SolLogin);
+define('sol-login', SolLogin);
 export { SolLogin, AuthManager };
 export default SolLogin;

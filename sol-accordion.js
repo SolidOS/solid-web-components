@@ -1,7 +1,34 @@
-import {loadStyleRules} from './shared/utils.js';
+/**
+ * <sol-accordion> — Accordion (collapsible sections) web component.
+ *
+ * Wraps child `<div>` elements into `<details>`/`<summary>` pairs.
+ * Each child div should contain two inner divs: the first becomes the
+ * summary (header), the second becomes the collapsible content.
+ * Only one section is open at a time (exclusive mode via `<details name>`).
+ *
+ * @element sol-accordion
+ *
+ * @example
+ * <sol-accordion>
+ *   <div><div>Section 1</div><div>Content 1</div></div>
+ *   <div><div>Section 2</div><div>Content 2</div></div>
+ * </sol-accordion>
+ */
+import { ensureDocStyle } from './shared/adopt.js';
+import { CSS as ACCORDION_CSS } from './styles/sol-accordion-css.js';
+import { define } from './shared/define.js';
 
+/**
+ * Accordion (collapsible sections) web component.
+ *
+ * Wraps child `<div>` elements into `<details>`/`<summary>` pairs.
+ * Only one section is open at a time.
+ *
+ * @class SolAccordion
+ * @extends HTMLElement
+ */
 class SolAccordion extends HTMLElement {
-  async connectedCallback() {
+  connectedCallback() {
     const groupName = `sol-accordion-${Math.random().toString(36).slice(2, 9)}`;
     
     const authorDivs = Array.from(this.children).filter(el => el.tagName === 'DIV');
@@ -71,11 +98,11 @@ class SolAccordion extends HTMLElement {
     });
 
     this.innerHTML = '';
-    this.appendChild(await loadStyleRules('root','sol-accordion'));
+    ensureDocStyle(this.getRootNode(), 'sol-accordion-styles', ACCORDION_CSS);
     this.appendChild(wrapper);
   }
 
 
 }
 
-customElements.define('sol-accordion', SolAccordion);
+define('sol-accordion', SolAccordion);

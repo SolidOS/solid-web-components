@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>sol-pod Component - Help & Playground</title>
-  <link rel="stylesheet" href="../shared/sol-query-help.css">
+  <link rel="stylesheet" href="../styles/sol-query-help.css">
+<script src="https://cdn.jsdelivr.net/npm/mashlib@latest/dist/mashlib.min.js"></script>
   <script type="importmap">{"imports":{"rdflib":"https://esm.sh/rdflib"}}</script>
   <style>
     li { margin-bottom:0; }
@@ -24,30 +25,7 @@
     <li>Pairs with <code>&lt;sol-login&gt;</code> for authenticated access</li>
   </ul>
 
-  <pre>
-attribute        description
--------------------------------------------
-source           pod storage URL to browse (discovers from origin if omitted)
-login            CSS selector pointing to a &lt;sol-login&gt; element
-
-event            detail                  description
--------------------------------------------------------------------
-sol-navigate     { url }                 user navigated to a container
-sol-drag-start   { item }                file drag started (for cross-panel copy)
-sol-auth-needed  { url }                 401/403 encountered
-sol-status       { message, type }       status update (copy progress, errors, etc.)
-
-file action tabs (shown contextually)
--------------------------------------------
-Live Edit        Turtle, JSON-LD, CSV, Markdown, Mermaid, HTML, Graphviz
-View             text, images, audio, video, PDF
-Edit             text-based files (CodeMirror)
-Graph            RDF files (D3 force-directed)
-Download         all files
-Rename           all
-Delete           all (recursive for folders)
-Permissions      WAC ACL editor (role-based form + raw Turtle)
-</pre>
+  <p class="api-ref">Full API reference: <a href="../docs/api/SolPod.html">SolPod API docs</a> &middot; <a href="../docs/api/SolPodOps.html">SolPodOps API docs</a> (generated from source JSDoc)</p>
 
   <h2>Usage</h2>
 
@@ -65,7 +43,7 @@ Permissions      WAC ACL editor (role-based form + raw Turtle)
   <div id="section-1" class="usage-section">
     <h3>1. Browse a Public Pod</h3>
     <p>Point <code>source</code> at any publicly readable pod storage root.</p>
-    <pre><code>&lt;sol-pod source="https://solidcommunity.net/jeff-zucker/"&gt;&lt;/sol-pod&gt;</code></pre>
+    <pre><code>&lt;sol-pod source="https://jeff-zucker.solidcommunity.net/"&gt;&lt;/sol-pod&gt;</code></pre>
   </div>
 
   <div id="section-2" class="usage-section">
@@ -147,10 +125,10 @@ Permissions      WAC ACL editor (role-based form + raw Turtle)
 
   <script>
     const examples = [
-      `<sol-pod source="https://solidcommunity.net/jeff-zucker/"></sol-pod>`,
-      `<sol-login id="auth" issuers="https://solidcommunity.net"></sol-login>\n<sol-pod source="https://solidcommunity.net/jeff-zucker/" login="#auth"></sol-pod>`,
-      `<sol-login id="auth"></sol-login>\n<div style="display:flex;gap:8px;height:100%">\n  <sol-pod source="https://solidcommunity.net/jeff-zucker/" login="#auth" style="flex:1"></sol-pod>\n  <sol-pod source="https://solidcommunity.net/jeff-zucker/public/" login="#auth" style="flex:1"></sol-pod>\n</div>`,
-      `<sol-pod source="https://solidcommunity.net/jeff-zucker/public/"></sol-pod>`,
+      `<sol-pod source="https://jeff-zucker.solidcommunity.net/"></sol-pod>`,
+      `<sol-login id="auth" issuers="https://solidcommunity.net"></sol-login>\n<sol-pod source="https://jeff-zucker.solidcommunity.net/" login="#auth"></sol-pod>`,
+      `<sol-login id="auth"></sol-login>\n<div style="display:flex;gap:8px;height:100%">\n  <sol-pod source="https://jeff-zucker.solidcommunity.net/" login="#auth" style="flex:1"></sol-pod>\n  <sol-pod source="https://jeff-zucker.solidcommunity.net/public/" login="#auth" style="flex:1"></sol-pod>\n</div>`,
+      `<sol-pod source="https://jeff-zucker.solidcommunity.net/public/"></sol-pod>`,
     ];
 
     const modal = document.getElementById('modal');

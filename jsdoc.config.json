@@ -1,0 +1,25 @@
+{
+  "source": {
+    "include": [
+      "sol-accordion.js",
+      "sol-include.js",
+      "sol-live-edit.js",
+      "sol-login.js",
+      "sol-login-node.js",
+      "sol-menu.js",
+      "sol-modal.js",
+      "sol-pod.js",
+      "sol-pod-ops.js",
+      "sol-query.js",
+      "sol-query-node.js",
+      "sol-rolodex.js",
+      "sol-tabs.js",
+      "sol-wac.js"
+    ]
+  },
+  "opts": {
+    "destination": "docs/api",
+    "recurse": false
+  },
+  "plugins": ["plugins/markdown"]
+}

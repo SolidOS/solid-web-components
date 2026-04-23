@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: sol-include.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: sol-include.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * &lt;sol-include> — Fetch and display remote content inline.
+ *
+ * Supports HTML, Markdown, and plain text. Content is sanitized with
+ * DOMPurify by default. An optional CSS selector filters to a section
+ * of the fetched document.
+ *
+ * @element sol-include
+ * @attr {string} source - URL of the resource to fetch (required)
+ * @attr {string} wanted - CSS selector — show only matching elements
+ * @attr {boolean} raw - show source text verbatim without rendering
+ * @attr {boolean} trusted - skip DOMPurify sanitization
+ *
+ * @example
+ * &lt;sol-include source="https://example.org/readme.md">&lt;/sol-include>
+ * &lt;sol-include source="page.html" wanted="article">&lt;/sol-include>
+ */
+import { sanitizeHtml } from './shared/utils.js';
+import { define } from './shared/define.js';
+import { adopt } from './shared/adopt.js';
+import { CSS as INCLUDE_CSS, sheet as includeSheet } from './styles/sol-include-css.js';
+
+// ─── Lazy marked loader ────────────────────────────────────────────────────────
+let _marked = null;
+async function getMarked() {
+  if (_marked) return _marked;
+  const win = typeof window !== 'undefined' ? window : {};
+  if (win.marked?.parse) { _marked = win.marked; return _marked; }
+  try {
+    const mod = await import('marked');
+    _marked = mod.marked ?? mod.default ?? mod;
+    return _marked;
+  } catch {}
+  return null;
+}
+
+// ─── SolInclude component ──────────────────────────────────────────────────────
+// Attributes:
+//   source   {string}  URL to fetch (required)
+//   wanted   {string}  CSS selector — show only matching elements (HTML / rendered MD)
+//   raw      {bool}    show source text without rendering
+//   trusted  {bool}    skip DOMPurify sanitization
+/**
+ * Fetch and display remote content inline.
+ *
+ * Supports HTML, Markdown, and plain text. Content is sanitized with
+ * DOMPurify by default.
+ *
+ * @class SolInclude
+ * @extends HTMLElement
+ * @attr {string} source - URL to fetch (required)
+ * @attr {string} wanted - CSS selector — show only matching elements
+ * @attr {boolean} raw - show source text verbatim
+ * @attr {boolean} trusted - skip DOMPurify sanitization
+ */
+class SolInclude extends HTMLElement {
+  static get observedAttributes() {
+    return ['source', 'wanted', 'raw', 'trusted'];
+  }
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
+  connectedCallback()                         { if (this.isConnected) this._load(); }
+  attributeChangedCallback(n, oldV, newV)     { if (oldV !== newV &amp;&amp; this.isConnected) this._load(); }
+
+  // ── Main load ─────────────────────────────────────────────────────────────────
+  async _load() {
+    const source  = this.getAttribute('source');
+    const wanted  = this.getAttribute('wanted') || '';
+    const raw     = this.hasAttribute('raw');
+    const trusted = this.hasAttribute('trusted');
+
+    if (!source) { this._show('error', 'No source provided'); return; }
+
+    this._show('loading', 'Loading…');
+
+    try {
+      const resp = await fetch(source);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const ct   = (resp.headers.get('content-type') || '').split(';')[0].trim();
+      const text = await resp.text();
+      const ext  = source.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
+
+      const isMarkdown = ct.includes('markdown') || ct.includes('text/x-markdown')
+                      || ['md', 'markdown'].includes(ext);
+      const isHtml     = ct.includes('html') || ext === 'html' || ext === 'htm';
+
+      if (raw) {
+        this._showRaw(text);
+        return;
+      }
+
+      if (isMarkdown) {
+        const markedLib = await getMarked();
+        if (!markedLib) throw new Error('marked library not available — add to importmap');
+        let html = typeof markedLib.parse === 'function'
+          ? markedLib.parse(text)
+          : markedLib(text);
+        if (!trusted) html = await sanitizeHtml(html);
+        this._showHtml(html, wanted);
+      } else if (isHtml) {
+        const html = trusted ? text : await sanitizeHtml(text);
+        this._showHtml(html, wanted);
+      } else {
+        // Plain text / unknown
+        this._showRaw(text);
+      }
+    } catch (err) {
+      this._show('error', err.message);
+    }
+  }
+
+  // ── Display helpers ───────────────────────────────────────────────────────────
+  _showHtml(html, selector) {
+    this._initShadow();
+    const div = document.createElement('div');
+    div.className = 'si-content';
+
+    if (selector) {
+      // Parse into a temp DOM, extract matching nodes
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;  // already sanitized at this point
+      const els = Array.from(tmp.querySelectorAll(selector));
+      if (!els.length) {
+        this._show('loading', 'No elements matched selector');
+        return;
+      }
+      els.forEach(el => div.appendChild(document.importNode(el, true)));
+    } else {
+      div.innerHTML = html;
+    }
+
+    this.shadowRoot.appendChild(div);
+  }
+
+  _showRaw(text) {
+    this._initShadow();
+    const pre = document.createElement('pre');
+    pre.className = 'si-raw';
+    pre.textContent = text;
+    this.shadowRoot.appendChild(pre);
+  }
+
+  _show(type, message) {
+    this._initShadow();
+    const div = document.createElement('div');
+    div.className = `si-${type}`;
+    div.textContent = message;
+    this.shadowRoot.appendChild(div);
+  }
+
+  _initShadow() {
+    this.shadowRoot.innerHTML = '';
+    this.shadowRoot.adoptedStyleSheets = [];
+    adopt(this.shadowRoot, { sheet: includeSheet, css: INCLUDE_CSS });
+  }
+}
+
+define('sol-include', SolInclude);
+export { SolInclude };
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Tue Apr 21 2026 20:48:58 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

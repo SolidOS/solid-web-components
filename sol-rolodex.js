@@ -1,5 +1,31 @@
+/**
+ * <sol-rolodex> — Card-by-card browser web component.
+ *
+ * Wraps child `<div>` elements into a rolodex-style card viewer with
+ * previous/next navigation and keyboard arrow support.
+ *
+ * @element sol-rolodex
+ *
+ * @fires sol-select — detail: { value, row, index }
+ *
+ * @example
+ * <sol-rolodex>
+ *   <div>Card 1 content</div>
+ *   <div>Card 2 content</div>
+ * </sol-rolodex>
+ */
 import { render as renderRolodex } from './views/rolodex.js';
+import { define } from './shared/define.js';
 
+/**
+ * Card-by-card browser web component.
+ *
+ * Wraps child `<div>` elements into a rolodex-style card viewer with
+ * previous/next navigation and keyboard arrow support.
+ *
+ * @class SolRolodex
+ * @extends HTMLElement
+ */
 class SolRolodex extends HTMLElement {
   constructor() {
     super();
@@ -66,4 +92,4 @@ class SolRolodex extends HTMLElement {
   }
 }
 
-customElements.define('sol-rolodex', SolRolodex);
+define('sol-rolodex', SolRolodex);

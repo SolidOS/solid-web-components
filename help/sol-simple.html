@@ -1,0 +1,124 @@
+<sol-menu orientation="horizontal">
+  <a href="../data/sample.md">Home</a>
+  <submenu label="Data">
+    <a href="../data/sample-data.ttl" raw>Turtle</a>
+    <a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?">Table</a>
+    <submenu label="Forms">
+      <a href="../data/contact-form.ttl" raw>Contact form</a>
+      <a href="../data/review-form.ttl" raw>Review form</a>
+    </submenu>
+  </submenu>
+</sol-menu>
+<!--
+  simple components that can be used without Solid or RDF handlers
+
+
+<#TopMenu>
+  a ui:Menu ;
+  ui:orientation "horizontal" ;
+  ui:parts (
+    [ a ui:Link; 
+      ui:source "../data/sample.md";
+      ui:label "Home";
+    ]
+    [ a ui:Menu; 
+      ui:label="Data";
+      ui:parts(
+        ...
+      )
+    ]
+  ).
+
+-->
+<style>
+sol-accordion, sol-rolodex,sol-tabs {
+  display:block;
+  width:80ch;
+  height:420px;
+  border:2px solid #666;
+  border-radius:4px;
+  padding:0.5rem;
+  margin:0.5rem;
+}
+</style>
+<!-- 
+<sol-menu orientation="horizontal">
+  <a href="../data/sample.md">Home</a>
+  <details open>
+    <summary>Data</summary>
+    <a href="../data/sample-data.ttl" raw>Turtle</a>
+    <a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?">Table</a>
+    <details>
+      <summary>Forms</summary>
+      <a href="../data/contact-form.ttl" raw>Contact form</a>
+      <a href="../data/review-form.ttl" raw>Review form</a>
+    </details>
+  </details>
+</sol-menu>
+<sol-menu orientation="vertical">
+  <a href="../data/sample.md">Home</a>
+  <details open>
+    <summary>Data</summary>
+    <a href="../data/sample-data.ttl" raw>Turtle</a>
+    <a href="../data/sample-data.ttl" handler="sol-query" wanted="?s ?p ?o">Table</a>
+    <details>
+      <summary>Forms</summary>
+      <a href="../data/contact-form.ttl" raw>Contact form</a>
+      <a href="../data/review-form.ttl" raw>Review form</a>
+    </details>
+  </details>
+</sol-menu>
+-->
+<sol-tabs>
+  <a href="../data/sample-data.ttl">rdf data</a>
+  <a href="../data/sample-data.ttl" handler="sol-query" wanted="?s ?p ?o">table</a>
+</sol-tabs>
+<sol-tabs orientation="vertical">
+  <a href="../data/sample-data.ttl">rdf data</a>
+  <a href="../data/sample-data.ttl" handler="sol-query" wanted="?s ?p ?o">table</a>
+</sol-tabs>
+<sol-rolodex>
+  <div>hello <b>rolodex</b> world</div>
+  <div>page 2 content</div>
+  <div>page 3 content</div>
+</sol-rolodex>
+
+<sol-accordion>
+  <div>
+    <div>Panel 1 Title</div>
+    <div>First content section</div>
+    <div>Second content section</div>
+    <div>Third content section</div>
+  </div>
+  <div>
+    <div>Panel 2 Title</div>
+    <div>Only one content section here</div>
+  </div>
+  <div>
+    <div>Panel 3 Title</div>
+    <div><p>Content with <strong>HTML</strong></p></div>
+    <div><p>More content with <em>markup</em></p></div>
+  </div>
+</sol-accordion>
+
+<!-- INRUPT SCAB
+-->
+<script src="https://cdn.jsdelivr.net/npm/@inrupt/solid-client-authn-browser/dist/solid-client-authn.bundle.js"></script>
+
+<!-- COMUNICA
+-->
+<script src="https://rdf.js.org/comunica-browser/versions/latest/engines/query-sparql/comunica-browser.js"></script>
+
+<!-- RDFLIB
+-->
+<script src="https://cdn.jsdelivr.net/npm/rdflib/dist/rdflib.min.js"></script>
+
+<!-- COMPONENTS
+ -->
+<link rel="stylesheet" href="../styles/root.css"> 
+<script src="../sol-accordion.js" type="module"></script>
+<script src="../sol-rolodex.js" type="module"></script>
+<script src="../sol-tabs.js" type="module"></script>
+<script src="../sol-menu.js" type="module"></script>
+<script src="../sol-include.js" type="module"></script>
+<script src="../sol-query.js" type="module"></script>

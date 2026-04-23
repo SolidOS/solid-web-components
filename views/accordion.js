@@ -1,3 +1,6 @@
+import { adopt } from '../shared/adopt.js';
+import { CSS as ACCORDION_VIEW_CSS, sheet as ACCORDION_SHEET } from '../styles/view-accordion-css.js';
+
 /**
  * Built-in view renderer for sol-query — "accordion".
  *
@@ -124,61 +127,6 @@ export function render(container, data, host) {
 }
 
 function attachWrapperAndStyle(container, wrapper) {
-  const style = document.createElement('style');
-  style.textContent = `
-    .sol-view-accordion details {
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      margin-bottom: .35rem;
-      background: #fff;
-    }
-    .sol-view-accordion summary {
-      padding: .5rem .75rem;
-      cursor: pointer;
-      font-weight: 600;
-      background: #f7f7f7;
-      border-radius: 4px;
-      list-style: none;
-    }
-    .sol-view-accordion details[open] summary {
-      border-bottom: 1px solid #e0e0e0;
-      border-radius: 4px 4px 0 0;
-    }
-    .sol-view-accordion summary::-webkit-details-marker { display: none; }
-    .sol-view-accordion summary::before {
-      content: '▸';
-      display: inline-block;
-      width: 1em;
-      transition: transform .15s;
-    }
-    .sol-view-accordion details[open] > summary::before {
-      transform: rotate(90deg);
-    }
-    .sol-view-accordion dl {
-      margin: 0;
-      padding: .6rem .85rem;
-      display: grid;
-      grid-template-columns: max-content 1fr;
-      gap: .25rem .75rem;
-    }
-    .sol-view-accordion dt {
-      font-size: .85em;
-      color: #666;
-      font-weight: 600;
-    }
-    .sol-view-accordion dd {
-      margin: 0;
-      word-break: break-word;
-    }
-    .sol-view-accordion .accordion-body {
-      padding: .6rem .85rem;
-    }
-    .sol-view-accordion a {
-      color: #0066cc;
-      text-decoration: none;
-    }
-    .sol-view-accordion a:hover { text-decoration: underline; }
-  `;
-  container.appendChild(style);
+  adopt(container.getRootNode(), { sheet: ACCORDION_SHEET, css: ACCORDION_VIEW_CSS });
   container.appendChild(wrapper);
 }

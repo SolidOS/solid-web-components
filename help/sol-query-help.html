@@ -6,7 +6,7 @@
   <title>sol-query Component - Help & Playground</title>
   <script src="https://rdf.js.org/comunica-browser/versions/v4/engines/query-sparql/comunica-browser.js"></script>
 
-  <link rel="stylesheet" href="../shared/sol-query-help.css">
+  <link rel="stylesheet" href="../styles/sol-query-help.css">
   <script type="importmap">{"imports":{"rdflib":"https://esm.sh/rdflib","dompurify":"https://esm.sh/dompurify"}}</script>
   <script type="module">
     import * as $rdf from 'rdflib'; window.$rdf = $rdf;
@@ -28,22 +28,20 @@
   h1 {display:inline-block;}
   span {font-size:110%;}
   ul { padding-bottom:1rem !important;}
-</style><pre>
-retrieve         using attributes
----------------------------------
-all statements : endpoint="RDF DOCUMENT URI"
-one subject    : endpoint="SUBJECT URI INSIDE A RDF DOCUMENT"
-mini query     : endpoint="RDF DOCUMENT URI" wanted="TRIPLE PATTERN"
-RDFa query     : endpoint="RDFa DOCUMENT URI" wanted="CSS SELECTOR PATTERN"
-inline SPARQL  : endpoint="SPARQL ENDPOINT" sparql="LITERAL SPARQL STRING"
-stored SPARQL  : endpoint="SPARQL ENDPOINT" sparql="URI OF A SPARQL QUERY"
-replace param  : endpoint="SPARQL ENDPOINT" sparql="URI OF A SPARQL QUERY" var-paramName="paramValue"
-
-view             using attributes
----------------------------------
-as HTML table            : view="table" # or omit view attribute - table is the default
-as HTML description list : view="dl"
-</pre>
+</style>
+  <p class="api-ref">Full API reference: <a href="../docs/api/SolQuery.html">SolQuery API docs</a> (generated from source JSDoc)</p>
+  <table class="attr-table" style="width:100%;border-collapse:collapse;font-size:.9rem;margin:.5rem 0 1rem">
+    <thead><tr><th style="background:#f0f4f8;text-align:left;padding:.5rem .75rem;border:1px solid #d0dce8">Retrieve</th><th style="background:#f0f4f8;text-align:left;padding:.5rem .75rem;border:1px solid #d0dce8">Attributes</th></tr></thead>
+    <tbody>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">all statements</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="RDF DOCUMENT URI"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">one subject</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="SUBJECT URI INSIDE A RDF DOCUMENT"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">mini query</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="RDF DOC" wanted="TRIPLE PATTERN"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">RDFa query</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="RDFa DOC" wanted="CSS SELECTOR"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">inline SPARQL</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="SPARQL ENDPOINT" sparql="SPARQL STRING"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">stored SPARQL</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="SPARQL ENDPOINT" sparql="URI OF QUERY"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">replace param</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="…" sparql="…" var-paramName="value"</code></td></tr>
+    </tbody>
+  </table>
 
   <h2>Usage Details</h2>
 

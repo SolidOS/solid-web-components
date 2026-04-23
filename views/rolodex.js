@@ -1,3 +1,6 @@
+import { adopt } from '../shared/adopt.js';
+import { CSS as ROLODEX_CSS, sheet as ROLODEX_SHEET } from '../styles/view-rolodex-css.js';
+
 /**
  * Built-in view renderer for sol-query — "rolodex".
  * Shows one result row at a time as a card, with prev/next buttons and an
@@ -9,8 +12,6 @@
  *
  * Usage: <sol-query view="rolodex" endpoint="…"></sol-query>
  */
-import {loadStyleRules} from '../shared/utils.js';
-
 export async function render(container, data, host) {
   const { vars, results } = data;
   if (!results?.length) {
@@ -52,7 +53,7 @@ export async function render(container, data, host) {
 
   const prevBtn = document.createElement('button');
   prevBtn.type = 'button';
-  prevBtn.className = 'rolodex-btn';
+  prevBtn.className = 'sol-btn sol-btn-icon rolodex-btn';
   prevBtn.setAttribute('aria-label', 'Previous record');
   prevBtn.textContent = '‹';
 
@@ -62,7 +63,7 @@ export async function render(container, data, host) {
 
   const nextBtn = document.createElement('button');
   nextBtn.type = 'button';
-  nextBtn.className = 'rolodex-btn';
+  nextBtn.className = 'sol-btn sol-btn-icon rolodex-btn';
   nextBtn.setAttribute('aria-label', 'Next record');
   nextBtn.textContent = '›';
 
@@ -119,71 +120,6 @@ export async function render(container, data, host) {
 
   show(0);
 
-  const cssString = `
-    .sol-view-rolodex {
-      display: inline-block;
-      min-width: 260px;
-      max-width: 100%;
-      outline: none;
-    }
-    .sol-view-rolodex:focus-visible .rolodex-card {
-      box-shadow: 0 0 0 2px #4a9eff;
-    }
-    .rolodex-nav {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: .5rem;
-      margin-bottom: .4rem;
-    }
-    .rolodex-btn {
-      padding: .25rem .6rem;
-      font: inherit;
-      font-size: 1.15em;
-      line-height: 1;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: #f7f7f7;
-      cursor: pointer;
-    }
-    .rolodex-btn:hover { background: #eaf2fb; border-color: #4a9eff; }
-    .rolodex-counter {
-      font-size: .85em;
-      color: #666;
-    }
-    .rolodex-card {
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      background: #fff;
-      padding: .85rem 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,.05);
-      cursor: pointer;
-      transition: box-shadow .15s;
-    }
-    .rolodex-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.1); }
-    .rolodex-card dl {
-      margin: 0;
-      display: grid;
-      grid-template-columns: max-content 1fr;
-      gap: .3rem .85rem;
-    }
-    .rolodex-card dt {
-      font-size: .8em;
-      text-transform: uppercase;
-      letter-spacing: .03em;
-      color: #888;
-      font-weight: 600;
-    }
-    .rolodex-card dd {
-      margin: 0;
-      word-break: break-word;
-    }
-    .rolodex-card a { color: #0066cc; text-decoration: none; }
-    .rolodex-card a:hover { text-decoration: underline; }
-`;
-  const style = document.createElement('style');
-  style.textContent = cssString;
-  container.appendChild(style);
-//  container.appendChild(await loadStyleRules('root','sol-rolodex'));
+  adopt(container.getRootNode(), { sheet: ROLODEX_SHEET, css: ROLODEX_CSS });
   container.appendChild(wrapper);
 }

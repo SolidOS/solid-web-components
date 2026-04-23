@@ -1,3 +1,6 @@
+import { adopt } from '../shared/adopt.js';
+import { CSS as AUTOCOMPLETE_CSS, sheet as AUTOCOMPLETE_SHEET } from '../styles/view-autocomplete-css.js';
+
 export function render(container, data, host) {
   const { vars, results } = data;
   if (!results?.length) {
@@ -39,7 +42,7 @@ export function render(container, data, host) {
   const goButton = document.createElement('button');
   goButton.type = 'button';
   goButton.textContent = host?.getAttribute('go-label') ?? 'Go';
-  goButton.className = 'ac-go-button';
+  goButton.className = 'sol-btn sol-btn-primary ac-go-button';
 
   inputWrapper.appendChild(input);
   inputWrapper.appendChild(goButton);
@@ -174,73 +177,6 @@ export function render(container, data, host) {
   wrapper.appendChild(inputWrapper);
   wrapper.appendChild(listWrapper);
 
-  const style = document.createElement('style');
-  style.textContent = `
-    .sol-view-autocomplete {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      width: 100%;
-      max-width: 100%;
-    }
-    .ac-input-wrapper {
-      width: 100%;
-      display: flex;
-      gap: 0.5rem;
-    }
-    .sol-view-autocomplete input {
-      flex: 1;
-      padding: .5rem .65rem;
-      font: inherit;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    .sol-view-autocomplete input:focus {
-      outline: 2px solid #4a9eff;
-      outline-offset: 1px;
-    }
-    .ac-go-button {
-      padding: .5rem 1rem;
-      font: inherit;
-      background: #4a9eff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .ac-go-button:hover {
-      background: #3a8eef;
-    }
-    .ac-go-button:focus {
-      outline: 2px solid #4a9eff;
-      outline-offset: 1px;
-    }
-    .ac-list-wrapper {
-      width: 100%;
-      background: #fff;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      max-height: 220px;
-      overflow-y: auto;
-      box-shadow: 0 4px 12px rgba(0,0,0,.08);
-    }
-    .sol-view-autocomplete .ac-list {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    .sol-view-autocomplete .ac-list li {
-      padding: .4rem .65rem;
-      cursor: pointer;
-      color: #000;
-    }
-    .sol-view-autocomplete .ac-list li.active,
-    .sol-view-autocomplete .ac-list li:hover {
-      background: #eaf2fb;
-    }
-  `;
-  container.appendChild(style);
+  adopt(container.getRootNode(), { sheet: AUTOCOMPLETE_SHEET, css: AUTOCOMPLETE_CSS });
   container.appendChild(wrapper);
 }

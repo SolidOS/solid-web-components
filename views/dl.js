@@ -1,31 +1,20 @@
-export function render(data) {
-  const dl       = document.createElement('dl');
-  const nameVar  = data.vars[0];
-  const restVars = data.vars.slice(1);
+import { termText, appendCell } from './_helpers.js';
 
-  const appendCell = (parent, cell) => {
-    if (cell?.type === 'multi') {
-      cell.values.forEach((cv, i) => {
-        if (i > 0) parent.appendChild(document.createTextNode(', '));
-        if (cv.type === 'uri')        parent.appendChild(this._mkLink(cv));
-        else if (cv.type === 'bnode') parent.appendChild(this._mkBnodeLink(cv));
-        else parent.appendChild(document.createTextNode(cv.value ?? ''));
-      });
-    } else if (cell?.type === 'bnode') {
-      parent.appendChild(this._mkBnodeLink(cell));
-    } else if (cell?.type === 'uri') {
-      parent.appendChild(this._mkLink(cell));
-    } else {
-      parent.appendChild(document.createTextNode(cell ? cell.value : ''));
-    }
-  };
+export function render(container, data, host, options = {}) {
+  const { hideHeader, mkBnodeLink } = options;
+  const dl       = document.createElement('dl');
+  const flat     = !!hideHeader;
+  const nameVar  = flat ? null : data.vars[0];
+  const restVars = flat ? data.vars : data.vars.slice(1);
 
   data.results.forEach(row => {
-    const dt = document.createElement('dt');
-    const nameCell = row[nameVar];
-    dt.textContent = this._termText(nameCell);
-    if (nameCell?.type === 'uri') dt.title = nameCell.value;
-    dl.appendChild(dt);
+    if (nameVar) {
+      const dt = document.createElement('dt');
+      const nameCell = row[nameVar];
+      dt.textContent = termText(nameCell);
+      if (nameCell?.type === 'uri') dt.title = nameCell.value;
+      dl.appendChild(dt);
+    }
 
     restVars.forEach(v => {
       const dd = document.createElement('dd');
@@ -33,14 +22,15 @@ export function render(data) {
       label.className = 'dl-field';
       label.textContent = `${v} `;
       dd.appendChild(label);
-      
+
       const valueSpan = document.createElement('span');
       valueSpan.className = 'dl-value';
-      appendCell(valueSpan, row[v]);
+      appendCell(valueSpan, row[v], mkBnodeLink);
       dd.appendChild(valueSpan);
-      
+
       dl.appendChild(dd);
     });
   });
-  return dl;
+
+  container.appendChild(dl);
 }

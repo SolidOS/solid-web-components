@@ -1,3 +1,6 @@
+import { adopt } from '../shared/adopt.js';
+import { CSS as ANCHORLIST_CSS, sheet as ANCHORLIST_SHEET } from '../styles/view-anchorlist-css.js';
+
 /**
  * Built-in view renderer for sol-query — "anchorlist".
  * Renders results as a flat unordered list of anchor links.
@@ -50,24 +53,6 @@ export function render(container, data) {
     ul.appendChild(li);
   });
 
-  const style = document.createElement('style');
-  style.textContent = `
-    .sol-view-anchorlist {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-    .sol-view-anchorlist li {
-      padding: .3rem .5rem;
-      border-bottom: 1px solid #eee;
-    }
-    .sol-view-anchorlist li:last-child { border-bottom: none; }
-    .sol-view-anchorlist a {
-      color: #0066cc;
-      text-decoration: none;
-    }
-    .sol-view-anchorlist a:hover { text-decoration: underline; }
-  `;
-  container.appendChild(style);
+  adopt(container.getRootNode(), { sheet: ANCHORLIST_SHEET, css: ANCHORLIST_CSS });
   container.appendChild(ul);
 }

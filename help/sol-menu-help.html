@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-menu Component</title>
+  <link rel="stylesheet" href="../styles/sol-query-help.css">
+  <style>
+    .api-block { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); padding:1.5rem; margin-bottom:1.5rem; }
+    .attr-table { width:100%; border-collapse:collapse; font-size:.9rem; margin:.5rem 0 1rem; }
+    .attr-table th { background:#f0f4f8; text-align:left; padding:.5rem .75rem; border:1px solid #d0dce8; }
+    .attr-table td { padding:.45rem .75rem; border:1px solid #e0e8f0; vertical-align:top; }
+    .attr-table td:first-child { font-family:'Courier New',monospace; color:#2c6e9e; white-space:nowrap; }
+    .note-box  { background:#fff8e1; border-left:4px solid #f9a825; padding:.75rem 1rem; border-radius:4px; font-size:.9rem; margin:.75rem 0; }
+    .demo-box  { border:2px solid #ccd; border-radius:6px; padding:0; margin:.75rem 0; height:400px; display:flex; }
+    .demo-box > * { flex:1; min-width:0; min-height:0; }
+  </style>
+
+  <script type="importmap">{"imports":{
+    "rdflib":    "https://esm.sh/rdflib",
+    "dompurify": "https://esm.sh/dompurify",
+    "marked":    "https://esm.sh/marked"
+  }}</script>
+  <script type="module">
+    import * as $rdf from 'rdflib';
+    import DOMPurify from 'dompurify';
+    import { marked } from 'marked';
+    window.$rdf      = $rdf;
+    window.DOMPurify = DOMPurify;
+    window.marked    = marked;
+  </script>
+  <script type="module" src="../sol-menu.js"></script>
+  <script type="module" src="../sol-include.js"></script>
+  <script type="module" src="../sol-query.js"></script>
+</head>
+<body>
+  <h1>sol-menu Component</h1>
+  <p>A sidebar-nav + content-panel element. Same declarative API as <code>&lt;sol-tabs&gt;</code>: fill with <code>&lt;a href="…"&gt;Label&lt;/a&gt;</code> children; each anchor becomes a menu entry whose href is loaded into the content pane. Nest <code>&lt;submenu&gt;</code> elements for collapsible submenus of any depth.</p>
+
+  <nav class="page-nav" aria-label="Page sections">
+    <a href="#attributes">Attributes</a>
+    <a href="#standalone">Standalone</a>
+    <a href="#submenus">Submenus</a>
+    <a href="#query-view">As a sol-query view</a>
+    <a href="sol-tabs-help.html">sol-tabs →</a>
+    <a href="sol-query-help.html">sol-query →</a>
+  </nav>
+
+  <p class="api-ref">Full API reference: <a href="../docs/api/SolMenu.html">SolMenu API docs</a> (generated from source JSDoc)</p>
+
+  <h2 id="attributes">Attributes</h2>
+  <div class="api-block">
+    <table class="attr-table">
+      <thead><tr><th>Attribute</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>orientation</td><td>Default is sidebar (vertical nav). Set <code>horizontal</code> to lay the nav on top.</td></tr>
+        <tr><td>handler</td><td>Default <code>sol-*</code> component tag for anchors that don't set their own <code>handler</code>.</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Per-anchor:</strong> <code>handler="sol-*"</code> selects which component renders the href. Any additional anchor attributes (<code>wanted</code>, <code>sparql</code>, <code>view</code>, …) are forwarded to the generated element. The href is passed as both <code>source</code> and <code>endpoint</code>.</p>
+    <p><strong>Event:</strong> <code>sol-menu-change</code> fires on navigation, <code>detail: { name }</code>.</p>
+  </div>
+
+  <h2 id="standalone">Standalone demo</h2>
+<pre><code>&lt;sol-menu&gt;
+  &lt;a href="../data/sample.md"&gt;Readme&lt;/a&gt;
+  &lt;a href="../data/sample-data.ttl" raw&gt;Turtle source&lt;/a&gt;
+  &lt;a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?"&gt;Triples table&lt;/a&gt;
+&lt;/sol-menu&gt;</code></pre>
+  <div class="demo-box">
+    <sol-menu>
+      <a href="../data/sample.md">Readme</a>
+      <a href="../data/sample-data.ttl" raw>Turtle source</a>
+      <a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?">Triples table</a>
+    </sol-menu>
+  </div>
+
+  <h2 id="submenus">Submenus (collapsible groups)</h2>
+  <p>Nest a <code>&lt;submenu&gt;</code> inside <code>&lt;sol-menu&gt;</code> to make a group. Its <code>&lt;label&gt;</code> is the group heading; anchors (and further <code>&lt;submenu&gt;</code>s) inside become its items. Any depth is supported. Add the <code>open</code> attribute to expand a group by default.</p>
+<pre><code>&lt;sol-menu&gt;
+  &lt;a href="../data/sample.md"&gt;Home&lt;/a&gt;
+  &lt;submenu open&gt;
+    &lt;label&gt;Data&lt;/label&gt;
+    &lt;a href="../data/sample-data.ttl" raw&gt;Turtle&lt;/a&gt;
+    &lt;a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?"&gt;Table&lt;/a&gt;
+    &lt;submenu&gt;
+      &lt;label&gt;Forms&lt;/label&gt;
+      &lt;a href="../data/contact-form.ttl" raw&gt;Contact form&lt;/a&gt;
+      &lt;a href="../data/review-form.ttl" raw&gt;Review form&lt;/a&gt;
+    &lt;/submenu&gt;
+  &lt;/submenu&gt;
+&lt;/sol-menu&gt;</code></pre>
+  <div class="demo-box">
+    <sol-menu>
+      <a href="../data/sample.md">Home</a>
+      <submenu open>
+        <label>Data</label>
+        <a href="../data/sample-data.ttl" raw>Turtle</a>
+        <a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?">Table</a>
+        <submenu>
+          <label>Forms</label>
+          <a href="../data/contact-form.ttl" raw>Contact form</a>
+          <a href="../data/review-form.ttl" raw>Review form</a>
+        </submenu>
+      </submenu>
+    </sol-menu>
+  </div>
+
+  <h2 id="query-view">As a sol-query view</h2>
+  <p><code>&lt;sol-query view="menu"&gt;</code> turns a result set into a menu. Uses <code>?link</code> + <code>?label</code> vars when present, otherwise the first two columns. A <code>handler</code> on the host is forwarded to the generated <code>&lt;sol-menu&gt;</code>.</p>
+<pre><code>&lt;sol-query
+  view="menu"
+  handler="sol-include"
+  endpoint="../data/sample-data.ttl"
+  sparql="
+    PREFIX rdfs: &lt;http://www.w3.org/2000/01/rdf-schema#&gt;
+    SELECT ?link ?label WHERE {
+      ?link a ?t ; rdfs:label ?label .
+    } LIMIT 6
+  "&gt;&lt;/sol-query&gt;</code></pre>
+  <div class="demo-box">
+    <sol-query
+      view="menu"
+      handler="sol-include"
+      endpoint="../data/sample-data.ttl"
+      sparql="PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> SELECT ?link ?label WHERE { ?link a ?t ; rdfs:label ?label . } LIMIT 6"
+    ></sol-query>
+  </div>
+
+</body>
+</html>

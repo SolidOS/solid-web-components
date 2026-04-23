@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: sol-accordion.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: sol-accordion.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * &lt;sol-accordion> — Accordion (collapsible sections) web component.
+ *
+ * Wraps child `&lt;div>` elements into `&lt;details>`/`&lt;summary>` pairs.
+ * Each child div should contain two inner divs: the first becomes the
+ * summary (header), the second becomes the collapsible content.
+ * Only one section is open at a time (exclusive mode via `&lt;details name>`).
+ *
+ * @element sol-accordion
+ *
+ * @example
+ * &lt;sol-accordion>
+ *   &lt;div>&lt;div>Section 1&lt;/div>&lt;div>Content 1&lt;/div>&lt;/div>
+ *   &lt;div>&lt;div>Section 2&lt;/div>&lt;div>Content 2&lt;/div>&lt;/div>
+ * &lt;/sol-accordion>
+ */
+import { ensureDocStyle } from './shared/adopt.js';
+import { CSS as ACCORDION_CSS } from './styles/sol-accordion-css.js';
+import { define } from './shared/define.js';
+
+/**
+ * Accordion (collapsible sections) web component.
+ *
+ * Wraps child `&lt;div>` elements into `&lt;details>`/`&lt;summary>` pairs.
+ * Only one section is open at a time.
+ *
+ * @class SolAccordion
+ * @extends HTMLElement
+ */
+class SolAccordion extends HTMLElement {
+  connectedCallback() {
+    const groupName = `sol-accordion-${Math.random().toString(36).slice(2, 9)}`;
+    
+    const authorDivs = Array.from(this.children).filter(el => el.tagName === 'DIV');
+    
+    if (!authorDivs.length) {
+      this.textContent = 'No accordion panels found';
+      return;
+    }
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'sol-accordion-wrapper';
+    wrapper.setAttribute('role', 'region');
+    wrapper.setAttribute('aria-label', 'Accordion');
+
+    authorDivs.forEach((srcDiv, i) => {
+      const childDivs = Array.from(srcDiv.children).filter(el => el.tagName === 'DIV');
+      
+      const det = document.createElement('details');
+      det.name = groupName;
+      if (i === 0) det.open = true;
+
+      const sum = document.createElement('summary');
+      sum.setAttribute('role', 'button');
+      sum.setAttribute('aria-expanded', i === 0 ? 'true' : 'false');
+      sum.setAttribute('tabindex', '0');
+      sum.id = `panel-${i}-summary`;
+      
+      if (childDivs.length >= 2) {
+        sum.textContent = childDivs[0].textContent.trim() || `Panel ${i + 1}`;
+        
+        const body = document.createElement('div');
+        body.className = 'accordion-body';
+        body.setAttribute('role', 'region');
+        body.setAttribute('aria-labelledby', `panel-${i}-summary`);
+        
+        for (let j = 1; j &lt; childDivs.length; j++) {
+          const contentDiv = document.createElement('div');
+          contentDiv.className = 'accordion-content-section';
+          const clone = childDivs[j].cloneNode(true);
+          while (clone.firstChild) contentDiv.appendChild(clone.firstChild);
+          body.appendChild(contentDiv);
+        }
+        
+        det.appendChild(sum);
+        det.appendChild(body);
+      } else {
+        sum.textContent = srcDiv.textContent.trim() || `Panel ${i + 1}`;
+        const body = document.createElement('div');
+        body.className = 'accordion-body';
+        body.textContent = 'No content';
+        det.appendChild(sum);
+        det.appendChild(body);
+      }
+
+      det.addEventListener('toggle', () => {
+        sum.setAttribute('aria-expanded', det.open ? 'true' : 'false');
+      });
+
+      sum.addEventListener('keypress', e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          det.open = !det.open;
+        }
+      });
+
+      wrapper.appendChild(det);
+    });
+
+    this.innerHTML = '';
+    ensureDocStyle(this.getRootNode(), 'sol-accordion-styles', ACCORDION_CSS);
+    this.appendChild(wrapper);
+  }
+
+
+}
+
+define('sol-accordion', SolAccordion);
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Tue Apr 21 2026 20:48:58 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
