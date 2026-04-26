@@ -24,10 +24,11 @@ import { define } from '@solid-components/core/define.js';
 import { adopt }  from '@solid-components/core/adopt.js';
 import { rdf }    from '@solid-components/core/rdf.js';
 import { loadRdfStore } from '@solid-components/core/rdf-utils.js';
+import {
+  UI, RDF, MAX_DEPTH, fieldType, readFormParts, readList,
+  syncCollection, removeChain, removeItemData, setDefaults, findForm,
+} from '@solid-components/core/form-utils.js';
 import { CSS as FORM_CSS, sheet as formSheet } from './styles/sol-form-css.js';
-
-const UI  = 'http://www.w3.org/ns/ui#';
-const RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 
 const SAVE_MODE_KEY = 'sol-form-save-mode';
 
@@ -168,18 +169,7 @@ class SolForm extends HTMLElement {
   }
 
   _findForm(store, sourceUri) {
-    const formType = rdf.sym(UI + 'Form');
-    const typeP    = rdf.sym(RDF + 'type');
-
-    const docUrl = sourceUri.split('#')[0];
-    const fragment = sourceUri.includes('#') ? sourceUri.split('#')[1] : null;
-    if (fragment) {
-      const candidate = rdf.sym(docUrl + '#' + fragment);
-      if (store.holds(candidate, typeP, formType)) return candidate;
-    }
-
-    const forms = store.each(null, typeP, formType);
-    return forms[0] || null;
+    return findForm(store, sourceUri);
   }
 
   _initStore(docUrl) {
@@ -282,114 +272,270 @@ class SolForm extends HTMLElement {
     }
   }
 
-  // Fallback when solid-ui is not loaded: render basic HTML inputs from the
-  // form definition. Reads ui:parts, ui:property, ui:label, field types.
   _renderFallback(body, store, subject, form, doc) {
     body.innerHTML = '';
-    const formDoc = form.doc ? form.doc() : null;
-    const uiParts = rdf.sym(UI + 'parts');
-    const uiPart  = rdf.sym(UI + 'part');
-    const uiProp  = rdf.sym(UI + 'property');
-    const uiLabel = rdf.sym(UI + 'label');
-    const uiRequired = rdf.sym(UI + 'required');
-
-    const partsNode = store.any(form, uiParts, null, formDoc);
-    let fields;
-    if (partsNode && partsNode.elements) {
-      fields = partsNode.elements;
-    } else {
-      fields = store.each(form, uiPart, null, formDoc);
-    }
-    if (!fields || !fields.length) {
-      body.textContent = 'No fields defined in form.';
-      return;
-    }
-
-    const wrapper = document.createElement('div');
-    wrapper.style.display = 'flex';
-    wrapper.style.flexDirection = 'column';
-    wrapper.style.gap = '12px';
-
-    for (const field of fields) {
-      const label = (store.anyValue(field, uiLabel, null, formDoc) || '').toString();
-      const property = store.any(field, uiProp, null, formDoc);
-      const required = store.anyValue(field, uiRequired, null, formDoc);
-
-      const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.flexDirection = 'column';
-      row.style.gap = '2px';
-
-      const lbl = document.createElement('label');
-      lbl.textContent = label + (required === 'true' ? ' *' : '');
-      lbl.style.fontWeight = '500';
-      lbl.style.fontSize = '0.9em';
-      row.appendChild(lbl);
-
-      const typeUri = this._fieldType(store, field);
-      let input;
-
-      if (typeUri === UI + 'MultiLineTextField' || typeUri === UI + 'TextArea') {
-        input = document.createElement('textarea');
-        input.rows = 4;
-      } else if (typeUri === UI + 'Choice') {
-        input = document.createElement('select');
-        const opts = store.each(field, rdf.sym(UI + 'option'), null, formDoc);
-        for (const opt of opts) {
-          const o = document.createElement('option');
-          o.value = opt.value;
-          o.textContent = opt.value;
-          input.appendChild(o);
-        }
-      } else if (typeUri === UI + 'EmailField') {
-        input = document.createElement('input');
-        input.type = 'email';
-      } else {
-        input = document.createElement('input');
-        input.type = 'text';
-      }
-
-      if (property) {
-        const existing = store.anyValue(subject, property, null, doc);
-        if (existing) input.value = existing;
-
-        input.addEventListener('change', () => {
-          const old = store.statementsMatching(subject, property, null, doc);
-          const val = input.value.trim();
-          const ins = val ? [new (rdf.Statement)(subject, property, rdf.literal(val), doc)] : [];
-          if (store.updater) {
-            store.updater.update(old, ins, (_uri, ok, errMsg) => {
-              if (!ok) console.error('sol-form update failed:', errMsg);
-              this.dispatchEvent(new CustomEvent('sol-form-change', {
-                bubbles: true, composed: true,
-                detail: { subject: this._subject, ok, message: errMsg },
-              }));
-            });
-          } else {
-            old.forEach(s => store.remove(s));
-            ins.forEach(s => store.add(s.subject, s.predicate, s.object, s.why));
-            this.dispatchEvent(new CustomEvent('sol-form-change', {
-              bubbles: true, composed: true,
-              detail: { subject: this._subject, ok: true },
-            }));
-          }
-        });
-      }
-
-      row.appendChild(input);
-      wrapper.appendChild(row);
-    }
-
-    body.appendChild(wrapper);
+    body.appendChild(this._fbGroup(store, form, subject, doc, 0));
   }
 
-  _fieldType(store, field) {
-    const typeP = rdf.sym(RDF + 'type');
-    const types = store.each(field, typeP);
-    for (const t of types) {
-      if (t.value && t.value.startsWith(UI)) return t.value;
+  _fieldType(store, field) { return fieldType(store, field); }
+
+  // ── fallback form field renderers ──
+
+  _fbParts(store, form) { return readFormParts(store, form); }
+
+  _fbGroup(store, form, subject, doc, depth) {
+    const el = document.createElement('div');
+    el.className = 'sf-group';
+    const fields = this._fbParts(store, form);
+    if (!fields.length) { el.textContent = 'No fields defined.'; return el; }
+    const optionEls = [];
+    for (const f of fields) {
+      const child = this._fbField(store, f, subject, doc, depth, optionEls);
+      if (child) el.appendChild(child);
     }
-    return UI + 'SingleLineTextField';
+    return el;
+  }
+
+  _fbField(store, field, subject, doc, depth, optionEls) {
+    const type = this._fieldType(store, field);
+    switch (type) {
+      case UI + 'Form':
+      case UI + 'Group':
+        return this._fbGroup(store, field, subject, doc, depth);
+      case UI + 'Multiple':
+        return this._fbMultiple(store, field, subject, doc, depth);
+      case UI + 'Options': {
+        const el = this._fbOptions(store, field, subject, doc, depth);
+        optionEls.push(el);
+        return el;
+      }
+      case UI + 'Choice':
+        return this._fbChoice(store, field, subject, doc, optionEls);
+      case UI + 'MultiLineTextField':
+      case UI + 'TextArea':
+        return this._fbInput(store, field, subject, doc, 'textarea');
+      case UI + 'EmailField':
+        return this._fbInput(store, field, subject, doc, 'email');
+      default:
+        return this._fbInput(store, field, subject, doc, 'text');
+    }
+  }
+
+  _fbInput(store, field, subject, doc, type) {
+    const label    = store.anyValue(field, rdf.sym(UI + 'label')) || '';
+    const property = store.any(field, rdf.sym(UI + 'property'));
+    const required = store.anyValue(field, rdf.sym(UI + 'required'));
+    const dflt     = store.anyValue(field, rdf.sym(UI + 'default'));
+
+    const row = document.createElement('div');
+    row.className = 'sf-field';
+    const lbl = document.createElement('label');
+    lbl.className = 'sf-label';
+    lbl.textContent = label + (required === 'true' ? ' *' : '');
+    row.appendChild(lbl);
+
+    let input;
+    if (type === 'textarea') {
+      input = document.createElement('textarea');
+      input.rows = 3;
+    } else {
+      input = document.createElement('input');
+      input.type = type;
+    }
+
+    if (property) {
+      const cur = store.anyValue(subject, property, null, doc);
+      input.value = cur || dflt || '';
+      if (!cur && dflt) store.add(subject, property, rdf.literal(dflt), doc);
+      input.addEventListener('input', () => {
+        for (const s of [...store.statementsMatching(subject, property, null, doc)]) store.remove(s);
+        const v = input.value.trim();
+        if (v) store.add(subject, property, rdf.literal(v), doc);
+        this._fireChange();
+      });
+    }
+
+    row.appendChild(input);
+    return row;
+  }
+
+  _fbChoice(store, field, subject, doc, optionEls) {
+    const label     = store.anyValue(field, rdf.sym(UI + 'label')) || '';
+    const property  = store.any(field, rdf.sym(UI + 'property'));
+    const namedNode = store.anyValue(field, rdf.sym(UI + 'namedNode')) === 'true';
+    const dflt      = store.any(field, rdf.sym(UI + 'default'));
+    const opts      = store.each(field, rdf.sym(UI + 'option'));
+
+    const row = document.createElement('div');
+    row.className = 'sf-field';
+    const lbl = document.createElement('label');
+    lbl.className = 'sf-label';
+    lbl.textContent = label;
+    row.appendChild(lbl);
+
+    const sel = document.createElement('select');
+    for (const opt of opts) {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = namedNode ? opt.value.replace(/.*[/#]/, '') : opt.value;
+      sel.appendChild(o);
+    }
+
+    if (property) {
+      const cur = store.any(subject, property, null, doc);
+      if (cur) {
+        sel.value = cur.value;
+      } else if (dflt) {
+        sel.value = dflt.value;
+        store.add(subject, property, namedNode ? rdf.sym(dflt.value) : rdf.literal(dflt.value), doc);
+      }
+      sel.addEventListener('change', () => {
+        for (const s of [...store.statementsMatching(subject, property, null, doc)]) store.remove(s);
+        const v = sel.value;
+        if (v) store.add(subject, property, namedNode ? rdf.sym(v) : rdf.literal(v), doc);
+        for (const oel of optionEls) if (oel._refresh) oel._refresh();
+        this._fireChange();
+      });
+    }
+
+    row.appendChild(sel);
+    return row;
+  }
+
+  _fbMultiple(store, field, subject, doc, depth) {
+    const label    = store.anyValue(field, rdf.sym(UI + 'label')) || '';
+    const property = store.any(field, rdf.sym(UI + 'property'));
+    const partForm = store.any(field, rdf.sym(UI + 'part'));
+
+    const container = document.createElement('div');
+    container.className = 'sf-multiple';
+
+    if (depth >= MAX_DEPTH) {
+      container.innerHTML = '<span class="sf-depth-cap">Maximum nesting depth reached</span>';
+      return container;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'sf-multiple-header';
+    const hLabel = document.createElement('span');
+    hLabel.className = 'sf-label';
+    hLabel.textContent = label;
+    header.appendChild(hLabel);
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'sf-btn sf-btn-add';
+    addBtn.textContent = '+ Add';
+    header.appendChild(addBtn);
+    container.appendChild(header);
+
+    const list = document.createElement('div');
+    list.className = 'sf-multiple-list';
+    container.appendChild(list);
+
+    let items = property ? this._readList(store, subject, property, doc) : [];
+
+    const render = () => {
+      list.innerHTML = '';
+      items.forEach((item, i) => {
+        list.appendChild(this._fbMultipleItem(store, partForm, item, doc, depth, i, items, () => {
+          this._syncCollection(store, subject, property, items, doc);
+          render();
+          this._fireChange();
+        }));
+      });
+    };
+
+    addBtn.addEventListener('click', () => {
+      const node = rdf.blankNode();
+      this._setDefaults(store, partForm, node, doc);
+      items.push(node);
+      this._syncCollection(store, subject, property, items, doc);
+      render();
+      this._fireChange();
+    });
+
+    render();
+    return container;
+  }
+
+  _fbMultipleItem(store, partForm, item, doc, depth, index, items, onChange) {
+    const el = document.createElement('div');
+    el.className = 'sf-multiple-item';
+
+    const actions = document.createElement('div');
+    actions.className = 'sf-item-actions';
+    const btn = (text, cls, title, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sf-btn ' + cls;
+      b.textContent = text;
+      b.title = title;
+      b.addEventListener('click', fn);
+      return b;
+    };
+
+    if (index > 0)
+      actions.appendChild(btn('▲', 'sf-btn-move', 'Move up', () => {
+        [items[index - 1], items[index]] = [items[index], items[index - 1]];
+        onChange();
+      }));
+    if (index < items.length - 1)
+      actions.appendChild(btn('▼', 'sf-btn-move', 'Move down', () => {
+        [items[index], items[index + 1]] = [items[index + 1], items[index]];
+        onChange();
+      }));
+    actions.appendChild(btn('✕', 'sf-btn-remove', 'Remove', () => {
+      this._removeItemData(store, item, doc);
+      items.splice(index, 1);
+      onChange();
+    }));
+
+    el.appendChild(actions);
+    el.appendChild(this._fbGroup(store, partForm, item, doc, depth + 1));
+    return el;
+  }
+
+  _fbOptions(store, field, subject, doc, depth) {
+    const dependsOn = store.any(field, rdf.sym(UI + 'dependingOn'));
+    const cases     = store.each(field, rdf.sym(UI + 'case'));
+
+    const container = document.createElement('div');
+    container.className = 'sf-options';
+
+    const refresh = () => {
+      container.innerHTML = '';
+      if (!dependsOn) return;
+      const cur = store.any(subject, dependsOn, null, doc);
+      if (!cur) return;
+      for (const c of cases) {
+        const forVal = store.any(c, rdf.sym(UI + 'for'));
+        if (forVal && forVal.value === cur.value) {
+          const useForm = store.any(c, rdf.sym(UI + 'use'));
+          if (useForm) container.appendChild(this._fbGroup(store, useForm, subject, doc, depth));
+          return;
+        }
+      }
+    };
+
+    container._refresh = refresh;
+    refresh();
+    return container;
+  }
+
+  // ── collection / data helpers (delegated to core/form-utils.js) ──
+
+  _readList(store, subject, property, doc) { return readList(store, subject, property, doc); }
+  _syncCollection(store, subject, property, items, doc) { syncCollection(store, subject, property, items, doc); }
+  _removeChain(store, node, doc) { removeChain(store, node, doc); }
+  _removeItemData(store, item, doc) { removeItemData(store, item, doc); }
+  _setDefaults(store, form, subject, doc) { setDefaults(store, form, subject, doc); }
+
+  _fireChange() {
+    this.dispatchEvent(new CustomEvent('sol-form-change', {
+      bubbles: true, composed: true,
+      detail: { subject: this._subject, ok: true },
+    }));
   }
 
   // ── SHACL validation ──

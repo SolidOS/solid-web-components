@@ -9,7 +9,8 @@
     "./query": "./sol-query.js",
     "./login": "./sol-login.js",
     "./include": "./sol-include.js",
-    "./menu-cli": "./sol-menu.js"
+    "./menu-cli": "./sol-menu.js",
+    "./form": "./sol-form.js"
   },
   "bin": {
     "sol-menu-cli": "./sol-menu.js"

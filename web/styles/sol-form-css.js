@@ -43,6 +43,89 @@ export const CSS = `
     outline-offset: -1px;
   }
 
+  /* ── fallback form renderer ── */
+  .sf-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .sf-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sf-label {
+    font-weight: 500;
+    font-size: 0.9em;
+    color: var(--text-muted, #374151);
+  }
+  .sf-multiple {
+    border: 1px solid var(--border, #e0e0e0);
+    border-radius: 4px;
+    padding: 8px;
+    background: var(--bg-subtle, rgba(0,0,0,.02));
+  }
+  .sf-multiple .sf-multiple {
+    background: var(--bg-subtle2, rgba(0,0,0,.03));
+  }
+  .sf-multiple-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .sf-multiple-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .sf-multiple-item {
+    border: 1px solid var(--border, #d1d5db);
+    border-radius: 4px;
+    padding: 8px;
+    background: var(--bg, #fff);
+  }
+  .sf-item-actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+  }
+  .sf-btn {
+    padding: 2px 8px;
+    border: 1px solid var(--border, #d1d5db);
+    border-radius: 3px;
+    background: var(--bg, #fff);
+    cursor: pointer;
+    font-size: 0.8em;
+    font-family: inherit;
+  }
+  .sf-btn:hover { background: var(--bg-hover, #f3f4f6); }
+  .sf-btn-add {
+    background: var(--accent, #3b82f6);
+    color: #fff;
+    border-color: var(--accent, #3b82f6);
+    padding: 3px 12px;
+    font-size: 0.85em;
+  }
+  .sf-btn-add:hover { background: var(--accent-hover, #2563eb); }
+  .sf-btn-remove {
+    color: #dc2626;
+    border-color: #fca5a5;
+  }
+  .sf-btn-remove:hover { background: #fef2f2; }
+  .sf-btn-move {
+    font-size: 0.75em;
+    padding: 2px 6px;
+  }
+  .sf-options { margin-top: 4px; }
+  .sf-depth-cap {
+    color: var(--text-muted, #6b7280);
+    font-style: italic;
+    font-size: 0.85em;
+    padding: 4px;
+  }
+
   /* ── validation errors ── */
   .sol-form-field-error {
     color: #c00;

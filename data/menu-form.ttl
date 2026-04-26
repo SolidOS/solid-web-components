@@ -1,0 +1,132 @@
+@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix schema: <http://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:MenuForm a ui:Form ;
+  ui:label "Menu Editor" ;
+  ui:parts ( :labelField :orientationField :linkTargetField :partsMultiple ) .
+
+:labelField a ui:SingleLineTextField ;
+  ui:property ui:label ;
+  ui:label "Menu Label" ;
+  ui:required true .
+
+:orientationField a ui:Choice ;
+  ui:property ui:orientation ;
+  ui:label "Orientation" ;
+  ui:default "horizontal" ;
+  ui:option "horizontal", "vertical" .
+
+:linkTargetField a ui:SingleLineTextField ;
+  ui:property ui:linkTarget ;
+  ui:label "Link Target (CSS selector)" .
+
+:partsMultiple a ui:Multiple ;
+  ui:property ui:parts ;
+  ui:label "Menu Items" ;
+  ui:ordered true ;
+  ui:part :menuItemForm .
+
+:menuItemForm a ui:Form ;
+  ui:parts ( :itemTypeField :itemOptions ) .
+
+:itemTypeField a ui:Choice ;
+  ui:property rdf:type ;
+  ui:label "Item Type" ;
+  ui:namedNode true ;
+  ui:option ui:Link, ui:Component, ui:Menu ;
+  ui:default ui:Link .
+
+:itemOptions a ui:Options ;
+  ui:dependingOn rdf:type ;
+  ui:case
+    [ ui:for ui:Link ;      ui:use :linkForm ] ,
+    [ ui:for ui:Component ; ui:use :componentForm ] ,
+    [ ui:for ui:Menu ;      ui:use :subMenuForm ] .
+
+# ── Link ──
+
+:linkForm a ui:Group ;
+  ui:parts ( :linkLabelField :hrefField :contentsField :linkHandlerField :linkIconField ) .
+
+:linkLabelField a ui:SingleLineTextField ;
+  ui:property ui:label ;
+  ui:label "Label" ;
+  ui:required true .
+
+:hrefField a ui:SingleLineTextField ;
+  ui:property ui:href ;
+  ui:label "URL (href)" .
+
+:contentsField a ui:MultiLineTextField ;
+  ui:property ui:contents ;
+  ui:label "Inline HTML (contents)" .
+
+:linkHandlerField a ui:SingleLineTextField ;
+  ui:property ui:handler ;
+  ui:label "Handler component (e.g. sol-query)" .
+
+:linkIconField a ui:SingleLineTextField ;
+  ui:property ui:icon ;
+  ui:label "Icon URL" .
+
+# ── Component ──
+
+:componentForm a ui:Group ;
+  ui:parts ( :compLabelField :compNameField :compIconField :attributesMultiple ) .
+
+:compLabelField a ui:SingleLineTextField ;
+  ui:property ui:label ;
+  ui:label "Label" ;
+  ui:required true .
+
+:compNameField a ui:SingleLineTextField ;
+  ui:property ui:name ;
+  ui:label "Element tag (e.g. sol-query)" ;
+  ui:required true .
+
+:compIconField a ui:SingleLineTextField ;
+  ui:property ui:icon ;
+  ui:label "Icon URL" .
+
+:attributesMultiple a ui:Multiple ;
+  ui:property ui:attribute ;
+  ui:label "Attributes" ;
+  ui:part :attrForm .
+
+:attrForm a ui:Group ;
+  ui:parts ( :attrNameField :attrValueField ) .
+
+:attrNameField a ui:SingleLineTextField ;
+  ui:property schema:name ;
+  ui:label "Name" ;
+  ui:required true .
+
+:attrValueField a ui:SingleLineTextField ;
+  ui:property schema:value ;
+  ui:label "Value" ;
+  ui:required true .
+
+# ── Sub-menu ──
+
+:subMenuForm a ui:Group ;
+  ui:parts ( :subLabelField :subOrientationField :subPartsMultiple ) .
+
+:subLabelField a ui:SingleLineTextField ;
+  ui:property ui:label ;
+  ui:label "Label" ;
+  ui:required true .
+
+:subOrientationField a ui:Choice ;
+  ui:property ui:orientation ;
+  ui:label "Orientation" ;
+  ui:default "vertical" ;
+  ui:option "horizontal", "vertical" .
+
+:subPartsMultiple a ui:Multiple ;
+  ui:property ui:parts ;
+  ui:label "Sub-menu Items" ;
+  ui:ordered true ;
+  ui:part :menuItemForm .
