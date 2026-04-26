@@ -10,7 +10,7 @@
  *   - expandCurie (deeper cases)
  *   - loadRdfStore (with mocked fetch)
  *   - fetchQueryFromRdf (with mocked fetch)
- *   - runQuery (wanted-path + sparql-path via stubbed fetch/loader)
+ *   - runQuery (pattern-path + sparql-path via stubbed fetch/loader)
  *
  * Uses the rdflib mock in tests/__mocks__/rdflib-esm.js.
  */
@@ -281,9 +281,9 @@ describe('fetchQueryFromRdf', () => {
   });
 });
 
-// ── runQuery: wanted path ───────────────────────────────────────────────────
+// ── runQuery: pattern path ──────────────────────────────────────────────────
 
-describe('runQuery (wanted path)', () => {
+describe('runQuery (pattern path)', () => {
   const ttl = `
 <http://example.org/alice> <http://xmlns.com/foaf/0.1/name> "Alice" .
 <http://example.org/bob>   <http://xmlns.com/foaf/0.1/name> "Bob" .
@@ -301,37 +301,35 @@ describe('runQuery (wanted path)', () => {
   afterEach(() => { delete global.fetch; });
 
   test('throws without endpoint', async () => {
-    await expect(runQuery({ wanted: '?s ?p ?o' })).rejects.toThrow(/endpoint/);
+    await expect(runQuery({ pattern: '?s ?p ?o' })).rejects.toThrow(/endpoint/);
   });
 
-  test('throws without sparql or wanted', async () => {
-    await expect(runQuery({ endpoint: 'http://x' })).rejects.toThrow(/sparql or wanted/);
+  test('throws without sparql or pattern', async () => {
+    await expect(runQuery({ endpoint: 'http://x' })).rejects.toThrow(/sparql or pattern/);
   });
 
-  test('wanted → all rows', async () => {
+  test('pattern → all rows', async () => {
     const rows = await runQuery({
       endpoint: 'http://example.org/data.ttl',
-      wanted:   '?s foaf:name ?o',
+      pattern:  '?s foaf:name ?o',
     });
     expect(Array.isArray(rows) || typeof rows === 'string').toBe(true);
-    // toPlainResults returns scalar for 1×1, array of objects otherwise.
     expect(rows).toHaveLength(2);
   });
 
-  test('wanted with bound literal returns single row', async () => {
+  test('pattern with bound literal returns single row', async () => {
     const rows = await runQuery({
       endpoint: 'http://example.org/data.ttl',
-      wanted:   '?s foaf:name "Alice"',
+      pattern:  '?s foaf:name "Alice"',
     });
-    // 1 row × 1 column → scalar via toPlainResults.
     expect(typeof rows).toBe('string');
     expect(rows).toBe('http://example.org/alice');
   });
 
-  test('wanted with malformed pattern throws', async () => {
+  test('pattern with malformed pattern throws', async () => {
     await expect(runQuery({
       endpoint: 'http://example.org/data.ttl',
-      wanted:   '? ? ?',
+      pattern:  '? ? ?',
     })).rejects.toThrow(/named variable/);
   });
 });
@@ -572,7 +570,7 @@ describe('toPlainResults', () => {
     ]);
   });
 
-  test('wantedVars filters columns', () => {
+  test('vars filters columns', () => {
     const data = {
       vars: ['name', 'age'],
       results: [
@@ -864,18 +862,18 @@ describe('runQuery — additional', () => {
   });
   afterEach(() => { delete global.fetch; });
 
-  test('wanted with no matches → empty array', async () => {
+  test('pattern with no matches → empty array', async () => {
     const result = await runQuery({
       endpoint: 'http://example.org/data.ttl',
-      wanted: '?s <http://example.org/nonexistent> ?o',
+      pattern: '?s <http://example.org/nonexistent> ?o',
     });
     expect(result).toEqual([]);
   });
 
-  test('wanted with all wildcards → full triple rows', async () => {
+  test('pattern with all wildcards → full triple rows', async () => {
     const result = await runQuery({
       endpoint: 'http://example.org/data.ttl',
-      wanted: '?s ?p ?o',
+      pattern: '?s ?p ?o',
     });
     expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBe(2);
@@ -884,13 +882,12 @@ describe('runQuery — additional', () => {
     expect(result[0]).toHaveProperty('o');
   });
 
-  test('wantedVars filters columns', async () => {
+  test('vars filters columns', async () => {
     const result = await runQuery({
       endpoint: 'http://example.org/data.ttl',
-      wanted: '?s foaf:name ?name',
+      pattern: '?s foaf:name ?name',
       vars: ['name'],
     });
-    // 2 rows × 1 filtered col → array of objects (not scalar)
     expect(Array.isArray(result)).toBe(true);
     expect(result.length).toBe(2);
   });

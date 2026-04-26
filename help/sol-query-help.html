@@ -17,7 +17,7 @@
   <h1>sol-query : flexibly query Linked Data</h1><ul>
 <li> its a plug-and-play web component - no coding needed
 <li> supports querying with simple triple patterns or full SPARQL with replaceable parameters
-<li> presents results as HTML table or HTML description list or in a user-supplied custom template
+<li> presents results in one of ten built-in views (table, dl, list, accordion, anchorlist, auto-complete, menu, rolodex, select, tabs) or a custom view module
 <li> uses the Comunica SPARQL engine with a fallback to the rdflib SPARQL engine
 <li> handles SPARQL endpoints and simple RDF documents, including RDFa documents
 <li> uses authenticated Solid fetch when available
@@ -37,9 +37,10 @@
       <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">one subject</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="SUBJECT URI INSIDE A RDF DOCUMENT"</code></td></tr>
       <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">mini query</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="RDF DOC" wanted="TRIPLE PATTERN"</code></td></tr>
       <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">RDFa query</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="RDFa DOC" wanted="CSS SELECTOR"</code></td></tr>
-      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">inline SPARQL</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="SPARQL ENDPOINT" sparql="SPARQL STRING"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">inline SPARQL</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="SPARQL ENDPOINT" sparql="SPARQL STRING"</code> (<code>query</code> is an alias for <code>sparql</code>)</td></tr>
       <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">stored SPARQL</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="SPARQL ENDPOINT" sparql="URI OF QUERY"</code></td></tr>
       <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">replace param</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>endpoint="…" sparql="…" var-paramName="value"</code></td></tr>
+      <tr><td style="padding:.45rem .75rem;border:1px solid #e0e8f0">choose view</td><td style="padding:.45rem .75rem;border:1px solid #e0e8f0"><code>view="table|dl|list|accordion|anchorlist|auto-complete|menu|rolodex|select|tabs"</code></td></tr>
     </tbody>
   </table>
 
@@ -79,14 +80,14 @@
     <p>The <code>wanted</code> attribute holds a simplified triple query (see below)</p>
     <pre><code>&lt;sol-query
   endpoint="http://example.com/foo.ttl"
-  wanted="? skos:broader Software"
+  wanted="?s skos:broader ?topic"
 &gt;&lt;/sol-query&gt;</code></pre>
     <p><strong>Mini-query syntax:</strong> Three space-separated parts representing subject, predicate, and object.</p>
     <ul>
-      <li><code>?</code> or <code>?var</code> — wildcard (matches anything)</li>
+      <li><code>?name</code> — named variable (matches anything); bare <code>?</code> is not allowed</li>
       <li><code>prefix:term</code> — CURIE expanded via built-in prefix table (rdf, rdfs, foaf, schema, dct, skos, ldp, solid…)</li>
       <li><code>&lt;http://...&gt;</code> — full URI in angle brackets</li>
-      <li><code>literal</code> except for URIs and CURIES, all text after the predicate is treated as a single literal.</li>
+      <li><code>"literal"</code> — quoted literal value; unquoted text after the predicate is also treated as a literal</li>
     </ul>
   </div>
 
@@ -110,7 +111,7 @@
 
   <div id="section-5" class="usage-section">
     <h3>5. Inline SPARQL Query</h3>
-    <p>The <code>sparql</code> attribute points to the full text of a SPARQL.</p>
+    <p>The <code>sparql</code> attribute holds the full text of a SPARQL query. The <code>query</code> attribute is accepted as an alias.</p>
     <pre><code>&lt;sol-query
   endpoint="http://example.com/foo.ttl"
   sparql="SELECT ?s WHERE { ?s ?p ?o . }"
@@ -126,17 +127,20 @@
 &gt;&lt;/sol-query&gt;</code></pre>
     <p><strong>Replaceable Parameter syntax:</strong></p>
     <ul>
-      <li>In query: <code>{{paramaterName}}</code></li>
+      <li>In query: <code>{{parameterName}}</code></li>
       <li>In attribute: <code>var-parameterName="value"</code></li>
     </ul>
-    <p>Multiple named parameters can be used in a single query.</p>
+    <p>Multiple named parameters can be used in a single query.
+       Variable values are sanitized to prevent SPARQL injection — curly braces
+       and destructive keywords (INSERT, DELETE, DROP, etc.) are blocked, and
+       quotes are escaped.</p>
   </div>
 
   <h2 id="views-playground">Views Playground</h2>
-  <p>Each <code>view</code> renders the same query differently. Built-in legacy views
-     (<code>table</code>, <code>dl</code>, <code>list</code>) are handled inline; the
-     others are lazy-loaded from <code>./views/&lt;name&gt;.js</code> next to
-     <code>sol-query.js</code>. A URL in the <code>view</code> attribute loads a custom
+  <p>Each <code>view</code> renders the same query differently. All ten built-in views
+     are statically imported — <code>table</code>, <code>dl</code>, and <code>list</code>
+     go through the results renderer; the others render directly into the
+     container. A URL in the <code>view</code> attribute loads a custom
      renderer module instead (see <a href="sol-query-custom-format.html">Custom view →</a>).</p>
 
   <p>All demos below query <a href="../data/sample-data.ttl"><code>../data/sample-data.ttl</code></a>,
@@ -273,6 +277,46 @@
           endpoint="../data/sample-data.ttl"
           sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
           view="auto-complete"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="tabs"</code></h3>
+      <p class="view-note">Each row becomes a tab. First column is the tab label,
+         remaining columns render in the panel.</p>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+  view="tabs"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+          view="tabs"
+        ></sol-query>
+      </div>
+    </div>
+
+    <div class="view-card">
+      <h3><code>view="menu"</code></h3>
+      <p class="view-note">Vertical menu of items. First column is the label,
+         remaining columns render in the content panel beside the menu.</p>
+      <pre><code>&lt;sol-query
+  endpoint="../data/sample-data.ttl"
+  sparql="SELECT ?name ?age WHERE {
+    ?p schema:name ?name ; schema:age ?age
+  } ORDER BY ?name"
+  view="menu"
+&gt;&lt;/sol-query&gt;</code></pre>
+      <div class="view-demo">
+        <sol-query
+          endpoint="../data/sample-data.ttl"
+          sparql="PREFIX schema: <http://schema.org/> SELECT ?name ?age WHERE { ?p schema:name ?name ; schema:age ?age } ORDER BY ?name"
+          view="menu"
         ></sol-query>
       </div>
     </div>

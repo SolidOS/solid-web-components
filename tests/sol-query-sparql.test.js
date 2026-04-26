@@ -32,11 +32,11 @@ describe('SolQuery._assertSafeQuery', () => {
   });
 
   const UNSAFE = [
-    ['INSERT DATA { <a> <b> <c> }',      'INSERT DATA'],
-    ['INSERT INTO <g> { <a> <b> <c> }',  'INSERT INTO'],
-    ['DELETE DATA { <a> <b> <c> }',      'DELETE DATA'],
-    ['DELETE WHERE { ?s ?p ?o }',        'DELETE WHERE'],
-    ['DELETE FROM <g> WHERE { ?s ?p ?o }', 'DELETE FROM'],
+    ['INSERT DATA { <a> <b> <c> }',      'INSERT'],
+    ['INSERT INTO <g> { <a> <b> <c> }',  'INSERT'],
+    ['DELETE DATA { <a> <b> <c> }',      'DELETE'],
+    ['DELETE WHERE { ?s ?p ?o }',        'DELETE'],
+    ['DELETE FROM <g> WHERE { ?s ?p ?o }', 'DELETE'],
     ['DROP GRAPH <g>',                   'DROP'],
     ['CREATE GRAPH <g>',                 'CREATE'],
     ['CLEAR GRAPH <g>',                  'CLEAR'],

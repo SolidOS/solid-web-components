@@ -1,25 +1,25 @@
-// Light-DOM styles for <sol-menu>. Injected once per root via ensureDocStyle.
+import { sheetFrom } from '../shared/adopt.js';
 
 export const CSS = `
-  sol-menu {
+  :host {
     display: flex; flex-direction: row;
     flex: 1; min-height: 0; min-width: 0;
-    max-width: 100%;
+    max-width: 100%; height: 100%;
     overflow: hidden;
     box-sizing: border-box;
     font-family:var(--font-ui) !important;
   }
-  sol-menu[orientation="horizontal"] {
+  :host([orientation="horizontal"]) {
     flex-direction: column;
   }
-  sol-menu .sol-menu-embed {
+  .sol-menu-embed {
     display: flex; flex-direction: column;
     flex: 1; min-height: 0; min-width: 0;
     width: 100%; max-width: 100%;
     overflow: auto;
   }
 
-  sol-menu > .sol-menu-nav {
+  .sol-menu-nav {
     display: flex; flex-direction: column;
     flex-shrink: 0;
     min-width: 140px; max-width: 260px;
@@ -30,7 +30,7 @@ export const CSS = `
     scrollbar-width: thin;
     box-sizing: border-box;
   }
-  sol-menu[orientation="horizontal"] > .sol-menu-nav {
+  :host([orientation="horizontal"]) > .sol-menu-nav {
     flex-direction: row;
     min-width: 0; max-width: 100%;
     padding: 6px 10px; gap: 4px;
@@ -39,7 +39,7 @@ export const CSS = `
     overflow-x: auto; overflow-y: hidden;
   }
 
-  sol-menu .sol-menu-nav button {
+  .sol-menu-nav button {
     background: none; border: none;
     text-align: left;
     padding: 8px 12px;
@@ -50,42 +50,53 @@ export const CSS = `
     overflow: hidden; text-overflow: ellipsis;
     font-size:var(--font-size,16px) !important;
   }
-  sol-menu[orientation="horizontal"] > .sol-menu-nav > button,
-  sol-menu[orientation="horizontal"] > .sol-menu-nav > .sol-menu-group {
+  :host([orientation="horizontal"]) > .sol-menu-nav > button,
+  :host([orientation="horizontal"]) > .sol-menu-nav > .sol-menu-group {
     flex-shrink: 0;
   }
-  sol-menu .sol-menu-nav button:hover {
+  .sol-menu-nav button .sol-menu-icon {
+    display: inline-flex; align-items: center;
+    vertical-align: middle;
+    pointer-events: none;
+  }
+  .sol-menu-nav button .sol-menu-icon svg {
+    fill: currentColor;
+  }
+  .sol-menu-nav button .sol-menu-icon img {
+    height: 1.2em; width: auto;
+  }
+  .sol-menu-nav button:hover {
     background: var(--hover, #f0f0f0);
     color: var(--accent-dark, #1976d2);
   }
-  sol-menu .sol-menu-nav button.active {
+  .sol-menu-nav button.active {
     background: var(--focus-bg, #e3f2fd);
     color: var(--accent-dark, #1976d2);
     font-weight: 600;
   }
 
-  sol-menu .sol-menu-group {
+  .sol-menu-group {
     position: relative;
     display: block;
   }
-  sol-menu .sol-menu-group-btn {
+  .sol-menu-group-btn {
     width: 100%;
     display: flex;
     align-items: center;
     gap: 4px;
     font-weight: 600;
   }
-  sol-menu .sol-menu-group-btn::after {
+  .sol-menu-group-btn::after {
     content: '▸';
     margin-left: auto;
     font-size: 0.8em;
     opacity: 0.7;
   }
-  sol-menu[orientation="horizontal"] .sol-menu-nav > .sol-menu-group > .sol-menu-group-btn::after {
+  :host([orientation="horizontal"]) .sol-menu-nav > .sol-menu-group > .sol-menu-group-btn::after {
     content: '▾';
     margin-left: 4px;
   }
-  sol-menu .sol-menu-popup {
+  .sol-menu-popup {
     display: none;
     position: fixed;
     min-width: 160px;
@@ -98,26 +109,29 @@ export const CSS = `
     flex-direction: column;
     gap: 2px;
   }
-  sol-menu .sol-menu-group.open > .sol-menu-popup {
+  .sol-menu-group.open > .sol-menu-popup {
     display: flex;
   }
 
-  sol-menu > .sol-menu-content {
-    flex: 1 1 auto; min-height: 0; min-width: 0;
+  .sol-menu-content {
+    flex: 1 1 0; min-height: 0; min-width: 0;
     max-width: 100%;
     display: flex; flex-direction: column;
     overflow: auto;
     padding: 16px 20px;
     box-sizing: border-box;
   }
-  sol-menu > .sol-menu-content > * {
+  .sol-menu-content > * {
     min-width: 0; max-width: 100%;
   }
-  sol-menu > .sol-menu-content img,
-  sol-menu > .sol-menu-content video,
-  sol-menu > .sol-menu-content iframe,
-  sol-menu > .sol-menu-content table,
-  sol-menu > .sol-menu-content pre {
+  .sol-menu-content img,
+  .sol-menu-content video,
+  .sol-menu-content iframe,
+  .sol-menu-content table,
+  .sol-menu-content pre {
     max-width: 100%;
   }
 `;
+
+export const sheet = sheetFrom(CSS);
+export default sheet;

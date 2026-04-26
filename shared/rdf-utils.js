@@ -21,8 +21,8 @@ export {
   _NAMED_VAR_RE,
   triplePatternTermToNode,
   tokenizeTriplePattern,
-  parseWantedParts,
-  wantedVarNames,
+  parsePatternParts,
+  patternVarNames,
   matchStore,
   selectVars as _selectVars,
   isRdfDoc as _isRdfDoc,
@@ -32,9 +32,9 @@ import {
   ACCEPT_TYPES,
   detectFormat,
   termToCell,
-  parseWantedParts,
+  parsePatternParts,
   matchStore,
-  wantedVarNames,
+  patternVarNames,
   selectVars as _selectVars,
   isRdfDoc as _isRdfDoc,
 } from './rdf-core.js';
@@ -261,9 +261,10 @@ export async function fetchQueryFromRdf(queryUrl, fetchFn = fetch) {
 }
 
 // ─── runQuery: call from a script, returns plain JS values ───────────────────
-export async function runQuery({ endpoint, sparql, wanted, vars: wantedVars } = {}) {
+export async function runQuery({ endpoint, sparql, pattern, wanted, vars: patternVars } = {}) {
+  const pat = pattern || wanted;
   if (!endpoint) throw new Error('endpoint is required');
-  if (!sparql && !wanted) throw new Error('sparql or wanted is required');
+  if (!sparql && !pat) throw new Error('sparql or pattern is required');
 
   let data;
 
@@ -274,11 +275,11 @@ export async function runQuery({ endpoint, sparql, wanted, vars: wantedVars } = 
     data = await execSparql(queryText, endpoint);
   } else {
     const store  = await loadRdfStore(endpoint);
-    const [s, p, o] = parseWantedParts(wanted, rdf, {}, endpoint);
+    const [s, p, o] = parsePatternParts(pat, rdf, {}, endpoint);
     data = matchStore(store, s, p, o);
   }
 
-  return toPlainResults(data, wantedVars);
+  return toPlainResults(data, patternVars);
 }
 
 // ─── Run SPARQL against a pre-loaded rdflib store ────────────────────────────

@@ -4,6 +4,7 @@ export default [
   {
     ignores: [
       'dist/',
+      'docs/',
       'drafts/',
       'coverage/',
       'node_modules/',

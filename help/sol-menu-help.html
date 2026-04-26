@@ -39,8 +39,11 @@
 
   <nav class="page-nav" aria-label="Page sections">
     <a href="#attributes">Attributes</a>
+    <a href="#styling">Styling</a>
+    <a href="#js-api">JS API</a>
     <a href="#standalone">Standalone</a>
     <a href="#submenus">Submenus</a>
+    <a href="#from-rdf">From RDF</a>
     <a href="#query-view">As a sol-query view</a>
     <a href="sol-tabs-help.html">sol-tabs →</a>
     <a href="sol-query-help.html">sol-query →</a>
@@ -55,23 +58,69 @@
       <tbody>
         <tr><td>orientation</td><td>Default is sidebar (vertical nav). Set <code>horizontal</code> to lay the nav on top.</td></tr>
         <tr><td>handler</td><td>Default <code>sol-*</code> component tag for anchors that don't set their own <code>handler</code>.</td></tr>
+        <tr><td>from-rdf</td><td>URI (with optional fragment) pointing to a <code>ui:Menu</code> resource. Loads the entire menu structure from RDF. See <a href="#from-rdf">From RDF</a> below.</td></tr>
       </tbody>
     </table>
-    <p><strong>Per-anchor:</strong> <code>handler="sol-*"</code> selects which component renders the href. Any additional anchor attributes (<code>wanted</code>, <code>sparql</code>, <code>view</code>, …) are forwarded to the generated element. The href is passed as both <code>source</code> and <code>endpoint</code>.</p>
+    <p><strong>Per-anchor:</strong> <code>handler="sol-*"</code> selects which component renders the href. Any additional anchor attributes (<code>pattern</code>, <code>sparql</code>, <code>view</code>, …) are forwarded to the generated element. The href is passed as both <code>source</code> and <code>endpoint</code>.</p>
     <p><strong>Event:</strong> <code>sol-menu-change</code> fires on navigation, <code>detail: { name }</code>.</p>
+  </div>
+
+  <h2 id="styling">Styling with CSS custom properties</h2>
+  <div class="api-block">
+    <p><code>&lt;sol-menu&gt;</code> uses shadow DOM, so its internals cannot be styled directly. Set these CSS custom properties on the host element or an ancestor to customise appearance.</p>
+    <table class="attr-table">
+      <thead><tr><th>Property</th><th>Default</th><th>What it controls</th></tr></thead>
+      <tbody>
+        <tr><td>--font-ui</td><td><em>system sans</em></td><td>Font family for the entire component</td></tr>
+        <tr><td>--font-size</td><td>16px</td><td>Nav button font size</td></tr>
+        <tr><td>--text</td><td>black</td><td>Nav button text colour</td></tr>
+        <tr><td>--border</td><td>#e0e0e0</td><td>Nav/content divider and popup border</td></tr>
+        <tr><td>--hover</td><td>#f0f0f0</td><td>Button background on hover</td></tr>
+        <tr><td>--accent-dark</td><td>#1976d2</td><td>Hover and active button text colour</td></tr>
+        <tr><td>--focus-bg</td><td>#e3f2fd</td><td>Active button background</td></tr>
+        <tr><td>--surface</td><td>#fff</td><td>Submenu popup background</td></tr>
+      </tbody>
+    </table>
+    <p>Example:</p>
+<pre><code>&lt;sol-menu style="--accent-dark:#e65100; --focus-bg:#fff3e0; --border:#ccc;"&gt;
+  &lt;a href="page1.html"&gt;Page 1&lt;/a&gt;
+  &lt;a href="page2.html"&gt;Page 2&lt;/a&gt;
+&lt;/sol-menu&gt;</code></pre>
+    <div class="note-box">The component includes <code>styles/root.css</code> defaults for all these properties. Loading <code>root.css</code> on your page gives you a consistent baseline; override individual properties on the element or a wrapper to customise.</div>
+  </div>
+
+  <h2 id="js-api">JavaScript API</h2>
+  <div class="api-block">
+    <table class="attr-table">
+      <thead><tr><th>Member</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>items</td><td>get/set</td><td>Array of <code>{ name, render(body), children?, icon? }</code> objects. Setting replaces the nav.</td></tr>
+        <tr><td>activeItem</td><td>get</td><td>Name of the currently selected item (or <code>null</code>).</td></tr>
+        <tr><td>body</td><td>get</td><td>The content-pane DOM element (shadow <code>.sol-menu-content</code>).</td></tr>
+        <tr><td>select(name)</td><td>method</td><td>Activate a menu item by name (case-insensitive match).</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Imperative example:</strong></p>
+<pre><code>const m = document.createElement('sol-menu');
+m.items = [
+  { name: 'Overview', render(body) { body.textContent = 'Hello!'; } },
+  { name: 'Details',  render(body) { body.innerHTML = '&lt;p&gt;Detail content&lt;/p&gt;'; } },
+];
+document.body.appendChild(m);
+m.select('Overview');</code></pre>
   </div>
 
   <h2 id="standalone">Standalone demo</h2>
 <pre><code>&lt;sol-menu&gt;
   &lt;a href="../data/sample.md"&gt;Readme&lt;/a&gt;
   &lt;a href="../data/sample-data.ttl" raw&gt;Turtle source&lt;/a&gt;
-  &lt;a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?"&gt;Triples table&lt;/a&gt;
+  &lt;a href="../data/sample-data.ttl" handler="sol-query" pattern="? ? ?"&gt;Triples table&lt;/a&gt;
 &lt;/sol-menu&gt;</code></pre>
   <div class="demo-box">
     <sol-menu>
       <a href="../data/sample.md">Readme</a>
       <a href="../data/sample-data.ttl" raw>Turtle source</a>
-      <a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?">Triples table</a>
+      <a href="../data/sample-data.ttl" handler="sol-query" pattern="? ? ?">Triples table</a>
     </sol-menu>
   </div>
 
@@ -82,7 +131,7 @@
   &lt;submenu open&gt;
     &lt;label&gt;Data&lt;/label&gt;
     &lt;a href="../data/sample-data.ttl" raw&gt;Turtle&lt;/a&gt;
-    &lt;a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?"&gt;Table&lt;/a&gt;
+    &lt;a href="../data/sample-data.ttl" handler="sol-query" pattern="? ? ?"&gt;Table&lt;/a&gt;
     &lt;submenu&gt;
       &lt;label&gt;Forms&lt;/label&gt;
       &lt;a href="../data/contact-form.ttl" raw&gt;Contact form&lt;/a&gt;
@@ -96,7 +145,7 @@
       <submenu open>
         <label>Data</label>
         <a href="../data/sample-data.ttl" raw>Turtle</a>
-        <a href="../data/sample-data.ttl" handler="sol-query" wanted="? ? ?">Table</a>
+        <a href="../data/sample-data.ttl" handler="sol-query" pattern="? ? ?">Table</a>
         <submenu>
           <label>Forms</label>
           <a href="../data/contact-form.ttl" raw>Contact form</a>
@@ -104,6 +153,30 @@
         </submenu>
       </submenu>
     </sol-menu>
+  </div>
+
+  <h2 id="from-rdf">From RDF</h2>
+  <div class="api-block">
+    <p>Use the <code>from-rdf</code> attribute to load the entire menu structure from an RDF document using the <code>ui:</code> vocabulary. The value is a URI with a fragment pointing to the root <code>ui:Menu</code> subject.</p>
+<pre><code>&lt;sol-menu from-rdf="menu.ttl#MainMenu"&gt;&lt;/sol-menu&gt;</code></pre>
+    <p>A menu's <code>ui:parts</code> list can contain three item types:</p>
+    <table class="attr-table">
+      <thead><tr><th>Type</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>ui:Menu</td><td>A submenu. Has <code>ui:label</code>, <code>ui:parts</code> (ordered list), and optionally <code>ui:orientation</code> and <code>ui:linkTarget</code>.</td></tr>
+        <tr><td>ui:Link</td><td>A simple link. Has <code>ui:label</code> and either <code>ui:href</code> (URL to load via <code>sol-include</code> or a <code>ui:handler</code>) or <code>ui:contents</code> (inline HTML literal). Optional <code>ui:icon</code>.</td></tr>
+        <tr><td>ui:Component</td><td>A self-contained web component. Has <code>ui:label</code> (display name), <code>ui:name</code> (element tag, e.g. <code>"sol-query"</code>), and <code>ui:attribute</code> (<code>schema:PropertyValue</code> pairs set as element attributes). Optional <code>ui:icon</code>.</td></tr>
+      </tbody>
+    </table>
+    <table class="attr-table">
+      <thead><tr><th>Predicate</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>ui:linkTarget</td><td>On the root <code>ui:Menu</code>, a CSS selector. Content renders into that element instead of the built-in panel.</td></tr>
+        <tr><td>ui:icon</td><td>On a <code>ui:Link</code> or <code>ui:Component</code>, a URL (including <code>data:</code> SVG) displayed in place of the label text.</td></tr>
+        <tr><td>ui:handler</td><td>On a <code>ui:Link</code>, points to a <code>ui:Component</code> node used to render the href. Prefer using <code>ui:Component</code> directly in <code>ui:parts</code> instead.</td></tr>
+      </tbody>
+    </table>
+    <p>See <a href="sol-menu-from-rdf.html">the from-rdf demo page</a> for a full working example with an RDF menu definition and SHACL shape.</p>
   </div>
 
   <h2 id="query-view">As a sol-query view</h2>

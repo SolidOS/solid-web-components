@@ -8,7 +8,7 @@
  *
  * @element sol-query
  * @attr {string} endpoint - URL of the RDF document or SPARQL endpoint
- * @attr {string} wanted - triple pattern (e.g. "?s ?p ?o") or CSS selector
+ * @attr {string} pattern - triple pattern (e.g. "?s ?p ?o") or CSS selector
  * @attr {string} sparql - inline SPARQL string or URL of a stored SPARQL query
  * @attr {string} query - alias for sparql
  * @attr {string} view - result view: table (default), dl, list, accordion,
@@ -20,7 +20,7 @@
  *
  * @example
  * <sol-query endpoint="https://example.org/data.ttl"></sol-query>
- * <sol-query endpoint="data.ttl" wanted="?s foaf:name ?name"></sol-query>
+ * <sol-query endpoint="data.ttl" pattern="?s foaf:name ?name"></sol-query>
  * <sol-query endpoint="https://dbpedia.org/sparql"
  *            sparql="SELECT ?s ?label WHERE { ?s a dbo:City; rdfs:label ?label } LIMIT 10"
  *            view="table"></sol-query>
@@ -29,10 +29,10 @@ import {
   fetchQueryFromRdf,
   loadRdfStore,
   matchStore,
-  parseWantedParts,
+  parsePatternParts,
   pivotSubjectsToRows,
   promoteDisplayColumns,
-  wantedVarNames,
+  patternVarNames,
   storeToResults,
   expandBnodes,
   runQuery,
@@ -78,7 +78,7 @@ const BUILTIN_VIEWS = {
  * @class SolQuery
  * @extends HTMLElement
  * @attr {string} endpoint - URL of the RDF document or SPARQL endpoint
- * @attr {string} wanted - triple pattern or CSS selector
+ * @attr {string} pattern - triple pattern or CSS selector (alias: wanted)
  * @attr {string} sparql - inline SPARQL string or URL of a stored query
  * @attr {string} query - alias for sparql
  * @attr {string} view - result view: table|dl|list|accordion|anchorlist|auto-complete|menu|rolodex|select|tabs
@@ -93,7 +93,7 @@ class SolQuery extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['endpoint', 'wanted', 'sparql', 'query', 'view'];
+    return ['endpoint', 'pattern', 'wanted', 'sparql', 'query', 'view'];
   }
 
   connectedCallback() {
@@ -102,7 +102,7 @@ class SolQuery extends HTMLElement {
 
   attributeChangedCallback(name, oldValue, newValue) {
     if (oldValue !== newValue && this.isConnected) {
-      if (['endpoint', 'wanted', 'sparql', 'query'].includes(name) || name.startsWith('var-')) {
+      if (['endpoint', 'pattern', 'wanted', 'sparql', 'query'].includes(name) || name.startsWith('var-')) {
         this.initializeQuery();
       }
     }
@@ -111,6 +111,11 @@ class SolQuery extends HTMLElement {
   // `query` is accepted as an alias for `sparql` so authors can write either.
   _sparqlAttr() {
     return this.getAttribute('sparql') ?? this.getAttribute('query');
+  }
+
+  // `wanted` is accepted as an alias for `pattern`.
+  _patternAttr() {
+    return this.getAttribute('pattern') ?? this.getAttribute('wanted');
   }
 
   render() {
@@ -134,8 +139,8 @@ class SolQuery extends HTMLElement {
         bubbles: true, composed: true, cancelable: true, detail: { uri },
       });
       if (this.dispatchEvent(ev)) {
-        // Default behaviour: load URI, drop any sparql/wanted filter
         this.removeAttribute('sparql');
+        this.removeAttribute('pattern');
         this.removeAttribute('wanted');
         this.setAttribute('endpoint', uri);
       }
@@ -148,7 +153,7 @@ class SolQuery extends HTMLElement {
 
     if (this.hasAttribute('sparql') || this.hasAttribute('query')) {
       await this.handleSparqlQuery();
-    } else if (this.hasAttribute('wanted')) {
+    } else if (this.hasAttribute('pattern') || this.hasAttribute('wanted')) {
       await this.handleTriplePattern();
     } else {
       await this.handleDefaultQuery();
@@ -179,29 +184,28 @@ class SolQuery extends HTMLElement {
 
   // ─── Triple pattern / CSS selector ───────────────────────────────────────────
   async handleTriplePattern() {
-    const wanted   = this.getAttribute('wanted');
+    const pattern  = this._patternAttr();
     const endpoint = this.getAttribute('endpoint');
 
     this.renderer.showLoading('Loading…');
     try {
       const store = await loadRdfStore(endpoint);
 
-      // HTML endpoint: if wanted isn't a valid triple pattern, treat as CSS selector
       if (store._isHtml) {
-        const validation = TriplePatternValidator.validate(wanted);
+        const validation = TriplePatternValidator.validate(pattern);
         if (!validation.valid) {
-          const results = queryHtmlWithSelector(store._rawHtml, endpoint, wanted);
+          const results = queryHtmlWithSelector(store._rawHtml, endpoint, pattern);
           if (!results.results.length) { this.renderer.showError('No elements matched selector'); return; }
           return this._dispatchResults(results);
         }
       } else {
-        const validation = TriplePatternValidator.validate(wanted);
+        const validation = TriplePatternValidator.validate(pattern);
         if (!validation.valid) { this.renderer.showError(validation.error); return; }
       }
 
       const rdflib = rdf;
-      const [s, p, o] = parseWantedParts(wanted, rdflib, {}, endpoint);
-      const names = wantedVarNames(wanted);
+      const [s, p, o] = parsePatternParts(pattern, rdflib, {}, endpoint);
+      const names = patternVarNames(pattern);
 
       // When only the subject is a variable (e.g. `?person schema:gender "female"`),
       // widen each matched subject into a row with one column per predicate so
@@ -451,7 +455,8 @@ class SolQuery extends HTMLElement {
 
   // ─── Instance API ──────────────────────────────────────────────────────────
   setEndpoint(endpoint)  { this.setAttribute('endpoint', endpoint); }
-  setWanted(triplePattern) { this.setAttribute('wanted', triplePattern); }
+  setPattern(triplePattern) { this.setAttribute('pattern', triplePattern); }
+  setWanted(triplePattern) { this.setPattern(triplePattern); }
   setSparql(sparql)      { this.setAttribute('sparql', sparql); }
   setVariable(n, v)      { this.setAttribute(`var-${n}`, v); }
   setVariables(obj)      { for (const [k, v] of Object.entries(obj)) this.setVariable(k, v); }
@@ -459,7 +464,7 @@ class SolQuery extends HTMLElement {
   // ─── Static API ────────────────────────────────────────────────────────────
   // Returns a plain JS array of objects, or a scalar for 1×1 results.
   // Example:
-  //   const rows = await SolQuery.run({ endpoint, wanted: '? foaf:name ?' });
+  //   const rows = await SolQuery.run({ endpoint, pattern: '?s foaf:name ?name' });
   //   const name = await SolQuery.run({ endpoint, sparql: 'SELECT ?n WHERE{...}', vars: ['n'] });
   static run(opts) { return runQuery(opts); }
 

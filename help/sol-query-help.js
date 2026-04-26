@@ -10,7 +10,7 @@
     // 1: All statements where a specific URI is the subject
     `<sol-query endpoint="${TBL}#Tim_Berners-Lee"></sol-query>`,
     // 2: Mini-query — find all birthPlace values for Tim Berners-Lee
-    `<sol-query endpoint="${TBL}" wanted="<http://dbpedia.org/resource/Tim_Berners-Lee> dbo:birthPlace ?"></sol-query>`,
+    `<sol-query endpoint="${TBL}" wanted="<http://dbpedia.org/resource/Tim_Berners-Lee> dbo:birthPlace ?place"></sol-query>`,
     // 3: Inline SPARQL against DBpedia's SPARQL endpoint
     `<sol-query endpoint="https://dbpedia.org/sparql" sparql="SELECT ?name ?birth WHERE { <http://dbpedia.org/resource/Tim_Berners-Lee> foaf:name ?name ; dbo:birthDate ?birth . FILTER(lang(?name) = 'en') } LIMIT 5"></sol-query>`,
     // 4: SPARQL with variables

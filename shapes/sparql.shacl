@@ -1,0 +1,50 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix sparql: <http://www.w3.org/ns/sparql#> .
+@prefix sd: <http://www.w3.org/ns/sparql-service-description#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix schema: <http://schema.org/> .
+
+<#QueryShape>
+  a sh:NodeShape ;
+  sh:targetClass sparql:Query ;
+  sh:property [
+    sh:path rdfs:label ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1 ;
+    sh:name "label" ;
+    sh:description "A human-readable label for the query (optional)"
+  ] ;
+  sh:property [
+    sh:path rdfs:comment ;
+    sh:datatype xsd:string ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:name "query text" ;
+    sh:description "The SPARQL query as a string (required)"
+  ] ;
+  sh:property [
+    sh:path rdfs:description ;
+    sh:datatype xsd:string ;
+    sh:minCount 0 ;
+    sh:maxCount 1 ;
+    sh:name "query description" ;
+    sh:description "Description of the query (optional)"
+  ] ;
+  sh:property [
+    sh:path schema:category ;
+    sh:class skos:Concept ;
+    sh:minCount 0 ;
+    sh:name "query category" ;
+    sh:description "Category of the query (optional,may have multiple)"
+  ] ;
+  sh:property [
+    sh:path sd:endpoint ;
+    sh:nodeKind sh:IRI;
+    sh:minCount 0 ;
+    sh:maxCount 1 ;
+    sh:name "endpoint" ;
+    sh:description "A URI of a SPARQL endpoint (optional)"
+  ] .

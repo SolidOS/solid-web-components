@@ -4,7 +4,7 @@
 // Usage:
 //   import { solQuery } from 'solid-web-components/node';
 //   const data = await solQuery({ endpoint, sparql: 'SELECT ...' });
-//   const data = await solQuery({ endpoint, wanted: '?s foaf:name ?o' });
+//   const data = await solQuery({ endpoint, pattern: '?s foaf:name ?o' });
 //   const data = await solQuery({ endpoint, sparql: 'SELECT ...', vars: { name: 'Alice' } });
 
 import * as rdflib from 'rdflib';
@@ -13,8 +13,8 @@ import {
   ACCEPT_TYPES,
   detectFormat,
   termToCell,
-  parseWantedParts,
-  wantedVarNames,
+  parsePatternParts,
+  patternVarNames,
   matchStore,
   selectVars,
   isRdfDoc,
@@ -138,10 +138,11 @@ export function substituteVariables(query, vars = {}) {
 
 // ─── Main entry point ───────────────────────────────────────────────────────
 export async function solQuery(opts = {}) {
-  const { endpoint, sparql, query, wanted, vars, columns, fetch: fetchFn } = opts;
+  const { endpoint, sparql, query, pattern, wanted, vars, columns, fetch: fetchFn } = opts;
+  const pat = pattern || wanted;
   const queryText = sparql ?? query;
   if (!endpoint) throw new Error('endpoint is required');
-  if (!queryText && !wanted) throw new Error('sparql or wanted is required');
+  if (!queryText && !pat) throw new Error('sparql or pattern is required');
 
   const _fetch = fetchFn || globalThis.fetch;
   let data;
@@ -152,8 +153,8 @@ export async function solQuery(opts = {}) {
     data = await execSparql(processed, endpoint, _fetch);
   } else {
     const store = await loadRdfStore(endpoint, _fetch);
-    const names = wantedVarNames(wanted);
-    const [s, p, o] = parseWantedParts(wanted, rdflib, {}, endpoint);
+    const names = patternVarNames(pat);
+    const [s, p, o] = parsePatternParts(pat, rdflib, {}, endpoint);
     data = matchStore(store, s, p, o, names);
   }
 

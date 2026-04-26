@@ -8,7 +8,7 @@ import rdflib from './__mocks__/rdflib-esm.js';
 import {
   triplePatternTermToNode,
   miniTermToNode,
-  parseWantedParts,
+  parsePatternParts,
   expandCurie,
   KNOWN_PREFIXES,
   matchStore,
@@ -120,63 +120,63 @@ describe('triplePatternTermToNode', () => {
   });
 });
 
-// ── parseWantedParts ─────────────────────────────────────────────────────────
+// ── parsePatternParts ─────────────────────────────────────────────────────────
 
-describe('parseWantedParts', () => {
+describe('parsePatternParts', () => {
   test('all named variables → [null, null, null]', () => {
-    const [s, p, o] = parseWantedParts('?s ?p ?o', rdflib);
+    const [s, p, o] = parsePatternParts('?s ?p ?o', rdflib);
     expect(s).toBeNull();
     expect(p).toBeNull();
     expect(o).toBeNull();
   });
 
   test('bare "?" in any position throws', () => {
-    expect(() => parseWantedParts('? ? ?', rdflib)).toThrow();
+    expect(() => parsePatternParts('? ? ?', rdflib)).toThrow();
   });
 
   test('subject CURIE, wildcard predicate, wildcard object', () => {
-    const [s, p, o] = parseWantedParts('foaf:Person ?p ?o', rdflib);
+    const [s, p, o] = parsePatternParts('foaf:Person ?p ?o', rdflib);
     expect(s.value).toBe('http://xmlns.com/foaf/0.1/Person');
     expect(p).toBeNull();
     expect(o).toBeNull();
   });
 
   test('unquoted multi-word object throws (too many tokens)', () => {
-    expect(() => parseWantedParts('?s foaf:name john w. smith', rdflib)).toThrow();
+    expect(() => parsePatternParts('?s foaf:name john w. smith', rdflib)).toThrow();
   });
 
   test('unquoted single-word object throws', () => {
-    expect(() => parseWantedParts('?s foaf:name alice', rdflib)).toThrow();
+    expect(() => parsePatternParts('?s foaf:name alice', rdflib)).toThrow();
   });
 
   test('quoted multi-word literal is a single object', () => {
-    const [, , o] = parseWantedParts('?s foaf:name "john w. smith"', rdflib);
+    const [, , o] = parsePatternParts('?s foaf:name "john w. smith"', rdflib);
     expect(o.termType).toBe('Literal');
     expect(o.value).toBe('john w. smith');
   });
 
   test('quoted literal object', () => {
-    const [, , o] = parseWantedParts('?s foaf:name "Alice"', rdflib);
+    const [, , o] = parsePatternParts('?s foaf:name "Alice"', rdflib);
     expect(o.termType).toBe('Literal');
     expect(o.value).toBe('Alice');
   });
 
   test('<uri> object', () => {
-    const [, , o] = parseWantedParts('?s ?p <http://example.org/x>', rdflib);
+    const [, , o] = parsePatternParts('?s ?p <http://example.org/x>', rdflib);
     expect(o.value).toBe('http://example.org/x');
   });
 
   test('#fragment subject uses baseUri', () => {
-    const [s] = parseWantedParts('#me ?p ?o', rdflib, {}, 'http://example.org/card');
+    const [s] = parsePatternParts('#me ?p ?o', rdflib, {}, 'http://example.org/card');
     expect(s.value).toBe('http://example.org/card#me');
   });
 
   test('throws with < 3 parts', () => {
-    expect(() => parseWantedParts('?s foaf:name', rdflib)).toThrow();
+    expect(() => parsePatternParts('?s foaf:name', rdflib)).toThrow();
   });
 
   test('throws with > 3 parts (unquoted)', () => {
-    expect(() => parseWantedParts('?s ?p ?o ?extra', rdflib)).toThrow();
+    expect(() => parsePatternParts('?s ?p ?o ?extra', rdflib)).toThrow();
   });
 });
 
@@ -329,54 +329,54 @@ describe('triplePatternTermToNode — extra coverage', () => {
   });
 });
 
-// ── parseWantedParts: extra coverage ────────────────────────────────────────
+// ── parsePatternParts: extra coverage ────────────────────────────────────────
 
-describe('parseWantedParts — extra coverage', () => {
+describe('parsePatternParts — extra coverage', () => {
   test('empty input throws (0 parts)', () => {
-    expect(() => parseWantedParts('', rdflib)).toThrow(/got 0/);
+    expect(() => parsePatternParts('', rdflib)).toThrow(/got 0/);
   });
 
   test('whitespace-only input throws', () => {
-    expect(() => parseWantedParts('   \t ', rdflib)).toThrow(/got 0/);
+    expect(() => parsePatternParts('   \t ', rdflib)).toThrow(/got 0/);
   });
 
   test('single token throws', () => {
-    expect(() => parseWantedParts('?s', rdflib)).toThrow(/got 1/);
+    expect(() => parsePatternParts('?s', rdflib)).toThrow(/got 1/);
   });
 
   test('extra whitespace between tokens is tolerated', () => {
-    const [s, p, o] = parseWantedParts('  ?s   ?p    ?o  ', rdflib);
+    const [s, p, o] = parsePatternParts('  ?s   ?p    ?o  ', rdflib);
     expect(s).toBeNull();
     expect(p).toBeNull();
     expect(o).toBeNull();
   });
 
   test('literal with @lang survives tokenization', () => {
-    const [, , o] = parseWantedParts('?s foaf:name "Alice"@en', rdflib);
+    const [, , o] = parsePatternParts('?s foaf:name "Alice"@en', rdflib);
     expect(o.termType).toBe('Literal');
     expect(o.value).toBe('Alice');
     expect(o.language).toBe('en');
   });
 
   test('typed literal with ^^<datatype> survives tokenization', () => {
-    const [, , o] = parseWantedParts('?s ex:age "42"^^<http://www.w3.org/2001/XMLSchema#integer>',
+    const [, , o] = parsePatternParts('?s ex:age "42"^^<http://www.w3.org/2001/XMLSchema#integer>',
       rdflib, { ex: 'http://example.org/' });
     expect(o.termType).toBe('Literal');
     expect(o.value).toBe('42');
   });
 
   test('<#frag> subject resolves against baseUri', () => {
-    const [s] = parseWantedParts('<#me> ?p ?o', rdflib, {}, 'http://example.org/card');
+    const [s] = parsePatternParts('<#me> ?p ?o', rdflib, {}, 'http://example.org/card');
     expect(s.termType).toBe('NamedNode');
     expect(s.value).toBe('http://example.org/card#me');
   });
 
   test('unterminated literal throws', () => {
-    expect(() => parseWantedParts('?s ?p "no-closing-quote', rdflib)).toThrow(/Unterminated/);
+    expect(() => parsePatternParts('?s ?p "no-closing-quote', rdflib)).toThrow(/Unterminated/);
   });
 
   test('variable with invalid name in any slot throws', () => {
-    expect(() => parseWantedParts('?1bad ?p ?o', rdflib)).toThrow(/Invalid variable/);
+    expect(() => parsePatternParts('?1bad ?p ?o', rdflib)).toThrow(/Invalid variable/);
   });
 });
 

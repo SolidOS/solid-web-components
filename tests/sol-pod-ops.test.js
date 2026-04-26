@@ -7,10 +7,13 @@
  * navigation URL computation, and pod-ops file-type helpers.
  */
 
+import { jest } from '@jest/globals';
 import {
   extOf, contentTypeFor, isEditable, isViewable, isRdf,
-  isImage, isVideo, isAudio, isPDF, isLiveFormat, liveFormatFor,
-  fileIcon, CT_TO_EXT, MIME_TYPES,
+  isImage, isVideo, isAudio, isPDF, isTextViewable, isLiveFormat, liveFormatFor,
+  fileIcon, CT_TO_EXT, MIME_TYPES, withTimeout, fetchContainer,
+  copyFile, copyFolder, deleteFolder,
+  discoverOwnerWebIds, getStoragesFromWebIds,
 } from '../shared/pod-ops.js';
 
 // ── extOf ─────────────────────────────────────────────────────────────────
@@ -398,5 +401,639 @@ describe('item inference from source URL', () => {
     const item = inferItem('https://pod.example/');
     expect(item.name).toBe('pod.example');
     expect(item.isContainer).toBe(true);
+  });
+});
+
+// ── isTextViewable ───────────────────────────────────────────────────────
+
+describe('isTextViewable', () => {
+  test('recognizes text-viewable files', () => {
+    for (const ext of ['txt','md','csv','json','jsonld','ttl','n3','html','xml','svg','js','css']) {
+      expect(isTextViewable(`file.${ext}`)).toBe(true);
+    }
+  });
+  test('rejects non-text files', () => {
+    expect(isTextViewable('photo.png')).toBe(false);
+    expect(isTextViewable('clip.mp4')).toBe(false);
+    expect(isTextViewable('file.zip')).toBe(false);
+  });
+});
+
+// ── MIME_TYPES ───────────────────────────────────────────────────────────
+
+describe('MIME_TYPES', () => {
+  test('covers all expected extensions', () => {
+    expect(MIME_TYPES.ttl).toBe('text/turtle');
+    expect(MIME_TYPES.png).toBe('image/png');
+    expect(MIME_TYPES.jpg).toBe('image/jpeg');
+    expect(MIME_TYPES.jpeg).toBe('image/jpeg');
+    expect(MIME_TYPES.pdf).toBe('application/pdf');
+    expect(MIME_TYPES.svg).toBe('image/svg+xml');
+    expect(MIME_TYPES.css).toBe('text/css');
+    expect(MIME_TYPES.js).toBe('application/javascript');
+    expect(MIME_TYPES.csv).toBe('text/csv');
+    expect(MIME_TYPES.acl).toBe('text/turtle');
+  });
+});
+
+// ── fileIcon additional coverage ─────────────────────────────────────────
+
+describe('fileIcon additional', () => {
+  test('json → clipboard icon', () => {
+    expect(fileIcon('data.json')).toBe('\u{1F4CB}');
+  });
+  test('csv/tsv → chart icon', () => {
+    expect(fileIcon('data.csv')).toBe('\u{1F4CA}');
+    expect(fileIcon('data.tsv')).toBe('\u{1F4CA}');
+  });
+  test('md → memo icon', () => {
+    expect(fileIcon('readme.md')).toBe('\u{1F4DD}');
+    expect(fileIcon('readme.markdown')).toBe('\u{1F4DD}');
+  });
+  test('html/htm → globe icon', () => {
+    expect(fileIcon('index.html')).toBe('\u{1F310}');
+    expect(fileIcon('page.htm')).toBe('\u{1F310}');
+  });
+  test('js/ts → lightning icon', () => {
+    expect(fileIcon('app.js')).toBe('⚡');
+    expect(fileIcon('app.mjs')).toBe('⚡');
+    expect(fileIcon('app.ts')).toBe('⚡');
+  });
+  test('css/scss → palette icon', () => {
+    expect(fileIcon('style.css')).toBe('\u{1F3A8}');
+    expect(fileIcon('style.scss')).toBe('\u{1F3A8}');
+  });
+  test('svg → masks icon', () => {
+    expect(fileIcon('logo.svg')).toBe('\u{1F3AD}');
+  });
+  test('archives → package icon', () => {
+    expect(fileIcon('archive.zip')).toBe('\u{1F4E6}');
+    expect(fileIcon('archive.tar')).toBe('\u{1F4E6}');
+    expect(fileIcon('archive.gz')).toBe('\u{1F4E6}');
+  });
+  test('config files → gear icon', () => {
+    expect(fileIcon('config.yaml')).toBe('⚙');
+    expect(fileIcon('config.toml')).toBe('⚙');
+    expect(fileIcon('.env')).toBe('⚙');
+  });
+  test('txt → page icon', () => {
+    expect(fileIcon('notes.txt')).toBe('\u{1F4C4}');
+  });
+  test('RDF family → diamond icon', () => {
+    for (const ext of ['ttl','n3','trig','nq','nt','rdf','jsonld']) {
+      expect(fileIcon(`data.${ext}`)).toBe('\u{1F537}');
+    }
+  });
+});
+
+// ── withTimeout ──────────────────────────────────────────────────────────
+
+describe('withTimeout', () => {
+  test('passes through successful fetch', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+    const timed = withTimeout(mockFetch, 5000);
+    const resp = await timed('https://ex.org/data');
+    expect(resp.ok).toBe(true);
+    expect(mockFetch).toHaveBeenCalledWith('https://ex.org/data', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+  });
+
+  test('merges options with signal', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({ ok: true });
+    const timed = withTimeout(mockFetch, 5000);
+    await timed('https://ex.org/', { method: 'PUT', headers: { 'Content-Type': 'text/turtle' } });
+    const call = mockFetch.mock.calls[0][1];
+    expect(call.method).toBe('PUT');
+    expect(call.headers['Content-Type']).toBe('text/turtle');
+    expect(call.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  test('rejects with timeout message on abort', async () => {
+    const mockFetch = jest.fn().mockImplementation(() => {
+      const err = new Error('aborted');
+      err.name = 'AbortError';
+      return Promise.reject(err);
+    });
+    const timed = withTimeout(mockFetch, 100);
+    await expect(timed('https://ex.org/slow')).rejects.toThrow(/timed out after 0\.1s/i);
+  });
+
+  test('re-throws non-abort errors', async () => {
+    const mockFetch = jest.fn().mockRejectedValue(new TypeError('Network failure'));
+    const timed = withTimeout(mockFetch, 5000);
+    await expect(timed('https://ex.org/')).rejects.toThrow('Network failure');
+  });
+
+  test('defaults to 30s timeout', () => {
+    const mockFetch = jest.fn().mockResolvedValue({ ok: true });
+    const timed = withTimeout(mockFetch);
+    expect(typeof timed).toBe('function');
+  });
+});
+
+// ── fetchContainer ───────────────────────────────────────────────────────
+
+describe('fetchContainer', () => {
+  const CONTAINER = 'https://pod.example/docs/';
+  const TURTLE = `
+    @prefix ldp: <http://www.w3.org/ns/ldp#> .
+    <${CONTAINER}> ldp:contains <${CONTAINER}notes.ttl>, <${CONTAINER}sub/>, <${CONTAINER}readme.md> .
+  `;
+
+  function makeMockFetch(text = TURTLE, status = 200) {
+    return jest.fn().mockResolvedValue({
+      ok: status >= 200 && status < 300,
+      status,
+      statusText: status === 200 ? 'OK' : 'Not Found',
+      text: async () => text,
+    });
+  }
+
+  test('returns sorted resources — containers first', async () => {
+    const items = await fetchContainer(CONTAINER, makeMockFetch());
+    expect(items[0]).toEqual({ url: `${CONTAINER}sub/`, name: 'sub', isContainer: true });
+    const files = items.filter(i => !i.isContainer);
+    expect(files.map(f => f.name)).toEqual(['notes.ttl', 'readme.md']);
+  });
+
+  test('requests text/turtle', async () => {
+    const mf = makeMockFetch();
+    await fetchContainer(CONTAINER, mf);
+    expect(mf).toHaveBeenCalledWith(CONTAINER, expect.objectContaining({
+      headers: { Accept: 'text/turtle' },
+    }));
+  });
+
+  test('throws on non-OK response', async () => {
+    await expect(fetchContainer(CONTAINER, makeMockFetch('', 404)))
+      .rejects.toThrow('404');
+  });
+
+  test('handles empty container', async () => {
+    const empty = `@prefix ldp: <http://www.w3.org/ns/ldp#> . <${CONTAINER}> a ldp:Container .`;
+    const items = await fetchContainer(CONTAINER, makeMockFetch(empty));
+    expect(items).toEqual([]);
+  });
+});
+
+// ── copyFile ─────────────────────────────────────────────────────────────
+
+describe('copyFile', () => {
+  function mockBlob(type = '') {
+    return { type, size: 42, arrayBuffer: async () => new ArrayBuffer(42) };
+  }
+
+  test('copies file successfully', async () => {
+    const sourceFetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => mockBlob('text/turtle') });
+    const targetFetch = jest.fn().mockResolvedValue({ ok: true });
+    const result = await copyFile('https://a.example/file.ttl', 'https://b.example/docs/', 'file.ttl', sourceFetch, targetFetch);
+    expect(result).toEqual({ success: true });
+    expect(targetFetch).toHaveBeenCalledWith('https://b.example/docs/file.ttl', expect.objectContaining({ method: 'PUT' }));
+  });
+
+  test('uses blob type for content-type', async () => {
+    const sourceFetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => mockBlob('text/turtle') });
+    const targetFetch = jest.fn().mockResolvedValue({ ok: true });
+    await copyFile('https://a.example/file.ttl', 'https://b.example/', 'file.ttl', sourceFetch, targetFetch);
+    const putCall = targetFetch.mock.calls[0][1];
+    expect(putCall.headers['Content-Type']).toBe('text/turtle');
+  });
+
+  test('falls back to extension-based MIME when no blob type', async () => {
+    const sourceFetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => mockBlob('') });
+    const targetFetch = jest.fn().mockResolvedValue({ ok: true });
+    await copyFile('https://a.example/file.md', 'https://b.example/', 'file.md', sourceFetch, targetFetch);
+    const putCall = targetFetch.mock.calls[0][1];
+    expect(putCall.headers['Content-Type']).toBe('text/markdown');
+  });
+
+  test('throws on GET failure', async () => {
+    const sourceFetch = jest.fn().mockResolvedValue({ ok: false, status: 404 });
+    const targetFetch = jest.fn();
+    await expect(copyFile('https://a.example/gone.ttl', 'https://b.example/', 'gone.ttl', sourceFetch, targetFetch))
+      .rejects.toThrow(/GET.*failed.*404/);
+    expect(targetFetch).not.toHaveBeenCalled();
+  });
+
+  test('throws on PUT failure with needsAuth for 401', async () => {
+    const sourceFetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => mockBlob() });
+    const targetFetch = jest.fn().mockResolvedValue({ ok: false, status: 401 });
+    try {
+      await copyFile('https://a.example/f.ttl', 'https://b.example/', 'f.ttl', sourceFetch, targetFetch);
+      throw new Error('should have thrown');
+    } catch (e) {
+      expect(e.needsAuth).toBe(true);
+      expect(e.message).toMatch(/PUT failed.*401/);
+    }
+  });
+
+  test('throws on PUT failure with needsAuth for 403', async () => {
+    const sourceFetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => mockBlob() });
+    const targetFetch = jest.fn().mockResolvedValue({ ok: false, status: 403 });
+    try {
+      await copyFile('https://a.example/f.ttl', 'https://b.example/', 'f.ttl', sourceFetch, targetFetch);
+      throw new Error('should have thrown');
+    } catch (e) {
+      expect(e.needsAuth).toBe(true);
+    }
+  });
+
+  test('PUT 500 does not set needsAuth', async () => {
+    const sourceFetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => mockBlob() });
+    const targetFetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+    try {
+      await copyFile('https://a.example/f.ttl', 'https://b.example/', 'f.ttl', sourceFetch, targetFetch);
+      throw new Error('should have thrown');
+    } catch (e) {
+      expect(e.needsAuth).toBe(false);
+    }
+  });
+});
+
+// ── copyFolder ───────────────────────────────────────────────────────────
+
+describe('copyFolder', () => {
+  const SRC = 'https://a.example/src/';
+  const TURTLE_WITH_CHILDREN = `
+    @prefix ldp: <http://www.w3.org/ns/ldp#> .
+    <${SRC}> ldp:contains <${SRC}file.ttl>, <${SRC}child/> .
+  `;
+  const TURTLE_CHILD_EMPTY = `
+    @prefix ldp: <http://www.w3.org/ns/ldp#> .
+    <${SRC}child/> ldp:contains <${SRC}child/inner.txt> .
+  `;
+
+  test('creates target folder and copies children', async () => {
+    const calls = [];
+    const fetchFnForUrl = (url) => {
+      const fn = jest.fn().mockImplementation(async (reqUrl, opts) => {
+        calls.push({ url: reqUrl, method: opts?.method || 'GET' });
+        if (opts?.method === 'PUT') return { ok: true };
+        if (reqUrl === SRC) return { ok: true, text: async () => TURTLE_WITH_CHILDREN };
+        if (reqUrl === `${SRC}child/`) return { ok: true, text: async () => `@prefix ldp: <http://www.w3.org/ns/ldp#> . <${SRC}child/> a ldp:Container .` };
+        if (reqUrl === `${SRC}file.ttl`) return { ok: true, blob: async () => ({ type: 'text/turtle', size: 10 }) };
+        return { ok: true, text: async () => '' };
+      });
+      return fn;
+    };
+
+    const progress = [];
+    const result = await copyFolder(SRC, 'https://b.example/', 'src', fetchFnForUrl, m => progress.push(m));
+    expect(result.success).toBe(true);
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress[0]).toMatch(/Copying folder src/);
+  });
+
+  test('returns error when source listing fails', async () => {
+    const fetchFnForUrl = () => jest.fn().mockRejectedValue(new Error('network down'));
+    const result = await copyFolder(SRC, 'https://b.example/', 'src', fetchFnForUrl);
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+  });
+
+  test('returns error when folder creation fails', async () => {
+    const fetchFnForUrl = (url) => {
+      return jest.fn().mockImplementation(async (reqUrl, opts) => {
+        if (!opts?.method || opts.method === 'GET') {
+          return { ok: true, text: async () => `@prefix ldp: <http://www.w3.org/ns/ldp#> . <${SRC}> ldp:contains <${SRC}a.txt> .` };
+        }
+        if (opts?.method === 'PUT' && reqUrl.endsWith('/')) return { ok: false, status: 500 };
+        return { ok: true };
+      });
+    };
+    const result = await copyFolder(SRC, 'https://b.example/', 'src', fetchFnForUrl);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Failed to create folder/);
+  });
+
+  test('409 on mkdir is tolerated', async () => {
+    const fetchFnForUrl = (url) => {
+      return jest.fn().mockImplementation(async (reqUrl, opts) => {
+        if (!opts?.method || opts.method === 'GET') {
+          return { ok: true, text: async () => `@prefix ldp: <http://www.w3.org/ns/ldp#> . <${SRC}> a ldp:Container .` };
+        }
+        if (opts?.method === 'PUT' && reqUrl.endsWith('/')) return { ok: false, status: 409 };
+        return { ok: true };
+      });
+    };
+    const result = await copyFolder(SRC, 'https://b.example/', 'src', fetchFnForUrl);
+    expect(result.success).toBe(true);
+  });
+});
+
+// ── deleteFolder ─────────────────────────────────────────────────────────
+
+describe('deleteFolder', () => {
+  test('deletes children then folder', async () => {
+    const deleted = [];
+    const FOLDER = 'https://pod.example/trash/';
+    const TURTLE = `
+      @prefix ldp: <http://www.w3.org/ns/ldp#> .
+      <${FOLDER}> ldp:contains <${FOLDER}a.txt>, <${FOLDER}b.txt> .
+    `;
+    const fetchFnForUrl = (url) => {
+      return jest.fn().mockImplementation(async (reqUrl, opts) => {
+        if (opts?.method === 'DELETE') { deleted.push(reqUrl); return { ok: true }; }
+        return { ok: true, status: 200, statusText: 'OK', text: async () => TURTLE };
+      });
+    };
+    await deleteFolder(FOLDER, fetchFnForUrl);
+    expect(deleted).toContain(`${FOLDER}a.txt`);
+    expect(deleted).toContain(`${FOLDER}b.txt`);
+    expect(deleted).toContain(FOLDER);
+    expect(deleted.indexOf(FOLDER)).toBe(deleted.length - 1);
+  });
+
+  test('handles empty folder', async () => {
+    const deleted = [];
+    const FOLDER = 'https://pod.example/empty/';
+    const fetchFnForUrl = (url) => {
+      return jest.fn().mockImplementation(async (reqUrl, opts) => {
+        if (opts?.method === 'DELETE') { deleted.push(reqUrl); return { ok: true }; }
+        return { ok: true, status: 200, statusText: 'OK', text: async () => `@prefix ldp: <http://www.w3.org/ns/ldp#> . <${FOLDER}> a ldp:Container .` };
+      });
+    };
+    await deleteFolder(FOLDER, fetchFnForUrl);
+    expect(deleted).toEqual([FOLDER]);
+  });
+
+  test('still deletes folder when listing fails', async () => {
+    const deleted = [];
+    const FOLDER = 'https://pod.example/broken/';
+    const fetchFnForUrl = (url) => {
+      return jest.fn().mockImplementation(async (reqUrl, opts) => {
+        if (opts?.method === 'DELETE') { deleted.push(reqUrl); return { ok: true }; }
+        return { ok: false, status: 500, statusText: 'Error', text: async () => '' };
+      });
+    };
+    await deleteFolder(FOLDER, fetchFnForUrl);
+    expect(deleted).toContain(FOLDER);
+  });
+});
+
+// ── discoverOwnerWebIds ──────────────────────────────────────────────────
+
+describe('discoverOwnerWebIds', () => {
+  let origFetch;
+  beforeEach(() => { origFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = origFetch; });
+
+  test('discovers owner from .meta Turtle', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => {
+      if (url.endsWith('/')) return { headers: new Headers(), ok: true };
+      if (url.includes('.meta')) return {
+        ok: true,
+        text: async () => `<https://alice.example/profile/card#me> solid:account <https://pod.example/> .`,
+      };
+      return { ok: false };
+    });
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toContain('https://alice.example/profile/card#me');
+  });
+
+  test('discovers owner from Link header describedby', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => {
+      if (url.endsWith('/')) {
+        return {
+          headers: new Headers({ Link: '</.custom-meta>; rel="describedby"' }),
+          ok: true,
+        };
+      }
+      if (url.includes('.custom-meta')) return {
+        ok: true,
+        text: async () => `<https://bob.example/card#me> <http://www.w3.org/ns/solid/terms#account> <https://pod.example/> .`,
+      };
+      return { ok: false };
+    });
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toContain('https://bob.example/card#me');
+  });
+
+  test('discovers from .well-known/solid JSON-LD', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => {
+      if (url.endsWith('/')) return { headers: new Headers(), ok: true };
+      if (url.includes('.meta')) return { ok: false };
+      if (url.includes('.well-known/solid')) return {
+        ok: true,
+        text: async () => JSON.stringify({
+          'http://www.w3.org/ns/solid/terms#owner': [{ '@id': 'https://carol.example/card#me' }],
+        }),
+      };
+      return { ok: false };
+    });
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toContain('https://carol.example/card#me');
+  });
+
+  test('discovers from ACL with acl:Control', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => {
+      if (url.endsWith('/')) return { headers: new Headers(), ok: true };
+      if (url.includes('.meta')) return { ok: false };
+      if (url.includes('.well-known')) return { ok: false };
+      if (url.includes('.acl')) return {
+        ok: true,
+        text: async () => `
+          acl:Control stuff
+          acl:agent <https://dan.example/card#me>
+        `,
+      };
+      return { ok: false };
+    });
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toContain('https://dan.example/card#me');
+  });
+
+  test('returns empty array when nothing found', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async () => {
+      return { ok: false, headers: new Headers() };
+    });
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toEqual([]);
+  });
+
+  test('uses window.location.origin as default', async () => {
+    delete window.location;
+    window.location = { origin: 'https://my.pod' };
+    globalThis.fetch = jest.fn().mockImplementation(async () => ({ ok: false, headers: new Headers() }));
+    const ids = await discoverOwnerWebIds();
+    expect(globalThis.fetch).toHaveBeenCalledWith('https://my.pod/');
+  });
+
+  test('handles fetch errors gracefully', async () => {
+    globalThis.fetch = jest.fn().mockRejectedValue(new TypeError('network'));
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toEqual([]);
+  });
+
+  test('discovers owner via solid:owner in Turtle', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => {
+      if (url.endsWith('/')) return { headers: new Headers(), ok: true };
+      if (url.includes('.meta')) return {
+        ok: true,
+        text: async () => `solid:owner <https://eve.example/card#me> .`,
+      };
+      return { ok: false };
+    });
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toContain('https://eve.example/card#me');
+  });
+
+  test('follows Link acl header', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => {
+      if (url.endsWith('/')) {
+        return { headers: new Headers({ Link: '</.custom-acl>; rel="acl"' }), ok: true };
+      }
+      if (url.includes('.meta') || url.includes('.well-known')) return { ok: false };
+      if (url.includes('.custom-acl')) return {
+        ok: true,
+        text: async () => `acl:Control block\nacl:agent <https://frank.example/card#me>`,
+      };
+      return { ok: false };
+    });
+    const ids = await discoverOwnerWebIds('https://pod.example');
+    expect(ids).toContain('https://frank.example/card#me');
+  });
+});
+
+// ── getStoragesFromWebIds ────────────────────────────────────────────────
+
+describe('getStoragesFromWebIds', () => {
+  let origFetch;
+  beforeEach(() => { origFetch = globalThis.fetch; });
+  afterEach(() => { globalThis.fetch = origFetch; });
+
+  test('extracts pim:storage from profile', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'Content-Type': 'text/turtle' }),
+      text: async () => `
+        @prefix pim: <http://www.w3.org/ns/pim/space#> .
+        <https://alice.example/card#me> pim:storage <https://alice.example/> .
+      `,
+    }));
+    const storages = await getStoragesFromWebIds(['https://alice.example/card#me']);
+    expect(storages).toContain('https://alice.example/');
+  });
+
+  test('follows owl:sameAs links', async () => {
+    let callCount = 0;
+    globalThis.fetch = jest.fn().mockImplementation(async (url) => {
+      callCount++;
+      if (url.includes('alice')) {
+        return {
+          ok: true, status: 200,
+          headers: new Headers({ 'Content-Type': 'text/turtle' }),
+          text: async () => `
+            @prefix owl: <http://www.w3.org/2002/07/owl#> .
+            @prefix pim: <http://www.w3.org/ns/pim/space#> .
+            <https://alice.example/card#me> owl:sameAs <https://alt.example/card#me> ;
+              pim:storage <https://alice.example/> .
+          `,
+        };
+      }
+      return {
+        ok: true, status: 200,
+        headers: new Headers({ 'Content-Type': 'text/turtle' }),
+        text: async () => `
+          @prefix pim: <http://www.w3.org/ns/pim/space#> .
+          <https://alt.example/card#me> pim:storage <https://alt.example/> .
+        `,
+      };
+    });
+    const storages = await getStoragesFromWebIds(['https://alice.example/card#me']);
+    expect(storages).toContain('https://alice.example/');
+    expect(storages).toContain('https://alt.example/');
+  });
+
+  test('returns sorted results', async () => {
+    globalThis.fetch = jest.fn().mockImplementation(async () => ({
+      ok: true, status: 200,
+      headers: new Headers({ 'Content-Type': 'text/turtle' }),
+      text: async () => `
+        @prefix pim: <http://www.w3.org/ns/pim/space#> .
+        <https://z.example/card#me> pim:storage <https://z.example/>, <https://a.example/> .
+      `,
+    }));
+    const storages = await getStoragesFromWebIds(['https://z.example/card#me']);
+    expect(storages).toEqual(['https://a.example/', 'https://z.example/']);
+  });
+
+  test('deduplicates visited webIds', async () => {
+    let fetchCount = 0;
+    globalThis.fetch = jest.fn().mockImplementation(async () => {
+      fetchCount++;
+      return {
+        ok: true, status: 200,
+        headers: new Headers({ 'Content-Type': 'text/turtle' }),
+        text: async () => `
+          @prefix pim: <http://www.w3.org/ns/pim/space#> .
+          <https://alice.example/card#me> pim:storage <https://alice.example/> .
+        `,
+      };
+    });
+    await getStoragesFromWebIds(['https://alice.example/card#me', 'https://alice.example/card#me']);
+    expect(fetchCount).toBe(1);
+  });
+
+  test('handles fetch failure gracefully', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    globalThis.fetch = jest.fn().mockRejectedValue(new Error('offline'));
+    const storages = await getStoragesFromWebIds(['https://alice.example/card#me']);
+    expect(storages).toEqual([]);
+    warn.mockRestore();
+  });
+
+  test('returns empty for empty input', async () => {
+    const storages = await getStoragesFromWebIds([]);
+    expect(storages).toEqual([]);
+  });
+});
+
+// ── liveFormatFor edge cases ─────────────────────────────────────────────
+
+describe('liveFormatFor edge cases', () => {
+  test('strips query string before extension check', () => {
+    expect(liveFormatFor('https://pod.example/data.ttl?v=2')).toBe('turtle');
+  });
+  test('returns null when both url and mime are null', () => {
+    expect(liveFormatFor(null, null)).toBeNull();
+  });
+  test('returns null when both are undefined', () => {
+    expect(liveFormatFor(undefined, undefined)).toBeNull();
+  });
+  test('handles mermaid keyword extension', () => {
+    expect(liveFormatFor('flow.mermaid')).toBe('mermaid');
+  });
+  test('detects via MIME text/x-markdown', () => {
+    expect(liveFormatFor(null, 'text/x-markdown')).toBe('markdown');
+  });
+  test('detects via MIME text/tab-separated-values', () => {
+    expect(liveFormatFor(null, 'text/tab-separated-values')).toBe('csv');
+  });
+  test('detects via MIME text/vnd.graphviz', () => {
+    expect(liveFormatFor(null, 'text/vnd.graphviz')).toBe('graphviz');
+  });
+  test('detects via MIME text/x-dot', () => {
+    expect(liveFormatFor(null, 'text/x-dot')).toBe('graphviz');
+  });
+  test('detects via MIME text/x-mermaid', () => {
+    expect(liveFormatFor(null, 'text/x-mermaid')).toBe('mermaid');
+  });
+  test('detects via MIME text/n3', () => {
+    expect(liveFormatFor(null, 'text/n3')).toBe('turtle');
+  });
+});
+
+// ── extOf edge cases ─────────────────────────────────────────────────────
+
+describe('extOf edge cases', () => {
+  test('handles name with only a dot', () => {
+    expect(extOf('.htaccess')).toBe('htaccess');
+  });
+  test('handles $.ext when no base extension', () => {
+    expect(extOf('file$.meta')).toBe('meta');
+  });
+  test('handles deeply nested extension', () => {
+    expect(extOf('my.backup.file.2024.ttl')).toBe('ttl');
   });
 });

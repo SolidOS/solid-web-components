@@ -184,9 +184,9 @@ export function tokenizeTriplePattern(input) {
   return out;
 }
 
-// ─── Parse a full wanted string into [sNode, pNode, oNode] ──────────────────
-export function parseWantedParts(wanted, rdflib, extraPrefixes = {}, baseUri = '') {
-  const tokens = tokenizeTriplePattern(wanted);
+// ─── Parse a triple-pattern string into [sNode, pNode, oNode] ───────────────
+export function parsePatternParts(pattern, rdflib, extraPrefixes = {}, baseUri = '') {
+  const tokens = tokenizeTriplePattern(pattern);
   if (tokens.length !== 3) {
     throw new Error(`Triple pattern must have exactly 3 parts (subject predicate object) — got ${tokens.length}`);
   }
@@ -196,9 +196,9 @@ export function parseWantedParts(wanted, rdflib, extraPrefixes = {}, baseUri = '
   return [s, p, o];
 }
 
-// ─── Extract variable names from a wanted triple pattern ─────────────────────
-export function wantedVarNames(wanted) {
-  const tokens = tokenizeTriplePattern(wanted);
+// ─── Extract variable names from a triple pattern ───────────────────────────
+export function patternVarNames(pattern) {
+  const tokens = tokenizeTriplePattern(pattern);
   if (tokens.length !== 3) return {};
   const out = {};
   const slots = ['s', 'p', 'o'];
