@@ -1,5 +1,5 @@
 // Minimal DOMPurify mock that strips dangerous content for security tests.
-// Uses jsdom's DOMParser to remove scripts, event handlers, and dangerous URIs.
+// Supports both direct usage (browser) and factory pattern (node: DOMPurify(window)).
 const EVENTS_RE = /\s+on\w+\s*=\s*"[^"]*"/gi;
 const SCRIPT_RE = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
 const IFRAME_RE = /<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi;
@@ -8,7 +8,7 @@ const JS_HREF_RE = /\s+href\s*=\s*"javascript:[^"]*"/gi;
 const DATA_SRC_RE = /\s+src\s*=\s*"data:[^"]*"/gi;
 const STYLE_EXPR_RE = /\s+style\s*=\s*"[^"]*expression\([^"]*"[^"]*"/gi;
 
-function sanitize(html) {
+export function sanitize(html) {
   if (!html) return '';
   let out = html;
   out = out.replace(SCRIPT_RE, '');
@@ -21,4 +21,9 @@ function sanitize(html) {
   return out;
 }
 
-module.exports = { default: { sanitize }, sanitize };
+function DOMPurify() {
+  return { sanitize };
+}
+DOMPurify.sanitize = sanitize;
+
+export default DOMPurify;

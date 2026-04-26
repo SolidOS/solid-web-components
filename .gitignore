@@ -16,7 +16,6 @@ yarn-error.log*
 lerna-debug.log*
 
 .claude
-CLAUDE.md
 *~
 
 # Diagnostic reports (https://nodejs.org/api/report.html)

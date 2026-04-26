@@ -8,17 +8,31 @@ const minify = !!process.env.MINIFY;
 // External dependencies — never bundled; supplied by the host page.
 const external = ['rdflib', 'dompurify', 'marked'];
 
-// Rewrite the bare-browser-ESM URL for rdflib (used in shared/rdf.js so that
+// Rewrite the bare-browser-ESM URL for rdflib (used in core/rdf.js so that
 // consumers loading our ESM directly don't need an importmap) back to the npm
 // specifier `rdflib`. Per-component bundles then see it as external; the
 // all-in-one bundle resolves it via node_modules.
-// `external` in the build config handles externality; here we just rewrite
-// the URL → bare specifier and let rollup follow its normal rules.
 const aliasRdflibUrl = () => ({
   name: 'alias-rdflib-url',
   resolveId(id, importer, { custom, isEntry } = {}) {
     if (id === 'https://esm.sh/rdflib@2') {
       return this.resolve('rdflib', importer, { skipSelf: true });
+    }
+    return null;
+  },
+});
+
+// Resolve @solid-components/core/* workspace imports to local ./core/* paths
+// so rollup inlines core code into per-component UMD builds.
+const aliasCorePackage = () => ({
+  name: 'alias-core-package',
+  resolveId(id, importer) {
+    if (id.startsWith('@solid-components/core/')) {
+      const rest = id.slice('@solid-components/core/'.length);
+      return this.resolve('./core/' + rest, undefined, { skipSelf: true });
+    }
+    if (id === '@solid-components/core') {
+      return this.resolve('./core/rdf-utils.js', undefined, { skipSelf: true });
     }
     return null;
   },
@@ -43,12 +57,13 @@ const stubMissingDynamic = () => ({
   },
 });
 
-const plugins = [aliasRdflibUrl(), stubMissingDynamic(), resolve()];
+const plugins = [aliasCorePackage(), aliasRdflibUrl(), stubMissingDynamic(), resolve()];
 if (minify) plugins.push(terser());
 
 // Plugins for the all-in-one bundle (bundles CJS deps like rdflib internals,
 // Comunica's many sub-packages, and inrupt auth).
 const bundlePlugins = [
+  aliasCorePackage(),
   aliasRdflibUrl(),
   stubMissingDynamic(),
   resolve({ browser: true, preferBuiltins: false }),
@@ -60,7 +75,7 @@ if (minify) bundlePlugins.push(terser());
 export default [
   // ── sol-query (component + RDF engine + UI + triple-pattern parser) ────────
   {
-    input:    'sol-query.js',
+    input:    'web/sol-query.js',
     external,
     plugins,
     output: {
@@ -73,7 +88,7 @@ export default [
   },
   // ── rdf-utils (engine only — for script-API consumers) ─────────────────────
   {
-    input:    'shared/rdf-utils.js',
+    input:    'core/rdf-utils.js',
     external,
     plugins,
     output: {
@@ -86,7 +101,7 @@ export default [
   },
   // ── sol-include ─────────────────────────────────────────────────────────────
   {
-    input:    'sol-include.js',
+    input:    'web/sol-include.js',
     external,
     plugins,
     output: {
@@ -99,7 +114,7 @@ export default [
   },
   // ── sol-live-edit (core only — renderers/help/data are lazy-loaded) ────────
   {
-    input:    'sol-live-edit.js',
+    input:    'web/sol-live-edit.js',
     external,
     plugins,
     output: {
@@ -112,7 +127,7 @@ export default [
   },
   // ── sol-tabs (light-DOM, zero deps) ────────────────────────────────────────
   {
-    input:    'sol-tabs.js',
+    input:    'web/sol-tabs.js',
     external,
     plugins,
     output: {
@@ -125,7 +140,7 @@ export default [
   },
   // ── sol-menu (light-DOM, zero deps) ────────────────────────────────────────
   {
-    input:    'sol-menu.js',
+    input:    'web/sol-menu.js',
     external,
     plugins,
     output: {
@@ -136,9 +151,22 @@ export default [
       globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
     },
   },
+  // ── sol-form (generic RDF form renderer, uses solid-ui) ─────────────────────
+  {
+    input:    'web/sol-form.js',
+    external: [...external, 'n3', 'rdf-validate-shacl'],
+    plugins,
+    output: {
+      file:    minify ? 'dist/sol-form.umd.min.js' : 'dist/sol-form.umd.js',
+      format:  'umd',
+      name:    'SolForm',
+      exports: 'named',
+      globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked', n3: 'N3', 'rdf-validate-shacl': 'SHACLValidator' },
+    },
+  },
   // ── sol-wac (WAC/ACL editor, light-DOM) ────────────────────────────────────
   {
-    input:    'sol-wac.js',
+    input:    'web/sol-wac.js',
     external,
     plugins,
     output: {
@@ -151,7 +179,7 @@ export default [
   },
   // ── sol-solidos (mashlib/SolidOS wrapper — mashlib loaded externally) ──────
   {
-    input:    'sol-solidos.js',
+    input:    'web/sol-solidos.js',
     external: [...external, 'mashlib'],
     plugins,
     output: {
@@ -164,15 +192,7 @@ export default [
   },
   // ── all-in-one bundle: every component + rdflib + inrupt auth + Comunica ───
   {
-    input:   'solid-web-components.bundle.js',
-    // Runtime-only dynamic imports (esm.sh CDN, importmap-provided globals,
-    // node built-ins pulled in by transitive deps that the browser never
-    // actually executes) must stay external so rollup doesn't try to bundle
-    // them.
-    // Only runtime-loaded CDN URLs stay external (graphviz/mermaid/d3/JSZip
-    // are fetched lazily from esm.sh and not worth inlining). rdflib@2 must
-    // be inlined — the aliasRdflibUrl plugin rewrites its URL to the npm
-    // specifier so resolve() can pick it up.
+    input:   'web/solid-web-components.bundle.js',
     external: (id) => id.startsWith('https://esm.sh/') && id !== 'https://esm.sh/rdflib@2',
     plugins: bundlePlugins,
     output: {

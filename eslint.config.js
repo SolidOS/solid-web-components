@@ -10,7 +10,7 @@ export default [
       'node_modules/',
       'help/',
       'tests/',
-      'solid-web-components.bundle.js',
+      'web/solid-web-components.bundle.js',
       '**/*~',
       'rollup.config.js',
       'babel.config.cjs',
@@ -54,6 +54,8 @@ export default [
         requestAnimationFrame: 'readonly',
         queueMicrotask: 'readonly',
         newEngine: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
       },
     },
     rules: {

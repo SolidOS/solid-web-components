@@ -1,0 +1,24 @@
+{
+  "name": "@solid-components/core",
+  "version": "2.1.0",
+  "description": "Shared RDF engine and utilities for solid-components",
+  "type": "module",
+  "main": "rdf-utils.js",
+  "exports": {
+    ".": "./rdf-utils.js",
+    "./rdf": "./rdf.js",
+    "./rdf-core": "./rdf-core.js",
+    "./rdf-utils": "./rdf-utils.js",
+    "./utils": "./utils.js",
+    "./pod-ops": "./pod-ops.js",
+    "./define": "./define.js",
+    "./adopt": "./adopt.js",
+    "./auth-core": "./auth-core.js",
+    "./sparql-safety": "./sparql-safety.js",
+    "./include-core": "./include-core.js"
+  },
+  "dependencies": {
+    "rdflib": "^2.3.6"
+  },
+  "license": "MIT"
+}

@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="../styles/root.css">
+<link rel="stylesheet" href="../web/styles/root.css">
 <style>
   sol-menu nav {
     --font-size: 80px;
@@ -45,7 +45,7 @@
   </div>
 </div>
 <div class="tab-panel" id="tab-term">
-<p>The following command in a terminal :</p><pre style="background:black;color:white;"><code>
+<p>Given the same RDF menu definition as the GUI, the following command in a terminal :</p><pre style="background:black;color:white;"><code>
    $ node sol-menu-cli.js data/demo-menu.ttl#MainMenu</code></pre>
 <p>Produces this interactive menu</p>
 <img src="sol-menu-cli.png" style="width:100%">
@@ -99,7 +99,7 @@ specifies a <i>ui:displayTarget</i>, it will be shown there instead.
 </div>
 
 <div class="tab-panel" id="tab-shacl">
-  <sol-include source="../shapes/menu.shacl"></sol-include
+  <sol-include source="../shapes/menu.shacl"></sol-include>
 </div>
 
 
@@ -114,6 +114,6 @@ specifies a <i>ui:displayTarget</i>, it will be shown there instead.
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   });
 </script>
-<script src="../sol-menu.js" type="module"></script>
-<script src="../sol-query.js" type="module"></script>
-<script src="../sol-include.js" type="module"></script>
+<script src="../web/sol-menu.js" type="module"></script>
+<script src="../web/sol-query.js" type="module"></script>
+<script src="../web/sol-include.js" type="module"></script>
