@@ -371,7 +371,7 @@ import {
   KNOWN_PREFIXES,
   ACCEPT_TYPES,
   _NAMED_VAR_RE,
-} from '@solid-components/core/rdf-core.js';
+} from '../../core/rdf-core.js';
 
 import rdflib from '../__mocks__/rdflib-esm.js';
 

@@ -33,8 +33,8 @@ window.DOMPurify = {
 window.__SolSuppressDefineWarn = true;
 
 import { SolQuery } from '../../web/sol-query.js';
-import { assertSafeQuery, sanitizeVarValue } from '@solid-components/core/sparql-safety.js';
-import { sanitizeHtml, queryHtmlWithSelector } from '@solid-components/core/utils.js';
+import { assertSafeQuery, sanitizeVarValue } from '../../core/sparql-safety.js';
+import { sanitizeHtml, queryHtmlWithSelector } from '../../core/utils.js';
 import {
   parseAcl,
   authsToRoleModel,

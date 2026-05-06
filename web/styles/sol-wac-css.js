@@ -1,7 +1,7 @@
 // Styles for <sol-wac>. Injected via ensureDocStyle into whichever root
 // hosts the element (document body for light-DOM, shadow root when sol-wac
 // is rendered inside <sol-modal>).
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 
 export const CSS = `
   .acl-role-form { display: flex; flex-direction: column; gap: 6px; padding: 6px 2px; }

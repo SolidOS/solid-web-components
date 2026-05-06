@@ -14,7 +14,7 @@
  */
 
 import { SolQuery } from '../../web/sol-query.js';
-import { assertSafeQuery, sanitizeVarValue } from '@solid-components/core/sparql-safety.js';
+import { assertSafeQuery, sanitizeVarValue } from '../../core/sparql-safety.js';
 
 // ── _assertSafeQuery ─────────────────────────────────────────────────────────
 

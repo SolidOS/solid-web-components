@@ -8,8 +8,8 @@
 
 import { buildEditor } from './utils/code-mirror-editor.js';
 import { CSS, sheet as LIVE_EDIT_SHEET } from './styles/sol-live-edit-css.js';
-import { adopt } from '@solid-components/core/adopt.js';
-import { define } from '@solid-components/core/define.js';
+import { adopt } from '../core/adopt.js';
+import { define } from '../core/define.js';
 
 const R = './utils/renderers/';
 const H = './utils/live-edit-help/';

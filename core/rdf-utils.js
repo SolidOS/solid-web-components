@@ -307,14 +307,17 @@ async function _localSparql(queryText, endpoint) {
 }
 
 // ─── SPARQL execution ────────────────────────────────────────────────────────
-export async function execSparql(query, endpoint) {
+// `fetchFn` is the authenticated fetch (from getAuthFetch) when one is
+// available; passed to Comunica via its query context and to the native
+// SPARQL adapter for endpoints that aren't RDF documents.
+export async function execSparql(query, endpoint, fetchFn) {
   try { endpoint = new URL(endpoint, document.baseURI).href; } catch {}
 
   const isRdf = _isRdfDoc(endpoint);
 
   const comunicaFactory = ComunicaSparqlAdapter.getComunicaEngine();
   if (comunicaFactory) {
-    try { return await new ComunicaSparqlAdapter(comunicaFactory).executeQuery(query, endpoint); } catch {}
+    try { return await new ComunicaSparqlAdapter(comunicaFactory).executeQuery(query, endpoint, fetchFn); } catch {}
   }
 
   console.log('using rdflib');
@@ -329,7 +332,7 @@ export async function execSparql(query, endpoint) {
       try { return await rdflibAdapter.executeQuery(query, endpoint, false); } catch {}
     }
   }
-  return await new NativeSparqlAdapter().executeQuery(query, endpoint);
+  return await new NativeSparqlAdapter().executeQuery(query, endpoint, fetchFn);
 }
 
 // ─── SPARQL adapter (rdflib-based) ───────────────────────────────────────────

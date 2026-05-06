@@ -15,10 +15,11 @@
  * <sol-include source="https://example.org/readme.md"></sol-include>
  * <sol-include source="page.html" selector="article"></sol-include>
  */
-import { sanitizeHtml } from '@solid-components/core/utils.js';
-import { define } from '@solid-components/core/define.js';
-import { adopt } from '@solid-components/core/adopt.js';
-import { fetchIncludeContent, filterWithSelector } from '@solid-components/core/include-core.js';
+import { sanitizeHtml } from '../core/utils.js';
+import { define } from '../core/define.js';
+import { adopt } from '../core/adopt.js';
+import { fetchIncludeContent, filterWithSelector } from '../core/include-core.js';
+import { getAuthFetch } from '../core/auth-fetch.js';
 import { CSS as INCLUDE_CSS, sheet as includeSheet } from './styles/sol-include-css.js';
 
 function browserContainer(html) {
@@ -48,10 +49,12 @@ class SolInclude extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
+    this._abortCtl = null;
   }
 
   connectedCallback()                         { if (this.isConnected) this._load(); }
   attributeChangedCallback(n, oldV, newV)     { if (oldV !== newV && this.isConnected) this._load(); }
+  disconnectedCallback()                      { this._abortCtl?.abort(); this._abortCtl = null; }
 
   // ── Main load ─────────────────────────────────────────────────────────────────
   async _load() {
@@ -62,7 +65,17 @@ class SolInclude extends HTMLElement {
 
     if (!source) { this._show('error', 'No source provided'); return; }
 
+    // Cancel any in-flight load triggered by an earlier attribute change.
+    this._abortCtl?.abort();
+    const ctl = new AbortController();
+    this._abortCtl = ctl;
+
     this._show('loading', 'Loading…');
+
+    // `login` attribute (CSS selector for a sol-login) overrides auto-discovery.
+    const loginSel = this.getAttribute('login');
+    const loginEl  = loginSel ? document.querySelector(loginSel) : null;
+    const fetchFn  = getAuthFetch(source, { element: loginEl || undefined });
 
     try {
       // When a selector is present, defer sanitization so the selector can
@@ -71,7 +84,11 @@ class SolInclude extends HTMLElement {
         raw,
         trusted: trusted || !!selector,
         sanitize: sanitizeHtml,
+        signal: ctl.signal,
+        fetchFn,
       });
+
+      if (ctl.signal.aborted) return;
 
       if (type === 'raw') {
         this._showRaw(content);
@@ -80,8 +97,9 @@ class SolInclude extends HTMLElement {
 
       if (selector) {
         const filtered = filterWithSelector(content, selector, browserContainer);
+        if (ctl.signal.aborted) return;
         if (filtered === null) {
-          this._show('loading', 'No elements matched selector');
+          this._show('empty', 'No elements matched selector');
           return;
         }
         this._showHtml(trusted ? filtered : await sanitizeHtml(filtered));
@@ -89,8 +107,17 @@ class SolInclude extends HTMLElement {
         this._showHtml(content);
       }
     } catch (err) {
+      if (err.name === 'AbortError' || ctl.signal.aborted) return;
       this._show('error', err.message);
+      this._fireError('load', err.message);
     }
+  }
+
+  _fireError(kind, message) {
+    this.dispatchEvent(new CustomEvent('sol-error', {
+      bubbles: true, composed: true,
+      detail: { source: 'sol-include', kind, message },
+    }));
   }
 
   // ── Display helpers ───────────────────────────────────────────────────────────
@@ -114,6 +141,11 @@ class SolInclude extends HTMLElement {
     this._initShadow();
     const div = document.createElement('div');
     div.className = `si-${type}`;
+    if (type === 'error') div.setAttribute('role', 'alert');
+    else if (type === 'loading' || type === 'empty') {
+      div.setAttribute('role', 'status');
+      div.setAttribute('aria-live', 'polite');
+    }
     div.textContent = message;
     this.shadowRoot.appendChild(div);
   }

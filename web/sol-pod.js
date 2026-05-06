@@ -13,13 +13,13 @@
 
 import { CSS, sheet as POD_SHEET } from './styles/sol-pod-css.js';
 import { sheet as POD_MODAL_SHEET, CSS as POD_MODAL_CSS } from './styles/sol-pod-modal-css.js';
-import { adopt } from '@solid-components/core/adopt.js';
-import { define } from '@solid-components/core/define.js';
+import { adopt } from '../core/adopt.js';
+import { define } from '../core/define.js';
 import {
   fileIcon,
   fetchContainer,
   discoverOwnerWebIds, getStoragesFromWebIds,
-} from '@solid-components/core/pod-ops.js';
+} from '../core/pod-ops.js';
 
 // ── SolPod component ──────────────────────────────────────────────────
 

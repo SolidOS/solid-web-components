@@ -12,9 +12,9 @@
  */
 
 import { CSS, sheet as LOGIN_SHEET } from './styles/sol-login-css.js';
-import { adopt } from '@solid-components/core/adopt.js';
-import { define } from '@solid-components/core/define.js';
-import { rdf } from '@solid-components/core/rdf.js';
+import { adopt } from '../core/adopt.js';
+import { define } from '../core/define.js';
+import { rdf } from '../core/rdf.js';
 import {
   originOf,
   baseDomain,
@@ -25,7 +25,7 @@ import {
   isLoggedInFor,
   getWebId as _getWebId,
   getFirstLoggedIn as _getFirstLoggedIn,
-} from '@solid-components/core/auth-core.js';
+} from '../core/auth-core.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const login = document.querySelector('sol-login');

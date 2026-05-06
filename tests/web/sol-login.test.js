@@ -7,7 +7,7 @@
 
 import { jest } from '@jest/globals';
 import { AuthManager, SolLogin } from '../../web/sol-login.js';
-import { baseDomain } from '@solid-components/core/auth-core.js';
+import { baseDomain } from '../../core/auth-core.js';
 
 // Mock Session class injected via window global
 class MockSession {

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-include Component</title>
+  <link rel="stylesheet" href="web/styles/root.css">
+  <link rel="stylesheet" href="web/styles/sol-query-help.css">
+  <link rel="stylesheet" href="web/styles/help.css">
+<style>
+  .table { display:table; border-spacing:0 1rem; }
+  .row { display:table-row; }
+  .cell { display:table-cell; padding-right:1rem;}
+  .cell.name { font-weight:bold; white-space: nowrap; text-decoration:none; }
+</style>
+</head>
+<body>
+  <h1>solid-web-components</h1>
+  <h3>Access Solid and Linked Data resources using HTML custom elements</h3>
+
+
+  <nav class="page-nav" aria-label="Page sections">
+    <b><a href="help/install-modes.html">Invoking the components</a></b>
+    <b><a href="help/theming.html">Customizing the CSS</a></b>
+  </nav>
+
+
+<section class="table" role="table" aria-label="Components list">
+ <article class="row" role="row">
+   <span class="cell name" role="cell"><a href="help/sol-menu-from-rdf.html">sol-menu</a></span>
+   <span class="cell" role="cell">Define a menu entirely in RDF using the <i><code>ui:</code></i> vocabulary; run it as a GUI with a simple web component; run it in a terminal with a single command.</span>
+ </article> 
+ <article class="row" role="row">
+   <span class="cell name" role="cell"><a href="help/sol-query-one-pager.html">sol-query</a></span>
+   <span class="cell" role="cell">Search data sources using inline or stored SPARQL or using triple patterns.  Display the results as a table, a rolodex, other built-in and custom views.</span>
+ </article> 
+ <article class="row" role="row">
+   <span class="cell name" role="cell"><a href="help/sol-login-help.html">sol-login</a></span>
+   <span class="cell" role="cell">Creates a login button that opens a dropdown with a list issuers, then presents the user with a login screen for the selected issuer. The authenticated fetch is propagated to all other fetches, including Comunica queries and HTML/Markdown page includes.</span>
+ </article> 
+ <article class="row" role="row">
+   <span class="cell name" role="cell"><a href="help/sol-include-help.html">sol-include</a></span>
+   <span class="cell" role="cell">Fetch text based documents and display their contents inline. Supports authenticated fetch, robust modular page construction, CSS/RDFa filetering, and always sanitizes by default.</span>
+ </article> 
+</section>
+
+<!--
+  <ul>
+  <li><b><a href="sol-menu-from-rdf.html">sol-menu</a></b> - Define a menu entirely in RDF using the <i><code>ui:</code></i> vocabulary; run it as a GUI with a simple web component; run it in a terminal with a single command.
+  <li><b><a href="sol-query-one-pager.html">sol-query</a></b> - Search data sources using inline or stored SPARQL or using triple patterns.  Display the results as a table, a rolodex, other built-in and custom views.
+  <li><b><a href="sol-include-help.html">sol-include</a></b> - Fetch text based documents and display their contents inline. Supports authenticated fetch, robust modular page construction, CSS/RDFa filetering, and always sanitizes by default.
+  </ul>
+-->
+
+<h3 style="width:100%;text-align:center">Components for SHACL-validated ui: forms, login, and others coming soon!</h3>
+  <nav class="page-nav" aria-label="Page sections" style="width:100%;text-align:center">
+    <b><a href="https://github.com/solidos/solid-web-components">visit the Github repository</a></b>
+  </nav>
+
+
+<!--
+  <nav class="page-nav" aria-label="Page sections">
+  <ul>
+<b><a href="sol-login-help.html">sol-login</a></b> - Log in or out of a Solid Pod.
+  <li><b><a href="sol-form-help.html">sol-form</a></b> - Display auto-saving forms based on the <code>ui:</code> ontology.
+  <li><b><a href="sol-solidos-help.html">sol-solidos</a></b> - Display any URL using the SolidOS front end.
+  <li><b><a href="sol-modal-help.html">sol-modal</a></b> - Display any content in a popout modal.
+  </ul>
+  </nav>
+-->
+
+</body>
+</html>

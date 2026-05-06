@@ -3,10 +3,10 @@
 // external (mapped to the `$rdf` UMD global); jest's moduleNameMapper maps it
 // to a mock; importmaps/bundlers resolve it normally.
 
-// Full URL so browser ESM consumers don't need an importmap. Rollup treats
-// this URL as external (see rollup.config.js) so UMD builds don't try to
-// bundle it. Jest maps it to the mock via moduleNameMapper (see package.json).
-import * as _rdflib from 'https://esm.sh/rdflib@2';
+// Bare specifier — resolved by the consumer's importmap (CDN or local
+// vendored copy) or by a bundler. Per-component UMD builds list `rdflib`
+// in `external` so it stays a runtime global.
+import * as _rdflib from 'rdflib';
 
 // `import * as _rdflib` exposes rdflib's named exports directly.
 const _lib = _rdflib;

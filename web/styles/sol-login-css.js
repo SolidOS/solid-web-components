@@ -1,4 +1,4 @@
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 import { BTN_CSS } from './buttons-css.js';
 
 export const CSS = BTN_CSS + `

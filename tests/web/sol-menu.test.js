@@ -129,9 +129,9 @@ describe('SolMenu — from-rdf loading', () => {
 
     const nav = el.shadowRoot.querySelector('.sol-menu-nav');
     expect(nav).toBeTruthy();
-    const topTabs = nav.querySelectorAll(':scope > button[role="tab"]');
+    const topItems = nav.querySelectorAll(':scope > button[role="menuitem"]');
     const groupBtns = nav.querySelectorAll('.sol-menu-group-btn');
-    expect(topTabs.length).toBe(2);
+    expect(topItems.length).toBe(2);
     expect(groupBtns.length).toBe(1);
     expect(groupBtns[0].textContent).toBe('Settings');
   });
@@ -142,7 +142,7 @@ describe('SolMenu — from-rdf loading', () => {
     await flush();
 
     const nav = el.shadowRoot.querySelector('.sol-menu-nav');
-    const homeBtn = nav.querySelector('button[role="tab"]');
+    const homeBtn = nav.querySelector(':scope > button[role="menuitem"]');
     expect(homeBtn.querySelector('.sol-menu-icon')).toBeTruthy();
     expect(homeBtn.title).toBe('Home');
     expect(homeBtn.getAttribute('aria-label')).toBe('Home');
@@ -153,7 +153,7 @@ describe('SolMenu — from-rdf loading', () => {
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
-    const homeBtn = el.shadowRoot.querySelector('.sol-menu-nav button[role="tab"]');
+    const homeBtn = el.shadowRoot.querySelector('.sol-menu-nav > button[role="menuitem"]');
     const iconSpan = homeBtn.querySelector('.sol-menu-icon');
     expect(iconSpan.getAttribute('aria-hidden')).toBe('true');
     const img = iconSpan.querySelector('img');
@@ -165,7 +165,7 @@ describe('SolMenu — from-rdf loading', () => {
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
-    const img = el.shadowRoot.querySelector('.sol-menu-nav button[role="tab"] .sol-menu-icon img');
+    const img = el.shadowRoot.querySelector('.sol-menu-nav > button[role="menuitem"] .sol-menu-icon img');
     expect(img).toBeTruthy();
     expect(img.src).toBe('http://example.org/house.svg');
   });
@@ -181,7 +181,7 @@ describe('SolMenu — from-rdf loading', () => {
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
-    const svg = el.shadowRoot.querySelector('.sol-menu-nav button[role="tab"] .sol-menu-icon svg');
+    const svg = el.shadowRoot.querySelector('.sol-menu-nav > button[role="menuitem"] .sol-menu-icon svg');
     expect(svg).toBeTruthy();
   });
 
@@ -261,63 +261,56 @@ describe('SolMenu — from-rdf loading', () => {
 describe('SolMenu — ARIA', () => {
   beforeEach(() => { mockStore = buildStore(); });
 
-  test('nav has role=tablist with aria-orientation', async () => {
+  test('nav has role=menubar with aria-orientation', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     const nav = el.shadowRoot.querySelector('.sol-menu-nav');
-    expect(nav.getAttribute('role')).toBe('tablist');
+    expect(nav.getAttribute('role')).toBe('menubar');
     expect(nav.getAttribute('aria-orientation')).toBe('horizontal');
   });
 
-  test('content area has role=tabpanel with id', async () => {
+  test('content area is a labeled region', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     const panel = el.shadowRoot.querySelector('.sol-menu-content');
-    expect(panel.getAttribute('role')).toBe('tabpanel');
-    expect(panel.id).toBeTruthy();
+    expect(panel.getAttribute('role')).toBe('region');
+    expect(panel.getAttribute('aria-label')).toMatch(/^Content: /);
   });
 
-  test('leaf tabs have role=tab, aria-selected, aria-controls', async () => {
+  test('top-level items (leaf and group) all have role=menuitem', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
-    const panel = el.shadowRoot.querySelector('.sol-menu-content');
-    const tabs = el.shadowRoot.querySelectorAll('.sol-menu-nav > button[role="tab"]');
-    expect(tabs.length).toBeGreaterThan(0);
-    tabs.forEach(tab => {
-      expect(tab.getAttribute('aria-controls')).toBe(panel.id);
-      expect(['true', 'false']).toContain(tab.getAttribute('aria-selected'));
-    });
+    const leaves = el.shadowRoot.querySelectorAll('.sol-menu-nav > button[role="menuitem"]');
+    const groupBtns = el.shadowRoot.querySelectorAll('.sol-menu-group-btn[role="menuitem"]');
+    expect(leaves.length).toBeGreaterThan(0);
+    expect(groupBtns.length).toBeGreaterThan(0);
   });
 
-  test('active tab has aria-selected=true, others false', async () => {
+  test('active item has aria-current=page, others have it removed', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     const activeBtn = el.shadowRoot.querySelector('.sol-menu-nav button.active');
-    expect(activeBtn.getAttribute('aria-selected')).toBe('true');
+    expect(activeBtn.getAttribute('aria-current')).toBe('page');
 
-    const inactiveTabs = el.shadowRoot.querySelectorAll('.sol-menu-nav > button[role="tab"]:not(.active)');
-    inactiveTabs.forEach(b => expect(b.getAttribute('aria-selected')).toBe('false'));
+    const inactive = el.shadowRoot.querySelectorAll('.sol-menu-nav > button[role="menuitem"]:not(.active)');
+    inactive.forEach(b => expect(b.hasAttribute('aria-current')).toBe(false));
   });
 
-  test('panel has aria-labelledby pointing to active tab id', async () => {
+  test('content region aria-label reflects active item name', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     const panel = el.shadowRoot.querySelector('.sol-menu-content');
-    const labelledBy = panel.getAttribute('aria-labelledby');
-    expect(labelledBy).toBeTruthy();
-    const tab = el.shadowRoot.getElementById(labelledBy);
-    expect(tab).toBeTruthy();
-    expect(tab.classList.contains('active')).toBe(true);
+    expect(panel.getAttribute('aria-label')).toBe('Content: Home');
   });
 
   test('submenu popup has role=menu and aria-label', async () => {
@@ -340,13 +333,14 @@ describe('SolMenu — ARIA', () => {
     expect(menuitem.textContent).toBe('Light');
   });
 
-  test('group button has aria-haspopup and aria-expanded', async () => {
+  test('group button has aria-haspopup=menu and aria-expanded', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     const groupBtn = el.shadowRoot.querySelector('.sol-menu-group-btn');
-    expect(groupBtn.getAttribute('aria-haspopup')).toBe('true');
+    expect(groupBtn.getAttribute('role')).toBe('menuitem');
+    expect(groupBtn.getAttribute('aria-haspopup')).toBe('menu');
     expect(groupBtn.getAttribute('aria-expanded')).toBe('false');
   });
 
@@ -555,7 +549,7 @@ describe('SolMenu — from-rdf without fragment', () => {
 
     expect(el.activeItem).toBe('Home');
     const nav = el.shadowRoot.querySelector('.sol-menu-nav');
-    const topBtns = nav.querySelectorAll(':scope > button[role="tab"], :scope > .sol-menu-group > .sol-menu-group-btn');
+    const topBtns = nav.querySelectorAll(':scope > button[role="menuitem"], :scope > .sol-menu-group > .sol-menu-group-btn');
     expect(topBtns.length).toBe(3);
   });
 });
@@ -604,10 +598,10 @@ describe('SolMenu — declarative HTML (anchor children)', () => {
     attached(el);
 
     const nav = el.shadowRoot.querySelector('.sol-menu-nav');
-    const tabs = nav.querySelectorAll('button[role="tab"]');
-    expect(tabs.length).toBe(2);
-    expect(tabs[0].textContent).toBe('Page 1');
-    expect(tabs[1].textContent).toBe('Page 2');
+    const items = nav.querySelectorAll(':scope > button[role="menuitem"]');
+    expect(items.length).toBe(2);
+    expect(items[0].textContent).toBe('Page 1');
+    expect(items[1].textContent).toBe('Page 2');
   });
 
   test('harvests <submenu> children into collapsible groups', () => {
@@ -698,10 +692,10 @@ describe('SolMenu — imperative items setter', () => {
     ];
 
     const nav = el.shadowRoot.querySelector('.sol-menu-nav');
-    const tabs = nav.querySelectorAll('button[role="tab"]');
-    expect(tabs.length).toBe(2);
-    expect(tabs[0].textContent).toBe('Foo');
-    expect(tabs[1].textContent).toBe('Bar');
+    const items = nav.querySelectorAll(':scope > button[role="menuitem"]');
+    expect(items.length).toBe(2);
+    expect(items[0].textContent).toBe('Foo');
+    expect(items[1].textContent).toBe('Bar');
 
     el.select('Foo');
     expect(renderFn).toHaveBeenCalled();
@@ -1008,34 +1002,31 @@ describe('SolMenu — disconnectedCallback', () => {
 describe('SolMenu — ARIA state updates on re-select', () => {
   beforeEach(() => { mockStore = buildStore(); });
 
-  test('switching tabs updates aria-selected and tabindex', async () => {
+  test('switching items updates aria-current and tabindex', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
-    const tabs = el.shadowRoot.querySelectorAll('.sol-menu-nav > button[role="tab"]');
-    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
-    expect(tabs[0].getAttribute('tabindex')).toBe('0');
+    const items = el.shadowRoot.querySelectorAll('.sol-menu-nav > button[role="menuitem"]');
+    expect(items[0].getAttribute('aria-current')).toBe('page');
+    expect(items[0].getAttribute('tabindex')).toBe('0');
 
     el.select('About');
-    expect(tabs[0].getAttribute('aria-selected')).toBe('false');
-    expect(tabs[0].getAttribute('tabindex')).toBe('-1');
-    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
-    expect(tabs[1].getAttribute('tabindex')).toBe('0');
+    expect(items[0].hasAttribute('aria-current')).toBe(false);
+    expect(items[0].getAttribute('tabindex')).toBe('-1');
+    expect(items[1].getAttribute('aria-current')).toBe('page');
+    expect(items[1].getAttribute('tabindex')).toBe('0');
   });
 
-  test('panel aria-labelledby updates to match new active tab', async () => {
+  test('content region aria-label updates to match new active item', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     const panel = el.shadowRoot.querySelector('.sol-menu-content');
-    const firstId = panel.getAttribute('aria-labelledby');
+    expect(panel.getAttribute('aria-label')).toBe('Content: Home');
 
     el.select('About');
-    const secondId = panel.getAttribute('aria-labelledby');
-    expect(secondId).not.toBe(firstId);
-    const tab = el.shadowRoot.getElementById(secondId);
-    expect(tab.getAttribute('aria-selected')).toBe('true');
+    expect(panel.getAttribute('aria-label')).toBe('Content: About');
   });
 });

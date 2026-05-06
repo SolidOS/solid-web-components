@@ -7,7 +7,7 @@
 //   const { type, content } = await solInclude('page.html', { selector: 'article' });
 
 import { JSDOM } from 'jsdom';
-import { fetchIncludeContent, filterWithSelector } from '@solid-components/core/include-core.js';
+import { fetchIncludeContent, filterWithSelector } from '../core/include-core.js';
 
 let _purify = null;
 

@@ -19,7 +19,7 @@ export class SparqlResultsRenderer {
   }
 
   showLoading(message = 'Loading results...') {
-    this.container.innerHTML = `<div class="loading">${message}</div>`;
+    this.container.innerHTML = `<div class="loading" role="status" aria-live="polite">${message}</div>`;
   }
 
   showError(message) {
@@ -27,7 +27,7 @@ export class SparqlResultsRenderer {
   }
 
   showNoResults() {
-    this.container.innerHTML = '<div class="loading">No results found</div>';
+    this.container.innerHTML = '<div class="loading" role="status" aria-live="polite">No results found</div>';
   }
 
   // ── Main entry point ────────────────────────────────────────────────────────
@@ -183,11 +183,19 @@ export class SparqlResultsRenderer {
     body.innerHTML = '';
     const sub = new SparqlResultsRenderer(body);
     sub.renderResults(data, renderTable, { hideHeader: true });
+    this._lastFocus = (this.container.getRootNode().activeElement) || document.activeElement;
     modal.classList.add('active');
+    const closeBtn = modal.querySelector('.bnode-modal-close');
+    if (closeBtn) closeBtn.focus();
   }
 
   _closeModal() {
-    if (this._modal) this._modal.classList.remove('active');
+    if (!this._modal) return;
+    this._modal.classList.remove('active');
+    if (this._lastFocus && typeof this._lastFocus.focus === 'function') {
+      try { this._lastFocus.focus(); } catch { /* element may be gone */ }
+    }
+    this._lastFocus = null;
   }
 
   _getOrCreateModal() {
@@ -196,17 +204,34 @@ export class SparqlResultsRenderer {
     modal.className = 'bnode-modal';
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Blank node properties');
     modal.innerHTML = `
-      <div class="bnode-modal-inner">
+      <div class="bnode-modal-inner" tabindex="-1">
         <button class="sol-btn sol-btn-danger bnode-modal-close" aria-label="Close">×</button>
         <div class="bnode-modal-body"></div>
       </div>`;
     modal.querySelector('.bnode-modal-close')
          .addEventListener('click', () => this._closeModal());
     modal.addEventListener('click', e => { if (e.target === modal) this._closeModal(); });
+    // Focus trap: Tab cycles within the dialog while it's open.
+    modal.addEventListener('keydown', e => {
+      if (e.key !== 'Tab' || !modal.classList.contains('active')) return;
+      const focusables = modal.querySelectorAll(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea'
+      );
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      const root  = modal.getRootNode();
+      const active = root.activeElement === modal ? document.activeElement : root.activeElement;
+      if (e.shiftKey && active === first) { last.focus(); e.preventDefault(); }
+      else if (!e.shiftKey && active === last) { first.focus(); e.preventDefault(); }
+    });
     (this.container.parentNode ?? this.container).appendChild(modal);
     this._modal = modal;
-    this._escHandler = e => { if (e.key === 'Escape') this._closeModal(); };
+    this._escHandler = e => {
+      if (e.key === 'Escape' && modal.classList.contains('active')) this._closeModal();
+    };
     document.addEventListener('keydown', this._escHandler);
     return modal;
   }

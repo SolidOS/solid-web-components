@@ -39,8 +39,8 @@
  *   sol-tab-change — detail: { name }
  */
 
-import { define } from '@solid-components/core/define.js';
-import { ensureDocStyle } from '@solid-components/core/adopt.js';
+import { define } from '../core/define.js';
+import { ensureDocStyle } from '../core/adopt.js';
 import { CSS as TABS_CSS } from './styles/sol-tabs-css.js';
 
 /**

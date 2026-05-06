@@ -1,4 +1,4 @@
-import { adopt } from '@solid-components/core/adopt.js';
+import { adopt } from '../../core/adopt.js';
 import { CSS as ACCORDION_VIEW_CSS, sheet as ACCORDION_SHEET } from '../styles/view-accordion-css.js';
 
 /**

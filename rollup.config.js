@@ -5,38 +5,9 @@ import terser   from '@rollup/plugin-terser';
 
 const minify = !!process.env.MINIFY;
 
-// External dependencies — never bundled; supplied by the host page.
+// External dependencies — never bundled; supplied by the host page (via an
+// importmap, vendored ESM, or UMD globals).
 const external = ['rdflib', 'dompurify', 'marked'];
-
-// Rewrite the bare-browser-ESM URL for rdflib (used in core/rdf.js so that
-// consumers loading our ESM directly don't need an importmap) back to the npm
-// specifier `rdflib`. Per-component bundles then see it as external; the
-// all-in-one bundle resolves it via node_modules.
-const aliasRdflibUrl = () => ({
-  name: 'alias-rdflib-url',
-  resolveId(id, importer, { custom, isEntry } = {}) {
-    if (id === 'https://esm.sh/rdflib@2') {
-      return this.resolve('rdflib', importer, { skipSelf: true });
-    }
-    return null;
-  },
-});
-
-// Resolve @solid-components/core/* workspace imports to local ./core/* paths
-// so rollup inlines core code into per-component UMD builds.
-const aliasCorePackage = () => ({
-  name: 'alias-core-package',
-  resolveId(id, importer) {
-    if (id.startsWith('@solid-components/core/')) {
-      const rest = id.slice('@solid-components/core/'.length);
-      return this.resolve('./core/' + rest, undefined, { skipSelf: true });
-    }
-    if (id === '@solid-components/core') {
-      return this.resolve('./core/rdf-utils.js', undefined, { skipSelf: true });
-    }
-    return null;
-  },
-});
 
 // Runtime-optional dynamic imports that live outside this repo
 // (e.g. `../src/podz-editor.js`, which only resolves when sol-live-edit is
@@ -57,14 +28,12 @@ const stubMissingDynamic = () => ({
   },
 });
 
-const plugins = [aliasCorePackage(), aliasRdflibUrl(), stubMissingDynamic(), resolve()];
+const plugins = [stubMissingDynamic(), resolve()];
 if (minify) plugins.push(terser());
 
 // Plugins for the all-in-one bundle (bundles CJS deps like rdflib internals,
 // Comunica's many sub-packages, and inrupt auth).
 const bundlePlugins = [
-  aliasCorePackage(),
-  aliasRdflibUrl(),
   stubMissingDynamic(),
   resolve({ browser: true, preferBuiltins: false }),
   commonjs({ transformMixedEsModules: true, ignoreDynamicRequires: true }),
@@ -84,6 +53,9 @@ export default [
       name:    'SolQuery',
       exports: 'named',
       globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
+      // The component dynamically imports built-in view modules; for a UMD
+      // drop-in we want one self-contained file rather than runtime fetches.
+      inlineDynamicImports: true,
     },
   },
   // ── rdf-utils (engine only — for script-API consumers) ─────────────────────
@@ -108,6 +80,19 @@ export default [
       file:    minify ? 'dist/sol-include.umd.min.js' : 'dist/sol-include.umd.js',
       format:  'umd',
       name:    'SolInclude',
+      exports: 'named',
+      globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
+    },
+  },
+  // ── sol-login (auth client is bring-your-own at window.solidClientAuthn) ───
+  {
+    input:    'web/sol-login.js',
+    external,
+    plugins,
+    output: {
+      file:    minify ? 'dist/sol-login.umd.min.js' : 'dist/sol-login.umd.js',
+      format:  'umd',
+      name:    'SolLogin',
       exports: 'named',
       globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
     },
@@ -190,10 +175,25 @@ export default [
       globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked', mashlib: 'Mashlib' },
     },
   },
+  // ── sol-full (side-effect aggregator: registers every covered component) ───
+  {
+    input:    'web/sol-full.js',
+    external,
+    plugins,
+    output: {
+      file:    minify ? 'dist/sol-full.umd.min.js' : 'dist/sol-full.umd.js',
+      format:  'umd',
+      name:    'SolFull',
+      exports: 'named',
+      globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
+      // Inline sol-query's view imports so this remains one self-contained file.
+      inlineDynamicImports: true,
+    },
+  },
   // ── all-in-one bundle: every component + rdflib + inrupt auth + Comunica ───
   {
     input:   'web/solid-web-components.bundle.js',
-    external: (id) => id.startsWith('https://esm.sh/') && id !== 'https://esm.sh/rdflib@2',
+    external: (id) => id.startsWith('https://esm.sh/'),
     plugins: bundlePlugins,
     output: {
       file:      minify

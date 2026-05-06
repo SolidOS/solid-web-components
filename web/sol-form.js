@@ -1,10 +1,16 @@
 /**
  * <sol-form> — Generic RDF form renderer.
  *
- * Loads a ui:Form definition from a Turtle source URI and renders it using
- * solid-ui's form field system. The form's data lives in an rdflib
- * IndexedFormula; on save, the graph is written to a Solid Pod (PUT via
- * fetcher.putBack) or downloaded as a local Turtle file.
+ * Loads a ui:Form definition from a Turtle source URI and renders it via
+ * solid-ui's form field system. Form data lives in an rdflib IndexedFormula
+ * and is persisted to a Solid Pod through rdflib's UpdateManager.
+ *
+ * Save behaviour:
+ *   • Non-ordered forms auto-save on every field change (debounced).
+ *   • Forms containing a ui:Multiple with ui:ordered true render a Save
+ *     button and persist via PUT only when clicked.
+ *   • Save location is derived from the `subject` or `save-to` attribute;
+ *     if neither is given, the user is prompted inline on first save.
  *
  * Attributes:
  *   source   — URI of a Turtle file containing a ui:Form definition (required)
@@ -13,35 +19,36 @@
  *   save-to  — Pre-filled Pod URL for saving (optional)
  *
  * Events (bubbling, composed):
- *   sol-form-change — detail: { subject }   — fired on every field edit
- *   sol-form-save   — detail: { subject, turtle, target } — fired after save
+ *   sol-form-change — detail: { subject, ok, message } — every field edit
+ *   sol-form-save   — detail: { subject, turtle, target } — after save
  *
  * @class SolForm
  * @extends HTMLElement
  */
 
-import { define } from '@solid-components/core/define.js';
-import { adopt }  from '@solid-components/core/adopt.js';
-import { rdf }    from '@solid-components/core/rdf.js';
-import { loadRdfStore } from '@solid-components/core/rdf-utils.js';
-import {
-  UI, RDF, MAX_DEPTH, fieldType, readFormParts, readList,
-  syncCollection, removeChain, removeItemData, setDefaults, findForm,
-} from '@solid-components/core/form-utils.js';
+import { define } from '../core/define.js';
+import { adopt }  from '../core/adopt.js';
+import { rdf }    from '../core/rdf.js';
+import { loadRdfStore } from '../core/rdf-utils.js';
+import { UI, RDF, readFormParts, findForm } from '../core/form-utils.js';
 import { CSS as FORM_CSS, sheet as formSheet } from './styles/sol-form-css.js';
 
-const SAVE_MODE_KEY = 'sol-form-save-mode';
+const AUTOSAVE_DEBOUNCE_MS = 600;
 
 class SolForm extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this._store     = null;
-    this._formNode  = null;
-    this._subject   = null;
-    this._docNode   = null;
-    this._rendered  = false;
-    this._shapeStore = null;
+    this._store      = null;
+    this._formNode   = null;
+    this._subject    = null;
+    this._docNode    = null;
+    this._docUrl     = null;
+    this._ordered    = false;
+    this._rendered   = false;
+    this._shapeText  = null;
+    this._saveTimer  = null;
+    this._pendingSave = false;
   }
 
   static get observedAttributes() { return ['source', 'subject', 'shape', 'save-to']; }
@@ -75,47 +82,36 @@ class SolForm extends HTMLElement {
       <div class="sol-form-body"></div>
       <div class="sol-form-save-bar">
         <div class="sol-form-validation-summary" style="display:none"></div>
-        <div class="sol-form-save-options">
-          <label><input type="radio" name="save-mode" value="pod"> Save to Pod</label>
-          <label><input type="radio" name="save-mode" value="local"> Download locally</label>
-        </div>
         <div class="sol-form-pod-url" style="display:none">
-          <input type="url" placeholder="https://you.pod/path/menu.ttl" class="sol-form-pod-input">
+          <label>Save to:
+            <input type="url" placeholder="https://you.pod/path/data.ttl" class="sol-form-pod-input">
+          </label>
+          <button type="button" class="sol-form-btn sol-form-set-loc">Set</button>
         </div>
         <div class="sol-form-actions">
-          <button class="sol-form-btn sol-form-btn-primary sol-form-save-btn">Save</button>
+          <button type="button" class="sol-form-btn sol-form-btn-primary sol-form-save-btn" style="display:none">Save</button>
           <span class="sol-form-save-status"></span>
         </div>
       </div>`;
     adopt(root, { sheet: formSheet, css: FORM_CSS });
     this._rendered = true;
 
-    const savedMode = localStorage.getItem(SAVE_MODE_KEY) || 'local';
-    const radios = root.querySelectorAll('input[name="save-mode"]');
-    radios.forEach(r => {
-      r.checked = r.value === savedMode;
-      r.addEventListener('change', () => this._onModeChange());
-    });
-    this._onModeChange();
-
-    const saveTo = this.getAttribute('save-to');
-    if (saveTo) root.querySelector('.sol-form-pod-input').value = saveTo;
-
-    root.querySelector('.sol-form-save-btn').addEventListener('click', () => this._onSave());
+    root.querySelector('.sol-form-set-loc').addEventListener('click', () => this._onSetLocation());
+    root.querySelector('.sol-form-save-btn').addEventListener('click', () => this._onSaveClick());
   }
 
-  _onModeChange() {
-    const root = this.shadowRoot;
-    const mode = this._saveMode();
-    localStorage.setItem(SAVE_MODE_KEY, mode);
-    root.querySelector('.sol-form-pod-url').style.display = mode === 'pod' ? 'flex' : 'none';
-    const btn = root.querySelector('.sol-form-save-btn');
-    btn.textContent = mode === 'pod' ? 'Save to Pod' : 'Download';
+  _showLocationInput(show) {
+    const el = this.shadowRoot.querySelector('.sol-form-pod-url');
+    el.style.display = show ? 'flex' : 'none';
+    if (show) {
+      const input = el.querySelector('.sol-form-pod-input');
+      if (!input.value && this.getAttribute('save-to')) input.value = this.getAttribute('save-to');
+      input.focus();
+    }
   }
 
-  _saveMode() {
-    const checked = this.shadowRoot.querySelector('input[name="save-mode"]:checked');
-    return checked ? checked.value : 'local';
+  _showSaveButton(show) {
+    this.shadowRoot.querySelector('.sol-form-save-btn').style.display = show ? '' : 'none';
   }
 
   // ── loading ──
@@ -128,48 +124,51 @@ class SolForm extends HTMLElement {
     body.innerHTML = '<div class="sol-form-loading">Loading form…</div>';
     this._clearStatus();
     this._hideValidation();
+    clearTimeout(this._saveTimer);
 
     try {
       const formStore = await loadRdfStore(source);
-      const formRoot = this._findForm(formStore, source);
+      const formRoot = findForm(formStore, source);
       if (!formRoot) throw new Error('No ui:Form found in ' + source);
 
       const subjectUri = this.getAttribute('subject');
-      let dataStore, subjectNode, docNode;
+      const saveTo     = this.getAttribute('save-to');
+      let dataStore, subjectNode, docNode, docUrl;
 
       if (subjectUri) {
-        const docUrl = subjectUri.split('#')[0];
-        dataStore = await this._initStore(docUrl);
+        docUrl = subjectUri.split('#')[0];
+        dataStore = this._initStore(docUrl);
         await dataStore.fetcher.load(docUrl);
         subjectNode = rdf.sym(subjectUri);
         docNode = rdf.sym(docUrl);
       } else {
-        const baseDoc = new URL('_new.ttl', new URL(source, document.baseURI)).href;
+        // Use save-to as the doc URL when given; otherwise a synthetic local
+        // base — _docUrl stays null until the user supplies a real location.
+        const baseDoc = saveTo || new URL('_new.ttl', new URL(source, document.baseURI)).href;
         dataStore = this._initStore(baseDoc);
         docNode = rdf.sym(baseDoc);
         subjectNode = rdf.blankNode();
+        docUrl = saveTo || null;
       }
 
       this._store    = dataStore;
       this._formNode = formRoot;
       this._subject  = subjectNode;
       this._docNode  = docNode;
+      this._docUrl   = docUrl;
+      this._ordered  = this._hasOrdering(formStore, formRoot);
 
       this._mergeFormDefs(dataStore, formStore);
       this._renderForm(body, dataStore, subjectNode, formRoot, docNode);
 
-      if (this.getAttribute('shape')) {
-        this._loadShape(this.getAttribute('shape'));
-      }
+      this._showSaveButton(this._ordered);
+
+      if (this.getAttribute('shape')) await this._loadShape(this.getAttribute('shape'));
 
     } catch (err) {
-      body.innerHTML = `<div class="sol-form-error">${err.message}</div>`;
+      body.innerHTML = `<div class="sol-form-error">${this._esc(err.message)}</div>`;
       console.error('<sol-form> load failed:', err);
     }
-  }
-
-  _findForm(store, sourceUri) {
-    return findForm(store, sourceUri);
   }
 
   _initStore(docUrl) {
@@ -179,10 +178,15 @@ class SolForm extends HTMLElement {
     const updater = new (rdf.UpdateManager)(store);
     store.updater = updater;
 
-    // Mark the doc as editable locally so solid-ui fields are not read-only
+    // Mark the doc as editable so solid-ui fields render as inputs, but
+    // intercept solid-ui's PATCH attempts — persistence is handled here so
+    // we can debounce, prompt for a URL, etc.
     updater.editable = (uri) => {
-      if (typeof uri === 'object') uri = uri.value || uri.uri;
+      if (typeof uri === 'object') uri = uri?.value || uri?.uri;
       return true;
+    };
+    updater.update = (deletions, insertions, callback) => {
+      if (callback) callback(docUrl, true);
     };
 
     return store;
@@ -197,36 +201,64 @@ class SolForm extends HTMLElement {
     }
   }
 
+  // Walk the form definition, returning true if any ui:Multiple has
+  // ui:ordered true (directly or in a referenced sub-form).
+  _hasOrdering(formStore, formRoot) {
+    const TYPE = rdf.sym(RDF + 'type');
+    const ORDERED = rdf.sym(UI + 'ordered');
+    const PART = rdf.sym(UI + 'part');
+    const USE = rdf.sym(UI + 'use');
+    const CASE = rdf.sym(UI + 'case');
+
+    const seen = new Set();
+    const queue = [formRoot];
+    while (queue.length) {
+      const node = queue.shift();
+      if (!node || !node.value || seen.has(node.value)) continue;
+      seen.add(node.value);
+
+      const t = formStore.any(node, TYPE);
+      if (t && t.value === UI + 'Multiple' && formStore.anyValue(node, ORDERED) === 'true') {
+        return true;
+      }
+
+      for (const part of readFormParts(formStore, node)) queue.push(part);
+      const subPart = formStore.any(node, PART);
+      if (subPart) queue.push(subPart);
+      for (const c of formStore.each(node, CASE)) {
+        const useForm = formStore.any(c, USE);
+        if (useForm) queue.push(useForm);
+      }
+    }
+    return false;
+  }
+
   // ── render via solid-ui ──
 
   _renderForm(body, store, subject, form, doc) {
     body.innerHTML = '';
 
-    // solid-ui's field system reads from the global solidLogicSingleton.store.
-    // We need to make our store accessible. The field functions are keyed by
-    // URI in the `field` registry object exported from solid-ui.
-    // We render the form using solid-ui's Form/Group field function.
-    const fieldRegistry = this._getFieldRegistry();
-    if (!fieldRegistry) {
-      this._renderFallback(body, store, subject, form, doc);
+    const fieldFunction = window.UI?.widgets?.forms?.fieldFunction;
+    if (typeof fieldFunction !== 'function') {
+      body.innerHTML =
+        '<div class="sol-form-error">solid-ui is not loaded — <code>&lt;sol-form&gt;</code> requires it for rendering. Add solid-ui to the page.</div>';
       return;
     }
 
-    const formUri = UI + 'Form';
-    const formFn = fieldRegistry[formUri];
-    if (!formFn) {
-      this._renderFallback(body, store, subject, form, doc);
-      return;
-    }
-
-    // solid-ui reads from solidLogicSingleton.store — temporarily point it at ours
     const origStore = this._swapSolidLogicStore(store);
     try {
-      const widget = formFn(document, body, {}, subject, form, doc, (ok, msg) => {
+      const renderFn = fieldFunction(document, form);
+      if (typeof renderFn !== 'function') {
+        body.innerHTML =
+          '<div class="sol-form-error">solid-ui could not resolve a renderer for the form root (check the form definition reaches solid-logic).</div>';
+        return;
+      }
+      const widget = renderFn(document, body, {}, subject, form, doc, (ok, msg) => {
         this.dispatchEvent(new CustomEvent('sol-form-change', {
           bubbles: true, composed: true,
           detail: { subject: this._subject, ok, message: msg },
         }));
+        if (ok && !this._ordered) this._scheduleAutoSave();
       });
       if (widget && !body.contains(widget)) body.appendChild(widget);
     } finally {
@@ -234,308 +266,98 @@ class SolForm extends HTMLElement {
     }
   }
 
-  _getFieldRegistry() {
-    // solid-ui registers field functions on the `field` export from fieldFunction.
-    // Try multiple paths: global solid-ui, window.UI, direct import.
-    try {
-      if (window.UI?.widgets?.forms?.fieldFunction?.field) {
-        return window.UI.widgets.forms.fieldFunction.field;
-      }
-      if (window.panes?.fieldFunction?.field) {
-        return window.panes.fieldFunction.field;
-      }
-      // solid-ui ESM bundle exposes field registry on the main export
-      if (window.SolidUI?.field) return window.SolidUI.field;
-    } catch {}
-    return null;
+  // solid-logic shares state across module copies via a Symbol.for-keyed
+  // singleton on the global object — reach it the same way it does so our
+  // store is what solid-ui's field widgets see.
+  _solidLogicSingleton() {
+    const win = typeof window !== 'undefined' ? window : null;
+    if (!win) return null;
+    const sym = Symbol.for('solid-logic-singleton');
+    return win[sym] || win.SolidLogic || null;
   }
 
   _swapSolidLogicStore(store) {
-    const win = typeof window !== 'undefined' ? window : {};
-    const orig = win.SolidLogic?.store || null;
-    if (win.SolidLogic) {
-      win.SolidLogic.store = store;
-    } else {
-      win.SolidLogic = { store, fetcher: store.fetcher };
-    }
-    // solid-ui's solidLogicSingleton caches store in a module-level variable;
-    // also set on commonly-used paths
-    if (win.UI) win.UI.store = store;
-    return orig;
+    const sl = this._solidLogicSingleton();
+    if (!sl) return null;
+    const orig = sl.store || null;
+    sl.store = store;
+    if (typeof window !== 'undefined' && window.UI) window.UI.store = store;
+    return { sl, orig };
   }
 
-  _restoreSolidLogicStore(orig) {
-    const win = typeof window !== 'undefined' ? window : {};
-    if (orig) {
-      if (win.SolidLogic) win.SolidLogic.store = orig;
-      if (win.UI) win.UI.store = orig;
+  _restoreSolidLogicStore(saved) {
+    if (!saved) return;
+    if (saved.sl && saved.orig) saved.sl.store = saved.orig;
+    if (typeof window !== 'undefined' && window.UI && saved.orig) window.UI.store = saved.orig;
+  }
+
+  // ── save ──
+
+  _scheduleAutoSave() {
+    clearTimeout(this._saveTimer);
+    this._pendingSave = true;
+    this._saveTimer = setTimeout(() => this._save().catch(() => {}), AUTOSAVE_DEBOUNCE_MS);
+  }
+
+  // Manual save button (ordered forms).
+  _onSaveClick() {
+    this._save().catch(() => {});
+  }
+
+  // "Set" button next to the save-location input.
+  async _onSetLocation() {
+    const input = this.shadowRoot.querySelector('.sol-form-pod-input');
+    const url = (input.value || '').trim();
+    if (!url) { this._setStatus('err', 'Enter a URL'); return; }
+    try { new URL(url); } catch { this._setStatus('err', 'Invalid URL'); return; }
+    this._docUrl = url;
+    // Re-anchor the doc node so the serialized turtle is rooted at the chosen URL.
+    this._docNode = rdf.sym(url);
+    this._showLocationInput(false);
+    if (this._pendingSave || !this._ordered) await this._save().catch(() => {});
+  }
+
+  async _save() {
+    if (this._shapeText) {
+      const report = await this._validate();
+      this._showValidation(report);
+      if (!report.conforms) return;
+    }
+    if (!this._docUrl) {
+      this._showLocationInput(true);
+      this._setStatus('', 'Choose a save location');
+      return;
+    }
+
+    const turtle = this.getTurtle();
+    if (!turtle) { this._setStatus('err', 'Nothing to save'); return; }
+
+    const btn = this.shadowRoot.querySelector('.sol-form-save-btn');
+    btn.disabled = true;
+    this._setStatus('', 'Saving…');
+
+    try {
+      await this._putViaUpdater(turtle);
+      this._pendingSave = false;
+      this._setStatus('ok', this._ordered ? 'Saved' : 'Auto-saved');
+      this.dispatchEvent(new CustomEvent('sol-form-save', {
+        bubbles: true, composed: true,
+        detail: { subject: this._subject, turtle, target: this._docUrl },
+      }));
+    } catch (err) {
+      this._setStatus('err', err.message || 'Save failed');
+    } finally {
+      btn.disabled = false;
     }
   }
 
-  _renderFallback(body, store, subject, form, doc) {
-    body.innerHTML = '';
-    body.appendChild(this._fbGroup(store, form, subject, doc, 0));
-  }
-
-  _fieldType(store, field) { return fieldType(store, field); }
-
-  // ── fallback form field renderers ──
-
-  _fbParts(store, form) { return readFormParts(store, form); }
-
-  _fbGroup(store, form, subject, doc, depth) {
-    const el = document.createElement('div');
-    el.className = 'sf-group';
-    const fields = this._fbParts(store, form);
-    if (!fields.length) { el.textContent = 'No fields defined.'; return el; }
-    const optionEls = [];
-    for (const f of fields) {
-      const child = this._fbField(store, f, subject, doc, depth, optionEls);
-      if (child) el.appendChild(child);
-    }
-    return el;
-  }
-
-  _fbField(store, field, subject, doc, depth, optionEls) {
-    const type = this._fieldType(store, field);
-    switch (type) {
-      case UI + 'Form':
-      case UI + 'Group':
-        return this._fbGroup(store, field, subject, doc, depth);
-      case UI + 'Multiple':
-        return this._fbMultiple(store, field, subject, doc, depth);
-      case UI + 'Options': {
-        const el = this._fbOptions(store, field, subject, doc, depth);
-        optionEls.push(el);
-        return el;
-      }
-      case UI + 'Choice':
-        return this._fbChoice(store, field, subject, doc, optionEls);
-      case UI + 'MultiLineTextField':
-      case UI + 'TextArea':
-        return this._fbInput(store, field, subject, doc, 'textarea');
-      case UI + 'EmailField':
-        return this._fbInput(store, field, subject, doc, 'email');
-      default:
-        return this._fbInput(store, field, subject, doc, 'text');
-    }
-  }
-
-  _fbInput(store, field, subject, doc, type) {
-    const label    = store.anyValue(field, rdf.sym(UI + 'label')) || '';
-    const property = store.any(field, rdf.sym(UI + 'property'));
-    const required = store.anyValue(field, rdf.sym(UI + 'required'));
-    const dflt     = store.anyValue(field, rdf.sym(UI + 'default'));
-
-    const row = document.createElement('div');
-    row.className = 'sf-field';
-    const lbl = document.createElement('label');
-    lbl.className = 'sf-label';
-    lbl.textContent = label + (required === 'true' ? ' *' : '');
-    row.appendChild(lbl);
-
-    let input;
-    if (type === 'textarea') {
-      input = document.createElement('textarea');
-      input.rows = 3;
-    } else {
-      input = document.createElement('input');
-      input.type = type;
-    }
-
-    if (property) {
-      const cur = store.anyValue(subject, property, null, doc);
-      input.value = cur || dflt || '';
-      if (!cur && dflt) store.add(subject, property, rdf.literal(dflt), doc);
-      input.addEventListener('input', () => {
-        for (const s of [...store.statementsMatching(subject, property, null, doc)]) store.remove(s);
-        const v = input.value.trim();
-        if (v) store.add(subject, property, rdf.literal(v), doc);
-        this._fireChange();
-      });
-    }
-
-    row.appendChild(input);
-    return row;
-  }
-
-  _fbChoice(store, field, subject, doc, optionEls) {
-    const label     = store.anyValue(field, rdf.sym(UI + 'label')) || '';
-    const property  = store.any(field, rdf.sym(UI + 'property'));
-    const namedNode = store.anyValue(field, rdf.sym(UI + 'namedNode')) === 'true';
-    const dflt      = store.any(field, rdf.sym(UI + 'default'));
-    const opts      = store.each(field, rdf.sym(UI + 'option'));
-
-    const row = document.createElement('div');
-    row.className = 'sf-field';
-    const lbl = document.createElement('label');
-    lbl.className = 'sf-label';
-    lbl.textContent = label;
-    row.appendChild(lbl);
-
-    const sel = document.createElement('select');
-    for (const opt of opts) {
-      const o = document.createElement('option');
-      o.value = opt.value;
-      o.textContent = namedNode ? opt.value.replace(/.*[/#]/, '') : opt.value;
-      sel.appendChild(o);
-    }
-
-    if (property) {
-      const cur = store.any(subject, property, null, doc);
-      if (cur) {
-        sel.value = cur.value;
-      } else if (dflt) {
-        sel.value = dflt.value;
-        store.add(subject, property, namedNode ? rdf.sym(dflt.value) : rdf.literal(dflt.value), doc);
-      }
-      sel.addEventListener('change', () => {
-        for (const s of [...store.statementsMatching(subject, property, null, doc)]) store.remove(s);
-        const v = sel.value;
-        if (v) store.add(subject, property, namedNode ? rdf.sym(v) : rdf.literal(v), doc);
-        for (const oel of optionEls) if (oel._refresh) oel._refresh();
-        this._fireChange();
-      });
-    }
-
-    row.appendChild(sel);
-    return row;
-  }
-
-  _fbMultiple(store, field, subject, doc, depth) {
-    const label    = store.anyValue(field, rdf.sym(UI + 'label')) || '';
-    const property = store.any(field, rdf.sym(UI + 'property'));
-    const partForm = store.any(field, rdf.sym(UI + 'part'));
-
-    const container = document.createElement('div');
-    container.className = 'sf-multiple';
-
-    if (depth >= MAX_DEPTH) {
-      container.innerHTML = '<span class="sf-depth-cap">Maximum nesting depth reached</span>';
-      return container;
-    }
-
-    const header = document.createElement('div');
-    header.className = 'sf-multiple-header';
-    const hLabel = document.createElement('span');
-    hLabel.className = 'sf-label';
-    hLabel.textContent = label;
-    header.appendChild(hLabel);
-
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'sf-btn sf-btn-add';
-    addBtn.textContent = '+ Add';
-    header.appendChild(addBtn);
-    container.appendChild(header);
-
-    const list = document.createElement('div');
-    list.className = 'sf-multiple-list';
-    container.appendChild(list);
-
-    let items = property ? this._readList(store, subject, property, doc) : [];
-
-    const render = () => {
-      list.innerHTML = '';
-      items.forEach((item, i) => {
-        list.appendChild(this._fbMultipleItem(store, partForm, item, doc, depth, i, items, () => {
-          this._syncCollection(store, subject, property, items, doc);
-          render();
-          this._fireChange();
-        }));
-      });
-    };
-
-    addBtn.addEventListener('click', () => {
-      const node = rdf.blankNode();
-      this._setDefaults(store, partForm, node, doc);
-      items.push(node);
-      this._syncCollection(store, subject, property, items, doc);
-      render();
-      this._fireChange();
+  // PUT the document via rdflib's UpdateManager.
+  _putViaUpdater(turtle) {
+    return new Promise((resolve, reject) => {
+      const stmts = this._store.statementsMatching(null, null, null, this._docNode);
+      this._store.updater.put(this._docNode, stmts, 'text/turtle',
+        (uri, ok, errMsg) => ok ? resolve() : reject(new Error(errMsg || 'PUT failed')));
     });
-
-    render();
-    return container;
-  }
-
-  _fbMultipleItem(store, partForm, item, doc, depth, index, items, onChange) {
-    const el = document.createElement('div');
-    el.className = 'sf-multiple-item';
-
-    const actions = document.createElement('div');
-    actions.className = 'sf-item-actions';
-    const btn = (text, cls, title, fn) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'sf-btn ' + cls;
-      b.textContent = text;
-      b.title = title;
-      b.addEventListener('click', fn);
-      return b;
-    };
-
-    if (index > 0)
-      actions.appendChild(btn('▲', 'sf-btn-move', 'Move up', () => {
-        [items[index - 1], items[index]] = [items[index], items[index - 1]];
-        onChange();
-      }));
-    if (index < items.length - 1)
-      actions.appendChild(btn('▼', 'sf-btn-move', 'Move down', () => {
-        [items[index], items[index + 1]] = [items[index + 1], items[index]];
-        onChange();
-      }));
-    actions.appendChild(btn('✕', 'sf-btn-remove', 'Remove', () => {
-      this._removeItemData(store, item, doc);
-      items.splice(index, 1);
-      onChange();
-    }));
-
-    el.appendChild(actions);
-    el.appendChild(this._fbGroup(store, partForm, item, doc, depth + 1));
-    return el;
-  }
-
-  _fbOptions(store, field, subject, doc, depth) {
-    const dependsOn = store.any(field, rdf.sym(UI + 'dependingOn'));
-    const cases     = store.each(field, rdf.sym(UI + 'case'));
-
-    const container = document.createElement('div');
-    container.className = 'sf-options';
-
-    const refresh = () => {
-      container.innerHTML = '';
-      if (!dependsOn) return;
-      const cur = store.any(subject, dependsOn, null, doc);
-      if (!cur) return;
-      for (const c of cases) {
-        const forVal = store.any(c, rdf.sym(UI + 'for'));
-        if (forVal && forVal.value === cur.value) {
-          const useForm = store.any(c, rdf.sym(UI + 'use'));
-          if (useForm) container.appendChild(this._fbGroup(store, useForm, subject, doc, depth));
-          return;
-        }
-      }
-    };
-
-    container._refresh = refresh;
-    refresh();
-    return container;
-  }
-
-  // ── collection / data helpers (delegated to core/form-utils.js) ──
-
-  _readList(store, subject, property, doc) { return readList(store, subject, property, doc); }
-  _syncCollection(store, subject, property, items, doc) { syncCollection(store, subject, property, items, doc); }
-  _removeChain(store, node, doc) { removeChain(store, node, doc); }
-  _removeItemData(store, item, doc) { removeItemData(store, item, doc); }
-  _setDefaults(store, form, subject, doc) { setDefaults(store, form, subject, doc); }
-
-  _fireChange() {
-    this.dispatchEvent(new CustomEvent('sol-form-change', {
-      bubbles: true, composed: true,
-      detail: { subject: this._subject, ok: true },
-    }));
   }
 
   // ── SHACL validation ──
@@ -553,27 +375,20 @@ class SolForm extends HTMLElement {
 
   async _validate() {
     if (!this._shapeText) return { conforms: true, results: [] };
-
     try {
       const { Parser, Store } = await import('n3');
       const SHACLValidator = (await import('rdf-validate-shacl')).default;
-
       const parseToStore = (text, baseIRI) => {
         const parser = new Parser({ baseIRI });
-        const store = new Store();
-        store.addQuads(parser.parse(text));
-        return store;
+        const s = new Store();
+        s.addQuads(parser.parse(text));
+        return s;
       };
-
       const turtle = this.getTurtle();
       if (!turtle) return { conforms: false, results: [{ message: 'No data to validate' }] };
-
       const shapesStore = parseToStore(this._shapeText, this.getAttribute('shape') || '');
       const dataStore   = parseToStore(turtle, this._docNode?.value || '');
-
-      const validator = new SHACLValidator(shapesStore);
-      const report = validator.validate(dataStore);
-      return report;
+      return new SHACLValidator(shapesStore).validate(dataStore);
     } catch (err) {
       console.warn('<sol-form> SHACL validation failed:', err);
       return { conforms: true, results: [] };
@@ -582,12 +397,8 @@ class SolForm extends HTMLElement {
 
   _showValidation(report) {
     const el = this.shadowRoot.querySelector('.sol-form-validation-summary');
-    if (!report || report.conforms) {
-      el.style.display = 'none';
-      return;
-    }
-    const results = Array.from(report.results || []);
-    const msgs = results.map(r => {
+    if (!report || report.conforms) { el.style.display = 'none'; return; }
+    const msgs = Array.from(report.results || []).map(r => {
       const path = r.path ? r.path.value.replace(/.*[/#]/, '') : '';
       const msg = (Array.isArray(r.message) ? r.message[0]?.value : r.message?.value) || 'Validation error';
       return path ? `${path}: ${msg}` : msg;
@@ -601,89 +412,7 @@ class SolForm extends HTMLElement {
     if (el) el.style.display = 'none';
   }
 
-  _esc(s) {
-    const d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
-  }
-
-  // ── save ──
-
-  async _onSave() {
-    const btn = this.shadowRoot.querySelector('.sol-form-save-btn');
-    btn.disabled = true;
-    this._clearStatus();
-
-    try {
-      if (this._shapeText) {
-        const report = await this._validate();
-        this._showValidation(report);
-        if (!report.conforms) {
-          btn.disabled = false;
-          return;
-        }
-      }
-
-      const mode = this._saveMode();
-      if (mode === 'pod') {
-        await this._saveToPod();
-      } else {
-        this._saveLocal();
-      }
-    } catch (err) {
-      this._setStatus('err', err.message);
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  async _saveToPod() {
-    const urlInput = this.shadowRoot.querySelector('.sol-form-pod-input');
-    const podUrl = (urlInput?.value || '').trim();
-    if (!podUrl) throw new Error('Enter a Pod URL');
-
-    const turtle = this.getTurtle();
-    if (!turtle) throw new Error('Nothing to save');
-
-    const docNode = rdf.sym(podUrl);
-
-    // Use fetcher.webOperation for PUT (same as putBack but to arbitrary URL)
-    const fetcher = this._store.fetcher || rdf.storeFetcher;
-    const resp = await fetcher.webOperation('PUT', podUrl, {
-      contentType: 'text/turtle',
-      body: turtle,
-    });
-
-    if (!resp.ok) throw new Error(`PUT failed: HTTP ${resp.status}`);
-
-    this._setStatus('ok', 'Saved to Pod');
-    this.dispatchEvent(new CustomEvent('sol-form-save', {
-      bubbles: true, composed: true,
-      detail: { subject: this._subject, turtle, target: podUrl },
-    }));
-  }
-
-  _saveLocal() {
-    const turtle = this.getTurtle();
-    if (!turtle) throw new Error('Nothing to save');
-
-    const label = this._store.anyValue(this._subject, rdf.sym(UI + 'label')) || 'form-data';
-    const filename = label.replace(/[^a-z0-9_-]/gi, '-').toLowerCase() + '.ttl';
-
-    const blob = new Blob([turtle], { type: 'text/turtle' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    this._setStatus('ok', 'Downloaded ' + filename);
-    this.dispatchEvent(new CustomEvent('sol-form-save', {
-      bubbles: true, composed: true,
-      detail: { subject: this._subject, turtle, target: 'local' },
-    }));
-  }
+  // ── small UI helpers ──
 
   _setStatus(cls, msg) {
     const el = this.shadowRoot.querySelector('.sol-form-save-status');
@@ -694,6 +423,12 @@ class SolForm extends HTMLElement {
   _clearStatus() {
     const el = this.shadowRoot.querySelector('.sol-form-save-status');
     if (el) { el.className = 'sol-form-save-status'; el.textContent = ''; }
+  }
+
+  _esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
   }
 }
 

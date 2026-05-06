@@ -40,7 +40,7 @@ import {
   isLoggedInFor,
   getWebId as _getWebId,
   getFirstLoggedIn as _getFirstLoggedIn,
-} from '@solid-components/core/auth-core.js';
+} from '../core/auth-core.js';
 
 let _SessionClass = null;
 

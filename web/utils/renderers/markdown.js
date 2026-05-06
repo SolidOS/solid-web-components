@@ -1,5 +1,5 @@
 export async function renderMarkdown(content, outputEl) {
-  const { marked } = await import('https://esm.sh/marked@9');
+  const { marked } = await import('marked');
 
   marked.setOptions({ gfm: true, breaks: false });
   const html = marked.parse(content);

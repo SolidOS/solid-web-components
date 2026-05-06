@@ -1,4 +1,4 @@
-import { adopt } from '@solid-components/core/adopt.js';
+import { adopt } from '../../core/adopt.js';
 import { CSS as ANCHORLIST_CSS, sheet as ANCHORLIST_SHEET } from '../styles/view-anchorlist-css.js';
 
 /**

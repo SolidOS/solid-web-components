@@ -49,11 +49,10 @@
  *   sol-menu-change — detail: { name }
  */
 
-import { define } from '@solid-components/core/define.js';
-import { adopt } from '@solid-components/core/adopt.js';
+import { define } from '../core/define.js';
+import { adopt } from '../core/adopt.js';
 import { CSS as MENU_CSS, sheet as menuSheet } from './styles/sol-menu-css.js';
-import { loadRdfStore } from '@solid-components/core/rdf-utils.js';
-import { rdf } from '@solid-components/core/rdf.js';
+import { loadMenuFromUri } from '../core/menu-rdf.js';
 
 /**
  * Sidebar navigation + content panel.
@@ -67,10 +66,6 @@ import { rdf } from '@solid-components/core/rdf.js';
  * @attr {string} handler - default sol-* component tag for anchors
  * @fires sol-menu-change - detail: { name }
  */
-const UI = 'http://www.w3.org/ns/ui#';
-const RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
-const SCHEMA = 'http://schema.org/';
-
 class SolMenu extends HTMLElement {
   constructor() {
     super();
@@ -113,8 +108,8 @@ class SolMenu extends HTMLElement {
     const orient = this.getAttribute('orientation') === 'horizontal' ? 'horizontal' : 'vertical';
     const root = this.shadowRoot;
     root.innerHTML = `
-      <div class="sol-menu-nav" role="tablist" aria-orientation="${orient}"></div>
-      <div class="sol-menu-content" role="tabpanel" id="${this._panelId()}"></div>`;
+      <div class="sol-menu-nav" role="menubar" aria-orientation="${orient}"></div>
+      <div class="sol-menu-content" role="region"></div>`;
     adopt(root, { sheet: menuSheet, css: MENU_CSS });
     this._rendered = true;
     this._onDocClick = (e) => {
@@ -123,11 +118,6 @@ class SolMenu extends HTMLElement {
     document.addEventListener('click', this._onDocClick);
     this._onKeyDown = (e) => this._handleKeyDown(e);
     root.addEventListener('keydown', this._onKeyDown);
-  }
-
-  _panelId() {
-    if (!this._pid) this._pid = 'sol-menu-panel-' + Math.random().toString(36).slice(2, 8);
-    return this._pid;
   }
 
   _handleKeyDown(e) {
@@ -186,142 +176,68 @@ class SolMenu extends HTMLElement {
 
   async _loadFromRdf(uri) {
     try {
-      let docUrl, fragment;
-      try {
-        const parsed = new URL(uri, document.baseURI);
-        fragment = parsed.hash.slice(1);
-        parsed.hash = '';
-        docUrl = parsed.href;
-      } catch {
-        docUrl = uri;
-        fragment = '';
-      }
-      const store = await loadRdfStore(docUrl);
-      let root;
-      if (fragment) {
-        root = rdf.sym(docUrl + '#' + fragment);
-      } else {
-        const menuType = rdf.sym(UI + 'Menu');
-        const typeNode = rdf.sym(RDF + 'type');
-        root = store.each(null, typeNode, menuType)[0];
-      }
-      if (!root) return;
-      const linkTarget = this._rdfVal(store, root, 'linkTarget');
-      this._rdfLinkTarget = linkTarget || null;
-      const orientation = this._rdfVal(store, root, 'orientation') || 'horizontal';
-      if (!this.hasAttribute('orientation')) this.setAttribute('orientation', orientation);
-      this._items = this._rdfMenuItems(store, root);
+      const result = await loadMenuFromUri(uri, document.baseURI);
+      if (!result) return;
+      if (!this.hasAttribute('orientation')) this.setAttribute('orientation', result.orientation);
+      this._items = this._wrapRdfItems(result.items);
       this._renderNav();
       const firstLeaf = this._firstLeaf(this._items);
       if (firstLeaf) this.select(firstLeaf.name);
     } catch (err) {
       console.error('<sol-menu> from-rdf load failed:', err);
+      this.dispatchEvent(new CustomEvent('sol-error', {
+        bubbles: true, composed: true,
+        detail: { source: 'sol-menu', kind: 'rdf-load', uri, message: err.message },
+      }));
     }
   }
 
-  _rdfVal(store, subject, localName) {
-    const node = store.any(subject, rdf.sym(UI + localName));
-    return node ? node.value : null;
-  }
-
-  _rdfComponent(store, node) {
-    if (!node) return { tag: null, params: [] };
-    const tag = this._rdfVal(store, node, 'name') || this._rdfVal(store, node, 'label');
-    const attrNodes = store.each(node, rdf.sym(UI + 'attribute'), null);
-    const paramNodes = store.each(node, rdf.sym(UI + 'parameter'), null);
-    const params = [...attrNodes, ...paramNodes].map(p => [
-      (store.any(p, rdf.sym(SCHEMA + 'name')) || {}).value || '',
-      (store.any(p, rdf.sym(SCHEMA + 'value')) || {}).value || '',
-    ]).filter(([k]) => k);
-    return { tag, params };
-  }
-
-  _rdfListElements(store, listNode) {
-    if (listNode.elements) return listNode.elements;
-    const items = [];
-    let cur = listNode;
-    const nil = rdf.sym(RDF + 'nil');
-    const first = rdf.sym(RDF + 'first');
-    const rest = rdf.sym(RDF + 'rest');
-    while (cur && cur.value !== nil.value) {
-      const el = store.any(cur, first);
-      if (el) items.push(el);
-      cur = store.any(cur, rest);
-    }
-    return items;
-  }
-
-  _rdfMenuItems(store, menuNode) {
-    const partsNode = store.any(menuNode, rdf.sym(UI + 'parts'));
-    if (!partsNode) return [];
-    const parts = this._rdfListElements(store, partsNode);
-    const menuType = rdf.sym(UI + 'Menu');
-    const componentType = rdf.sym(UI + 'Component');
-    const typeNode = rdf.sym(RDF + 'type');
-    const items = [];
-    for (const part of parts) {
-      const partType = store.any(part, typeNode);
-      const label = this._rdfVal(store, part, 'label') || part.value;
-      const icon = this._rdfVal(store, part, 'icon');
-      if (partType && partType.value === menuType.value) {
-        items.push({
-          name: label,
-          children: this._rdfMenuItems(store, part),
-        });
-      } else if (partType && partType.value === componentType.value) {
-        const { tag, params } = this._rdfComponent(store, part);
-        const linkTarget = this._rdfLinkTarget;
-        items.push({
-          name: label,
-          icon,
-          render: (body) => {
-            if (!tag) return;
-            _ensureHandler(tag);
-            const el = document.createElement(tag);
-            for (const [k, v] of params) el.setAttribute(k, v);
-            el.classList.add('sol-menu-embed');
-            const target = linkTarget
-              ? document.querySelector(linkTarget)
-              : body;
-            target.innerHTML = '';
-            target.appendChild(el);
-          },
-        });
-      } else {
-        const href = this._rdfVal(store, part, 'href');
-        const handlerNode = store.any(part, rdf.sym(UI + 'handler'));
-        const { tag: handlerTag, params: handlerParams } = this._rdfComponent(store, handlerNode);
-        const contents = this._rdfVal(store, part, 'contents');
-        const linkTarget = this._rdfLinkTarget;
-        items.push({
-          name: label,
-          icon,
-          render: (body) => {
-            if (contents) {
-              const target = linkTarget
-                ? document.querySelector(linkTarget)
-                : body;
-              target.innerHTML = contents;
-              return;
-            }
-            if (!href) return;
-            const tag = handlerTag || this.getAttribute('handler') || 'sol-include';
-            _ensureHandler(tag);
-            const el = document.createElement(tag);
-            el.setAttribute('source', href);
-            el.setAttribute('endpoint', href);
-            for (const [k, v] of handlerParams) el.setAttribute(k, v);
-            el.classList.add('sol-menu-embed');
-            const target = linkTarget
-              ? document.querySelector(linkTarget)
-              : body;
-            target.innerHTML = '';
-            target.appendChild(el);
-          },
-        });
+  // Wrap pure item descriptions from core/menu-rdf.js with the DOM-side
+  // render closures the rest of the component expects.
+  _wrapRdfItems(descriptions) {
+    return descriptions.map(desc => {
+      if (desc.type === 'submenu') {
+        return { name: desc.name, children: this._wrapRdfItems(desc.children) };
       }
-    }
-    return items;
+      if (desc.type === 'component') {
+        return { name: desc.name, icon: desc.icon, render: this._renderComponentItem(desc) };
+      }
+      return { name: desc.name, icon: desc.icon, render: this._renderLinkItem(desc) };
+    });
+  }
+
+  _renderComponentItem({ tag, params, linkTarget }) {
+    return (body) => {
+      if (!tag) return;
+      _ensureHandler(tag, this);
+      const el = document.createElement(tag);
+      for (const [k, v] of params) el.setAttribute(k, v);
+      el.classList.add('sol-menu-embed');
+      const target = linkTarget ? document.querySelector(linkTarget) : body;
+      target.innerHTML = '';
+      target.appendChild(el);
+    };
+  }
+
+  _renderLinkItem({ href, contents, handlerTag, handlerParams, linkTarget }) {
+    return (body) => {
+      if (contents) {
+        const target = linkTarget ? document.querySelector(linkTarget) : body;
+        target.innerHTML = contents;
+        return;
+      }
+      if (!href) return;
+      const tag = handlerTag || this.getAttribute('handler') || 'sol-include';
+      _ensureHandler(tag, this);
+      const el = document.createElement(tag);
+      el.setAttribute('source', href);
+      el.setAttribute('endpoint', href);
+      for (const [k, v] of handlerParams) el.setAttribute(k, v);
+      el.classList.add('sol-menu-embed');
+      const target = linkTarget ? document.querySelector(linkTarget) : body;
+      target.innerHTML = '';
+      target.appendChild(el);
+    };
   }
 
   _harvestItems(root) {
@@ -337,7 +253,7 @@ class SolMenu extends HTMLElement {
         out.push({
           name: label,
           render: (body) => {
-            _ensureHandler(handlerTag);
+            _ensureHandler(handlerTag, this);
             const el = document.createElement(handlerTag);
             el.setAttribute('source', url);
             el.setAttribute('endpoint', url);
@@ -401,8 +317,6 @@ class SolMenu extends HTMLElement {
     this._btns = {};
     const orient = this.getAttribute('orientation') === 'horizontal' ? 'horizontal' : 'vertical';
     nav.setAttribute('aria-orientation', orient);
-    const panel = root.querySelector('.sol-menu-content');
-    if (panel) panel.id = this._panelId();
     const leafCount = this._flatLeaves(this._items).length;
     if (leafCount <= 1 && !this._items.some(i => i.children)) {
       nav.style.display = 'none';
@@ -416,7 +330,6 @@ class SolMenu extends HTMLElement {
   }
 
   _renderNavLevel(parent, items, depth) {
-    const isPopup = depth > 0;
     items.forEach(item => {
       if (item.children) {
         const wrap = document.createElement('div');
@@ -425,7 +338,8 @@ class SolMenu extends HTMLElement {
         btn.type = 'button';
         btn.className = 'sol-menu-group-btn';
         btn.textContent = item.name;
-        btn.setAttribute('aria-haspopup', 'true');
+        btn.setAttribute('role', 'menuitem');
+        btn.setAttribute('aria-haspopup', 'menu');
         btn.setAttribute('aria-expanded', 'false');
         const popup = document.createElement('div');
         popup.className = 'sol-menu-popup';
@@ -450,11 +364,7 @@ class SolMenu extends HTMLElement {
       } else {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.setAttribute('role', isPopup ? 'menuitem' : 'tab');
-        if (!isPopup) {
-          btn.setAttribute('aria-selected', 'false');
-          btn.setAttribute('aria-controls', this._panelId());
-        }
+        btn.setAttribute('role', 'menuitem');
         if (item.icon) {
           btn.title = item.name;
           btn.setAttribute('aria-label', item.name);
@@ -522,24 +432,20 @@ class SolMenu extends HTMLElement {
 
     Object.values(this._btns).forEach(b => {
       b.classList.remove('active');
-      b.setAttribute('aria-selected', 'false');
+      b.removeAttribute('aria-current');
       b.setAttribute('tabindex', '-1');
     });
     const activeBtn = this._btns[item.name];
     if (activeBtn) {
       activeBtn.classList.add('active');
-      activeBtn.setAttribute('aria-selected', 'true');
+      activeBtn.setAttribute('aria-current', 'page');
       activeBtn.setAttribute('tabindex', '0');
     }
 
     const body = this.body;
     body.innerHTML = '';
     body.style.padding = ''; body.style.overflow = ''; body.style.height = '';
-    if (activeBtn) {
-      const btnId = activeBtn.id || ('sol-menu-tab-' + item.name.replace(/\s+/g, '-').toLowerCase());
-      activeBtn.id = btnId;
-      body.setAttribute('aria-labelledby', btnId);
-    }
+    body.setAttribute('aria-label', `Content: ${item.name}`);
 
     const cleanup = item.render(body);
     if (typeof cleanup === 'function') this._cleanup = cleanup;
@@ -556,10 +462,17 @@ class SolMenu extends HTMLElement {
   }
 }
 
-function _ensureHandler(tag) {
+function _ensureHandler(tag, host) {
   if (!/^sol-[a-z-]+$/.test(tag)) return;
   if (customElements.get(tag)) return;
-  import(new URL(`./${tag}.js`, import.meta.url).href).catch(() => {});
+  import(new URL(`./${tag}.js`, import.meta.url).href).catch(err => {
+    const msg = `<sol-menu> could not auto-load handler "${tag}" — make sure its module is reachable and any externals are in the importmap (${err.message})`;
+    console.warn(msg);
+    if (host) host.dispatchEvent(new CustomEvent('sol-error', {
+      bubbles: true, composed: true,
+      detail: { source: 'sol-menu', kind: 'handler-load', tag, message: err.message },
+    }));
+  });
 }
 
 define('sol-menu', SolMenu);

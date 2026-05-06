@@ -29,10 +29,11 @@ export function detectIncludeFormat(contentType, url) {
  * @param {boolean} [opts.trusted] - skip sanitization
  * @param {function} [opts.sanitize] - async (html) => sanitized html
  * @param {function} [opts.fetchFn] - fetch implementation
+ * @param {AbortSignal} [opts.signal] - cancel the underlying fetch
  * @returns {Promise<{type: 'html'|'raw', content: string}>}
  */
-export async function fetchIncludeContent(source, { raw = false, trusted = false, sanitize, fetchFn = globalThis.fetch } = {}) {
-  const resp = await fetchFn(source);
+export async function fetchIncludeContent(source, { raw = false, trusted = false, sanitize, fetchFn = globalThis.fetch, signal } = {}) {
+  const resp = await fetchFn(source, signal ? { signal } : undefined);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   const ct = (resp.headers.get('content-type') || '').split(';')[0].trim();
   const text = await resp.text();

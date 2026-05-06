@@ -1,7 +1,7 @@
 // Styles for <sol-live-edit> shadow DOM.
 // Uses CSS custom properties so the host page's theme (podz or standalone)
 // flows through.
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 
 export const CSS = `
 :host{display:flex;flex-direction:column;overflow:hidden;font-family:inherit;position:relative}

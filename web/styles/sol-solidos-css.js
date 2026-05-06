@@ -1,4 +1,4 @@
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 
 export const CSS = `
   sol-solidos { display: block; width: 100%; height: 100%; overflow: auto; }

@@ -1,4 +1,4 @@
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 
 export const CSS = `
   .sol-view-select {

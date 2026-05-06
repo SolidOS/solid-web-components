@@ -1,4 +1,4 @@
-import { adopt } from '@solid-components/core/adopt.js';
+import { adopt } from '../../core/adopt.js';
 import { CSS as AUTOCOMPLETE_CSS, sheet as AUTOCOMPLETE_SHEET } from '../styles/view-autocomplete-css.js';
 
 export function render(container, data, host) {

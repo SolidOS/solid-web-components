@@ -3,7 +3,7 @@
 // the result as Turtle.
 //
 // Usage:
-//   import { solForm } from '@solid-components/node/form';
+//   import { solForm } from 'solid-web-components/form';
 //   const { turtle } = await solForm({
 //     source: 'data/menu-form.ttl',
 //     data:   { label: 'My Menu', orientation: 'horizontal', parts: [...] },
@@ -15,7 +15,7 @@ import { resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   UI, RDF, findForm, populateStore, setDefaults, readFormParts,
-} from '@solid-components/core/form-utils.js';
+} from '../core/form-utils.js';
 
 // ─── store loading ──────────────────────────────────────────────────
 

@@ -18,15 +18,15 @@
 
 import { CSS as POD_MODAL_CSS, sheet as POD_MODAL_SHEET } from './styles/sol-pod-modal-css.js';
 import { BTN_CSS } from './styles/buttons-css.js';
-import { adopt, sheetFrom } from '@solid-components/core/adopt.js';
-import { define } from '@solid-components/core/define.js';
+import { adopt, sheetFrom } from '../core/adopt.js';
+import { define } from '../core/define.js';
 import {
   extOf, contentTypeFor,
   fetchContainer, copyFolder, deleteFolder,
   liveFormatFor, isLiveFormat,
   isEditable, isViewable, isRdf, isImage, isVideo, isAudio, isPDF,
   CT_TO_EXT,
-} from '@solid-components/core/pod-ops.js';
+} from '../core/pod-ops.js';
 
 const HOST_CSS = BTN_CSS + `
   :host { display: block; }

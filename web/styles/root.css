@@ -3,7 +3,6 @@
   --surface: #ffffff;
   --border: #d0d0d0;
   --text: #000000;
-  --text-muted: #7f8c8d;
   --text-muted: #4d4d4d;
   --accent: #3498db;
   --accent-dark: #2980b9;
@@ -13,9 +12,38 @@
   --error: #e74c3c;
   --success: #27ae60;
   --shadow: rgba(0,0,0,0.08);
-  --font-size: 18px;
+  --shadow-popup: 0 4px 12px rgba(0,0,0,0.12);
+  --shadow-modal: 0 8px 24px rgba(0,0,0,0.25);
+  --scrim: rgba(0,0,0,0.4);
+  --small-font: 16px;
+  --medium-font: 20px;
+  --large-font: 24px;
+  --font-size: var(--medium-font, 20px);
   --font-ui: 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  --font-weight-normal: 400;
+  --font-weight-bold: 600;
+  --line-height-tight: 1.25;
+  --line-height-base: 1.5;
+
+  /* spacing scale */
+  --space-xs: 2px;
+  --space-sm: 4px;
+  --space-md: 8px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --space-2xl: 24px;
+
+  /* radius scale */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+
+  /* component sizing */
+  --menu-nav-min-width: 140px;
+  --menu-nav-max-width: 260px;
+  --menu-popup-min-width: 160px;
+  --bnode-modal-max-width: min(90vw, 700px);
+  --bnode-modal-max-height: 80vh;
 }
 /*
 @media (prefers-color-scheme: dark) {

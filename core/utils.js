@@ -107,9 +107,11 @@ export class ComunicaSparqlAdapter {
     return null;
   }
 
-  async executeQuery(query, endpoint) {
+  async executeQuery(query, endpoint, fetchFn) {
     const engine = await this.engineFactory();
-    const stream = await engine.queryBindings(query, { sources: [endpoint], lenient: true });
+    const ctx = { sources: [endpoint], lenient: true };
+    if (typeof fetchFn === 'function') ctx.fetch = fetchFn;
+    const stream = await engine.queryBindings(query, ctx);
     const bindings = await stream.toArray();
     if (!bindings.length) return { vars: [], results: [] };
 

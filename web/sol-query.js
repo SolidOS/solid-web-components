@@ -38,37 +38,42 @@ import {
   runQuery,
   execSparql,
   queryHtmlWithSelector,
-} from '@solid-components/core/rdf-utils.js';
-import { assertSafeQuery, sanitizeVarValue, substituteVariables } from '@solid-components/core/sparql-safety.js';
-import { rdf } from '@solid-components/core/rdf.js';
+} from '../core/rdf-utils.js';
+import { assertSafeQuery, sanitizeVarValue, substituteVariables } from '../core/sparql-safety.js';
+import { getAuthFetch } from '../core/auth-fetch.js';
+import { rdf } from '../core/rdf.js';
 import { SparqlResultsRenderer } from './utils/sol-query-ui.js';
 import { TriplePatternValidator } from './utils/sol-query-triple-patterns.js';
-import { define } from '@solid-components/core/define.js';
-import { adopt } from '@solid-components/core/adopt.js';
+import { define } from '../core/define.js';
+import { adopt } from '../core/adopt.js';
 import { CSS as QUERY_CSS, sheet as querySheet } from './styles/sol-query-css.js';
-import { render as renderTable }        from './views/table.js';
-import { render as renderDl }           from './views/dl.js';
-import { render as renderList }         from './views/list.js';
-import { render as renderAccordion }    from './views/accordion.js';
-import { render as renderAnchorlist }   from './views/anchorlist.js';
-import { render as renderAutoComplete } from './views/auto-complete.js';
-import { render as renderMenu }         from './views/menu.js';
-import { render as renderRolodex }      from './views/rolodex.js';
-import { render as renderSelect }       from './views/select.js';
-import { render as renderTabs }         from './views/tabs.js';
 
-const BUILTIN_VIEWS = {
-  table:           renderTable,
-  dl:              renderDl,
-  list:            renderList,
-  accordion:       renderAccordion,
-  anchorlist:      renderAnchorlist,
-  'auto-complete': renderAutoComplete,
-  menu:            renderMenu,
-  rolodex:         renderRolodex,
-  select:          renderSelect,
-  tabs:            renderTabs,
+// Built-in views are loaded on demand. Each entry returns the render
+// function for that view name. The all-in-one Rollup bundle uses
+// `inlineDynamicImports: true` so these `import()` calls are inlined at
+// build time; ESM/importmap consumers fetch only the views they use.
+const BUILTIN_VIEW_LOADERS = {
+  table:           () => import('./views/table.js'),
+  dl:              () => import('./views/dl.js'),
+  list:            () => import('./views/list.js'),
+  accordion:       () => import('./views/accordion.js'),
+  anchorlist:      () => import('./views/anchorlist.js'),
+  'auto-complete': () => import('./views/auto-complete.js'),
+  menu:            () => import('./views/menu.js'),
+  rolodex:         () => import('./views/rolodex.js'),
+  select:          () => import('./views/select.js'),
+  tabs:            () => import('./views/tabs.js'),
 };
+const _viewCache = new Map();
+async function loadBuiltinView(name) {
+  if (_viewCache.has(name)) return _viewCache.get(name);
+  const loader = BUILTIN_VIEW_LOADERS[name];
+  if (!loader) return null;
+  const mod = await loader();
+  const fn  = mod.render ?? mod.default;
+  _viewCache.set(name, fn);
+  return fn;
+}
 
 /**
  * Query and display RDF / Linked Data from plain HTML.
@@ -122,7 +127,7 @@ class SolQuery extends HTMLElement {
   render() {
     this.shadowRoot.innerHTML = `
       <div class="container" role="region" aria-live="polite" aria-label="Query results">
-        <div class="loading">Ready to execute query...</div>
+        <div class="loading" role="status">Ready to execute query...</div>
       </div>
     `;
     adopt(this.shadowRoot, { sheet: querySheet, css: QUERY_CSS });
@@ -150,7 +155,7 @@ class SolQuery extends HTMLElement {
 
   async initializeQuery() {
     const endpoint = this.getAttribute('endpoint');
-    if (!endpoint) { this.renderer.showError('No endpoint provided'); return; }
+    if (!endpoint) { this._reportError('config', 'No endpoint provided'); return; }
 
     if (this.hasAttribute('sparql') || this.hasAttribute('query')) {
       await this.handleSparqlQuery();
@@ -159,6 +164,16 @@ class SolQuery extends HTMLElement {
     } else {
       await this.handleDefaultQuery();
     }
+  }
+
+  // Render the error in the shadow DOM and dispatch a bubbling sol-error
+  // event so page-level orchestration can react.
+  _reportError(kind, message) {
+    this.renderer.showError(message);
+    this.dispatchEvent(new CustomEvent('sol-error', {
+      bubbles: true, composed: true,
+      detail: { source: 'sol-query', kind, message },
+    }));
   }
 
   // ─── SPARQL query (inline text or URL pointing to RDF file) ────────────────
@@ -174,11 +189,11 @@ class SolQuery extends HTMLElement {
       try {
         const query = await fetchQueryFromRdf(sparqlAttr);
         if (query) {
-          try { assertSafeQuery(query); } catch (err) { this.renderer.showError(err.message); return; }
+          try { assertSafeQuery(query); } catch (err) { this._reportError('sparql-unsafe', err.message); return; }
           this.executeQuery(query);
-        } else this.renderer.showError('No query found in RDF file');
+        } else this._reportError('sparql-empty', 'No query found in RDF file');
       } catch (err) {
-        this.renderer.showError(`Failed to load query: ${err.message}`);
+        this._reportError('sparql-load', `Failed to load query: ${err.message}`);
       }
     }
   }
@@ -190,7 +205,7 @@ class SolQuery extends HTMLElement {
 
     this.renderer.showLoading('Loading…');
     try {
-      const store = await loadRdfStore(endpoint);
+      const store = await loadRdfStore(endpoint, this._authFetch(endpoint));
 
       if (store._isHtml) {
         const validation = TriplePatternValidator.validate(pattern);
@@ -201,7 +216,7 @@ class SolQuery extends HTMLElement {
         }
       } else {
         const validation = TriplePatternValidator.validate(pattern);
-        if (!validation.valid) { this.renderer.showError(validation.error); return; }
+        if (!validation.valid) { this._reportError('pattern-invalid', validation.error); return; }
       }
 
       const rdflib = rdf;
@@ -230,7 +245,7 @@ class SolQuery extends HTMLElement {
       if (!results.results.length) { this.renderer.showError('No matching triples found'); return; }
       this._dispatchResults(results);
     } catch (err) {
-      this.renderer.showError(err.message);
+      this._reportError('query-failed', err.message);
     }
   }
 
@@ -240,7 +255,7 @@ class SolQuery extends HTMLElement {
     this.renderer.showLoading('Loading RDF data…');
     try {
       const docUrl = endpoint.includes('#') ? endpoint.split('#')[0] : endpoint;
-      const store   = await loadRdfStore(docUrl);
+      const store   = await loadRdfStore(docUrl, this._authFetch(docUrl));
       let results;
       const isSubjectQuery = endpoint.includes('#');
       if (isSubjectQuery) {
@@ -356,12 +371,18 @@ class SolQuery extends HTMLElement {
       return;
     }
 
-    // Built-in view modules are statically imported (so the all-in-one IIFE
-    // bundle inlines them and doesn't try to resolve ./views/<name>.js against
-    // the host page URL at runtime).
-    const fn = BUILTIN_VIEWS[view];
+    // Built-in views are imported on demand. The all-in-one Rollup bundle
+    // inlines these dynamic imports at build time; ESM/importmap consumers
+    // pay only for the views they actually use.
+    let fn;
+    try {
+      fn = await loadBuiltinView(view);
+    } catch (err) {
+      this._reportError('view-load', `Failed to load view "${view}": ${err.message}`);
+      return;
+    }
     if (!fn) {
-      this.renderer.showError(`Unknown view: ${view}`);
+      this._reportError('view-unknown', `Unknown view: ${view}`);
       return;
     }
 
@@ -374,7 +395,7 @@ class SolQuery extends HTMLElement {
     const container = this.shadowRoot.querySelector('.container');
     container.innerHTML = '';
     try { await fn(container, results, this); }
-    catch (err) { this.renderer.showError(`View "${view}" error: ${err.message}`); }
+    catch (err) { this._reportError('view-render', `View "${view}" error: ${err.message}`); }
   }
 
   async _loadAndRenderView(url, results, byUrl, viewName = null) {
@@ -389,7 +410,7 @@ class SolQuery extends HTMLElement {
       fn(container, results, this);
     } catch (err) {
       const label = byUrl ? 'Custom view' : `View "${viewName}"`;
-      this.renderer.showError(`${label} error: ${err.message}`);
+      this._reportError('view-render', `${label} error: ${err.message}`);
     }
   }
 
@@ -407,28 +428,39 @@ class SolQuery extends HTMLElement {
   }
 
   async executeQuery(query) {
-    if (!query) { this.renderer.showError('No query provided'); return; }
+    if (!query) { this._reportError('config', 'No query provided'); return; }
     let processed;
     try {
       processed = this.substituteVariables(query);
       assertSafeQuery(processed);
     } catch (err) {
-      this.renderer.showError(err.message);
+      this._reportError('sparql-unsafe', err.message);
       return;
     }
     const endpoint = this.getAttribute('endpoint');
-    if (!endpoint) { this.renderer.showError('No endpoint provided'); return; }
+    if (!endpoint) { this._reportError('config', 'No endpoint provided'); return; }
     this.renderer.showLoading();
     try {
       const results = await this.fetchResults(processed, endpoint);
       await this._dispatchResults(results);
     } catch (err) {
-      this.renderer.showError(`Error: ${err.message}`);
+      this._reportError('query-failed', err.message);
     }
   }
 
   fetchResults(query, endpoint) {
-    return execSparql(query, endpoint);
+    return execSparql(query, endpoint, this._authFetch(endpoint));
+  }
+
+  // Resolve an authenticated fetch for `url`. The `login` attribute, when
+  // set, is a CSS selector for a specific <sol-login> element (matches the
+  // sol-pod / sol-pod-ops / sol-wac convention). Otherwise getAuthFetch
+  // walks the document and uses the first <sol-login> on the page; falls
+  // back to the global fetch when none is logged in.
+  _authFetch(url) {
+    const sel = this.getAttribute('login');
+    const el  = sel ? document.querySelector(sel) : null;
+    return getAuthFetch(url, { element: el || undefined });
   }
 
   // ─── Instance API ──────────────────────────────────────────────────────────
@@ -448,7 +480,7 @@ class SolQuery extends HTMLElement {
 
   // ─── Diagnostics ───────────────────────────────────────────────────────────
   showDiagnostics(err) {
-    this.renderer.showError(`Failed to load RDF: ${err.message}`);
+    this._reportError('rdf-load', `Failed to load RDF: ${err.message}`);
   }
 }
 

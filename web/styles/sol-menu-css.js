@@ -1,4 +1,4 @@
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 
 export const CSS = `
   :host {
@@ -8,6 +8,7 @@ export const CSS = `
     overflow: hidden;
     box-sizing: border-box;
     font-family:var(--font-ui) !important;
+    font-size: var(--font-size, var(--medium-font, 20px));
   }
   :host([orientation="horizontal"]) {
     flex-direction: column;
@@ -22,9 +23,10 @@ export const CSS = `
   .sol-menu-nav {
     display: flex; flex-direction: column;
     flex-shrink: 0;
-    min-width: 140px; max-width: 260px;
-    padding: 8px;
-    gap: 2px;
+    min-width: var(--menu-nav-min-width, 140px);
+    max-width: var(--menu-nav-max-width, 260px);
+    padding: var(--space-md, 8px);
+    gap: var(--space-xs, 2px);
     border-right: 1px solid var(--border, #e0e0e0);
     overflow-y: auto; overflow-x: hidden;
     scrollbar-width: thin;
@@ -33,7 +35,8 @@ export const CSS = `
   :host([orientation="horizontal"]) > .sol-menu-nav {
     flex-direction: row;
     min-width: 0; max-width: 100%;
-    padding: 6px 10px; gap: 4px;
+    padding: var(--space-sm, 4px) var(--space-lg, 12px);
+    gap: var(--space-sm, 4px);
     border-right: none;
     border-bottom: 1px solid var(--border, #e0e0e0);
     overflow-x: auto; overflow-y: hidden;
@@ -42,13 +45,13 @@ export const CSS = `
   .sol-menu-nav button {
     background: none; border: none;
     text-align: left;
-    padding: 8px 12px;
-    border-radius: 4px;
+    padding: var(--menu-button-padding, var(--space-md, 8px) var(--space-lg, 12px));
+    border-radius: var(--menu-button-radius, var(--radius-sm, 4px));
     color: var(--text, black) !important;
     cursor: pointer; font-family: inherit;
     white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis;
-    font-size:var(--font-size,16px) !important;
+    font-size: var(--font-size, var(--medium-font, 20px)) !important;
   }
   :host([orientation="horizontal"]) > .sol-menu-nav > button,
   :host([orientation="horizontal"]) > .sol-menu-nav > .sol-menu-group {
@@ -66,13 +69,17 @@ export const CSS = `
     height: 1.2em; width: auto;
   }
   .sol-menu-nav button:hover {
-    background: var(--hover, #f0f0f0);
-    color: var(--accent-dark, #1976d2);
+    background: var(--menu-hover-bg, var(--hover, #f0f0f0));
+    color: var(--menu-hover-color, var(--accent-dark, #1976d2));
+  }
+  .sol-menu-nav button:focus-visible {
+    outline: 2px solid var(--accent, #4a9eff);
+    outline-offset: 2px;
   }
   .sol-menu-nav button.active {
-    background: var(--focus-bg, #e3f2fd);
-    color: var(--accent-dark, #1976d2);
-    font-weight: 600;
+    background: var(--menu-active-bg, var(--focus-bg, #e3f2fd));
+    color: var(--menu-active-color, var(--accent-dark, #1976d2));
+    font-weight: var(--font-weight-bold, 600);
   }
 
   .sol-menu-group {
@@ -83,31 +90,31 @@ export const CSS = `
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 4px;
-    font-weight: 600;
+    gap: var(--space-sm, 4px);
+    font-weight: var(--font-weight-bold, 600);
   }
   .sol-menu-group-btn::after {
     content: '▸';
     margin-left: auto;
-    font-size: 0.8em;
+    font-size: var(--small-font, 16px);
     opacity: 0.7;
   }
   :host([orientation="horizontal"]) .sol-menu-nav > .sol-menu-group > .sol-menu-group-btn::after {
     content: '▾';
-    margin-left: 4px;
+    margin-left: var(--space-sm, 4px);
   }
   .sol-menu-popup {
     display: none;
     position: fixed;
-    min-width: 160px;
-    padding: 6px;
+    min-width: var(--menu-popup-min-width, 160px);
+    padding: var(--space-md, 8px);
     background: var(--surface, #fff);
     border: 1px solid var(--border, #e0e0e0);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    border-radius: var(--radius-md, 6px);
+    box-shadow: var(--shadow-popup, 0 4px 12px rgba(0,0,0,0.12));
     z-index: 1000;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--space-xs, 2px);
   }
   .sol-menu-group.open > .sol-menu-popup {
     display: flex;
@@ -118,7 +125,7 @@ export const CSS = `
     max-width: 100%;
     display: flex; flex-direction: column;
     overflow: auto;
-    padding: 16px 20px;
+    padding: var(--space-xl, 16px) var(--space-xl, 16px);
     box-sizing: border-box;
   }
   .sol-menu-content > * {

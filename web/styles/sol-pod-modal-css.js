@@ -2,7 +2,7 @@
 // Passed to a modal instance via `modal.styles = [sheet]` so the rules
 // reach the modal's shadow scope — sol-pod's own sheet can't cross the
 // boundary.
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 import { BTN_CSS } from './buttons-css.js';
 import { CSS as WAC_CSS } from './sol-wac-css.js';
 

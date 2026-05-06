@@ -25,10 +25,10 @@
  *   sol-status     — human-readable status ({ message, type })
  */
 
-import { define } from '@solid-components/core/define.js';
-import { ensureDocStyle } from '@solid-components/core/adopt.js';
+import { define } from '../core/define.js';
+import { ensureDocStyle } from '../core/adopt.js';
 import { CSS as WAC_CSS } from './styles/sol-wac-css.js';
-import { rdf } from '@solid-components/core/rdf.js';
+import { rdf } from '../core/rdf.js';
 import './sol-tabs.js';
 
 // ── ACL constants ─────────────────────────────────────────────────────

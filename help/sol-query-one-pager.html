@@ -1,7 +1,7 @@
 <style>
 </style>
-<link rel="stylesheet" href="../styles/root.css"> 
-<link rel="stylesheet" href="../styles/sol-query-one-pager.css"> 
+<link rel="stylesheet" href="../web/styles/root.css"> 
+<link rel="stylesheet" href="../web/styles/sol-query-one-pager.css"> 
 
 <h2>sol-query -- search Solid and Linked Data resources</h2>
 <main>
@@ -172,24 +172,19 @@ SELECT ?link ?label WHERE {?link schema:name ?label.} LIMIT 3
 </ul>
 </div>
 
-<script src="../dist/solid-web-components.bundle.min.js" type="module"></script>
-
-<script>
-/*
-<!-- INRUPT SCAB
--->
-<script src="https://cdn.jsdelivr.net/npm/@inrupt/solid-client-authn-browser/dist/solid-client-authn.bundle.js"></script>
-
-<!-- COMUNICA
--->
-<script src="https://rdf.js.org/comunica-browser/versions/latest/engines/query-sparql/comunica-browser.js"></script>
-
-<!-- RDFLIB
--->
-<script src="https://cdn.jsdelivr.net/npm/rdflib/dist/rdflib.min.js"></script>
-
-<!-- COMPONENTS
- -->
-<script src="../sol-query.js" type="module"></script>
-*/
+<script type="importmap">
+  {
+    "imports": {
+      "rdflib":                              "../dist/vendor/rdflib.js",
+      "dompurify":                           "../dist/vendor/dompurify.js",
+      "marked":                              "../dist/vendor/marked.js",
+      "@comunica/query-sparql":              "../dist/vendor/@comunica-query-sparql.js",
+      "@inrupt/solid-client-authn-browser":  "../dist/vendor/@inrupt-solid-client-authn-browser.js",
+      "solid-ui":                            "../dist/vendor/solid-ui.js",
+      "solid-logic":                         "../dist/vendor/solid-logic.js"
+    }
+  }
 </script>
+<script type="module" src="../web/sol-full.js"></script>
+
+

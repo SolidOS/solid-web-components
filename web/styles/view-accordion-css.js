@@ -1,4 +1,4 @@
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 
 export const CSS = `
   .sol-view-accordion {
@@ -39,11 +39,16 @@ export const CSS = `
     display: grid;
     grid-template-columns: max-content 1fr;
     gap: .25rem .75rem;
+    align-items: baseline;
+  }
+  .sol-view-accordion dt,
+  .sol-view-accordion dd {
+    font-size: var(--small-font, 16px);
+    line-height: var(--line-height-base, 1.5);
   }
   .sol-view-accordion dt {
-    font-size: .85em;
     color: var(--text-muted, #666);
-    font-weight: 600;
+    font-weight: var(--font-weight-bold, 600);
   }
   .sol-view-accordion dd {
     margin: 0;

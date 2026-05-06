@@ -1,5 +1,5 @@
 import { drawForceGraph } from './d3-force.js';
-import { rdf } from '@solid-components/core/rdf.js';
+import { rdf } from '../../../core/rdf.js';
 
 export async function renderTurtle(content, outputEl) {
   if (!rdf.isReady()) throw new Error('rdflib not available');

@@ -1,5 +1,5 @@
-import { define } from '@solid-components/core/define.js';
-import { ensureDocStyle } from '@solid-components/core/adopt.js';
+import { define } from '../core/define.js';
+import { ensureDocStyle } from '../core/adopt.js';
 
 function getMashlib() {
   const w = typeof window !== 'undefined' ? window : {};

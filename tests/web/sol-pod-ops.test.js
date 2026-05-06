@@ -14,7 +14,7 @@ import {
   fileIcon, CT_TO_EXT, MIME_TYPES, withTimeout, fetchContainer,
   copyFile, copyFolder, deleteFolder,
   discoverOwnerWebIds, getStoragesFromWebIds,
-} from '@solid-components/core/pod-ops.js';
+} from '../../core/pod-ops.js';
 
 // ── extOf ─────────────────────────────────────────────────────────────────
 

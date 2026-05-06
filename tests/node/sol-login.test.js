@@ -4,7 +4,7 @@
  */
 
 import { SolidAuth } from '../../node/sol-login.js';
-import { baseDomain } from '@solid-components/core/auth-core.js';
+import { baseDomain } from '../../core/auth-core.js';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

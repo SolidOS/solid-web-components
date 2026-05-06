@@ -47,8 +47,8 @@
  */
 
 import { CSS, sheet as MODAL_SHEET } from './styles/sol-modal-css.js';
-import { adopt } from '@solid-components/core/adopt.js';
-import { define } from '@solid-components/core/define.js';
+import { adopt } from '../core/adopt.js';
+import { define } from '../core/define.js';
 
 const OWN_ATTRS = new Set(['title', 'size', 'component', 'content', 'source', 'handler']);
 

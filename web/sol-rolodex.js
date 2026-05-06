@@ -15,7 +15,7 @@
  * </sol-rolodex>
  */
 import { render as renderRolodex } from './views/rolodex.js';
-import { define } from '@solid-components/core/define.js';
+import { define } from '../core/define.js';
 
 /**
  * Card-by-card browser web component.

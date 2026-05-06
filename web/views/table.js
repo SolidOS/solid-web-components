@@ -12,6 +12,9 @@ export function render(container, data, host, options = {}) {
     data.vars.forEach(v => {
       const th = document.createElement('th');
       th.setAttribute('role', 'columnheader');
+      th.setAttribute('tabindex', '0');
+      th.setAttribute('aria-sort', 'none');
+      th.setAttribute('aria-label', `${v}, sortable column`);
       th.textContent = v;
       tr.appendChild(th);
     });
@@ -41,16 +44,28 @@ export function render(container, data, host, options = {}) {
 function addSort(table) {
   const ths = table.querySelectorAll('th');
   let col = -1, dir = 1;
+  const doSort = (i) => {
+    dir = col === i ? -dir : 1;
+    col = i;
+    ths.forEach((h, j) => {
+      const active = j === i;
+      const order  = active ? (dir > 0 ? 'asc' : 'desc') : '';
+      h.setAttribute('data-sort', order);
+      h.setAttribute('aria-sort', active ? (dir > 0 ? 'ascending' : 'descending') : 'none');
+    });
+    const tbody = table.querySelector('tbody');
+    Array.from(tbody.querySelectorAll('tr'))
+      .sort((a, b) => dir * (a.cells[i]?.textContent || '')
+        .localeCompare(b.cells[i]?.textContent || '', undefined, { numeric: true, sensitivity: 'base' }))
+      .forEach(r => tbody.appendChild(r));
+  };
   ths.forEach((th, i) => {
-    th.addEventListener('click', () => {
-      dir = col === i ? -dir : 1;
-      col = i;
-      ths.forEach((h, j) => h.setAttribute('data-sort', j === i ? (dir > 0 ? 'asc' : 'desc') : ''));
-      const tbody = table.querySelector('tbody');
-      Array.from(tbody.querySelectorAll('tr'))
-        .sort((a, b) => dir * (a.cells[i]?.textContent || '')
-          .localeCompare(b.cells[i]?.textContent || '', undefined, { numeric: true, sensitivity: 'base' }))
-        .forEach(r => tbody.appendChild(r));
+    th.addEventListener('click', () => doSort(i));
+    th.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        doSort(i);
+      }
     });
   });
 }

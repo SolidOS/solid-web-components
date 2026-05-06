@@ -10,7 +10,7 @@
 //
 // All colors resolve from root.css vars with sensible fallbacks.
 
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 
 export const BTN_CSS = `
   .sol-btn {

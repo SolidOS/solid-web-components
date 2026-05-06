@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+/**
+ * vendor.mjs
+ *
+ * For each external dep listed in tools/external-deps.json, run Rollup once
+ * to produce dist/vendor/<flat-name>.js — a single self-contained ESM file
+ * with all transitive deps inlined and any CJS converted to ESM.
+ *
+ * The output is what dist/importmap-local.json points at, so the offline
+ * importmap can resolve every bare specifier without traversing
+ * node_modules at runtime.
+ *
+ * Idempotent: skips rebuild if the output is newer than the dep's
+ * package.json (cheap proxy for "version unchanged"). Pass --force to
+ * always rebuild.
+ */
+
+import { rollup } from 'rollup';
+import resolve   from '@rollup/plugin-node-resolve';
+import commonjs  from '@rollup/plugin-commonjs';
+import json      from '@rollup/plugin-json';
+import { readFileSync, statSync, mkdirSync, existsSync } from 'node:fs';
+import { dirname, resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here     = dirname(fileURLToPath(import.meta.url));
+const root     = resolvePath(here, '..');
+const outDir   = resolvePath(root, 'dist/vendor');
+const depsFile = resolvePath(here, 'external-deps.json');
+const force    = process.argv.includes('--force');
+
+const { deps } = JSON.parse(readFileSync(depsFile, 'utf8'));
+
+mkdirSync(outDir, { recursive: true });
+
+// Stub Node built-ins pulled in transitively (Comunica's HTTP stack, etc.).
+// Same shim used by the all-in-one bundle in rollup.config.js.
+const stubNodeBuiltins = () => ({
+  name: 'stub-node-builtins',
+  resolveId(id) {
+    if (id.startsWith('node:')) return { id: '\0stub:node-builtin', external: false };
+    return null;
+  },
+  load(id) {
+    if (id === '\0stub:node-builtin') {
+      return 'export default {}; export const channel = () => ({ publish: () => {}, hasSubscribers: false });';
+    }
+    return null;
+  },
+});
+
+// Browser-side polyfill for Node's `process` global. Several deps
+// (Comunica, parts of the rdflib stack) read `process.env.NODE_ENV` or call
+// `process.nextTick(...)`. Prepended as the bundle banner so it runs before
+// the rest of the module's top-level code.
+const PROCESS_SHIM = [
+  'if (typeof globalThis.process === "undefined") {',
+  '  globalThis.process = {',
+  '    env: {}, browser: true, version: "", versions: { node: "" },',
+  '    nextTick: (cb, ...a) => Promise.resolve().then(() => cb(...a)),',
+  '    cwd: () => "/", platform: "browser",',
+  '  };',
+  '}',
+].join('\n');
+
+function flatName(name) { return name.replace(/\//g, '-'); }
+
+function pkgJsonPath(name) {
+  return resolvePath(root, 'node_modules', name, 'package.json');
+}
+
+function isUpToDate(name, depConfig) {
+  if (force) return false;
+  const out    = resolvePath(outDir, flatName(name) + '.js');
+  const umdOut = depConfig.umd ? resolvePath(outDir, flatName(name) + '.umd.js') : null;
+  if (!existsSync(out)) return false;
+  if (umdOut && !existsSync(umdOut)) return false;
+  const pkg = pkgJsonPath(name);
+  if (!existsSync(pkg)) return false;
+  const pkgMs = statSync(pkg).mtimeMs;
+  if (statSync(out).mtimeMs < pkgMs) return false;
+  if (umdOut && statSync(umdOut).mtimeMs < pkgMs) return false;
+  return true;
+}
+
+async function vendorOne(name, depList, depConfig) {
+  const out    = resolvePath(outDir, flatName(name) + '.js');
+  const umdOut = depConfig.umd ? resolvePath(outDir, flatName(name) + '.umd.js') : null;
+  if (isUpToDate(name, depConfig)) {
+    console.log(`[vendor] skip ${name} (up to date)`);
+    return;
+  }
+  console.log(`[vendor] build ${name} → ${out}${umdOut ? ` (+ UMD → ${umdOut})` : ''}`);
+
+  // Treat *other* externals as runtime imports — we don't want to inline
+  // rdflib into solid-ui's vendored file, for example. The browser will
+  // resolve them through the same importmap. The UMD output for a dep
+  // intended for `<script>`-tag drop-in deliberately keeps the same
+  // externalization: consumers load any peer it depends on the same way.
+  const others = depList.filter(d => d !== name);
+
+  const bundle = await rollup({
+    input: name,
+    external: (id) => others.some(d => id === d || id.startsWith(d + '/')),
+    plugins: [
+      stubNodeBuiltins(),
+      resolve({ browser: true, preferBuiltins: false }),
+      commonjs({ transformMixedEsModules: true, ignoreDynamicRequires: true }),
+      json(),
+    ],
+    onwarn(warning, warn) {
+      // Comunica and friends emit a ton of CIRCULAR_DEPENDENCY noise; quiet it.
+      if (warning.code === 'CIRCULAR_DEPENDENCY') return;
+      warn(warning);
+    },
+  });
+
+  await bundle.write({
+    file: out,
+    format: 'esm',
+    inlineDynamicImports: true,
+    banner: PROCESS_SHIM,
+  });
+
+  if (umdOut) {
+    await bundle.write({
+      file: umdOut,
+      format: 'umd',
+      name: depConfig.umd,
+      exports: 'named',
+      inlineDynamicImports: true,
+      banner: PROCESS_SHIM,
+    });
+  }
+
+  await bundle.close();
+}
+
+const depList = Object.keys(deps);
+let failures = 0;
+for (const name of depList) {
+  try { await vendorOne(name, depList, deps[name]); }
+  catch (err) {
+    failures++;
+    console.error(`[vendor] FAIL ${name}: ${err.message}`);
+  }
+}
+if (failures) {
+  console.error(`[vendor] ${failures} dep(s) failed`);
+  process.exit(1);
+}
+console.log(`[vendor] done — ${depList.length} dep(s) in ${outDir}`);

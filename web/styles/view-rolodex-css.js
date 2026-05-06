@@ -1,4 +1,4 @@
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 import { BTN_CSS } from './buttons-css.js';
 
 export const CSS = BTN_CSS + `
@@ -40,13 +40,18 @@ export const CSS = BTN_CSS + `
     display: grid;
     grid-template-columns: max-content 1fr;
     gap: .3rem .85rem;
+    align-items: baseline;
+  }
+  .rolodex-card dt,
+  .rolodex-card dd {
+    font-size: var(--small-font, 16px);
+    line-height: var(--line-height-base, 1.5);
   }
   .rolodex-card dt {
-    font-size: .8em;
     text-transform: uppercase;
     letter-spacing: .03em;
     color: var(--text-muted, #888);
-    font-weight: 600;
+    font-weight: var(--font-weight-bold, 600);
   }
   .rolodex-card dd {
     margin: 0;

@@ -6,7 +6,7 @@
   <title>sol-include Component</title>
   <link rel="stylesheet" href="../web/styles/sol-query-help.css">
   <style>
-    .api-block { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); padding:1.5rem; margin-bottom:1.5rem; }
+    .api-block { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); }
     .attr-table { width:100%; border-collapse:collapse; font-size:.9rem; margin:.5rem 0 1rem; }
     .attr-table th { background:#f0f4f8; text-align:left; padding:.5rem .75rem; border:1px solid #d0dce8; }
     .attr-table td { padding:.45rem .75rem; border:1px solid #e0e8f0; vertical-align:top; }
@@ -20,13 +20,29 @@
       font-family:'Courier New',monospace; font-size:.9rem; resize:vertical; margin-bottom:1rem; }
     #playground textarea:focus { outline:none; border-color:#3498db; }
     .page-nav,div.usage-section, pre {width:fit-content;}
-    .page-nav, div.usage-section {margin-left:2rem; margin-right:2rem;}
+    div.usage-section {margin-left:2rem; margin-right:2rem;}
     code { border:1px dashed #444 !important; }
     body { max-width:960px; }
-    i { color:orange; }
   </style>
 
-  <!-- CDN imports — add 'marked' alongside rdflib for markdown support -->
+<script type="importmap">
+  {
+    "imports": {
+      "rdflib":                              "../dist/vendor/rdflib.js",
+      "dompurify":                           "../dist/vendor/dompurify.js",
+      "marked":                              "../dist/vendor/marked.js",
+      "@comunica/query-sparql":              "../dist/vendor/@comunica-query-sparql.js",
+      "@inrupt/solid-client-authn-browser":  "../dist/vendor/@inrupt-solid-client-authn-browser.js",
+      "solid-ui":                            "../dist/vendor/solid-ui.js",
+      "solid-logic":                         "../dist/vendor/solid-logic.js"
+    }
+  }
+</script>
+<script type="module" src="../web/sol-full.js"></script>
+
+
+
+  <!-- CDN imports — add 'marked' alongside rdflib for markdown support
   <script type="importmap">{"imports":{
     "rdflib":    "https://esm.sh/rdflib",
     "dompurify": "https://esm.sh/dompurify",
@@ -41,29 +57,54 @@
     window.marked    = marked;
   </script>
   <script type="module" src="../web/sol-include.js"></script>
+ -->
 </head>
 <body>
+<p><a href="./"> &lt;-- main menu</a></p>
   <h1>sol-include component</h1>
-  <p style="margin-left:2rem;"> Fetches a document and displays its content inline.
-  <br> Supports authenticated Solid fetch.
-  <br> An optional CSS/RDFa selector filters documents before rendering.
-  <br> Content is sanitized with DOMPurify by default.
-  </p>
-
+  <h3> Fetches any text-based document and displays its content inline.</h3>
+  <ul>
+  <li> Supports authenticated Solid fetch.
+  <li> An optional CSS/RDFa selector filters documents before rendering.
+  <li> Content is sanitized with DOMPurify by default.
+  <li> Including nested components supports robust modular page creation.
+  </ul>
+<!-- 
+<sol-include source="../data/sample-html.html"></sol-include>
+<sol-include source="../data/sample-html.html" trusted></sol-include>
+-->
+  <div class="api-block">
+    <table class="attr-table">
+      <thead><tr><th>Attribute</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><a href="#source">source</a></td>
+          <td>The URL of a text-based file to fetch and render inline. If the source is markdown, it will be converted to HTML.</td>
+        </tr>
+        <tr>
+          <td><a href="#selector">selector</a></td>
+          <td>A CSS/RDFa selector applied as a filter to the content.</td>
+        </tr>
+        <tr>
+          <td><a href="#raw">raw</a></td>
+          <td>Display source text verbatim in a <i>&lt;pre&gt;</i> block sanitized, but not parsed.</td>
+        </tr>
+        <tr>
+          <td><a href="#trusted">trusted</a></td>
+          <td>Skip DOMPurify sanitization.</td>
+        </tr>
+      </tbody>
+    </table>
+</div>
+<!--
   <nav class="page-nav" aria-label="Page sections">
     Required attribute : <a href="#source">source</a>
     Optional attributes : <a href="#selector">selector</a> <a href="#raw">raw</a> <a href="#trusted">trusted</a>
   </nav>
+-->
   <nav class="page-nav" aria-label="Page sections">
-    See Also : <a href="#components">including components</a> <a href="#node">using in node</a> <a href="#browser">using in a browser</a>
+    <b>See Also</b> : <a href="#components">including nested components</a> <a href="./install-help.html">installing & invoking components</a>
   </nav>
-
-
-<sol-include
-    source="https://solidproject.org/TR/index.html"
-   selector='a[typeof="doap:Specification"]'
-></sol-include>
-
 
 <h2>Attributes</h2>
 
@@ -90,8 +131,7 @@ Fetch an HTML page and filter by an RDFa attribute.
 </div>
 
 <h3  id="raw">raw attribute</h3>
-The <code>raw</code> attribute shows the source as plain text in a &lt;pre> block. 
-Useful for displaying code files or the raw source of Markdown/HTML.
+The <code>raw</code> attribute shows the source as plain text in a &lt;pre> block. Useful for displaying the raw source of Markdown/HTML.
 <div class="usage-section">
     <pre><code>&lt;sol-include source="script.js" <i>raw</i>>&lt;/sol-include></code></pre>
 </div>
@@ -102,93 +142,14 @@ The <code>trusted</code> attribute disables the DOMPurify sanitizer.  An HTML pa
     <pre><code>&lt;sol-include source="script-containing.html" <i>trusted</i>>&lt;/sol-include></code></pre>
 </div>
 
-
-  <!-- ── Attributes ──────────────────────────────────────────────────────────── -->
-  <h3 id="attributes">Attributes</h3>
-  <div class="api-block">
-    <table class="attr-table">
-      <thead><tr><th>Attribute</th><th>Type</th><th>Description</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>source</td><td>string (required)</td>
-          <td>URL of the resource to fetch. Content type is detected from <code>Content-Type</code> header or file extension.</td>
-        </tr>
-        <tr>
-          <td>selector</td><td>string (optional)</td>
-          <td>CSS selector. Only elements matching the selector are shown. Works on HTML and rendered Markdown.</td>
-        </tr>
-        <tr>
-          <td>raw</td><td>boolean flag</td>
-          <td>Display source text verbatim in a <code>&lt;pre&gt;</code> block sanitized but not parsed.</td>
-        </tr>
-        <tr>
-          <td>trusted</td><td>boolean flag</td>
-          <td>Skip DOMPurify sanitization. Only use for content you fully control.</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="note-box">Content is always sanitized by DOMPurify unless <code>trusted</code> is set.
-    The <code>raw</code> attribute bypasses DOMPurify but sets content via <code>textContent</code>, which sanitizes it.
-  </div>
-
-  <!-- ── HTML ────────────────────────────────────────────────────────────────── -->
-  <h3 id="section-html">HTML pages</h3>
-  <div class="usage-section">
-    <p>Fetch and render an HTML page inline. Content is sanitized before insertion.</p>
-    <pre><code>&lt;sol-include source="https://example.org/article.html"&gt;&lt;/sol-include&gt;</code></pre>
-  </div>
-
-  <!-- ── Markdown ────────────────────────────────────────────────────────────── -->
-  <h3 id="section-markdown">Markdown files</h3>
-  <div class="usage-section">
-    <p>Files with <code>.md</code> / <code>.markdown</code> extension (or <code>text/markdown</code> content-type) are
-       converted to HTML via <code>marked</code> then sanitized and rendered.</p>
-    <pre><code>&lt;sol-include source="README.md"&gt;&lt;/sol-include&gt;</code></pre>
-    <div class="note-box">Requires <code>marked</code> to be available — either via importmap or <code>window.marked</code>.
-  </div>
-
-  <!-- ── CSS Selector ────────────────────────────────────────────────────────── -->
-  <h3 id="section-selector">CSS selector (pattern)</h3>
-  <div class="usage-section">
-    <p>The <code>selector</code> attribute is a CSS selector applied after the content is fetched and parsed.
-       Only matching elements are rendered.</p>
-    <pre><code>&lt;!-- Only the first &lt;article&gt; from an HTML page --&gt;
-&lt;sol-include
-  source="https://example.org/blog.html"
-  selector="article:first-of-type"
-&gt;&lt;/sol-include&gt;
-
-&lt;!-- Only h3 headings from a Markdown doc --&gt;
-&lt;sol-include
-  source="docs/guide.md"
-  selector="h3"
-&gt;&lt;/sol-include&gt;
-
-&lt;!-- All links in a nav section --&gt;
-&lt;sol-include
-  source="index.html"
-  selector="nav a"
-&gt;&lt;/sol-include&gt;</code></pre>
-  </div>
-
-  <!-- ── Raw ─────────────────────────────────────────────────────────────────── -->
-  <h3 id="section-raw">Raw display</h3>
-  <div class="usage-section">
-    <p>The <code>raw</code> attribute shows the source as plain text in a <code>&lt;pre&gt;</code> block.
-       Useful for displaying code files or the raw source of Markdown/HTML.</p>
-    <pre><code>&lt;sol-include source="script.js" raw&gt;&lt;/sol-include&gt;
-&lt;sol-include source="README.md" raw&gt;&lt;/sol-include&gt;</code></pre>
-  </div>
-
-  <!-- ── Trusted ─────────────────────────────────────────────────────────────── -->
-  <h3 id="section-trusted">Trusted content</h3>
-  <div class="usage-section">
-    <p>Set <code>trusted</code> to skip DOMPurify sanitization. Only use this for content you fully control
-       (e.g., your own server). Never use <code>trusted</code> for user-generated or third-party content.</p>
-    <pre><code>&lt;sol-include source="/internal/widget.html" trusted&gt;&lt;/sol-include&gt;</code></pre>
-    <div class="warn-box">With <code>trusted</code> set, scripts and event handlers in the fetched content
-    will execute. This is a deliberate choice for trusted single-origin content only.</div>
-  </div>
+<h2 id="components">Including nested components</h2>
+<p>It is possible to sol-include an html document that has its own sol-include statements as well as other web-components.  If, and only if, the document is marked as <code>trusted</code>, these components will be activated on inclusion.</p>
+<p style="border:1px solid green; padding:0.25rem; margin:auto; width:80%; font-weight:bold;margin-bottom:1rem;">
+This is a very powerful feature.  For example a main page might have sol-includes for header.html, body.html, and footer.html.  Header.html might contain a sol-login or  sol-menu component, sol-include a banner.  These includes do not need to be *sol-** components, they can be any custom element.
+</p>
+<p>
+As with Javascript, only use the <code>trusted</code> attribute for documentss you actually trust.
+</p>
 
 </body>
 </html>

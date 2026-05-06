@@ -8,7 +8,7 @@
 //   const data = await solQuery({ endpoint, sparql: 'SELECT ...', vars: { name: 'Alice' } });
 
 import * as rdflib from 'rdflib';
-import { toPlainResults, NativeSparqlAdapter } from '@solid-components/core/utils.js';
+import { toPlainResults, NativeSparqlAdapter } from '../core/utils.js';
 import {
   ACCEPT_TYPES,
   detectFormat,
@@ -18,12 +18,12 @@ import {
   isRdfDoc,
   bindingsToResults,
   selectVars,
-} from '@solid-components/core/rdf-core.js';
+} from '../core/rdf-core.js';
 import {
   assertSafeQuery,
   sanitizeVarValue,
   substituteVariables,
-} from '@solid-components/core/sparql-safety.js';
+} from '../core/sparql-safety.js';
 
 export { assertSafeQuery, sanitizeVarValue, substituteVariables };
 

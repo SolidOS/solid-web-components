@@ -1,4 +1,4 @@
-import { adopt } from '@solid-components/core/adopt.js';
+import { adopt } from '../../core/adopt.js';
 import { CSS as SELECT_VIEW_CSS, sheet as SELECT_SHEET } from '../styles/view-select-css.js';
 
 /**

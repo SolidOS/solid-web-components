@@ -1,7 +1,7 @@
 // Styles for <sol-pod>'s own shadow root — the pod header, breadcrumb,
 // tree, and status toast. Rules rendered inside sol-modal's shadow root
 // live in sol-pod-modal-css.js instead.
-import { sheetFrom } from '@solid-components/core/adopt.js';
+import { sheetFrom } from '../../core/adopt.js';
 import { BTN_CSS } from './buttons-css.js';
 
 export const CSS = BTN_CSS + `

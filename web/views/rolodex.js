@@ -1,4 +1,4 @@
-import { adopt } from '@solid-components/core/adopt.js';
+import { adopt } from '../../core/adopt.js';
 import { CSS as ROLODEX_CSS, sheet as ROLODEX_SHEET } from '../styles/view-rolodex-css.js';
 
 /**

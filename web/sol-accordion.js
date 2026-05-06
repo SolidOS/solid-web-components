@@ -14,9 +14,9 @@
  *   <div><div>Section 2</div><div>Content 2</div></div>
  * </sol-accordion>
  */
-import { ensureDocStyle } from '@solid-components/core/adopt.js';
+import { ensureDocStyle } from '../core/adopt.js';
 import { CSS as ACCORDION_CSS } from './styles/sol-accordion-css.js';
-import { define } from '@solid-components/core/define.js';
+import { define } from '../core/define.js';
 
 /**
  * Accordion (collapsible sections) web component.
