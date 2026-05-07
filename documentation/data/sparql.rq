@@ -1,4 +1,0 @@
-SELECT ?Feedname
- WHERE {
-    ?x rdfs:label ?Feedname; bookmark:hasTopic "Science News" .
- }
