@@ -22,8 +22,12 @@ export async function sanitizeHtml(html, opts = {}) {
   return doc.body.innerHTML;
 }
 
+// W3C SPARQL Query Results JSON envelope.
+function w3c(vars, bindings) { return { head: { vars }, results: { bindings } }; }
+
 // ─── CSS selector query over an HTML document ────────────────────────────────
-// `html` is already sanitized. Returns {vars, results} suitable for the renderer.
+// `html` is already sanitized. Returns the W3C SPARQL Query Results JSON
+// envelope ({ head: { vars }, results: { bindings } }) suitable for the renderer.
 export function queryHtmlWithSelector(html, baseUrl, selector) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   doc.querySelectorAll('base').forEach(b => b.remove()); // drop any existing <base>
@@ -32,7 +36,7 @@ export function queryHtmlWithSelector(html, baseUrl, selector) {
   doc.head.appendChild(base);
 
   const els = Array.from(doc.querySelectorAll(selector));
-  if (!els.length) return { vars: ['text'], results: [] };
+  if (!els.length) return w3c(['text'], []);
 
   const hasHref = els.some(el => el.href || el.getAttribute('href'));
   const hasSrc  = els.some(el => el.src  || el.getAttribute('src'));
@@ -40,7 +44,7 @@ export function queryHtmlWithSelector(html, baseUrl, selector) {
   if (hasHref) vars.push('href');
   if (hasSrc)  vars.push('src');
 
-  const results = els.map(el => {
+  const bindings = els.map(el => {
     const row = {
       tag:  { type: 'literal', value: el.tagName.toLowerCase() },
       text: { type: 'literal', value: el.textContent.trim() },
@@ -56,20 +60,22 @@ export function queryHtmlWithSelector(html, baseUrl, selector) {
     return row;
   });
 
-  return { vars, results };
+  return w3c(vars, bindings);
 }
 
 // ─── Plain results transformation ────────────────────────────────────────────
-// Converts renderer-format data ({vars, results}) to plain JS objects/scalars.
+// Converts the W3C envelope to plain JS objects/scalars.
 export function toPlainResults(data, wantedVars) {
-  const cols = wantedVars ? data.vars.filter(v => wantedVars.includes(v)) : data.vars;
-  if (!data.results.length) return [];
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  const cols = wantedVars ? vars.filter(v => wantedVars.includes(v)) : vars;
+  if (!bindings.length) return [];
   // 1 row × 1 column → return scalar value directly
-  if (cols.length === 1 && data.results.length === 1) {
-    const cell = data.results[0][cols[0]];
+  if (cols.length === 1 && bindings.length === 1) {
+    const cell = bindings[0][cols[0]];
     return cell ? cell.value : null;
   }
-  return data.results.map(row => {
+  return bindings.map(row => {
     const obj = {};
     for (const col of cols) {
       const cell = row[col];
@@ -102,35 +108,51 @@ export class ComunicaSparqlAdapter {
   static getComunicaEngine() {
     if (typeof newEngine === 'function') return newEngine;
     if (window.newEngine && typeof window.newEngine === 'function') return window.newEngine;
+    // Direct named export (when consumers expose Comunica themselves).
     if (window.Comunica?.QueryEngine) return () => new window.Comunica.QueryEngine();
     if (window.Comunica?.newEngine) return window.Comunica.newEngine;
+    // The vendored UMD wraps Comunica's CJS index, so QueryEngine lives one
+    // level deeper at `window.Comunica.default.QueryEngine`.
+    if (window.Comunica?.default?.QueryEngine) return () => new window.Comunica.default.QueryEngine();
+    if (window.Comunica?.default?.newEngine) return window.Comunica.default.newEngine;
     return null;
   }
 
   async executeQuery(query, endpoint, fetchFn) {
     const engine = await this.engineFactory();
-    const ctx = { sources: [endpoint], lenient: true };
+    const sources = Array.isArray(endpoint) ? endpoint.slice() : [endpoint];
+    const ctx = { sources, lenient: true };
     if (typeof fetchFn === 'function') ctx.fetch = fetchFn;
     const stream = await engine.queryBindings(query, ctx);
-    const bindings = await stream.toArray();
-    if (!bindings.length) return { vars: [], results: [] };
+    const rawBindings = await stream.toArray();
+    if (!rawBindings.length) return w3c([], []);
 
     // Prefer the explicit SELECT order from the query text; fall back to the
     // engine's binding order for SELECT * / non-SELECT.
     const selectVars = parseSelectVars(query);
-    const vars = selectVars ?? Array.from(bindings[0].keys()).map(v => v.value);
+    const vars = selectVars ?? Array.from(rawBindings[0].keys()).map(v => v.value);
 
-    const results = bindings.map(binding => {
+    const bindings = rawBindings.map(binding => {
       const row = {};
       vars.forEach(v => {
         const term = binding.get(v);
-        row[v] = term
-          ? { type: (term.termType === 'NamedNode' || term.uri) ? 'uri' : 'literal', value: term.value || term.uri || String(term) }
-          : { type: 'literal', value: '' };
+        if (!term) { row[v] = { type: 'literal', value: '' }; return; }
+        if (term.termType === 'NamedNode' || term.uri) {
+          row[v] = { type: 'uri', value: term.value || term.uri || String(term) };
+          return;
+        }
+        if (term.termType === 'BlankNode') {
+          row[v] = { type: 'bnode', value: term.value };
+          return;
+        }
+        const cell = { type: 'literal', value: term.value || term.uri || String(term) };
+        if (term.language)        cell['xml:lang'] = term.language;
+        if (term.datatype?.value) cell.datatype    = term.datatype.value;
+        row[v] = cell;
       });
       return row;
     });
-    return { vars, results };
+    return w3c(vars, bindings);
   }
 }
 
@@ -141,18 +163,8 @@ export class NativeSparqlAdapter {
       headers: { Accept: 'application/sparql-results+json' },
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-
-    const data = await resp.json();
-    const vars = data.head.vars;
-    const results = data.results.bindings.map(binding => {
-      const row = {};
-      vars.forEach(v => {
-        row[v] = binding[v]
-          ? { type: binding[v].type, value: binding[v].value }
-          : { type: 'literal', value: '' };
-      });
-      return row;
-    });
-    return { vars, results };
+    // The wire format already IS the W3C SPARQL Query Results JSON envelope;
+    // pass it through untouched.
+    return await resp.json();
   }
 }

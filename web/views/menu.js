@@ -18,8 +18,9 @@
  */
 
 export async function render(container, data, host) {
-  const { vars, results } = data;
-  if (!results?.length) { container.textContent = 'No results'; return; }
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  if (!bindings?.length) { container.textContent = 'No results'; return; }
 
   const hasNamed = vars.includes('link') && vars.includes('label');
   const linkVar  = hasNamed ? 'link'  : vars[0];
@@ -35,7 +36,7 @@ export async function render(container, data, host) {
   const orientation = host?.getAttribute?.('orientation');
   if (orientation) menu.setAttribute('orientation', orientation);
 
-  for (const row of results) {
+  for (const row of bindings) {
     const url   = row[linkVar]?.value;
     const label = row[labelVar]?.value || url || '';
     if (!url) continue;

@@ -1,6 +1,9 @@
 import { mkLink } from '../views/_helpers.js';
 import { render as renderTable } from '../views/table.js';
 
+// W3C SPARQL Query Results JSON envelope helper.
+function w3c(vars, bindings) { return { head: { vars }, results: { bindings } }; }
+
 export class SparqlResultsRenderer {
   constructor(container) {
     this.container = container;
@@ -32,17 +35,22 @@ export class SparqlResultsRenderer {
 
   // ── Main entry point ────────────────────────────────────────────────────────
   // viewFn: a free function with signature render(container, data, host, options)
+  // `data` is the W3C SPARQL Query Results JSON envelope:
+  //   { head: { vars: string[] }, results: { bindings: Row[] } }
   renderResults(data, viewFn, options = {}) {
     this._bnodeData.clear();
 
-    if (!data.results || data.results.length === 0) {
+    const vars     = data.head.vars;
+    const bindings = data.results.bindings;
+
+    if (!bindings || bindings.length === 0) {
       this.showNoResults();
       return;
     }
 
     // 1 row × 1 column → scalar value, no table
-    if (data.vars.length === 1 && data.results.length === 1) {
-      const val = data.results[0][data.vars[0]];
+    if (vars.length === 1 && bindings.length === 1) {
+      const val = bindings[0][vars[0]];
       this.container.innerHTML = '';
       if (val && val.type === 'uri') {
         this.container.appendChild(mkLink(val));
@@ -75,7 +83,7 @@ export class SparqlResultsRenderer {
 
   // ── Pivot s,p,o → predicates as columns, subjects as rows ─────────────────
   _pivotSPO(data) {
-    const v = data.vars;
+    const v = data.head.vars;
     const hasSPO = v.length === 3 && v[0]==='s' && v[1]==='p' && v[2]==='o';
     const hasPO  = v.length === 2 && v[0]==='p' && v[1]==='o';
     if (!hasSPO && !hasPO) return null;
@@ -85,7 +93,7 @@ export class SparqlResultsRenderer {
     const predOrder    = [];
     const predSet      = new Set();
 
-    for (const row of data.results) {
+    for (const row of data.results.bindings) {
       const sKey = hasSPO ? (row.s?.value ?? '') : '';
       const pURI = row.p?.value ?? '';
 
@@ -111,7 +119,7 @@ export class SparqlResultsRenderer {
       } else { seen[n] = i; }
     }
 
-    const results = subjectOrder.map(sKey => {
+    const bindings = subjectOrder.map(sKey => {
       const predMap = subjects.get(sKey);
       const row = {};
       for (let i = 0; i < predOrder.length; i++) {
@@ -127,18 +135,19 @@ export class SparqlResultsRenderer {
       return row;
     });
 
-    return { vars: names, results };
+    return w3c(names, bindings);
   }
 
   // ── Group rows by non-object columns, collect 'o' values ──────────────────
   _groupByPredicate(data) {
-    if (!data.vars.includes('o')) return data;
+    const vars = data.head.vars;
+    if (!vars.includes('o')) return data;
 
-    const keyVars = data.vars.filter(v => v !== 'o');
+    const keyVars = vars.filter(v => v !== 'o');
     const order   = [];
     const map     = new Map();
 
-    for (const row of data.results) {
+    for (const row of data.results.bindings) {
       const key = keyVars.map(v => row[v]?.value ?? '').join('\x00');
       if (!map.has(key)) {
         order.push(key);
@@ -151,7 +160,7 @@ export class SparqlResultsRenderer {
       }
     }
 
-    const results = order.map(key => {
+    const bindings = order.map(key => {
       const row  = map.get(key);
       const vals = row._oVals;
       delete row._oVals;
@@ -161,7 +170,7 @@ export class SparqlResultsRenderer {
       return row;
     });
 
-    return { vars: data.vars, results };
+    return w3c(vars, bindings);
   }
 
   // ── Blank-node link + modal ────────────────────────────────────────────────

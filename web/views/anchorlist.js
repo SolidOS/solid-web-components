@@ -13,8 +13,9 @@ import { CSS as ANCHORLIST_CSS, sheet as ANCHORLIST_SHEET } from '../styles/view
  * Usage: <sol-query view="anchorlist" endpoint="…"></sol-query>
  */
 export function render(container, data) {
-  const { vars, results } = data;
-  if (!results?.length) {
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  if (!bindings?.length) {
     container.textContent = 'No results';
     return;
   }
@@ -32,7 +33,7 @@ export function render(container, data) {
   const ul = document.createElement('ul');
   ul.className = 'sol-view-anchorlist';
 
-  results.forEach(row => {
+  bindings.forEach(row => {
     const li = document.createElement('li');
     const uriCell     = pickFirst(row, c => c.type === 'uri');
     const literalCell = pickFirst(row, c => c.type !== 'uri' && c.type !== 'multi' && c.value);

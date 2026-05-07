@@ -85,8 +85,9 @@ export function render(container, data, host) {
   }
 
   // ── Query-driven panels ───────────────────────────────────────────────────
-  const { vars, results } = data;
-  if (!results?.length) {
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  if (!bindings?.length) {
     container.textContent = 'No results';
     return;
   }
@@ -98,7 +99,7 @@ export function render(container, data, host) {
     return firstCell.value ?? '';
   };
 
-  results.forEach((row, i) => {
+  bindings.forEach((row, i) => {
     const det = document.createElement('details');
     det.name = groupName;
     if (i === 0) det.open = true;

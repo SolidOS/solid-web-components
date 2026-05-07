@@ -1,12 +1,14 @@
 /**
  * Example custom view renderer for sol-query.
- * Receives (container, data) where data = { vars, results }.
+ * Receives (container, data) where data is the W3C SPARQL Query Results JSON
+ * envelope: { head: { vars }, results: { bindings } }.
  * Renders each row as a card.
  *
  * Use as: <sol-query ... view="./data/card-renderer.js">
  */
 export function render(container, data) {
-  const { vars, results } = data;
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
 
   const shorten = v => v?.value
     ? v.value.replace(/.*[/#]([^/#]+)\/?$/, '$1') || v.value
@@ -15,7 +17,7 @@ export function render(container, data) {
   const grid = document.createElement('div');
   grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:.75rem;padding:.5rem 0';
 
-  results.forEach(row => {
+  bindings.forEach(row => {
     const card = document.createElement('div');
     card.style.cssText =
       'border:1px solid #ddd;border-radius:6px;padding:.75rem 1rem;' +

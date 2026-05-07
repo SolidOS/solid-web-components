@@ -7,7 +7,9 @@
  * menu, rolodex, select, tabs).
  *
  * @element sol-query
- * @attr {string} endpoint - URL of the RDF document or SPARQL endpoint
+ * @attr {string} endpoint - URL of an RDF document or SPARQL endpoint. May be
+ *   a comma- or whitespace-separated list of URLs; when more than one is
+ *   given, the query is federated across all sources via Comunica.
  * @attr {string} pattern - triple pattern (e.g. "?s ?p ?o") or CSS selector
  * @attr {string} sparql - inline SPARQL string or URL of a stored SPARQL query
  * @attr {string} query - alias for sparql
@@ -38,12 +40,14 @@ import {
   runQuery,
   execSparql,
   queryHtmlWithSelector,
+  knownPrefixesAsSparql,
 } from '../core/rdf-utils.js';
+import { ComunicaSparqlAdapter } from '../core/utils.js';
 import { assertSafeQuery, sanitizeVarValue, substituteVariables } from '../core/sparql-safety.js';
 import { getAuthFetch } from '../core/auth-fetch.js';
 import { rdf } from '../core/rdf.js';
 import { SparqlResultsRenderer } from './utils/sol-query-ui.js';
-import { TriplePatternValidator } from './utils/sol-query-triple-patterns.js';
+import { TriplePatternValidator, TriplePatternParser } from './utils/sol-query-triple-patterns.js';
 import { define } from '../core/define.js';
 import { adopt } from '../core/adopt.js';
 import { CSS as QUERY_CSS, sheet as querySheet } from './styles/sol-query-css.js';
@@ -83,7 +87,9 @@ async function loadBuiltinView(name) {
  *
  * @class SolQuery
  * @extends HTMLElement
- * @attr {string} endpoint - URL of the RDF document or SPARQL endpoint
+ * @attr {string} endpoint - URL of an RDF document or SPARQL endpoint. May be
+ *   a comma- or whitespace-separated list of URLs; when more than one is
+ *   given, the query is federated across all sources via Comunica.
  * @attr {string} pattern - triple pattern or CSS selector (alias: wanted)
  * @attr {string} sparql - inline SPARQL string or URL of a stored query
  * @attr {string} query - alias for sparql
@@ -154,8 +160,17 @@ class SolQuery extends HTMLElement {
   }
 
   async initializeQuery() {
-    const endpoint = this.getAttribute('endpoint');
-    if (!endpoint) { this._reportError('config', 'No endpoint provided'); return; }
+    const endpoints = this._endpoints();
+    if (!endpoints.length) { this._reportError('config', 'No endpoint provided'); return; }
+
+    // The single-endpoint default-query path uses a #fragment to filter the
+    // store to one subject — an rdflib trick that doesn't carry over to
+    // Comunica federation. Reject rather than silently fetch the doc and
+    // return all of its triples.
+    if (endpoints.length > 1 && endpoints.some(e => e.includes('#'))) {
+      this._reportError('config', 'Subject fragments are not supported in federated queries');
+      return;
+    }
 
     if (this.hasAttribute('sparql') || this.hasAttribute('query')) {
       await this.handleSparqlQuery();
@@ -164,6 +179,13 @@ class SolQuery extends HTMLElement {
     } else {
       await this.handleDefaultQuery();
     }
+  }
+
+  // The `endpoint` attribute may carry one URL or a list separated by
+  // commas/whitespace. Multi-endpoint queries are federated by Comunica.
+  _endpoints() {
+    const raw = this.getAttribute('endpoint') || '';
+    return raw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
   }
 
   // Render the error in the shadow DOM and dispatch a bubbling sol-error
@@ -200,8 +222,16 @@ class SolQuery extends HTMLElement {
 
   // ─── Triple pattern / CSS selector ───────────────────────────────────────────
   async handleTriplePattern() {
-    const pattern  = this._patternAttr();
-    const endpoint = this.getAttribute('endpoint');
+    const pattern   = this._patternAttr();
+    const endpoints = this._endpoints();
+
+    // Multi-endpoint federation goes through Comunica. CSS-selector / HTML-RDFa
+    // and the rdflib bnode-expansion / ?s-pivot features only apply to a single
+    // local store, so they stay on the legacy path below.
+    if (endpoints.length > 1) {
+      return this._handleTriplePatternFederated(pattern, endpoints);
+    }
+    const endpoint = endpoints[0];
 
     this.renderer.showLoading('Loading…');
     try {
@@ -211,7 +241,7 @@ class SolQuery extends HTMLElement {
         const validation = TriplePatternValidator.validate(pattern);
         if (!validation.valid) {
           const results = queryHtmlWithSelector(store._rawHtml, endpoint, pattern);
-          if (!results.results.length) { this.renderer.showError('No elements matched selector'); return; }
+          if (!results.results.bindings.length) { this.renderer.showError('No elements matched selector'); return; }
           return this._dispatchResults(results);
         }
       } else {
@@ -242,7 +272,36 @@ class SolQuery extends HTMLElement {
         results = expandBnodes(store, matchStore(store, s, p, o, names));
       }
       results = promoteDisplayColumns(results, names.s || 's');
-      if (!results.results.length) { this.renderer.showError('No matching triples found'); return; }
+      if (!results.results.bindings.length) { this.renderer.showError('No matching triples found'); return; }
+      this._dispatchResults(results);
+    } catch (err) {
+      this._reportError('query-failed', err.message);
+    }
+  }
+
+  // Federate a triple pattern across multiple sources via Comunica. The
+  // pattern is wrapped in a SPARQL SELECT and run with `sources: endpoints`,
+  // so any mix of SPARQL endpoints and RDF documents is queried as one graph.
+  async _handleTriplePatternFederated(pattern, endpoints) {
+    const validation = TriplePatternValidator.validate(pattern);
+    if (!validation.valid) { this._reportError('pattern-invalid', validation.error); return; }
+
+    if (!ComunicaSparqlAdapter.getComunicaEngine()) {
+      this._reportError('config', 'Multiple endpoints require Comunica');
+      return;
+    }
+
+    let where;
+    try { where = new TriplePatternParser(endpoints[0]).parse(pattern); }
+    catch (err) { this._reportError('pattern-invalid', err.message); return; }
+    const sparql = `${knownPrefixesAsSparql()}\n${where}`;
+
+    this.renderer.showLoading('Loading…');
+    try {
+      let results = await execSparql(sparql, endpoints, this._authFetch(endpoints[0]));
+      const names = patternVarNames(pattern);
+      results = promoteDisplayColumns(results, names.s || 's');
+      if (!results.results.bindings.length) { this.renderer.showError('No matching triples found'); return; }
       this._dispatchResults(results);
     } catch (err) {
       this._reportError('query-failed', err.message);
@@ -251,7 +310,26 @@ class SolQuery extends HTMLElement {
 
   // ─── Default: load store; if endpoint has a #fragment filter to that subject ──
   async handleDefaultQuery() {
-    const endpoint = this.getAttribute('endpoint');
+    const endpoints = this._endpoints();
+    if (endpoints.length > 1) {
+      // Federated default: stream all triples from every source via Comunica.
+      // The single-source #fragment filter and bnode-expansion don't apply.
+      if (!ComunicaSparqlAdapter.getComunicaEngine()) {
+        this._reportError('config', 'Multiple endpoints require Comunica');
+        return;
+      }
+      this.renderer.showLoading('Loading RDF data…');
+      try {
+        const sparql = 'SELECT ?s ?p ?o WHERE { ?s ?p ?o }';
+        let results = await execSparql(sparql, endpoints, this._authFetch(endpoints[0]));
+        if (!results.results.bindings.length) { this.renderer.showError('No RDF data found at endpoints'); return; }
+        this._dispatchResults(promoteDisplayColumns(results, 's'));
+      } catch (err) {
+        this.showDiagnostics(err);
+      }
+      return;
+    }
+    const endpoint = endpoints[0];
     this.renderer.showLoading('Loading RDF data…');
     try {
       const docUrl = endpoint.includes('#') ? endpoint.split('#')[0] : endpoint;
@@ -276,7 +354,7 @@ class SolQuery extends HTMLElement {
         results = pivotSubjectsToRows(store, subjects, 's');
       }
       results = expandBnodes(store, results);
-      if (!results.results.length) {
+      if (!results.results.bindings.length) {
         this.renderer.showError(store._isHtml ? 'No RDFa found in HTML page' : 'No RDF data found at endpoint');
         return;
       }
@@ -306,8 +384,9 @@ class SolQuery extends HTMLElement {
     const TYPE_PRED = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
     const shortName = uri => (uri || '').replace(/.*[/#]([^/#]+)\/?$/, '$1') || uri;
 
-    const nameRow  = results.results.find(r => NAME_PREDS.includes(r.p?.value));
-    const rest     = nameRow ? results.results.filter(r => r !== nameRow) : results.results;
+    const bindings = results.results.bindings;
+    const nameRow  = bindings.find(r => NAME_PREDS.includes(r.p?.value));
+    const rest     = nameRow ? bindings.filter(r => r !== nameRow) : bindings;
     const typeRows = rest.filter(r => r.p?.value === TYPE_PRED);
     const others   = rest.filter(r => r.p?.value !== TYPE_PRED);
     const ordered  = [...typeRows, ...others];
@@ -437,11 +516,12 @@ class SolQuery extends HTMLElement {
       this._reportError('sparql-unsafe', err.message);
       return;
     }
-    const endpoint = this.getAttribute('endpoint');
-    if (!endpoint) { this._reportError('config', 'No endpoint provided'); return; }
+    const endpoints = this._endpoints();
+    if (!endpoints.length) { this._reportError('config', 'No endpoint provided'); return; }
+    const target = endpoints.length > 1 ? endpoints : endpoints[0];
     this.renderer.showLoading();
     try {
-      const results = await this.fetchResults(processed, endpoint);
+      const results = await this.fetchResults(processed, target);
       await this._dispatchResults(results);
     } catch (err) {
       this._reportError('query-failed', err.message);
@@ -449,7 +529,8 @@ class SolQuery extends HTMLElement {
   }
 
   fetchResults(query, endpoint) {
-    return execSparql(query, endpoint, this._authFetch(endpoint));
+    const fetchUrl = Array.isArray(endpoint) ? endpoint[0] : endpoint;
+    return execSparql(query, endpoint, this._authFetch(fetchUrl));
   }
 
   // Resolve an authenticated fetch for `url`. The `login` attribute, when

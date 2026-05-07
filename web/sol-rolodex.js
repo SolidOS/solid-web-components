@@ -36,7 +36,7 @@ class SolRolodex extends HTMLElement {
     const items = Array.from(this.children).filter(el => el.tagName === 'DIV');
     
     const vars = ['content'];
-    const results = items.map(div => ({
+    const bindings = items.map(div => ({
       content: {
         type: 'html',
         node: div.cloneNode(true)
@@ -47,8 +47,8 @@ class SolRolodex extends HTMLElement {
     this.shadowRoot.appendChild(container);
 
     const originalRenderCellInto = window._renderCellInto;
-    
-    const data = { vars, results };
+
+    const data = { head: { vars }, results: { bindings } };
     
     await renderRolodex(container, data, this);
 
@@ -61,11 +61,11 @@ class SolRolodex extends HTMLElement {
     let index = 0;
     
     const show = i => {
-      index = ((i % results.length) + results.length) % results.length;
-      const node = results[index].content.node.cloneNode(true);
+      index = ((i % bindings.length) + bindings.length) % bindings.length;
+      const node = bindings[index].content.node.cloneNode(true);
       cardEl.innerHTML = '';
       cardEl.appendChild(node);
-      counterEl.textContent = `${index + 1} of ${results.length}`;
+      counterEl.textContent = `${index + 1} of ${bindings.length}`;
     };
 
     prevBtn.replaceWith(prevBtn.cloneNode(true));

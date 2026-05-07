@@ -4,89 +4,42 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>sol-login Component - Help & Playground</title>
-  <link rel="stylesheet" href="../styles/sol-query-help.css">
+  <link rel="stylesheet" href="../web/styles/root.css">
+  <link rel="stylesheet" href="../web/styles/sol-query-help.css">
+  <link rel="stylesheet" href="../web/styles/help.css">
   <style>
-    li { margin-bottom:0; }
     body { padding-top:8px; }
-    h1 { display:inline-block; }
-    ul { padding-bottom:1rem !important; }
+    b {color:orange;}
   </style>
 </head>
 <body>
-  <h1>sol-login : Solid OIDC authentication</h1>
-  <ul>
-    <li>Drop-in web component for Solid pod authentication</li>
-    <li>Shows a Log in / Log out button with issuer dropdown</li>
-    <li>Manages OIDC sessions via <code>@inrupt/solid-client-authn-browser</code></li>
-    <li>Provides authenticated fetch for any URL</li>
-    <li>Dispatches <code>sol-login</code> and <code>sol-logout</code> events</li>
-    <li><strong>Auto-propagates auth to <code>sol-query</code> and <code>sol-include</code> on the same page</strong> &mdash; no wiring needed</li>
-    <li>Patches rdflib's Fetcher and threads the authenticated <code>fetch</code> into Comunica SPARQL queries</li>
-  </ul>
+<p><a href="../" style="text-decoration:none"><span style="font-size:24px;"> ← </span>main menu</a></p>
 
-  <p class="api-ref">Full API reference: <a href="../docs/api/SolLogin.html">SolLogin API docs</a> (generated from source JSDoc)</p>
-
-  <div class="note-box" style="background:#fff8e1;border-left:4px solid #f9a825;padding:.75rem 1rem;border-radius:4px;margin:1rem 0">
-    <strong>Loading the auth library:</strong> sol-login expects <code>@inrupt/solid-client-authn-browser</code> to be available at <code>window.solidClientAuthn</code>. The simplest setup is two script tags &mdash; the prebuilt UMD ships in <code>dist/vendor/</code>:
-<pre style="margin:.5rem 0"><code>&lt;script src="../dist/vendor/@inrupt-solid-client-authn-browser.umd.js"&gt;&lt;/script&gt;
-&lt;script src="../dist/solid-web-components.bundle.min.js"&gt;&lt;/script&gt;</code></pre>
-    See <a href="install-modes.html">install-modes.html</a> for importmap and bundler alternatives.
+  <h1>sol-login component</h1>
+<p>Create a dynamic login/logout button that calls `@inrupt/solid-client-authn-browser` to login and provie authenticated fetch.  Once logged in, the authenticated fetch is automatically available to all sol-* components. Events provide hooks for other components and scripts to manually manage login/logout.</p>
+  <div>
+<h2>Prerequisites</h2>
+To use Solid login and authenticated fetch, apps must import the Inrupt authentication library. The simplest setup is to import the prebuilt UMD for the Inrupt library that ships in <code>dist/vendor/</code>:
+<pre style="margin:.5rem 0"><code>&lt;script src="../dist/vendor/@inrupt-solid-client-authn-browser.umd.js"&gt;&lt;/script&gt;</code></pre>
   </div>
 
-  <h2>Usage</h2>
-
-  <nav class="page-nav" aria-label="Page sections">
-    <a href="#section-1">Basic</a>
-    <a href="#section-2">With Issuers</a>
-    <a href="#section-3">With sol-pod</a>
-    <a href="#section-4">With sol-query / sol-include (auto)</a>
-    <a href="#section-5">Event Handling</a>
-    <a href="#playground">Playground</a>
-    <a href="sol-login-script.html">Script API &rarr;</a>
-    <a href="sol-pod-help.html">sol-pod &rarr;</a>
-    <a href="sol-modal-help.html">sol-modal &rarr;</a>
-  </nav>
+<h2>Usage</h2>
 
   <div id="section-1" class="usage-section">
-    <h3>1. Basic Usage</h3>
-    <p>Drop a <code>&lt;sol-login&gt;</code> element into your page. It auto-initializes on DOMContentLoaded.</p>
+    <h3>Basic Usage</h3>
+    When presented with no attributes, the tag prompts the user for an issuer, then logs in.
     <pre><code>&lt;sol-login&gt;&lt;/sol-login&gt;</code></pre>
   </div>
 
   <div id="section-2" class="usage-section">
-    <h3>2. Pre-configured Issuers</h3>
+    <h3>Pre-configured Issuers</h3>
     <p>The <code>issuers</code> attribute provides quick-select buttons in the login dropdown.</p>
-    <pre><code>&lt;sol-login issuers="https://solidcommunity.net,https://login.inrupt.com"&gt;&lt;/sol-login&gt;</code></pre>
-  </div>
-
-  <div id="section-3" class="usage-section">
-    <h3>3. Paired with sol-pod</h3>
-    <p>Point a <code>&lt;sol-pod&gt;</code> at the login element for authenticated browsing.</p>
-    <pre><code>&lt;sol-login id="auth" issuers="https://solidcommunity.net"&gt;&lt;/sol-login&gt;
-&lt;sol-pod source="https://pod.example/" login="#auth"&gt;&lt;/sol-pod&gt;</code></pre>
-  </div>
-
-  <div id="section-4" class="usage-section">
-    <h3>4. With sol-query / sol-include &mdash; auto-propagation</h3>
-    <p>Drop a <code>&lt;sol-login&gt;</code> on the page and the authenticated <code>fetch</code> flows to every <code>&lt;sol-query&gt;</code> and <code>&lt;sol-include&gt;</code> automatically &mdash; including Comunica SPARQL queries against authenticated endpoints. No <code>login</code> attribute required.</p>
-    <pre><code>&lt;sol-login issuers="https://solidcommunity.net"&gt;&lt;/sol-login&gt;
-
-&lt;!-- Authenticated SPARQL via Comunica: --&gt;
-&lt;sol-query endpoint="https://your.pod/sparql"
-           sparql="SELECT ?s WHERE { ?s a foaf:Person } LIMIT 20"&gt;&lt;/sol-query&gt;
-
-&lt;!-- Authenticated document include: --&gt;
-&lt;sol-include source="https://your.pod/private/notes.md"&gt;&lt;/sol-include&gt;</code></pre>
-    <p>If the page has multiple <code>&lt;sol-login&gt;</code> elements (advanced &mdash; e.g. one per pod), target a specific one with the <code>login</code> attribute (CSS selector):</p>
-    <pre><code>&lt;sol-login id="primary"&gt;&lt;/sol-login&gt;
-&lt;sol-login id="alt"&gt;&lt;/sol-login&gt;
-&lt;sol-query login="#alt" endpoint="https://other.pod/sparql" ...&gt;&lt;/sol-query&gt;</code></pre>
-    <p>The same <code>login</code> attribute is honored by <code>sol-pod</code> / <code>sol-pod-ops</code> / <code>sol-wac</code>, which still require it (no auto-discovery there yet).</p>
+    <pre><code>&lt;sol-login <b>issuers</b>="https://solidcommunity.net, https://login.inrupt.com"&gt;&lt;/sol-login&gt;</code></pre>
   </div>
 
   <div id="section-5" class="usage-section">
-    <h3>5. Event Handling</h3>
-    <p>Listen for login/logout to trigger app-specific actions.</p>
+    <h3>Event Handling</h3>
+    <p>Listen for sol-login/sol-logout events to trigger app-specific actions.</p>
     <pre><code>&lt;sol-login id="auth"&gt;&lt;/sol-login&gt;
 &lt;script&gt;
   document.getElementById('auth').addEventListener('sol-login', (e) =&gt; {
@@ -99,111 +52,5 @@
 &lt;/script&gt;</code></pre>
   </div>
 
-  <h2 id="playground">sol-login - Interactive Playground</h2>
-
-  <div class="playground">
-    <div class="examples-grid">
-      <button class="button example-btn" type="button" onclick="loadExample(0)">Basic</button>
-      <button class="button example-btn" type="button" onclick="loadExample(1)">With Issuers</button>
-      <button class="button example-btn" type="button" onclick="loadExample(2)">Multiple Issuers</button>
-    </div>
-
-    <textarea
-      id="queryInput"
-      aria-label="Component input"
-      placeholder="Enter your sol-login tag here..."
-    ></textarea>
-
-    <button class="button" type="button" onclick="executeTag()">Render Component</button>
-  </div>
-
-  <div id="modal" class="modal" role="dialog" aria-labelledby="modal-title" aria-modal="true">
-    <div class="modal-content">
-      <button class="modal-close" type="button" onclick="closeModal()" aria-label="Close modal">&times;</button>
-      <h2 id="modal-title">sol-login</h2>
-      <div id="modalBody"></div>
-    </div>
-  </div>
-
-  <script type="module">
-    // Stub Session so sol-login renders without the full Inrupt auth library
-    if (!window.solidClientAuthn) {
-      window.solidClientAuthn = {
-        Session: class StubSession {
-          constructor(opts, id) { this.info = { isLoggedIn: false, webId: null, sessionId: id }; }
-          async login() { alert('Login redirect would happen here (stub — no auth library loaded in playground)'); }
-          async logout() {}
-          async handleIncomingRedirect() {}
-          fetch(url, opts) { return fetch(url, opts); }
-        }
-      };
-    }
-    import '../sol-login.js';
-  </script>
-
-  <script>
-    const examples = [
-      `<sol-login></sol-login>`,
-      `<sol-login issuers="https://solidcommunity.net"></sol-login>`,
-      `<sol-login issuers="https://solidcommunity.net,https://login.inrupt.com,https://solidweb.org"></sol-login>`,
-    ];
-
-    const modal = document.getElementById('modal');
-    const modalBody = document.getElementById('modalBody');
-
-    window.loadExample = function(index) {
-      document.getElementById('queryInput').value = examples[index] || '';
-    };
-
-    window.closeModal = function() {
-      modal.classList.remove('active');
-      while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
-    };
-
-    window.executeTag = function() {
-      const raw = document.getElementById('queryInput').value.trim();
-      if (!raw) { alert('Please enter a <sol-login> tag.'); return; }
-
-      const div = document.createElement('div');
-      div.innerHTML = raw;
-      let parsed = div.querySelector('sol-login');
-      if (!parsed) {
-        div.innerHTML = `<sol-login ${raw}></sol-login>`;
-        parsed = div.querySelector('sol-login');
-      }
-      if (!parsed) { alert('Could not parse sol-login tag.'); return; }
-
-      while (modalBody.firstChild) modalBody.removeChild(modalBody.firstChild);
-
-      const live = document.createElement('sol-login');
-      for (const attr of parsed.attributes) live.setAttribute(attr.name, attr.value);
-      live._manualInit = true;
-      live.style.cssText = 'display:block;min-height:60px';
-      modalBody.appendChild(live);
-      live.initialize();
-
-      // Log events
-      const log = document.createElement('pre');
-      log.style.cssText = 'margin-top:16px;padding:12px;background:#f5f5f5;border-radius:4px;font-size:0.85rem;min-height:40px;color:#333';
-      log.textContent = 'Event log:\n';
-      modalBody.appendChild(log);
-
-      live.addEventListener('sol-login', (e) => {
-        log.textContent += `sol-login: webId=${e.detail.webId}\n`;
-      });
-      live.addEventListener('sol-logout', () => {
-        log.textContent += `sol-logout\n`;
-      });
-
-      modal.classList.add('active');
-    };
-
-    document.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('queryInput').value = examples[0];
-    });
-  </script>
 </body>
 </html>

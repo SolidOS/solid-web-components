@@ -18,6 +18,8 @@
   </style>
 </head>
 <body>
+<p><a href="../" style="text-decoration:none"><span style="font-size:24px;">←</span> main menu</a></p>
+
   <h1>Theming &amp; customization</h1>
   <p>The components are designed to be styled from the host page using CSS custom properties. There are no Sass overrides or build steps — set a variable in <code>:root</code> (or any ancestor) and the value flows through Shadow DOM to every component on the page.</p>
 
@@ -69,7 +71,7 @@
         <tr><td>--hover</td>       <td>#eaf2fb</td><td>#2e2e2e</td></tr>
         <tr><td>--focus-bg</td>    <td>#ebf5fb</td><td>#2a2e34</td></tr>
         <tr><td>--code-bg</td>     <td>#f4f4f4</td><td>#1e1e1e</td></tr>
-        <tr><td>--accent</td>      <td>#3498db</td><td>#4dabf7</td></tr>
+        <tr><td>--accent</td>      <td>#1F618D</td><td>#4dabf7</td></tr>
         <tr><td>--accent-dark</td> <td>#2980b9</td><td>#339af0</td></tr>
       </tbody>
     </table>
@@ -99,7 +101,7 @@
         <tr><td>--border</td>     <td><span class="swatch" style="background:#d0d0d0"></span>#d0d0d0</td><td>Lines and dividers</td></tr>
         <tr><td>--text</td>       <td><span class="swatch" style="background:#000"></span>#000000</td>   <td>Primary text color</td></tr>
         <tr><td>--text-muted</td> <td><span class="swatch" style="background:#4d4d4d"></span>#4d4d4d</td><td>Secondary text — captions, field labels</td></tr>
-        <tr><td>--accent</td>     <td><span class="swatch" style="background:#3498db"></span>#3498db</td><td>Brand color — links, active states, focus rings</td></tr>
+        <tr><td>--accent</td>     <td><span class="swatch" style="background:#1F618D"></span>#1F618D</td><td>Brand color — links, active states, focus rings</td></tr>
         <tr><td>--accent-dark</td><td><span class="swatch" style="background:#2980b9"></span>#2980b9</td><td>Hovered/pressed accent</td></tr>
         <tr><td>--hover</td>      <td><span class="swatch" style="background:#eaf2fb"></span>#eaf2fb</td><td>Background tint on hover</td></tr>
         <tr><td>--focus-bg</td>   <td><span class="swatch" style="background:#ebf5fb"></span>#ebf5fb</td><td>Background tint on the focused/active item</td></tr>
@@ -108,9 +110,6 @@
         <tr><td>--success</td>    <td><span class="swatch" style="background:#27ae60"></span>#27ae60</td><td>Success state (reserved — currently unused)</td></tr>
       </tbody>
     </table>
-    <div class="note-box">
-      <strong>Contrast note:</strong> the default <code>--accent</code> at #3498db has a ~3.6:1 contrast on white — passes WCAG AA for large text only. If you put accent-colored small text in your design, override <code>--accent</code> to a deeper hue.
-    </div>
   </div>
 
   <!-- ─────────────────────── Type ─────────────────────── -->
@@ -223,9 +222,11 @@
   </div>
 
   <!-- ─────────────────────── Shadow parts ─────────────────────── -->
-  <h2 id="parts">Shadow parts</h2>
+  <h2 id="parts">Shadow parts &amp; slots</h2>
   <div class="api-block">
-    <p>For things that can't be themed via variables alone, components expose <code>part="…"</code> hooks. Style them from the host page with <code>::part(name)</code>.</p>
+    <p>For things that can't be themed via variables alone, components expose <code>part="…"</code> hooks (style from the host page with <code>::part(name)</code>) and <code>&lt;slot&gt;</code>s (insert your own HTML into a known position, then style it with <code>::slotted()</code>). The deliberate stance is to keep this surface small — exposing a part or slot is a public-API commitment that's slower to evolve than CSS variables.</p>
+
+    <h3>Parts</h3>
     <table class="attr-table">
       <thead><tr><th>Component</th><th>Part</th><th>What it is</th></tr></thead>
       <tbody>
@@ -238,10 +239,60 @@
   border-radius: 999px;
   padding: 8px 16px;
 }</code></pre>
+
+    <h3>Slots</h3>
+    <table class="attr-table">
+      <thead><tr><th>Component</th><th>Slot</th><th>Fallback</th><th>What it is</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>sol-modal</td>
+          <td><em>(default)</em></td>
+          <td>literal text <code>Open</code></td>
+          <td>Inside the trigger button. Put your own label or icon between <code>&lt;sol-modal&gt;</code> tags to override the default text.</td>
+        </tr>
+      </tbody>
+    </table>
+<pre><code>&lt;sol-modal title="Edit settings"&gt;
+  &lt;span&gt;⚙ Settings&lt;/span&gt;       &lt;!-- replaces the "Open" fallback --&gt;
+&lt;/sol-modal&gt;
+
+&lt;style&gt;
+  /* ::slotted() reaches the host-page node we passed in */
+  sol-modal::part(trigger) ::slotted(span) { letter-spacing: .05em; }
+&lt;/style&gt;</code></pre>
+
+    <h3>I want to restyle X — what do I use?</h3>
+    <p>Most surfaces ship as CSS variables rather than parts. Quick reference for the things authors most often want to retheme:</p>
+    <table class="attr-table">
+      <thead><tr><th>To restyle…</th><th>Reach for…</th></tr></thead>
+      <tbody>
+        <tr><td>Brand color anywhere</td>                   <td><code>--accent</code> + <code>--accent-dark</code></td></tr>
+        <tr><td>The modal's open button</td>                <td><code>sol-modal::part(trigger)</code></td></tr>
+        <tr><td>The modal's open-button label</td>          <td>Default <code>&lt;slot&gt;</code> in <code>&lt;sol-modal&gt;</code></td></tr>
+        <tr><td>The modal's body, close button, scrim</td>  <td><code>--surface</code>, <code>--shadow-modal</code>, <code>--scrim</code> (no parts yet)</td></tr>
+        <tr><td>sol-menu sidebar / popup</td>               <td><code>--menu-*</code> variables (see <a href="#menu">sol-menu knobs</a>)</td></tr>
+        <tr><td>sol-query table headers / cells</td>        <td><code>--query-*</code> variables (see <a href="#query">sol-query knobs</a>)</td></tr>
+        <tr><td>sol-query view container</td>               <td>Style the host element directly: <code>sol-query { … }</code> — nothing inside the shadow root reaches it</td></tr>
+        <tr><td>sol-include rendered content</td>           <td><code>--include-*</code> variables; nested HTML appears in the host's light DOM, so normal CSS selectors apply.</td></tr>
+        <tr><td>sol-login button text / icon</td>           <td>No part yet — host-page CSS targeting <code>sol-login</code> can adjust its outer box; for inner button restyle, override <code>--accent</code>/<code>--surface</code>.</td></tr>
+        <tr><td>Loading / error states across components</td><td><code>--text-muted</code> (loading), <code>--error</code> (errors)</td></tr>
+        <tr><td>Per-region override (only one section)</td>  <td>Set the variable on an ancestor element, not <code>:root</code> — see <a href="#how">How customization works</a>.</td></tr>
+      </tbody>
+    </table>
+
+<!--
     <div class="note-box">
-      Most components stay variable-themed because parts are slower to evolve — exposing a part is a public-API commitment. Open an issue if you have a use case that variables can't cover.
+      <strong>Wishlist for future parts.</strong> Common requests that today require variables (or aren't possible):
+      <ul style="margin:.5rem 0 0 1.25rem">
+        <li><code>sol-modal::part(close)</code>, <code>sol-modal::part(body)</code>, <code>sol-modal::part(scrim)</code></li>
+        <li><code>sol-query::part(table)</code>, <code>sol-query::part(row)</code>, <code>sol-query::part(loading)</code></li>
+        <li><code>sol-menu::part(item)</code>, <code>sol-menu::part(active)</code></li>
+        <li><code>sol-login::part(button)</code>, <code>sol-login::part(issuer-list)</code></li>
+      </ul>
+      Open an issue if you hit a use case the variables genuinely can't cover — that's the gating bar for adding a new part.
     </div>
   </div>
+-->
 
   <!-- ─────────────────────── Recipes ─────────────────────── -->
   <h2 id="recipes">Recipes</h2>

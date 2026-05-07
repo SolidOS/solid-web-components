@@ -19,8 +19,9 @@ import { CSS as SELECT_VIEW_CSS, sheet as SELECT_SHEET } from '../styles/view-se
  * Usage: <sol-query view="select" endpoint="…" wanted="…"></sol-query>
  */
 export function render(container, data, host) {
-  const { vars, results } = data;
-  if (!results?.length) {
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  if (!bindings?.length) {
     container.textContent = 'No results';
     return;
   }
@@ -40,12 +41,12 @@ export function render(container, data, host) {
 
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = `— ${results.length} result${results.length === 1 ? '' : 's'} —`;
+  placeholder.textContent = `— ${bindings.length} result${bindings.length === 1 ? '' : 's'} —`;
   placeholder.disabled = true;
   placeholder.selected = true;
   select.appendChild(placeholder);
 
-  results.forEach((row, i) => {
+  bindings.forEach((row, i) => {
     const opt = document.createElement('option');
     const cells = vars.map(v => row[v]);
 
@@ -65,7 +66,7 @@ export function render(container, data, host) {
 
   select.addEventListener('change', () => {
     const i = parseInt(select.options[select.selectedIndex].dataset.rowIndex, 10);
-    const row = results[i];
+    const row = bindings[i];
     const value = select.value;
     host?.dispatchEvent(new CustomEvent('sol-select', {
       bubbles: true, composed: true,

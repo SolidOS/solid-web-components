@@ -2,6 +2,8 @@ import { appendCell } from './_helpers.js';
 
 export function render(container, data, host, options = {}) {
   const { hideHeader, mkBnodeLink } = options;
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
   const table = document.createElement('table');
   table.setAttribute('role', 'table');
 
@@ -9,7 +11,7 @@ export function render(container, data, host, options = {}) {
     const thead = document.createElement('thead');
     const tr = document.createElement('tr');
     tr.setAttribute('role', 'row');
-    data.vars.forEach(v => {
+    vars.forEach(v => {
       const th = document.createElement('th');
       th.setAttribute('role', 'columnheader');
       th.setAttribute('tabindex', '0');
@@ -24,10 +26,10 @@ export function render(container, data, host, options = {}) {
 
   const tbody = document.createElement('tbody');
   tbody.setAttribute('role', 'rowgroup');
-  data.results.forEach(row => {
+  bindings.forEach(row => {
     const tr = document.createElement('tr');
     tr.setAttribute('role', 'row');
-    data.vars.forEach(v => {
+    vars.forEach(v => {
       const td = document.createElement('td');
       td.setAttribute('role', 'cell');
       appendCell(td, row[v], mkBnodeLink);

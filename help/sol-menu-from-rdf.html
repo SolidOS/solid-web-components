@@ -1,7 +1,11 @@
-<link rel="stylesheet" href="../web/styles/root.css">
-<link rel="stylesheet" href="../web/styles/help.css">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="../web/styles/root.css">
+  <link rel="stylesheet" href="../web/styles/help.css">
 <style>
-/*
   sol-menu nav {
     --font-size: 80px;
   }
@@ -12,10 +16,10 @@
   code { font-family: 'Fira Code', 'Consolas', monospace; }
   .demo-area { border: 1px solid #d0dce8; border-radius: 6px; padding: 1rem; background: #fff; height: 70vh; }
   #display { padding: 1rem; }
-*/
+
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 2rem; color: #2c3e50;   max-width:960px;
-  font-size:115%;  
-  background:#e0f0ff;
+  font-size:var(--font-size,20px);  
+//  background:#e0f0ff;
 }
 
   .tabs { display: flex; gap: 0; border-bottom: 2px solid #d0dce8; margin-bottom: 1rem; }
@@ -25,8 +29,8 @@
   .tab-panel { display: none; }
   .tab-panel.active { display: block; max-height: 70vh; overflow: auto; }
 </style>
-
-<p><a href="./"> &lt;-- main menu</a></p>
+</head><body>
+<p><a href="../" style="text-decoration:none"><span style="font-size:24px;"> ← </span>main menu</a></p>
 
 <h2>Menus from RDF definition files</h2>
 
@@ -58,9 +62,10 @@
 
 <div class="tab-panel" id="tab-html">
 <p>This is the full HTML to load the live demo</p>
-<pre><code>&lt;script src="<i>sol-menu.js</i>" type="module"&gt;&lt;/script&gt;
+<pre><code>&lt;script src="<i>../dist/vendor/@comunica-query-sparql.umd.js</i>"&gt;&lt;/script&gt;
+&lt;script src="<i>../dist/solid-web-components.bundle.min.js</i>" type="module"&gt;&lt;/script&gt;
 
-&lt;<i>sol-menu</i> <i>from-rdf</i>="data/demo-menu.ttl#MainMenu"&gt;&lt;/sol-menu&gt;</code></pre>
+&lt;sol-menu from-rdf="<i>../data/demo-menu.ttl#MainMenu</i>"&gt;&lt;/sol-menu&gt;</code></pre>
 <p>
 The <i>sol-menu</i> web component can be used with a single <i>from-rdf</i> attribute.
 The value is a URI with a fragment identifier (e.g. <i>menu.ttl#MainMenu</i>) 
@@ -117,18 +122,19 @@ specifies a <i>ui:displayTarget</i>, it will be shown there instead.
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
   });
 </script>
-<script type="importmap">
-  {
-    "imports": {
-      "rdflib":                              "../dist/vendor/rdflib.js",
-      "dompurify":                           "../dist/vendor/dompurify.js",
-      "marked":                              "../dist/vendor/marked.js",
-      "@comunica/query-sparql":              "../dist/vendor/@comunica-query-sparql.js",
-      "@inrupt/solid-client-authn-browser":  "../dist/vendor/@inrupt-solid-client-authn-browser.js",
-      "solid-ui":                            "../dist/vendor/solid-ui.js",
-      "solid-logic":                         "../dist/vendor/solid-logic.js"
-    }
-  }
-</script>
-<script type="module" src="../web/sol-full.js"></script>
+<!-- IMPORTED SCRIPTS ---------------------------------------------- -->
+  <!-- 
+    Comunica (optional) : load if using SPARQL
+  -->
+      <script src="../dist/vendor/@comunica-query-sparql.umd.js"></script>
 
+  <!-- 
+    Inrupt Auth (optional) : load if accesing restricted Solid resources
+      <script src="../dist/vendor/@inrupt-solid-client-authn-browser.umd.js"></script>
+  -->
+
+  <!-- 
+    Solid-web-components (required)
+  -->
+  <script src="../dist/solid-web-components.bundle.min.js"></script>
+<!-- ---------------------------------------------------------------- -->

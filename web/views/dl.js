@@ -2,12 +2,14 @@ import { termText, appendCell } from './_helpers.js';
 
 export function render(container, data, host, options = {}) {
   const { hideHeader, mkBnodeLink } = options;
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
   const dl       = document.createElement('dl');
   const flat     = !!hideHeader;
-  const nameVar  = flat ? null : data.vars[0];
-  const restVars = flat ? data.vars : data.vars.slice(1);
+  const nameVar  = flat ? null : vars[0];
+  const restVars = flat ? vars : vars.slice(1);
 
-  data.results.forEach(row => {
+  bindings.forEach(row => {
     if (nameVar) {
       const dt = document.createElement('dt');
       const nameCell = row[nameVar];

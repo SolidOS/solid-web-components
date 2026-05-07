@@ -18,11 +18,40 @@
   </style>
 </head>
 <body>
-  <h1>Install</h1>
+<p><a href="../" style="text-decoration:none"><span style="font-size:24px;"> ← </span>main menu</a></p>
+
+  <h1>Invoking Components</h1>
 
   <div class="hero">
-    <h2>One script tag (no auth)</h2>
-<pre><code>&lt;script src="https://your-host/dist/solid-web-components.bundle.min.js"&gt;&lt;/script&gt;
+    <h2>1. If your app needs Solid Authentication, import @inrupt/solid-client-authn-browser</h2>
+      A pre-built bundle is included in the Solid-Web-Components dist/vendor folder.
+<pre><code>&lt;script src="../dist/vendor/@inrupt-solid-client-authn-browser.umd.js""&gt;&lt;/script&gt;</code></pre>
+</div>
+
+  <div class="hero">
+    <h2>2. If your app needs SPARQL, import Comunica</h2>
+      A pre-built bundle is included in the Solid-Web-Components dist/vendor folder.
+<pre><code>&lt;script src="../dist/vendor/@comunica-query-sparql.umd.js"&gt;&lt;/script&gt;</code></pre>
+</div>
+
+  <div class="hero">
+    <h2>3. Always import Solid-Web-Components</h2>
+      A pre-built bundle containing all components and their pre-requisites is included in the Solid-Web-Components dist folder.
+<pre><code>&lt;script src="../dist/solid-web-components.bundle.min.js"&gt;&lt;/script&gt;</code></pre>
+</div>
+
+  <div class="hero">
+    <h2>4. Place Component tags anywhere in your HTML</h2>
+<pre><code>&lt;sol-query
+    endpoint = "https://example.org/myEndpoint"
+    sparql = "../data/myQueries.ttl#MyQuery"
+    view = "auto-complete"
+&gt;&lt;/sol-query&gt;</code></pre>
+</div>
+
+
+
+<!--
 
 &lt;sol-menu&gt;
   &lt;a href="readme.md"&gt;Readme&lt;/a&gt;
@@ -52,7 +81,6 @@
     <a href="#troubleshoot">Troubleshooting</a>
   </nav>
 
-  <!-- ─────────────────────── 1. One tag ─────────────────────── -->
   <h2 id="one-tag">1. One script tag (simplest)</h2>
   <div class="api-block">
     <p>Use <code>dist/solid-web-components.bundle.min.js</code>. Everything is inlined: every component plus every external runtime dep (<code>rdflib</code>, <code>dompurify</code>, <code>marked</code>). No globals to wire up, no order to get right.</p>
@@ -73,7 +101,6 @@
 &lt;sol-query login="#alt" endpoint="https://other.pod/data.ttl" ...&gt;&lt;/sol-query&gt;</code></pre>
   </div>
 
-  <!-- ─────────────────────── 2. Per-component UMD ─────────────────────── -->
   <h2 id="per-component">2. Per-component bundle (smaller)</h2>
   <div class="api-block">
     <p>If you only need one or two components and care about size, load just those. Each component ships its own UMD bundle in <code>dist/</code>. You add one <code>&lt;script&gt;</code> tag per external it needs (loaded as plain UMD globals from a CDN like unpkg).</p>
@@ -109,7 +136,6 @@
     <p>Externals must come <em>before</em> the component script. They register as globals (<code>$rdf</code>, <code>DOMPurify</code>, <code>marked</code>) which the component bundles look up.</p>
   </div>
 
-  <!-- ─────────────────────── 3. Bundler ─────────────────────── -->
   <h2 id="bundler">3. With a bundler (Vite, webpack, Rollup, esbuild…)</h2>
   <div class="api-block">
     <p>Building an app with a bundler? Install the package and import what you want. The bundler reads <code>solid-web-components</code>'s <code>exports</code> map and resolves the right entry per runtime — browser builds get the web component, Node builds get the Node API.</p>
@@ -123,7 +149,6 @@ import 'solid-web-components/web';</code></pre>
 <pre><code>npm install @comunica/query-sparql       # only if you query remote SPARQL endpoints</code></pre>
   </div>
 
-  <!-- ─────────────────────── 4. Importmap ─────────────────────── -->
   <h2 id="importmap">4. ES modules + importmap (for source-level loading)</h2>
   <div class="api-block">
     <p>If you want to load the source ES modules directly (no bundler, no UMD), the browser needs an importmap so bare specifiers like <code>rdflib</code> resolve. <strong>List only the externals your components use</strong> — the full 4-entry map is overkill for one component.</p>
@@ -156,7 +181,6 @@ import 'solid-web-components/web';</code></pre>
     </div>
   </div>
 
-  <!-- ─────────────────────── 5. Offline ─────────────────────── -->
   <h2 id="offline">5. Offline / vendored (no CDN at runtime)</h2>
   <div class="api-block">
     <p>For air-gapped deployments. The single-tag bundle from <a href="#one-tag">option 1</a> is already self-contained — host it locally and you're done. If you prefer source ES modules instead, vendor every external as a local file:</p>
@@ -179,7 +203,6 @@ npm run build      # generates dist/importmap-{cdn,local}.json + dist/vendor/*.j
     <p>Verify with <a href="test-offline.html">test-offline.html</a> — DevTools → Network → Offline; every check should be green and zero <code>esm.sh</code>/<code>unpkg</code>/<code>jsdelivr</code> URLs should appear.</p>
   </div>
 
-  <!-- ─────────────────────── Build commands ─────────────────────── -->
   <h2 id="build">Build commands (only needed to regenerate <code>dist/</code>)</h2>
   <div class="api-block">
     <table class="attr-table">
@@ -193,7 +216,6 @@ npm run build      # generates dist/importmap-{cdn,local}.json + dist/vendor/*.j
     </table>
   </div>
 
-  <!-- ─────────────────────── Troubleshooting ─────────────────────── -->
   <h2 id="troubleshoot">Troubleshooting</h2>
   <div class="api-block">
     <h3>"Custom element 'sol-query' is not defined"</h3>
@@ -217,5 +239,6 @@ npm run build      # generates dist/importmap-{cdn,local}.json + dist/vendor/*.j
     <h3>404 on a vendored file in offline mode</h3>
     <p>Either <code>npm run build:vendor</code> hasn't run, or the importmap's relative path doesn't match where <code>dist/vendor/</code> sits relative to the page. Importmap paths are resolved against the importmap's own URL, not the page URL.</p>
   </div>
+-->
 </body>
 </html>

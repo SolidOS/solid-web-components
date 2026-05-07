@@ -2,9 +2,17 @@
  * sol-full.js — load every covered component in one tag.
  *
  * Side-effect aggregator: each child module registers its custom element
- * on import. Externals (rdflib, dompurify, marked, @comunica/query-sparql)
- * stay bare-specifier and are resolved by the consumer's importmap, so
- * CDN mode and offline mode both work without changing this file.
+ * on import. Externals actually imported by the source (rdflib, dompurify,
+ * marked) stay bare-specifier and are resolved by the consumer's importmap.
+ *
+ * Bring-your-own runtime peers (loaded via a `<script>` tag *before* this
+ * module so they self-attach to globals the components probe at runtime):
+ *   - @inrupt/solid-client-authn-browser  → `window.solidClientAuthn`
+ *     (only needed by sol-login)
+ *   - @comunica/query-sparql              → `window.Comunica`
+ *     (only needed for full SPARQL — LIMIT/OFFSET/ORDER BY/federation —
+ *     against RDF documents)
+ * The corresponding vendored UMDs live in `dist/vendor/`.
  *
  * Usage:
  *   <script type="importmap" src="dist/importmap-cdn.json"></script>
@@ -12,12 +20,6 @@
  *   <script type="importmap" src="dist/importmap-local.json"></script>
  *
  *   <script type="module" src="web/sol-full.js"></script>
- *
- * Adding a component here requires that every external it pulls in (via
- * core/* or its own imports) is listed in tools/external-deps.json so both
- * the CDN and local importmaps cover it. Components that need extras
- * (solid-ui, mashlib, @inrupt/solid-client-authn-browser, etc.) stay out
- * until those externals are vendored.
  */
 
 import './sol-menu.js';

@@ -13,8 +13,9 @@ import { CSS as ROLODEX_CSS, sheet as ROLODEX_SHEET } from '../styles/view-rolod
  * Usage: <sol-query view="rolodex" endpoint="…"></sol-query>
  */
 export async function render(container, data, host) {
-  const { vars, results } = data;
-  if (!results?.length) {
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  if (!bindings?.length) {
     container.textContent = 'No results';
     return;
   }
@@ -80,8 +81,8 @@ export async function render(container, data, host) {
   let index = 0;
 
   const show = i => {
-    index = ((i % results.length) + results.length) % results.length;
-    const row = results[index];
+    index = ((i % bindings.length) + bindings.length) % bindings.length;
+    const row = bindings[index];
 
     card.innerHTML = '';
     const dl = document.createElement('dl');
@@ -96,7 +97,7 @@ export async function render(container, data, host) {
       dl.appendChild(dd);
     });
     card.appendChild(dl);
-    counter.textContent = `${index + 1} of ${results.length}`;
+    counter.textContent = `${index + 1} of ${bindings.length}`;
   };
 
   prevBtn.addEventListener('click', () => show(index - 1));
@@ -109,7 +110,7 @@ export async function render(container, data, host) {
 
   card.addEventListener('click', e => {
     if (e.target.closest('a')) return;
-    const row = results[index];
+    const row = bindings[index];
     const lastVar = vars[vars.length - 1];
     const cell = row[lastVar];
     host?.dispatchEvent(new CustomEvent('sol-select', {

@@ -19,6 +19,7 @@ import { rollup } from 'rollup';
 import resolve   from '@rollup/plugin-node-resolve';
 import commonjs  from '@rollup/plugin-commonjs';
 import json      from '@rollup/plugin-json';
+import { build as esbuild } from 'esbuild';
 import { readFileSync, statSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +33,52 @@ const force    = process.argv.includes('--force');
 const { deps } = JSON.parse(readFileSync(depsFile, 'utf8'));
 
 mkdirSync(outDir, { recursive: true });
+
+// esbuild equivalent of the rollup stub: route `node:*` imports to a no-op
+// shim so browser bundles don't choke on Node-only paths Comunica pulls in
+// transitively. The shim covers the surface that actually gets *invoked* in
+// the browser path — notably node:diagnostics_channel's `channel` AND
+// `tracingChannel` (lru-cache 11+ uses both; missing tracingChannel breaks
+// the entire downstream Comunica import chain at load time).
+const NODE_STUB = `
+const noopChannel = {
+  name: '',
+  publish() {},
+  subscribe() {},
+  unsubscribe() {},
+  bindStore() {},
+  unbindStore() {},
+  runStores(_, fn, ...args) { return fn(...args); },
+  hasSubscribers: false,
+};
+const noopTracing = {
+  start:      noopChannel,
+  end:        noopChannel,
+  asyncStart: noopChannel,
+  asyncEnd:   noopChannel,
+  error:      noopChannel,
+  tracePromise:  (fn, _ctx, ...args) => fn(...args),
+  traceCallback: (fn, _pos, _ctx, ...args) => fn(...args),
+  traceSync:     (fn, _ctx, ...args) => fn(...args),
+  hasSubscribers: false,
+};
+export const channel        = () => noopChannel;
+export const tracingChannel = () => noopTracing;
+export const subscribe      = () => {};
+export const unsubscribe    = () => {};
+export const hasSubscribers = () => false;
+export default { channel, tracingChannel, subscribe, unsubscribe, hasSubscribers };
+`;
+const esbuildStubNodeBuiltins = () => ({
+  name: 'stub-node-builtins',
+  setup(build) {
+    build.onResolve({ filter: /^node:/ }, (args) => ({ path: args.path, namespace: 'node-stub' }));
+    build.onLoad({ filter: /.*/, namespace: 'node-stub' }, () => ({
+      contents: NODE_STUB,
+      loader: 'js',
+    }));
+  },
+});
 
 // Stub Node built-ins pulled in transitively (Comunica's HTTP stack, etc.).
 // Same shim used by the all-in-one bundle in rollup.config.js.
@@ -92,12 +139,15 @@ async function vendorOne(name, depList, depConfig) {
   }
   console.log(`[vendor] build ${name} → ${out}${umdOut ? ` (+ UMD → ${umdOut})` : ''}`);
 
-  // Treat *other* externals as runtime imports — we don't want to inline
-  // rdflib into solid-ui's vendored file, for example. The browser will
-  // resolve them through the same importmap. The UMD output for a dep
-  // intended for `<script>`-tag drop-in deliberately keeps the same
-  // externalization: consumers load any peer it depends on the same way.
+  // ESM output: treat *other* externals as runtime imports — we don't want
+  // to inline rdflib into solid-ui's vendored file, for example. The browser
+  // resolves them through the same importmap.
   const others = depList.filter(d => d !== name);
+
+  const esmOnwarn = (warning, warn) => {
+    if (warning.code === 'CIRCULAR_DEPENDENCY') return;
+    warn(warning);
+  };
 
   const bundle = await rollup({
     input: name,
@@ -108,11 +158,7 @@ async function vendorOne(name, depList, depConfig) {
       commonjs({ transformMixedEsModules: true, ignoreDynamicRequires: true }),
       json(),
     ],
-    onwarn(warning, warn) {
-      // Comunica and friends emit a ton of CIRCULAR_DEPENDENCY noise; quiet it.
-      if (warning.code === 'CIRCULAR_DEPENDENCY') return;
-      warn(warning);
-    },
+    onwarn: esmOnwarn,
   });
 
   await bundle.write({
@@ -122,18 +168,30 @@ async function vendorOne(name, depList, depConfig) {
     banner: PROCESS_SHIM,
   });
 
+  await bundle.close();
+
   if (umdOut) {
-    await bundle.write({
-      file: umdOut,
-      format: 'umd',
-      name: depConfig.umd,
-      exports: 'named',
-      inlineDynamicImports: true,
-      banner: PROCESS_SHIM,
+    // UMD output is for `<script>`-tag drop-in: must be self-contained, so
+    // peers that the ESM build externalized (because they're also vendored)
+    // are inlined here. The script-tag consumer loads exactly one file.
+    //
+    // We use esbuild for this pass rather than rollup. rollup's
+    // @rollup/plugin-commonjs struggles with deeply-nested `__exportStar`
+    // chains in trees like Comunica — silently dropping individual named
+    // exports — and the resulting UMD throws at runtime ("X is not a
+    // constructor"). esbuild handles big CJS trees correctly.
+    await esbuild({
+      entryPoints: [name],
+      outfile:     umdOut,
+      bundle:      true,
+      format:      'iife',
+      globalName:  depConfig.umd,
+      platform:    'browser',
+      banner:      { js: PROCESS_SHIM },
+      logLevel:    'warning',
+      plugins:     [esbuildStubNodeBuiltins()],
     });
   }
-
-  await bundle.close();
 }
 
 const depList = Object.keys(deps);

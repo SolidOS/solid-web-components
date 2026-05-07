@@ -83,7 +83,25 @@ export function termToCell(term) {
   if (!term) return { type: 'literal', value: '' };
   if (term.termType === 'NamedNode')  return { type: 'uri',   value: term.value };
   if (term.termType === 'BlankNode')  return { type: 'bnode', value: term.value, _term: term };
-  return { type: 'literal', value: term.value ?? String(term) };
+  // Preserve W3C SPARQL Query Results JSON literal extras when present.
+  const cell = { type: 'literal', value: term.value ?? String(term) };
+  if (term.language)            cell['xml:lang'] = term.language;
+  if (term.datatype?.value)     cell.datatype    = term.datatype.value;
+  return cell;
+}
+
+// Wrap (vars, bindings) as the W3C SPARQL Query Results JSON envelope.
+// All producers in this codebase use this so consumers see one shape.
+export function w3cResults(vars, bindings) {
+  return { head: { vars }, results: { bindings } };
+}
+
+// Build a SPARQL PREFIX block from KNOWN_PREFIXES (plus optional extras).
+// Used to make Comunica accept CURIE-style triple patterns ("?s foaf:name ?n")
+// without forcing callers to declare every prefix themselves.
+export function knownPrefixesAsSparql(extra = {}) {
+  const all = { ...KNOWN_PREFIXES, ...extra };
+  return Object.entries(all).map(([k, v]) => `PREFIX ${k}: <${v}>`).join('\n');
 }
 
 // ─── CURIE expansion ─────────────────────────────────────────────────────────
@@ -208,7 +226,7 @@ export function patternVarNames(pattern) {
   return out;
 }
 
-// ─── store.match → renderer {vars, results} ─────────────────────────────────
+// ─── store.match → W3C SPARQL Query Results JSON envelope ──────────────────
 export function matchStore(store, s, p, o, names = {}) {
   const stmts = store.match(s, p, o, null);
   const slots = [];
@@ -218,7 +236,7 @@ export function matchStore(store, s, p, o, names = {}) {
   if (!slots.length) slots.push('s', 'p', 'o');
 
   const cols = slots.map(slot => names[slot] || slot);
-  const results = stmts.map(st => {
+  const bindings = stmts.map(st => {
     const row = {};
     slots.forEach((slot, i) => {
       const node = slot === 's' ? st.subject : slot === 'p' ? st.predicate : st.object;
@@ -226,7 +244,7 @@ export function matchStore(store, s, p, o, names = {}) {
     });
     return row;
   });
-  return { vars: cols, results };
+  return w3cResults(cols, bindings);
 }
 
 // ─── SPARQL helpers ──────────────────────────────────────────────────────────
@@ -250,7 +268,7 @@ export function bindingsToResults(bindings, queryText) {
     ? Object.keys(bindings[0]).map(k => k.replace(/^\?/, ''))
     : [];
   const vars = selectVarsResult ?? allKeys;
-  const results = bindings.map(b => {
+  const out = bindings.map(b => {
     const row = {};
     for (const v of vars) {
       const node = b[`?${v}`];
@@ -258,5 +276,5 @@ export function bindingsToResults(bindings, queryText) {
     }
     return row;
   });
-  return { vars, results };
+  return w3cResults(vars, out);
 }

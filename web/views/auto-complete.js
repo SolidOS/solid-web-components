@@ -2,8 +2,9 @@ import { adopt } from '../../core/adopt.js';
 import { CSS as AUTOCOMPLETE_CSS, sheet as AUTOCOMPLETE_SHEET } from '../styles/view-autocomplete-css.js';
 
 export function render(container, data, host) {
-  const { vars, results } = data;
-  if (!results?.length) {
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  if (!bindings?.length) {
     container.textContent = 'No results';
     return;
   }
@@ -16,7 +17,7 @@ export function render(container, data, host) {
   };
   const cellValue = cell => (cell ? cell.value ?? '' : '');
 
-  const items = results.map((row, i) => {
+  const items = bindings.map((row, i) => {
     const cells = vars.map(v => row[v]);
     return {
       value: cellValue(cells[0]),

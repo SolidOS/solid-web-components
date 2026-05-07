@@ -4,30 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>sol-query — Custom View Renderers</title>
-  <link rel="stylesheet" href="../styles/sol-query-help.css">
+  <link rel="stylesheet" href="../web/styles/root.css">
+  <link rel="stylesheet" href="../web/styles/sol-query-help.css">
+  <link rel="stylesheet" href="../web/styles/help.css">
   <style>
-    .api-block { background:#fff; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1); padding:1.5rem; margin-bottom:1.5rem; }
-    .ex-label  { font-size:.78rem; font-weight:600; color:#7f8c8d; text-transform:uppercase; letter-spacing:.05em; margin-bottom:.25rem; }
-    .note-box  { background:#fff8e1; border-left:4px solid #f9a825; padding:.75rem 1rem; border-radius:4px; font-size:.9rem; margin:.75rem 0; }
-    .sig       { background:#1e2a38; color:#7ec8e3; padding:.8rem 1rem; border-radius:5px; font-family:'Courier New',monospace; font-size:.9rem; margin:.5rem 0 1rem; white-space:pre; overflow-x:auto; }
-    nav.page-nav a.active { background:#eaf2fb; border-color:#3498db; color:#1a6fad; font-weight:600; }
-    #live-demo { border:2px solid #3498db; border-radius:8px; padding:1.5rem; background:#fff; margin-top:1rem; min-height:80px; }
+    b {color:orange;}
+    .sig             { background:#1e2a38; color:#7ec8e3; padding:.8rem 1rem; border-radius:5px; font-family:'Courier New',monospace; font-size:.9rem; margin:.5rem 0 1rem; white-space:pre; overflow-x:auto; }
+    #live-demo       { border:2px solid #3498db; border-radius:8px; padding:1.5rem; background:#fff; margin-top:1rem; min-height:80px; }
     #live-demo-error { color:#c00; font-size:.9rem; margin-top:.5rem; }
   </style>
 
-  <script type="importmap">{"imports":{"rdflib":"https://esm.sh/rdflib","dompurify":"https://esm.sh/dompurify"}}</script>
-  <script type="module">
-    import * as $rdf from 'rdflib'; window.$rdf = $rdf;
-    import DOMPurify from 'dompurify'; window.DOMPurify = DOMPurify;
-  </script>
-  <script type="module" src="../sol-query.js"></script>
+<!-- IMPORTED SCRIPTS ---------------------------------------------- -->
+   <script src="../dist/vendor/@comunica-query-sparql.umd.js"></script>
+   <script src="../dist/solid-web-components.bundle.min.js"></script>
+<!-- ---------------------------------------------------------------- -->
+
 </head>
 <body>
-  <h1>sol-query — Custom View Renderers</h1>
-  <p>When the <code>view</code> attribute is a URL, <code>sol-query</code> dynamically imports
-     that module and calls its <code>render(container, data)</code> export instead of using the
-     built-in table/dl/list renderers.</p>
 
+<p><a href="../" style="text-decoration:none"><span style="font-size:24px;"> ← </span>main menu</a></p>
+
+  <h1>Creating Custom Views</h1>
+  <p>The <a href="sol-query-help.html">sol-query</a> component creates a model using SPARQL or triple patterns and then renders the model in a view.  In addition to the built-in views shown on the sol-query page (table,rolodex,etc.), users can specify a URL in the <code>view</code> attribute.  The URL should be a a javascript file that has the model as input to an exported render function.</p>
+
+<!--
   <nav class="page-nav" aria-label="Page sections">
     <a href="#contract">Module contract</a>
     <a href="#data-shape">Data shape</a>
@@ -36,26 +36,17 @@
     <a href="sol-query-help.html">← Component docs</a>
     <a href="sol-query-browser.html">Browser/CDN</a>
   </nav>
-
+-->
   <!-- ── Module contract ───────────────────────────────────────────────────────── -->
-  <h2 id="contract">Module contract</h2>
-  <div class="api-block">
-    <p>The module at the URL must be a valid ES module that exports a <code>render</code> function:</p>
-    <div class="sig">// my-renderer.js
-export function render(container, data) {
-  // container — the DOM element inside the sol-query shadow root
-  // data      — { vars: string[], results: Array&lt;Row&gt; }
-  container.appendChild( /* your DOM nodes */ );
-}</div>
-    <p>The function receives:</p>
+  <h2 id="render">The render function</h2>
+  <div>
+    <p>If the <code>view</code> attribute specifies a URL, it should point to a valid ESm module that exports a <code>render</code> function. The function receives:</p>
     <ul>
-      <li><code>container</code> — the cleared <code>&lt;div class="container"&gt;</code> inside the shadow DOM.
-          Append DOM nodes to it directly; do not use <code>innerHTML</code> with untrusted data.</li>
+      <li><code>container</code> — the HTML element where the renderer should append elements it creates.
       <li><code>data</code> — the raw query result object (see <a href="#data-shape">Data shape</a> below).</li>
     </ul>
-    <div class="note-box">The module is loaded with a dynamic <code>import(url)</code> call, so it must
-    be served with CORS headers that allow the page's origin. Same-origin or <code>Access-Control-Allow-Origin: *</code> both work.</div>
-
+<!--
+  <div>
     <h3 style="margin-top:1.2rem">Usage</h3>
     <pre><code>&lt;sol-query
   endpoint="data.ttl"
@@ -74,49 +65,80 @@ export function render(container, data) {
        or <code>/</code>. The built-in values <code>table</code>, <code>dl</code>, and <code>list</code>
        are never treated as URLs.</p>
   </div>
-
+-->
   <!-- ── Data shape ────────────────────────────────────────────────────────────── -->
   <h2 id="data-shape">Data shape</h2>
   <div class="api-block">
-    <p>The <code>data</code> argument has this shape:</p>
+    <p>The <code>data</code> argument is the
+       <a href="https://www.w3.org/TR/sparql11-results-json/" target="_blank" rel="noopener">W3C SPARQL 1.1 Query Results JSON</a> envelope:</p>
     <pre><code>{
-  vars:    string[],          // column names, e.g. ['name', 'age'] or ['p', 'o']
-  results: Array&lt;{            // one object per result row
-    [colName]: {
-      type:  'uri' | 'literal' | 'bnode',
-      value: string,          // the string value
-      // uri cells also have data-uri set for dereference clicks
-      // bnode cells also have _data: { vars, results } for the node's properties
-    }
-  }&gt;
+  head: {
+    vars: string[]           // column names, e.g. ['name', 'age'] or ['p', 'o']
+  },
+  results: {
+    bindings: Array&lt;{        // one object per result row
+      [colName]: {
+        type:    'uri' | 'literal' | 'bnode',
+        value:   string,     // the string value
+        'xml:lang'?: string, // language tag on literals (when present)
+        datatype?:   string  // datatype IRI on literals (when present)
+      }
+    }&gt;
+  }
 }</code></pre>
-    <p>Column names for mini-queries and default document queries are <code>s</code>, <code>p</code>,
+</div>
+<!--
+    <p>Column names for triple-pattern and default document queries are <code>s</code>, <code>p</code>,
        <code>o</code> (only the wildcard positions). For SPARQL queries they match the
        <code>SELECT</code> variable names.</p>
 
+    <p><b>sol-query extensions</b> (non-standard, can be ignored by W3C-only consumers):
+       <code>uri</code> cells also have <code>data-uri</code> set for dereference clicks;
+       <code>bnode</code> cells may carry <code>_data</code> (the same envelope, scoped to that
+       node's properties); a synthetic <code>type: 'multi'</code> with <code>values:&nbsp;Array&lt;cell&gt;</code>
+       appears when the renderer collapses several values for the same predicate into one cell.</p>
+
     <div class="ex-label">Accessing values in a renderer</div>
-    <pre><code>export function render(container, { vars, results }) {
-  for (const row of results) {
+    <pre><code>export function render(container, data) {
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
+  for (const row of bindings) {
     for (const col of vars) {
       const cell = row[col];
       if (!cell) continue;
       if (cell.type === 'uri') {
         // cell.value is the full URI string
       } else {
-        // cell.value is the literal string
+        // cell.value is the literal string;
+        // cell['xml:lang'] / cell.datatype are present when set
       }
     }
   }
 }</code></pre>
   </div>
-
+-->
   <!-- ── Example renderer ──────────────────────────────────────────────────────── -->
   <h2 id="example">Example renderer</h2>
-  <div class="api-block">
-    <p>This renderer (served at <a href=".../data/card-renderer.js"><code>.../data/card-renderer.js</code></a>)
-       displays each result row as a card:</p>
-    <pre><code>export function render(container, data) {
-  const { vars, results } = data;
+    <p>What the user sees:</p>
+    <p>
+      <sol-query
+        endpoint="https://dbpedia.org/sparql"
+        sparql="SELECT ?name ?birthDate ?almaMater ?nationality WHERE { VALUES ?person { <http://dbpedia.org/resource/Tim_Berners-Lee> <http://dbpedia.org/resource/Ada_Lovelace> } ?person <http://xmlns.com/foaf/0.1/name> ?name . OPTIONAL { ?person <http://dbpedia.org/ontology/birthDate> ?birthDate } OPTIONAL { ?person <http://dbpedia.org/ontology/almaMater> ?almaMater } OPTIONAL { ?person <http://dbpedia.org/ontology/nationality> ?nationality } FILTER(!isLiteral(?name) || lang(?name) = 'en' || lang(?name) = '') } LIMIT 20"
+        view="../data/card-renderer.js"
+      ></sol-query>
+    </p>
+    <p>The HTML that combines the model with a custom view:</p>
+    <pre><code>&lt;sol-query
+  endpoint="https://dbpedia.org/sparql"
+  sparql="../data/myQueries#TimAdaQuery"
+  <b>view="../data/card-renderer.js"</b>
+&gt;&lt;/sol-query&gt;</code></pre>
+   </p>
+  <div>
+    <p>The custom view's render function ::</p>
+<pre><code>export function render(container, data) {
+  const vars     = data.head.vars;
+  const bindings = data.results.bindings;
 
   const shorten = v =&gt; v?.value
     ? v.value.replace(/.*[/#]([^&#47;]+)\/?$/, '$1') || v.value
@@ -125,7 +147,7 @@ export function render(container, data) {
   const grid = document.createElement('div');
   grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:.75rem;padding:.5rem 0';
 
-  results.forEach(row =&gt; {
+  bindings.forEach(row =&gt; {
     const card = document.createElement('div');
     card.style.cssText = 'border:1px solid #ddd;border-radius:6px;padding:.75rem 1rem;…';
 
@@ -156,9 +178,9 @@ export function render(container, data) {
 }</code></pre>
   </div>
 
-  <!-- ── Live demo ─────────────────────────────────────────────────────────────── -->
+  <!--
   <h2 id="live">Live demo</h2>
-  <div class="api-block">
+  <div>
     <p>The query below fetches names, birth dates, alma maters, and nationalities for
        Tim Berners-Lee and Ada Lovelace from DBpedia, rendered as one card per person
        using the card renderer above:</p>
@@ -177,14 +199,6 @@ export function render(container, data) {
   } LIMIT 20"
   view="../data/card-renderer.js"
 &gt;&lt;/sol-query&gt;</code></pre>
-    <p>Result:</p>
-    <div id="live-demo">
-      <sol-query
-        endpoint="https://dbpedia.org/sparql"
-        sparql="SELECT ?name ?birthDate ?almaMater ?nationality WHERE { VALUES ?person { <http://dbpedia.org/resource/Tim_Berners-Lee> <http://dbpedia.org/resource/Ada_Lovelace> } ?person <http://xmlns.com/foaf/0.1/name> ?name . OPTIONAL { ?person <http://dbpedia.org/ontology/birthDate> ?birthDate } OPTIONAL { ?person <http://dbpedia.org/ontology/almaMater> ?almaMater } OPTIONAL { ?person <http://dbpedia.org/ontology/nationality> ?nationality } FILTER(!isLiteral(?name) || lang(?name) = 'en' || lang(?name) = '') } LIMIT 20"
-        view="../data/card-renderer.js"
-      ></sol-query>
-    </div>
 
     <h3 style="margin-top:1.5rem">Try your own renderer</h3>
     <p>Enter the URL of an ES module that exports <code>render(container, data)</code>:</p>
@@ -196,7 +210,7 @@ export function render(container, data) {
     </div>
     <div id="live-demo-error"></div>
   </div>
-
+-->
   <script type="module">
     window.applyRenderer = function() {
       const url = document.getElementById('renderer-url').value.trim();

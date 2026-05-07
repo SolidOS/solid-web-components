@@ -25,7 +25,7 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
-.page-nav a, .cell.name a {
+.page-nav a, .cell.name a, .attr-table a {
   color: #2980b9;
   text-decoration: none;
   font-size: 0.9rem;
@@ -35,7 +35,7 @@ body {
   white-space: nowrap;
 }
 
-.page-nav a:hover, .cell.name a:hover {
+.page-nav a:hover, .cell.name a:hover, .attr-table a:hover {
   background: #eaf2fb;
   border-color: #3498db;
 }

@@ -1,23 +1,26 @@
 // solid-web-components.bundle.js — all-in-one IIFE bundle entry.
 //
 // Imports every covered component for side-effect (custom-element
-// registration) AND inlines every external runtime dep (rdflib, dompurify,
-// marked, @comunica/query-sparql, …) into one self-contained file.
+// registration) AND inlines the externals that are actually pulled in by
+// the source (rdflib, dompurify, marked) into one self-contained file.
 //
-// Consumer usage: a single script tag, no importmap, no other externals.
+// Bring-your-own runtime peers (loaded via a `<script>` tag *before* this
+// bundle so they self-attach to globals the components probe at runtime):
+//   - @inrupt/solid-client-authn-browser  → `window.solidClientAuthn`
+//     (only needed by sol-login; vendored UMD at
+//     dist/vendor/@inrupt-solid-client-authn-browser.umd.js)
+//   - @comunica/query-sparql              → `window.Comunica`
+//     (only needed for full SPARQL — LIMIT/OFFSET/ORDER BY/federation —
+//     against RDF documents; vendored UMD at
+//     dist/vendor/@comunica-query-sparql.umd.js). Without it, sol-query
+//     falls back to rdflib's local SPARQL engine, which ignores those
+//     clauses; it warns to the console when that happens.
+//
+// Consumer usage: a single script tag, no importmap, peers as above.
 //   <script src="https://your-host/dist/solid-web-components.bundle.min.js"></script>
 //
-// This is the simplest copy-paste path. Pay for it in file size: the bundle
-// includes Comunica's SPARQL engine and all transitive RDF parsing code, so
-// it lands in the multi-MB range. Consumers who want a smaller surface
-// should use the per-component UMD bundles or the importmap path instead.
-//
-// sol-login is included here because its only runtime dependency on the
-// inrupt auth client is a `window.solidClientAuthn` global lookup — the
-// auth client is bring-your-own. Drop in
-// `dist/vendor/@inrupt-solid-client-authn-browser.umd.js` *before* this
-// bundle and sol-login wires itself up automatically. Components requiring
-// solid-ui or mashlib stay out for now.
+// This is the simplest copy-paste path. Components requiring solid-ui or
+// mashlib stay out of this bundle for now.
 
 import './sol-menu.js';
 import './sol-include.js';
