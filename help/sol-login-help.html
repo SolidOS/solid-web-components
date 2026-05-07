@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sol-login Component - Help & Playground</title>
+  <link rel="stylesheet" href="../web/styles/root.css">
+  <link rel="stylesheet" href="../web/styles/sol-query-help.css">
+  <link rel="stylesheet" href="../web/styles/help.css">
+  <style>
+    body { padding-top:8px; }
+    b {color:orange;}
+  </style>
+</head>
+<body>
+<p><a href="../" style="text-decoration:none"><span style="font-size:24px;"> ← </span>main menu</a></p>
+
+  <h1>sol-login component</h1>
+<p>Create a dynamic login/logout button that calls `@inrupt/solid-client-authn-browser` to login and provie authenticated fetch.  Once logged in, the authenticated fetch is automatically available to all sol-* components. Events provide hooks for other components and scripts to manually manage login/logout.</p>
+  <div>
+<h2>Prerequisites</h2>
+To use Solid login and authenticated fetch, apps must import the Inrupt authentication library. The simplest setup is to import the prebuilt UMD for the Inrupt library that ships in <code>dist/vendor/</code>:
+<pre style="margin:.5rem 0"><code>&lt;script src="../dist/vendor/@inrupt-solid-client-authn-browser.umd.js"&gt;&lt;/script&gt;</code></pre>
+  </div>
+
+<h2>Usage</h2>
+
+  <div id="section-1" class="usage-section">
+    <h3>Basic Usage</h3>
+    When presented with no attributes, the tag prompts the user for an issuer, then logs in.
+    <pre><code>&lt;sol-login&gt;&lt;/sol-login&gt;</code></pre>
+  </div>
+
+  <div id="section-2" class="usage-section">
+    <h3>Pre-configured Issuers</h3>
+    <p>The <code>issuers</code> attribute provides quick-select buttons in the login dropdown.</p>
+    <pre><code>&lt;sol-login <b>issuers</b>="https://solidcommunity.net, https://login.inrupt.com"&gt;&lt;/sol-login&gt;</code></pre>
+  </div>
+
+  <div id="section-5" class="usage-section">
+    <h3>Event Handling</h3>
+    <p>Listen for sol-login/sol-logout events to trigger app-specific actions.</p>
+    <pre><code>&lt;sol-login id="auth"&gt;&lt;/sol-login&gt;
+&lt;script&gt;
+  document.getElementById('auth').addEventListener('sol-login', (e) =&gt; {
+    console.log('Logged in as', e.detail.webId);
+    console.log('Issuer:', e.detail.issuer);
+  });
+  document.getElementById('auth').addEventListener('sol-logout', () =&gt; {
+    console.log('Logged out');
+  });
+&lt;/script&gt;</code></pre>
+  </div>
+
+</body>
+</html>

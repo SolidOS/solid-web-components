@@ -1,0 +1,101 @@
+/* Live-editor standalone page styles.
+   Maps live-ed theme vars to the CSS var names that sol-live-edit (and podz) use. */
+
+:root {
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --border: #d0d0d0;
+  --text: #2c3e50;
+  --text-muted: #7f8c8d;
+  --accent: #3498db;
+  --accent-dark: #2980b9;
+  --hover: #eaf2fb;
+  --focus-bg: #ebf5fb;
+  --code-bg: #f4f4f4;
+  --error: #e74c3c;
+  --success: #27ae60;
+  --shadow: rgba(0,0,0,0.08);
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1a1a1a;
+    --surface: #252525;
+    --border: #3e3e3e;
+    --text: #e0e0e0;
+    --text-muted: #909090;
+    --hover: #2e2e2e;
+    --focus-bg: #2a2e34;
+    --code-bg: #1e1e1e;
+    --accent: #4dabf7;
+    --accent-dark: #339af0;
+  }
+}
+[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --surface: #252525;
+  --border: #3e3e3e;
+  --text: #e0e0e0;
+  --text-muted: #909090;
+  --hover: #2e2e2e;
+  --focus-bg: #2a2e34;
+  --code-bg: #1e1e1e;
+  --accent: #4dabf7;
+  --accent-dark: #339af0;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--text);
+}
+
+body { display: flex; flex-direction: column; }
+
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+header h1 { font-size: 1rem; font-weight: 600; margin: 0; flex: 1; }
+
+/* Header buttons use .sol-btn .sol-btn-sm / .sol-btn-primary — see buttons-css.js. */
+.sol-btn {
+  font: inherit;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.35em 0.8em;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+.sol-btn:hover { background: var(--hover); border-color: var(--accent); }
+.sol-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sol-btn[disabled], .sol-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.sol-btn-sm { padding: 3px 10px; font-size: 0.82em; }
+.sol-btn-primary {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.sol-btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.sol-btn-ghost {
+  background: transparent; border-color: transparent; color: var(--text-muted);
+}
+.sol-btn-ghost:hover { background: var(--hover); color: var(--text); border-color: transparent; }
+
+.theme-toggle { font-size: 1.1em; padding: 3px 7px; }
+
+sol-live-edit { flex: 1; overflow: hidden; min-height: 0; }
+
+.hdr-zoom { font-size: 0.82em; color: var(--text-muted); min-width: 3em; text-align: center; }
