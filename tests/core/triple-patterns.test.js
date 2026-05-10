@@ -11,9 +11,23 @@ import {
   parsePatternParts,
   expandCurie,
   KNOWN_PREFIXES,
-  matchStore,
-  expandBnodes,
+  matchStore as _matchStore,
+  expandBnodes as _expandBnodes,
 } from '../../core/rdf-utils.js';
+
+// Tests below were written against the legacy flat shape `{vars, results}`.
+// Producers now return the W3C SPARQL Query Results JSON envelope. Flatten
+// (and accept either shape on input) so the existing assertions stand.
+function flatten(d) {
+  if (!d || typeof d !== 'object') return d;
+  if (d.head?.vars && d.results?.bindings) {
+    return { vars: d.head.vars, results: d.results.bindings };
+  }
+  return d;
+}
+const toW3c = d => d?.head ? d : { head: { vars: d.vars }, results: { bindings: d.results } };
+const matchStore   = (...a) => flatten(_matchStore(...a));
+const expandBnodes = (store, data) => flatten(_expandBnodes(store, toW3c(data)));
 import {
   TriplePatternParser,
   TriplePatternValidator,

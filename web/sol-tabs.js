@@ -41,6 +41,7 @@
 
 import { define } from '../core/define.js';
 import { ensureDocStyle } from '../core/adopt.js';
+import { siblingUrl } from '../core/here.js';
 import { CSS as TABS_CSS } from './styles/sol-tabs-css.js';
 
 /**
@@ -189,7 +190,7 @@ class SolTabs extends HTMLElement {
 function _ensureHandler(tag) {
   if (!/^sol-[a-z-]+$/.test(tag)) return;
   if (customElements.get(tag)) return;
-  import(new URL(`./${tag}.js`, import.meta.url).href).catch(() => {});
+  import(siblingUrl(`./${tag}.js`, import.meta.url)).catch(() => {});
 }
 
 define('sol-tabs', SolTabs);

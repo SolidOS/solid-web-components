@@ -163,8 +163,18 @@ export class NativeSparqlAdapter {
       headers: { Accept: 'application/sparql-results+json' },
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    // The wire format already IS the W3C SPARQL Query Results JSON envelope;
-    // pass it through untouched.
-    return await resp.json();
+    // The wire format IS the W3C SPARQL Query Results JSON envelope. The
+    // spec leaves missing-binding cells *absent* from a row, but downstream
+    // consumers (toPlainResults, views) expect every projected variable to
+    // be present — so synthesize empty-literal cells where the wire row
+    // omits a column.
+    const data  = await resp.json();
+    const vars  = data?.head?.vars ?? [];
+    const filled = (data?.results?.bindings ?? []).map(row => {
+      const out = {};
+      vars.forEach(v => { out[v] = row[v] ? row[v] : { type: 'literal', value: '' }; });
+      return out;
+    });
+    return { head: { vars }, results: { bindings: filled } };
   }
 }

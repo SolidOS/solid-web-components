@@ -20,6 +20,7 @@ import { CSS as POD_MODAL_CSS, sheet as POD_MODAL_SHEET } from './styles/sol-pod
 import { BTN_CSS } from './styles/buttons-css.js';
 import { adopt, sheetFrom } from '../core/adopt.js';
 import { define } from '../core/define.js';
+import { siblingUrl } from '../core/here.js';
 import {
   extOf, contentTypeFor,
   fetchContainer, copyFolder, deleteFolder,
@@ -288,7 +289,7 @@ class SolPodOps extends HTMLElement {
 
   async _ensureLiveEdit() {
     if (_liveEditLoaded || customElements.get('sol-live-edit')) { _liveEditLoaded = true; return; }
-    const url = new URL('sol-live-edit.js', import.meta.url).href;
+    const url = siblingUrl('sol-live-edit.js', import.meta.url);
     await import(url);
     _liveEditLoaded = true;
   }

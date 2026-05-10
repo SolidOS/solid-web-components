@@ -24,22 +24,51 @@ window.$rdf = rdflib;
 import {
   termToString,
   termToCell,
-  storeToResults,
-  expandBnodes,
-  matchStore,
+  storeToResults as _storeToResults,
+  expandBnodes as _expandBnodes,
+  matchStore as _matchStore,
   expandCurie,
   loadRdfStore,
   fetchQueryFromRdf,
   runQuery,
-  pivotSubjectsToRows,
-  promoteDisplayColumns,
+  pivotSubjectsToRows as _pivotSubjectsToRows,
+  promoteDisplayColumns as _promoteDisplayColumns,
   _selectVars,
   _isRdfDoc,
   KNOWN_PREFIXES,
   ACCEPT_TYPES,
   detectFormat,
 } from '../../core/rdf-utils.js';
-import { toPlainResults, parseSelectVars } from '../../core/utils.js';
+import { toPlainResults as _toPlainResults, parseSelectVars } from '../../core/utils.js';
+const toPlainResults = (data, want) =>
+  _toPlainResults(data?.head ? data : { head: { vars: data.vars }, results: { bindings: data.results } }, want);
+
+// Tests below were written against the legacy flat shape `{vars, results}`.
+// Producers now return the W3C SPARQL Query Results JSON envelope. Flatten
+// the envelope (recursively, for `_data` on bnode cells) so the existing
+// assertions still hold without rewriting them.
+function flatten(d) {
+  if (!d || typeof d !== 'object') return d;
+  if (d.head?.vars && d.results?.bindings) {
+    return {
+      vars: d.head.vars,
+      results: d.results.bindings.map(row => {
+        const out = {};
+        for (const [k, cell] of Object.entries(row || {})) {
+          if (cell && cell._data) out[k] = { ...cell, _data: flatten(cell._data) };
+          else out[k] = cell;
+        }
+        return out;
+      }),
+    };
+  }
+  return d;
+}
+const storeToResults        = (...a) => flatten(_storeToResults(...a));
+const matchStore            = (...a) => flatten(_matchStore(...a));
+const expandBnodes          = (store, data) => flatten(_expandBnodes(store, data?.head ? data : { head: { vars: data.vars }, results: { bindings: data.results } }));
+const pivotSubjectsToRows   = (...a) => flatten(_pivotSubjectsToRows(...a));
+const promoteDisplayColumns = (data, sub) => flatten(_promoteDisplayColumns(data?.head ? data : { head: { vars: data.vars }, results: { bindings: data.results } }, sub));
 
 // ── termToString ────────────────────────────────────────────────────────────
 

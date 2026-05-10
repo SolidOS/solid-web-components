@@ -365,7 +365,7 @@ import {
   tokenizeTriplePattern,
   parsePatternParts,
   patternVarNames,
-  matchStore,
+  matchStore as _matchStore,
   selectVars,
   isRdfDoc,
   KNOWN_PREFIXES,
@@ -374,6 +374,13 @@ import {
 } from '../../core/rdf-core.js';
 
 import rdflib from '../__mocks__/rdflib-esm.js';
+
+// Producers now return the W3C SPARQL Query Results JSON envelope; existing
+// matchStore assertions were written for the legacy flat shape — flatten back.
+const matchStore = (...a) => {
+  const d = _matchStore(...a);
+  return d?.head?.vars ? { vars: d.head.vars, results: d.results.bindings } : d;
+};
 
 describe('detectFormat', () => {
   test('detects turtle from content-type', () => {

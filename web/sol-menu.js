@@ -51,6 +51,7 @@
 
 import { define } from '../core/define.js';
 import { adopt } from '../core/adopt.js';
+import { siblingUrl } from '../core/here.js';
 import { CSS as MENU_CSS, sheet as menuSheet } from './styles/sol-menu-css.js';
 import { loadMenuFromUri } from '../core/menu-rdf.js';
 
@@ -465,7 +466,7 @@ class SolMenu extends HTMLElement {
 function _ensureHandler(tag, host) {
   if (!/^sol-[a-z-]+$/.test(tag)) return;
   if (customElements.get(tag)) return;
-  import(new URL(`./${tag}.js`, import.meta.url).href).catch(err => {
+  import(siblingUrl(`./${tag}.js`, import.meta.url)).catch(err => {
     const msg = `<sol-menu> could not auto-load handler "${tag}" — make sure its module is reachable and any externals are in the importmap (${err.message})`;
     console.warn(msg);
     if (host) host.dispatchEvent(new CustomEvent('sol-error', {

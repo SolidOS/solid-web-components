@@ -21,6 +21,16 @@ window.__SolSuppressDefineWarn = true;
 import { SolQuery } from '../../web/sol-query.js';
 import { assertSafeQuery, sanitizeVarValue } from '../../core/sparql-safety.js';
 
+// Tests below were written against the legacy `{vars, results}` shape.
+// SolQuery now follows W3C SPARQL Query Results JSON
+// ({head:{vars}, results:{bindings}}). Patch the two consumer methods to
+// accept either shape so historical fixtures don't need to be rewritten.
+const _toW3c = d => (d?.head ? d : { head: { vars: d.vars }, results: { bindings: d.results } });
+const _origRenderSubject   = SolQuery.prototype._renderSubject;
+const _origDispatchResults = SolQuery.prototype._dispatchResults;
+SolQuery.prototype._renderSubject   = function (data)          { return _origRenderSubject.call(this, _toW3c(data)); };
+SolQuery.prototype._dispatchResults = function (data, options) { return _origDispatchResults.call(this, _toW3c(data), options); };
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function createElement() {

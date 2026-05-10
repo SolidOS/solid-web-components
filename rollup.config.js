@@ -190,10 +190,15 @@ export default [
       inlineDynamicImports: true,
     },
   },
-  // ── all-in-one bundle: every component + rdflib + inrupt auth + Comunica ───
+  // ── all-in-one bundle: every component, rdflib externalized as $rdf ─────────
+  // rdflib is treated as a runtime peer (BYO), shipped as
+  // `dist/vendor/rdflib.umd.js` which self-publishes `window.$rdf`. Page
+  // authors load that UMD via `<script>` tag *before* this bundle. Keeps
+  // a single rdflib instance on the page for sol-pod / sol-query / mashlib
+  // / solid-ui / solid-logic to share.
   {
     input:   'web/solid-web-components.bundle.js',
-    external: (id) => id.startsWith('https://esm.sh/'),
+    external: (id) => id === 'rdflib' || id.startsWith('https://esm.sh/'),
     plugins: bundlePlugins,
     output: {
       file:      minify
@@ -203,6 +208,26 @@ export default [
       name:      'SolidWebComponents',
       exports:   'named',
       inlineDynamicImports: true,
+      globals:   { rdflib: '$rdf' },
+    },
+  },
+  // ── podz-extras sibling bundle: components used by podz (and similar
+  //    multi-pod hosts) that aren't in the lean public bundle above.
+  //    Load *after* the core bundle so the core's already-defined custom
+  //    elements aren't redefined. rdflib is BYO here too.
+  {
+    input:   'web/podz-extras.bundle.js',
+    external: (id) => id === 'rdflib' || id.startsWith('https://esm.sh/'),
+    plugins: bundlePlugins,
+    output: {
+      file:      minify
+        ? 'dist/podz-extras.bundle.min.js'
+        : 'dist/podz-extras.bundle.js',
+      format:    'iife',
+      name:      'PodzExtras',
+      exports:   'named',
+      inlineDynamicImports: true,
+      globals:   { rdflib: '$rdf' },
     },
   },
 ];

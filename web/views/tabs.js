@@ -1,3 +1,5 @@
+import { siblingUrl } from '../../core/here.js';
+
 /**
  * Built-in view renderer for sol-query — "tabs".
  * Turns a result set of URIs + labels into a <sol-tabs> element. Each row
@@ -29,7 +31,7 @@ export async function render(container, data, host) {
   const labelVar = hasNamed ? 'label' : (vars[1] ?? vars[0]);
   const extraVars = vars.filter(v => v !== linkVar && v !== labelVar);
 
-  await import(new URL('../sol-tabs.js', import.meta.url).href);
+  await import(siblingUrl('../sol-tabs.js', import.meta.url));
 
   const tabs = document.createElement('sol-tabs');
 

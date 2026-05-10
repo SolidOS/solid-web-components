@@ -26,3 +26,7 @@ import './sol-menu.js';
 import './sol-include.js';
 import './sol-query.js';
 import './sol-login.js';
+
+// Surface the JS API on `window.SolidWebComponents.*` for hosts that need
+// the class symbols, not just the registered custom-element tags.
+export { AuthManager } from './sol-login.js';
