@@ -34,11 +34,6 @@ const HOST_CSS = BTN_CSS + `
   .pod-ops-wrap {
     display: flex; flex-direction: column; height: 100%; overflow: hidden;
   }
-  .pod-ops-title {
-    font-weight: 600; font-size: 1.05em; padding: 8px 12px;
-    border-bottom: 1px solid var(--border, #e0e0e0);
-    background: var(--surface-2, #f9f9f9);
-  }
   .pod-ops-body {
     flex: 1; min-height: 0; overflow: auto; padding: 12px;
     display: flex; flex-direction: column;
@@ -115,7 +110,6 @@ class SolPodOps extends HTMLElement {
     const s = this.shadowRoot;
     s.innerHTML = `
       <div class="pod-ops-wrap">
-        <div class="pod-ops-title"></div>
         <div class="pod-ops-body"><div class="modal-message">Loading...</div></div>
         <div class="pod-ops-footer"></div>
         <div class="pod-ops-actions"></div>
@@ -144,7 +138,8 @@ class SolPodOps extends HTMLElement {
     }
 
     // Probe content-type for files
-    let effectiveName = item.name;
+    const displayBase = item.displayName || item.name;
+    let effectiveName = displayBase;
     if (!item.isContainer) {
       try {
         const fetchFn = this._fetchFor(item.url);
@@ -154,14 +149,11 @@ class SolPodOps extends HTMLElement {
           item.contentType = ct;
           if (!extOf(item.name)) {
             const mapped = CT_TO_EXT[ct];
-            if (mapped) effectiveName = item.name + '.' + mapped;
+            if (mapped) effectiveName = displayBase + '.' + mapped;
           }
         }
       } catch {}
     }
-
-    const titleEl = this.shadowRoot.querySelector('.pod-ops-title');
-    titleEl.textContent = item.isContainer ? `Folder: ${item.name}` : item.name;
 
     this._buildTabs(item, effectiveName);
   }
@@ -306,7 +298,7 @@ class SolPodOps extends HTMLElement {
         const url = URL.createObjectURL(blob);
         this._blobUrl = url;
         const img = document.createElement('img');
-        img.className = 'modal-media'; img.src = url; img.alt = item.name;
+        img.className = 'modal-media'; img.src = url; img.alt = item.displayName || item.name;
         body.innerHTML = ''; body.appendChild(img);
       } else if (isVideo(effectiveName)) {
         const blob = await (await fetchFn(item.url)).blob();
@@ -439,19 +431,22 @@ class SolPodOps extends HTMLElement {
     body.innerHTML = '';
     const row = document.createElement('div');
     row.className = 'modal-row';
+    const display = item.displayName || item.name;
     const msg = document.createElement('div');
     msg.className = 'modal-message';
-    msg.innerHTML = `Download <strong>${item.name}</strong>`;
+    msg.append(document.createTextNode('Download '));
+    const strong = document.createElement('strong'); strong.textContent = display;
+    msg.append(strong);
     const btn = document.createElement('button');
     btn.className = 'sol-btn sol-btn-sm sol-btn-primary';
-    btn.textContent = `\u2B07 ${item.name}`;
+    btn.textContent = `\u2B07 ${display}`;
     btn.onclick = async () => {
       const fetchFn = this._fetchFor(item.url);
       const resp = await fetchFn(item.url);
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = item.name; a.click();
+      a.href = url; a.download = display; a.click();
       URL.revokeObjectURL(url);
     };
     row.append(msg, btn);
@@ -462,12 +457,15 @@ class SolPodOps extends HTMLElement {
     body.innerHTML = '';
     const row = document.createElement('div');
     row.className = 'modal-row';
+    const display = item.displayName || item.name;
     const msg = document.createElement('div');
     msg.className = 'modal-message';
-    msg.innerHTML = `Download folder <strong>${item.name}</strong> as ZIP`;
+    msg.append(document.createTextNode('Download folder '));
+    const strong = document.createElement('strong'); strong.textContent = display;
+    msg.append(strong, document.createTextNode(' as ZIP'));
     const btn = document.createElement('button');
     btn.className = 'sol-btn sol-btn-sm sol-btn-primary';
-    btn.textContent = `\u2B07 ${item.name}.zip`;
+    btn.textContent = `\u2B07 ${display}.zip`;
     btn.onclick = async () => {
       try {
         const JSZip = (await import('https://esm.sh/jszip@3.10.0')).default;
@@ -476,25 +474,26 @@ class SolPodOps extends HTMLElement {
           const fetchFn = this._fetchFor(containerUrl);
           const items = await fetchContainer(containerUrl, fetchFn);
           for (const child of items) {
+            const childDisplay = child.displayName || child.name;
             if (child.isContainer) {
-              await addFolder(child.url, zipFolder.folder(child.name));
+              await addFolder(child.url, zipFolder.folder(childDisplay));
             } else {
               const resp = await fetchFn(child.url);
-              zipFolder.file(child.name, await resp.blob());
+              zipFolder.file(childDisplay, await resp.blob());
             }
           }
         };
         btn.disabled = true; btn.textContent = 'Downloading...';
-        await addFolder(item.url, zip.folder(item.name));
+        await addFolder(item.url, zip.folder(display));
         const blob = await zip.generateAsync({ type: 'blob' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = item.name + '.zip'; a.click();
+        a.href = url; a.download = display + '.zip'; a.click();
         URL.revokeObjectURL(url);
         btn.textContent = 'Done!';
       } catch (e) {
         this._emitStatus(`Download failed: ${e.message}`, 'error');
-        btn.disabled = false; btn.textContent = `\u2B07 ${item.name}.zip`;
+        btn.disabled = false; btn.textContent = `\u2B07 ${display}.zip`;
       }
     };
     row.append(msg, btn);
@@ -504,26 +503,30 @@ class SolPodOps extends HTMLElement {
   // ── Rename tab ──────────────────────────────────────────────────────
 
   _tabRename(item, body, footer, actions) {
+    const currentDisplay = item.displayName || item.name;
     const input = document.createElement('input');
     input.className = 'modal-input'; input.type = 'text';
-    input.value = item.name;
+    input.value = currentDisplay;
 
     const btn = document.createElement('button');
     btn.className = 'sol-btn sol-btn-sm sol-btn-primary';
     btn.textContent = 'Rename';
     btn.onclick = async () => {
       const newName = input.value.trim();
-      if (!newName || newName === item.name) return;
+      if (!newName || newName === currentDisplay) return;
+      // User typed the decoded form; URL-encode for the request path so
+      // names with spaces / unicode / reserved chars produce valid URLs.
+      const encodedNew = encodeURIComponent(newName);
       try {
         const fetchFn = this._fetchFor(item.url);
         if (item.isContainer) {
           const parentUrl = item.url.slice(0, item.url.slice(0, -1).lastIndexOf('/') + 1);
           const fetchFnForUrl = (u) => this._fetchFor(u);
-          await copyFolder(item.url, parentUrl, newName, fetchFnForUrl, msg => this._emitStatus(msg, ''));
+          await copyFolder(item.url, parentUrl, encodedNew, fetchFnForUrl, msg => this._emitStatus(msg, ''));
           await deleteFolder(item.url, fetchFnForUrl);
         } else {
           const containerUrl = item.url.substring(0, item.url.lastIndexOf('/') + 1);
-          const newUrl = containerUrl + newName;
+          const newUrl = containerUrl + encodedNew;
           const resp = await fetchFn(item.url);
           if (!resp.ok) throw new Error(`Read failed: ${resp.status}`);
           const blob = await resp.blob();
@@ -546,9 +549,12 @@ class SolPodOps extends HTMLElement {
     body.innerHTML = '';
     const row = document.createElement('div');
     row.className = 'modal-row';
+    const display = item.displayName || item.name;
     const msg = document.createElement('div');
     msg.className = 'modal-message';
-    msg.innerHTML = `Delete <strong>${item.name}</strong>${item.isContainer ? ' and all its contents' : ''}?`;
+    msg.append(document.createTextNode('Delete '));
+    const strong = document.createElement('strong'); strong.textContent = display;
+    msg.append(strong, document.createTextNode((item.isContainer ? ' and all its contents' : '') + '?'));
     const btn = document.createElement('button');
     btn.className = 'sol-btn sol-btn-sm sol-btn-danger';
     btn.textContent = 'Delete';

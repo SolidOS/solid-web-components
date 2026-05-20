@@ -61,13 +61,18 @@ async function fetchContainerRaw(url, fetchFn) {
   return store.each(rdf.sym(url), rdf.sym(LDP_CONTAINS), null, null).map(n => n.value);
 }
 
+function tryDecode(s) {
+  try { return decodeURIComponent(s); } catch { return s; }
+}
+
 function mapResources(resourceUrls) {
   return resourceUrls.map(url => {
     const isContainer = url.endsWith('/');
     const name = isContainer ? url.split('/').slice(-2)[0] : url.split('/').pop();
-    return { url, name, isContainer };
+    const displayName = tryDecode(name);
+    return { url, name, displayName, isContainer };
   }).sort((a, b) => {
-    if (a.isContainer === b.isContainer) return a.name.localeCompare(b.name);
+    if (a.isContainer === b.isContainer) return a.displayName.localeCompare(b.displayName);
     return a.isContainer ? -1 : 1;
   });
 }

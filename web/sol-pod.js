@@ -207,7 +207,9 @@ class SolPod extends HTMLElement {
 
   _filterItems(items) {
     return items.filter(item => {
-      const n = item.name;
+      // Match the user's mental model: filter on the decoded name so
+      // e.g. %23foo (decodes to #foo) hides when 'hide hash' is on.
+      const n = item.displayName || item.name;
       if (this._prefs.hideDot && n.startsWith('.')) return false;
       if (this._prefs.hideHash && n.startsWith('#')) return false;
       if (this._prefs.hideTilde && n.endsWith('~')) return false;
@@ -353,7 +355,7 @@ class SolPod extends HTMLElement {
 
     const label = document.createElement('span');
     label.className = 'item-label';
-    label.textContent = `${item.isContainer ? '\u{1F4C1}' : fileIcon(item.name)} ${item.name}`;
+    label.textContent = `${item.isContainer ? '\u{1F4C1}' : fileIcon(item.name)} ${item.displayName || item.name}`;
     li.appendChild(label);
 
     const openItemAction = (e) => {
@@ -444,7 +446,7 @@ class SolPod extends HTMLElement {
     await import('./sol-pod-ops.js');
 
     const modal = document.createElement('sol-modal');
-    modal.modalTitle = item.isContainer ? `Folder: ${item.name}` : item.name;
+    modal.modalTitle = item.isContainer ? `Folder: ${item.displayName || item.name}` : (item.displayName || item.name);
     modal.styles = [POD_MODAL_SHEET || POD_MODAL_CSS];
 
     modal.handler = (body) => {
@@ -480,7 +482,7 @@ class SolPod extends HTMLElement {
     await import('./sol-solidos.js');
 
     const modal = document.createElement('sol-modal');
-    modal.modalTitle = item.name;
+    modal.modalTitle = item.displayName || item.name;
     modal.size = 'large';
 
     modal.handler = (body) => {
