@@ -8,21 +8,25 @@ import { CSS as WAC_CSS } from './sol-wac-css.js';
 
 export const CSS = BTN_CSS + WAC_CSS + `
   .modal-preview {
-    font-family: 'Fira Mono', 'Consolas', monospace;
+    font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace);
     font-size: 0.85em; white-space: pre-wrap; word-break: break-all;
     background: var(--surface-2, #f9f9f9);
     border: 1px solid var(--border, #e0e0e0);
     border-radius: 4px; padding: 12px; flex: 1;
   }
   .modal-editor {
-    font-family: 'Fira Mono', 'Consolas', monospace;
+    font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace);
     font-size: 0.85em; flex: 1; min-height: 300px;
     border: 1px solid var(--border, #e0e0e0);
     border-radius: 4px; padding: 10px;
     resize: vertical; width: 100%;
     background: var(--surface, #fff); color: var(--text, #212121);
   }
-  .modal-editor:focus { outline: none; border-color: var(--accent, #2196f3); }
+  .modal-editor:focus {
+    outline: none;
+    border-color: var(--accent, #0f4ea0);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #0f4ea0) 22%, transparent);
+  }
 
   .modal-media { max-width: 100%; max-height: 55vh; display: block; margin: 0 auto; border-radius: 4px; }
   .modal-audio { width: 100%; margin-top: 12px; }
@@ -36,7 +40,7 @@ export const CSS = BTN_CSS + WAC_CSS + `
     display: flex; flex-direction: column; position: relative;
   }
   .cm-editor-wrap .cm-editor { flex: 1; height: 100%; font-size: 0.85em; }
-  .cm-editor-wrap .cm-scroller { font-family: 'Fira Mono', 'Consolas', monospace; overflow: auto; }
+  .cm-editor-wrap .cm-scroller { font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace); overflow: auto; }
 
   .graph-wrap {
     width: 100%; flex: 1; min-height: 0; overflow: hidden;
@@ -54,7 +58,7 @@ export const CSS = BTN_CSS + WAC_CSS + `
   }
   .markdown-preview p { margin: 0.6em 0; }
   .markdown-preview code {
-    font-family: 'Fira Mono', monospace; font-size: 0.88em;
+    font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace); font-size: 0.88em;
     background: var(--surface-2, #f9f9f9); border: 1px solid var(--border, #e0e0e0);
     border-radius: 3px; padding: 1px 5px;
   }
