@@ -97,7 +97,8 @@ export default [
       globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
     },
   },
-  // ── sol-live-edit (core only — renderers/help/data are lazy-loaded) ────────
+  // ── sol-live-edit (core + renderers/help/data bundled via static
+  //    dynamic imports + inlineDynamicImports) ───────────────────────────────
   {
     input:    'web/sol-live-edit.js',
     external,
@@ -107,6 +108,7 @@ export default [
       format:  'umd',
       name:    'SolLiveEdit',
       exports: 'named',
+      inlineDynamicImports: true,
       globals: { rdflib: '$rdf', dompurify: 'DOMPurify', marked: 'marked' },
     },
   },

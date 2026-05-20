@@ -11,43 +11,42 @@ import { CSS, sheet as LIVE_EDIT_SHEET } from './styles/sol-live-edit-css.js';
 import { adopt } from '../core/adopt.js';
 import { define } from '../core/define.js';
 
-const R = './utils/renderers/';
-const H = './utils/live-edit-help/';
-const D = './data/live-edit/';
-
-// Pre-loaded module registry — populated by SolLiveEdit.registerModules()
-// for bundled consumers where dynamic import() can't resolve relative paths.
+// Pre-loaded module registry — kept as an optional escape hatch for
+// hosts that want to inject custom renderers/help/examples. Standard
+// hosts no longer need it: the dynamic import()s below use static
+// string literals, so bundlers (rollup with inlineDynamicImports, esbuild
+// in IIFE) inline the modules at build time and runtime import() returns
+// the bundled module Promise without a network fetch.
 const _preloaded = { renderers: {}, help: {}, examples: {} };
 
-// Lazy renderer lookup — falls back to dynamic import when not pre-loaded
 const RENDERERS = {
-  turtle:   () => _preloaded.renderers.turtle   || import(`${R}turtle.js`).then(m => m.renderTurtle),
-  jsonld:   () => _preloaded.renderers.jsonld   || import(`${R}jsonld.js`).then(m => m.renderJsonLd),
-  csv:      () => _preloaded.renderers.csv      || import(`${R}csv.js`).then(m => m.renderCSV),
-  markdown: () => _preloaded.renderers.markdown || import(`${R}markdown.js`).then(m => m.renderMarkdown),
-  mermaid:  () => _preloaded.renderers.mermaid  || import(`${R}mermaid.js`).then(m => m.renderMermaid),
-  html:     () => _preloaded.renderers.html     || import(`${R}html.js`).then(m => m.renderHtml),
-  graphviz: () => _preloaded.renderers.graphviz || import(`${R}graphviz.js`).then(m => m.renderGraphviz),
+  turtle:   () => _preloaded.renderers.turtle   || import('./utils/renderers/turtle.js').then(m => m.renderTurtle),
+  jsonld:   () => _preloaded.renderers.jsonld   || import('./utils/renderers/jsonld.js').then(m => m.renderJsonLd),
+  csv:      () => _preloaded.renderers.csv      || import('./utils/renderers/csv.js').then(m => m.renderCSV),
+  markdown: () => _preloaded.renderers.markdown || import('./utils/renderers/markdown.js').then(m => m.renderMarkdown),
+  mermaid:  () => _preloaded.renderers.mermaid  || import('./utils/renderers/mermaid.js').then(m => m.renderMermaid),
+  html:     () => _preloaded.renderers.html     || import('./utils/renderers/html.js').then(m => m.renderHtml),
+  graphviz: () => _preloaded.renderers.graphviz || import('./utils/renderers/graphviz.js').then(m => m.renderGraphviz),
 };
 const _rendererCache = {};
 
 const HELP = {
-  turtle:   () => _preloaded.help.turtle   || import(`${H}turtle.js`).then(m => m.turtleHelp),
-  jsonld:   () => _preloaded.help.jsonld   || import(`${H}jsonld.js`).then(m => m.jsonldHelp),
-  csv:      () => _preloaded.help.csv      || import(`${H}csv.js`).then(m => m.csvHelp),
-  markdown: () => _preloaded.help.markdown || import(`${H}markdown.js`).then(m => m.markdownHelp),
-  mermaid:  () => _preloaded.help.mermaid  || import(`${H}mermaid.js`).then(m => m.mermaidHelp),
-  graphviz: () => _preloaded.help.graphviz || import(`${H}graphviz.js`).then(m => m.graphvizHelp),
+  turtle:   () => _preloaded.help.turtle   || import('./utils/live-edit-help/turtle.js').then(m => m.turtleHelp),
+  jsonld:   () => _preloaded.help.jsonld   || import('./utils/live-edit-help/jsonld.js').then(m => m.jsonldHelp),
+  csv:      () => _preloaded.help.csv      || import('./utils/live-edit-help/csv.js').then(m => m.csvHelp),
+  markdown: () => _preloaded.help.markdown || import('./utils/live-edit-help/markdown.js').then(m => m.markdownHelp),
+  mermaid:  () => _preloaded.help.mermaid  || import('./utils/live-edit-help/mermaid.js').then(m => m.mermaidHelp),
+  graphviz: () => _preloaded.help.graphviz || import('./utils/live-edit-help/graphviz.js').then(m => m.graphvizHelp),
 };
 
 const EXAMPLES = {
-  turtle:   () => _preloaded.examples.turtle   || import(`${D}turtle.js`).then(m => m.example),
-  jsonld:   () => _preloaded.examples.jsonld   || import(`${D}jsonld.js`).then(m => m.example),
-  csv:      () => _preloaded.examples.csv      || import(`${D}csv.js`).then(m => m.example),
-  markdown: () => _preloaded.examples.markdown || import(`${D}markdown.js`).then(m => m.example),
-  mermaid:  () => _preloaded.examples.mermaid  || import(`${D}mermaid.js`).then(m => m.example),
-  html:     () => _preloaded.examples.html     || import(`${D}html.js`).then(m => m.example),
-  graphviz: () => _preloaded.examples.graphviz || import(`${D}graphviz.js`).then(m => m.example),
+  turtle:   () => _preloaded.examples.turtle   || import('../data/live-edit/turtle.js').then(m => m.example),
+  jsonld:   () => _preloaded.examples.jsonld   || import('../data/live-edit/jsonld.js').then(m => m.example),
+  csv:      () => _preloaded.examples.csv      || import('../data/live-edit/csv.js').then(m => m.example),
+  markdown: () => _preloaded.examples.markdown || import('../data/live-edit/markdown.js').then(m => m.example),
+  mermaid:  () => _preloaded.examples.mermaid  || import('../data/live-edit/mermaid.js').then(m => m.example),
+  html:     () => _preloaded.examples.html     || import('../data/live-edit/html.js').then(m => m.example),
+  graphviz: () => _preloaded.examples.graphviz || import('../data/live-edit/graphviz.js').then(m => m.example),
 };
 
 const ZOOM_FMTS = new Set(['turtle','jsonld','graphviz','markdown','mermaid']);
@@ -316,7 +315,7 @@ class SolLiveEdit extends HTMLElement {
     const modal=this.shadowRoot.getElementById('modal');
     if(modal.classList.contains('on')){this._closeModal();return;}
     try{
-      const csvMod = _preloaded.renderers._csvModule || await import(`${R}csv.js`);
+      const csvMod = _preloaded.renderers._csvModule || await import('./utils/renderers/csv.js');
       const {parseCSV,calcStats,renderStats}=csvMod;
       const container=document.createElement('div');
       renderStats(calcStats(parseCSV(this.content)),container);

@@ -45,7 +45,7 @@ export async function drawForceGraph(container, graphData) {
     .attr('marker-end', 'url(#arr)');
 
   const linkLabel = svg.append('g').selectAll('text').data(links).join('text')
-    .attr('font-size', 9).attr('fill', '#999').attr('text-anchor', 'middle')
+    .style('font-size', 'var(--font-app)').attr('fill', '#999').attr('text-anchor', 'middle')
     .text(d => d.label);
 
   const nodeG = svg.append('g');
@@ -58,13 +58,14 @@ export async function drawForceGraph(container, graphData) {
 
   nodeEl.append('circle').attr('r', 20).attr('fill', '#4a9eff').attr('fill-opacity', 0.8).attr('stroke', '#fff').attr('stroke-width', 2);
 
-  nodeEl.append('text').attr('dy', 34).attr('text-anchor', 'middle').attr('font-size', 11)
+  nodeEl.append('text').attr('dy', 34).attr('text-anchor', 'middle')
+    .style('font-size', 'calc(var(--font-app) * 1.2)')
     .each(function(d) {
       const t = d3.select(this);
       const label = d.displayLabel || d.label;
       t.append('tspan').attr('x', 0).attr('font-weight', d.displayLabel ? 'bold' : 'normal').text(label);
       (d.properties || []).slice(0, 2).forEach((p, i) => {
-        t.append('tspan').attr('x', 0).attr('dy', '1.1em').attr('font-size', 9).attr('fill', '#888').text(p);
+        t.append('tspan').attr('x', 0).attr('dy', '1.1em').style('font-size', 'var(--font-app)').attr('fill', '#888').text(p);
       });
     });
 

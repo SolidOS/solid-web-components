@@ -20,10 +20,11 @@ export async function renderTurtle(content, outputEl) {
     'https://schema.org/name',
   ]);
 
+  // Just the local term: everything after the last '/' or '#'.
+  const shortId = uri => uri.split(/[/#]/).pop() || uri;
+
   const nodes = new Map();
   const links = [];
-
-  const shortId = uri => uri.split(/[/#]/).pop() || uri;
 
   store.statements.forEach(({ subject: s, predicate: p, object: o }) => {
     if (!nodes.has(s.value)) nodes.set(s.value, { id: s.value, label: shortId(s.value), displayLabel: null, properties: [] });
@@ -36,7 +37,7 @@ export async function renderTurtle(content, outputEl) {
       if (labelPredicates.has(p.value)) {
         node.displayLabel = o.value;
       } else {
-        node.properties.push(`${shortId(p.value)}: ${o.value}`);
+        node.properties.push(`${shortId(p.value)} ${o.value}`);
       }
     }
   });
