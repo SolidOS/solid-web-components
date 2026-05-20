@@ -78,8 +78,17 @@ class SolTabs extends HTMLElement {
 
     this.innerHTML = `
       <div class="sol-tabs-bar" role="tablist"></div>
+      <div class="sol-tabs-actions"></div>
       <div class="sol-tabs-content"></div>`;
     this._rendered = true;
+
+    // Default actions slot sits between the bar and the content. Tabs
+    // that want toolbar buttons (save / zoom / settings / help, etc.)
+    // can append into actionsEl. Callers may still override via
+    // `tabsEl.actionsEl = someExternalEl` before switchTab.
+    if (!this._actionsEl) {
+      this._actionsEl = this.querySelector(':scope > .sol-tabs-actions');
+    }
 
     if (declared?.length) {
       this._tabs = declared;

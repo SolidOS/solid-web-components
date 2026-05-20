@@ -70,6 +70,17 @@ export const CSS = `
     border-bottom-color: var(--accent-dark, #1976d2);
     font-weight: 600;
   }
+  sol-tabs > .sol-tabs-actions {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 20px;
+    font-size: 1em;
+    font-family: inherit;
+  }
+  sol-tabs > .sol-tabs-actions:empty { display: none; }
   sol-tabs > .sol-tabs-content {
     flex: 1 1 auto; min-height: 0; min-width: 0;
     max-width: 100%;

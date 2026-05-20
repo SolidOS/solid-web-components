@@ -39,10 +39,6 @@ const HOST_CSS = BTN_CSS + `
     display: flex; flex-direction: column;
   }
   .pod-ops-footer { padding: 6px 12px; font-size: 0.85em; color: var(--text-muted, #666); }
-  .pod-ops-actions {
-    display: flex; gap: 6px; align-items: center; padding: 6px 12px;
-    border-top: 1px solid var(--border, #e0e0e0);
-  }
 `;
 
 const hostSheet = sheetFrom(HOST_CSS);
@@ -112,7 +108,6 @@ class SolPodOps extends HTMLElement {
       <div class="pod-ops-wrap">
         <div class="pod-ops-body"><div class="modal-message">Loading...</div></div>
         <div class="pod-ops-footer"></div>
-        <div class="pod-ops-actions"></div>
       </div>`;
     adopt(s, { sheet: hostSheet, css: HOST_CSS });
     if (POD_MODAL_SHEET) {
@@ -185,13 +180,14 @@ class SolPodOps extends HTMLElement {
     await import('./sol-tabs.js');
     const body = this.shadowRoot.querySelector('.pod-ops-body');
     const footer = this.shadowRoot.querySelector('.pod-ops-footer');
-    const actions = this.shadowRoot.querySelector('.pod-ops-actions');
     body.innerHTML = '';
     body.style.padding = '0';
 
+    // sol-tabs provides its own actions slot between the bar and content;
+    // we don't pass actionsEl so toolbar buttons appear flush right at
+    // the top of the tab content area.
     const tabsEl = document.createElement('sol-tabs');
     tabsEl.footerEl = footer;
-    tabsEl.actionsEl = actions;
     tabsEl.tabs = tabs;
     body.appendChild(tabsEl);
     tabsEl.switchTab(defaultTab);
@@ -225,7 +221,7 @@ class SolPodOps extends HTMLElement {
     actions.innerHTML = '';
     const mkBtn = (text, title, cls = '') => {
       const b = document.createElement('button');
-      b.className = 'sol-btn sol-btn-sm sol-btn-ghost' + (cls ? ' ' + cls : '');
+      b.className = 'sol-btn sol-btn-ghost' + (cls ? ' ' + cls : '');
       b.textContent = text; if (title) b.title = title;
       actions.appendChild(b); return b;
     };
