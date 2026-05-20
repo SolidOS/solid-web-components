@@ -154,6 +154,10 @@ class AuthManager {
     const session = this.sessionFor(tag, origin);
     if (session.info.isLoggedIn) return true;
 
+    for (const [, s] of this.sessions) {
+      if (sessionCoversOrigin(s, origin)) return true;
+    }
+
     try { localStorage.setItem('solLoginPendingTag', tag); } catch (e) {}
     const redirectUrl = window.location.origin + window.location.pathname;
     await session.login({ oidcIssuer: origin, redirectUrl, clientName: 'Solid App' });
