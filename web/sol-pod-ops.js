@@ -442,7 +442,6 @@ class SolPodOps extends HTMLElement {
     const msg = document.createElement('div');
     msg.className = 'modal-message';
     msg.innerHTML = `Download <strong>${item.name}</strong>`;
-    msg.style.flex = '1';
     const btn = document.createElement('button');
     btn.className = 'sol-btn sol-btn-sm sol-btn-primary';
     btn.textContent = `\u2B07 ${item.name}`;
@@ -466,7 +465,6 @@ class SolPodOps extends HTMLElement {
     const msg = document.createElement('div');
     msg.className = 'modal-message';
     msg.innerHTML = `Download folder <strong>${item.name}</strong> as ZIP`;
-    msg.style.flex = '1';
     const btn = document.createElement('button');
     btn.className = 'sol-btn sol-btn-sm sol-btn-primary';
     btn.textContent = `\u2B07 ${item.name}.zip`;
@@ -551,7 +549,6 @@ class SolPodOps extends HTMLElement {
     const msg = document.createElement('div');
     msg.className = 'modal-message';
     msg.innerHTML = `Delete <strong>${item.name}</strong>${item.isContainer ? ' and all its contents' : ''}?`;
-    msg.style.flex = '1';
     const btn = document.createElement('button');
     btn.className = 'sol-btn sol-btn-sm sol-btn-danger';
     btn.textContent = 'Delete';

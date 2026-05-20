@@ -106,14 +106,54 @@ export const CSS = BTN_CSS + WAC_CSS + `
     margin: 8px 0;
   }
 
-  /* Inline input+button row inside modal body */
+  /* .modal-input — sol-pod-ops has its OWN shadow root that adopts this
+     sheet (sol-pod-modal-css.js), NOT sol-modal-css.js. So the rule
+     needs to live here too, otherwise rename/new-file/new-folder/upload
+     inputs render with bare UA styles. */
+  .modal-input {
+    width: min(100%, 50ch);
+    min-width: 18ch;
+    max-width: 50ch;
+    box-sizing: border-box;
+    appearance: none;
+    -webkit-appearance: none;
+    font: inherit;
+    line-height: 1.2;
+    padding: 0.4em 0.7em;
+    border: 1px solid var(--border-soft, var(--border, #d6dae2));
+    border-radius: 6px;
+    /* Same explicit height as .modal-row > .sol-btn below. */
+    height: calc(1.2em + 0.8em + 2px);
+    background: var(--surface, #fff);
+    color: var(--text, #0f1115);
+    transition: border-color 0.12s, box-shadow 0.12s;
+  }
+  .modal-input:focus {
+    outline: none;
+    border-color: var(--accent, #0f4ea0);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #0f4ea0) 22%, transparent);
+  }
+
+  /* Inline input+button row inside modal body — input is fit-width with
+     a max-width; button sits right next to it. Input and button share
+     font + vertical padding + line-height + explicit height so their
+     box heights match pixel-for-pixel. */
   .modal-row {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 10px;
+    flex-wrap: wrap;
   }
   .modal-row > .modal-input,
-  .modal-row > input[type="text"] { flex: 1; min-width: 0; }
-  .modal-row > input[type="file"] { flex: 1; min-width: 0; }
-  .modal-row > .sol-btn { flex-shrink: 0; }
+  .modal-row > input[type="text"],
+  .modal-row > input[type="file"] { flex: 0 1 auto; }
+  .modal-row > .sol-btn {
+    flex-shrink: 0;
+    font: inherit;
+    line-height: 1.2;
+    padding: 0.4em 0.9em;
+    border-radius: 6px;
+    height: calc(1.2em + 0.8em + 2px);
+    box-sizing: border-box;
+  }
 
   /* Embedded sol-live-edit inside the pod modal */
   .pod-live-edit {

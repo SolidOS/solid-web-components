@@ -81,10 +81,25 @@ export const CSS = BTN_CSS + `
   .modal-zoom-pct { font-size: 0.8em; color: var(--text-muted, #4a525e); min-width: 3em; text-align: center; }
 
   .modal-input {
-    width: 100%; padding: 9px 12px;
+    /* Fit-width with a max-width cap; does NOT fill the row. */
+    width: min(100%, 50ch);
+    min-width: 18ch;
+    max-width: 50ch;
+    box-sizing: border-box;
+    /* Reset UA form-control styling so font + line-height are ours, not
+       the browser's per-input-type defaults (which otherwise render in
+       e.g. Arial/Helvetica regardless of inherited body font). */
+    appearance: none;
+    -webkit-appearance: none;
+    font: inherit;
+    line-height: 1.2;
+    padding: 0.4em 0.7em;
     border: 1px solid var(--border-soft, var(--border, #d6dae2));
     border-radius: 6px;
-    font-size: 0.95em; font-family: inherit;
+    /* Explicit height (not min-height) so input and the adjacent
+       .modal-row > .sol-btn are pixel-for-pixel identical. Both compute
+       to: 1.2em line + 0.8em vertical padding + 2px border. */
+    height: calc(1.2em + 0.8em + 2px);
     background: var(--surface, #fff); color: var(--text, #0f1115);
     transition: border-color 0.12s, box-shadow 0.12s;
   }
