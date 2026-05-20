@@ -78,6 +78,11 @@ export const CSS = BTN_CSS + `
   .file-tree .file   { color: var(--file-color, #424242); }
   .file-tree li[draggable="true"] { cursor: grab; }
   .file-tree li.dragging { opacity: 0.5; cursor: grabbing; }
+  .file-tree li.selected {
+    background: var(--selected-bg, #c8e6f5);
+    box-shadow: 0 0 0 1px var(--accent, #2196f3) inset;
+  }
+  .file-tree li.selected:hover { background: var(--selected-hover, #b0d8ef); }
 
   .drag-over .tree-wrapper {
     background: var(--focus-bg, #e3f2fd);

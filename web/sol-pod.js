@@ -59,6 +59,9 @@ class SolPod extends HTMLElement {
     this._toastTimer = null;
     this._draggedItem = null;
     this._gearAction = null;
+    this._selected = new Set();
+    this._lastSelectedIndex = -1;
+    this._currentItems = [];
     this._prefs = { hideDot: true, hideHash: true, hideTilde: true };
   }
 
@@ -70,6 +73,18 @@ class SolPod extends HTMLElement {
 
   get currentPath() { return this._currentPath; }
   get items() { return this._items; }
+  get rootUrl() { return this._rootUrl; }
+  get storages() { return [...this._storages]; }
+
+  setStorages(arr, currentUrl) {
+    this._storages = Array.isArray(arr) ? [...arr] : [];
+    this._populateSelect(this._storages);
+    const target = currentUrl || this._rootUrl;
+    if (target && this._storages.includes(target)) {
+      const sel = this.shadowRoot.querySelector('.pod-select');
+      if (sel) sel.value = target;
+    }
+  }
 
   get prefs() { return this._prefs; }
   set prefs(p) { this._prefs = { ...this._prefs, ...p }; }
@@ -113,8 +128,17 @@ class SolPod extends HTMLElement {
     const source = this.source;
     if (source) {
       this._rootUrl = source.endsWith('/') ? source : source + '/';
-      this._storages = [this._rootUrl];
+      if (!this._storages.includes(this._rootUrl)) this._storages.push(this._rootUrl);
       this._populateSelect(this._storages);
+      const sel = this.shadowRoot.querySelector('.pod-select');
+      if (sel) sel.value = this._rootUrl;
+      await this.loadContainer(this._rootUrl);
+    } else if (this._storages.length > 0) {
+      // Storages were provided externally (e.g. via setStorages) — use them.
+      this._rootUrl = this._storages[0];
+      this._populateSelect(this._storages);
+      const sel = this.shadowRoot.querySelector('.pod-select');
+      if (sel) sel.value = this._rootUrl;
       await this.loadContainer(this._rootUrl);
     } else {
       // Discover from current origin
@@ -264,6 +288,9 @@ class SolPod extends HTMLElement {
     }
     sel.value = normalized;
     this._rootUrl = normalized;
+    this.dispatchEvent(new CustomEvent('sol-pod-add', {
+      bubbles: true, composed: true, detail: { url: normalized }
+    }));
     await this.loadContainer(normalized);
   }
 
@@ -300,12 +327,15 @@ class SolPod extends HTMLElement {
   }
 
   _renderTree(items) {
+    this._currentItems = items;
+    this._selected.clear();
+    this._lastSelectedIndex = -1;
     const tw = this.shadowRoot.querySelector('.tree-wrapper');
     tw.innerHTML = '';
     if (items.length === 0) { tw.innerHTML = '<div class="empty">Empty container</div>'; return; }
     const ul = document.createElement('ul');
     ul.className = 'file-tree';
-    items.forEach(item => ul.appendChild(this._createTreeItem(item)));
+    items.forEach((item, idx) => ul.appendChild(this._createTreeItem(item, idx)));
     tw.appendChild(ul);
 
     // Drop zone
@@ -314,22 +344,21 @@ class SolPod extends HTMLElement {
     tw.ondrop = (e) => { e.preventDefault(); tw.parentElement?.classList.remove('drag-over'); };
   }
 
-  _createTreeItem(item) {
+  _createTreeItem(item, idx) {
     const li = document.createElement('li');
     li.className = item.isContainer ? 'folder' : 'file';
     li.tabIndex = 0;
     li.dataset.url = item.url;
+    li.dataset.index = String(idx);
 
     const label = document.createElement('span');
     label.className = 'item-label';
     label.textContent = `${item.isContainer ? '\u{1F4C1}' : fileIcon(item.name)} ${item.name}`;
     li.appendChild(label);
 
-    const gear = document.createElement('button');
-    gear.className = 'item-gear'; gear.textContent = '\u2699';
-    gear.title = 'Actions';
-    gear.onclick = (e) => {
+    const openItemAction = (e) => {
       e.stopPropagation();
+      e.preventDefault();
       if (typeof this._gearAction === 'function') {
         this._gearAction(item, this);
       } else if (typeof this._gearAction === 'string') {
@@ -338,27 +367,74 @@ class SolPod extends HTMLElement {
         this._openItemModal(item);
       }
     };
+
+    const gear = document.createElement('button');
+    gear.className = 'item-gear'; gear.textContent = '\u2699';
+    gear.title = 'Actions';
+    gear.onclick = openItemAction;
     li.appendChild(gear);
+
+    const handleSelectClick = (e) => {
+      if (e.shiftKey && this._lastSelectedIndex >= 0) {
+        const a = Math.min(this._lastSelectedIndex, idx);
+        const b = Math.max(this._lastSelectedIndex, idx);
+        this._selected.clear();
+        for (let i = a; i <= b; i++) this._selected.add(this._currentItems[i].url);
+      } else if (e.ctrlKey || e.metaKey) {
+        if (this._selected.has(item.url)) this._selected.delete(item.url);
+        else this._selected.add(item.url);
+        this._lastSelectedIndex = idx;
+      } else {
+        this._selected.clear();
+        this._selected.add(item.url);
+        this._lastSelectedIndex = idx;
+      }
+      this._refreshSelectionUI();
+    };
 
     // Drag
     li.draggable = true;
     li.ondragstart = (e) => {
-      this._draggedItem = item;
-      e.dataTransfer.effectAllowed = 'copy';
-      e.dataTransfer.setData('text/plain', item.url);
+      let items;
+      if (this._selected.has(item.url) && this._selected.size > 1) {
+        items = this._currentItems.filter(it => this._selected.has(it.url));
+      } else {
+        this._selected.clear();
+        this._selected.add(item.url);
+        this._lastSelectedIndex = idx;
+        this._refreshSelectionUI();
+        items = [item];
+      }
+      this._draggedItem = items[0];
+      e.dataTransfer.effectAllowed = 'copyMove';
+      e.dataTransfer.setData('text/plain', items.map(it => it.url).join('\n'));
       li.classList.add('dragging');
       this.dispatchEvent(new CustomEvent('sol-drag-start', {
-        bubbles: true, composed: true, detail: { item, element: this }
+        bubbles: true, composed: true, detail: { items, item: items[0], element: this }
       }));
     };
     li.ondragend = () => { li.classList.remove('dragging'); };
 
     if (item.isContainer) {
-      li.onclick = () => { if (!li.classList.contains('dragging')) this.loadContainer(item.url); };
+      li.onclick = (e) => {
+        if (e.shiftKey || e.ctrlKey || e.metaKey) { handleSelectClick(e); return; }
+        if (!li.classList.contains('dragging')) this.loadContainer(item.url);
+      };
       li.onkeypress = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.loadContainer(item.url); } };
+    } else {
+      li.onclick = handleSelectClick;
+      li.ondblclick = openItemAction;
     }
 
     return li;
+  }
+
+  _refreshSelectionUI() {
+    const ul = this.shadowRoot.querySelector('.file-tree');
+    if (!ul) return;
+    for (const li of ul.children) {
+      li.classList.toggle('selected', this._selected.has(li.dataset.url));
+    }
   }
 
   // ── Item modal (delegates to <sol-pod-ops>) ─────────────────────────
