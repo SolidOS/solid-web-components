@@ -17,9 +17,14 @@ export const CSS = BTN_CSS + WAC_CSS + `
   .modal-editor {
     font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace);
     font-size: 0.85em; flex: 1; min-height: 300px;
-    border: 1px solid var(--border, #e0e0e0);
-    border-radius: 4px; padding: 10px;
-    resize: vertical; width: 100%;
+    border: 1px solid var(--border-soft, var(--border, #e0e0e0));
+    border-radius: 6px; padding: 10px;
+    resize: vertical;
+    /* width: 100% with box-sizing: border-box so border + padding are
+       part of the width and the textarea can't overflow its container. */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     background: var(--surface, #fff); color: var(--text, #212121);
   }
   .modal-editor:focus {
@@ -153,6 +158,36 @@ export const CSS = BTN_CSS + WAC_CSS + `
     border-radius: 6px;
     height: calc(1.2em + 0.8em + 2px);
     box-sizing: border-box;
+  }
+
+  /* File input: the UA renders both a button ("Choose Files") and a
+     label ("No file chosen") at its own default font size. Force both
+     to the body font so they don't read small next to body text. The
+     button is style-able via ::file-selector-button on modern browsers. */
+  input[type="file"] {
+    font: inherit;
+    line-height: 1.2;
+    color: var(--text, #0f1115);
+    max-width: 100%;
+  }
+  input[type="file"]::file-selector-button {
+    font: inherit;
+    line-height: 1.2;
+    padding: 0.4em 0.9em;
+    margin-right: 10px;
+    border: 1px solid var(--border-soft, var(--border, #d6dae2));
+    border-radius: 6px;
+    background: var(--surface-2, #f5f6f9);
+    color: var(--text, #0f1115);
+    cursor: pointer;
+    height: calc(1.2em + 0.8em + 2px);
+    box-sizing: border-box;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  input[type="file"]::file-selector-button:hover {
+    background: var(--hover, #eef0f4);
+    border-color: var(--accent, #0f4ea0);
+    color: var(--accent, #0f4ea0);
   }
 
   /* Embedded sol-live-edit inside the pod modal */
