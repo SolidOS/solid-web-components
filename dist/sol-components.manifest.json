@@ -1,9 +1,12 @@
 {
+  "@context": "https://jeff-zucker.github.io/component-interop/context.jsonld",
+  "@id": "",
+  "@type": "Manifest",
   "name": "sol-components",
   "attributes": {
-    "data-from-query": "sol-components/core/from-query.js",
-    "data-handler": "sol-components/core/handler.js",
-    "data-edit-shape": "rdf-bundle"
+    "data-from-query": { "module": "sol-components/core/from-query.js" },
+    "data-handler": { "module": "sol-components/core/handler.js" },
+    "data-edit-shape": { "module": "rdf-bundle" }
   },
   "objects": {
     "provides": {
@@ -36,15 +39,17 @@
     }
   },
   "bundles": {
-    "rdf-bundle": [
-      "solid-logic",
-      "solid-ui",
-      "sol-tree-edit",
-      "sol-form",
-      "sol-modal",
-      "sol-settings",
-      "sol-components/core/edit-placements.js"
-    ]
+    "rdf-bundle": {
+      "modules": [
+        "solid-logic",
+        "solid-ui",
+        "sol-tree-edit",
+        "sol-form",
+        "sol-modal",
+        "sol-settings",
+        "sol-components/core/edit-placements.js"
+      ]
+    }
   },
   "stages": {
     "local": {
