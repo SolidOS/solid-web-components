@@ -3,10 +3,15 @@
   "@id": "",
   "@type": "Manifest",
   "name": "sol-components",
+  "components": {
+    "sol-feed": { "label": "News (three-panel feeds)" },
+    "sol-search": { "label": "Search" },
+    "sol-login": { "label": "Sign in" }
+  },
   "attributes": {
     "data-from-query": { "module": "sol-components/core/from-query.js" },
     "data-handler": { "module": "sol-components/core/handler.js" },
-    "data-edit-shape": { "module": "rdf-bundle" }
+    "data-edit-shape": { "module": "sol-components/core/rdf-bundle.js" }
   },
   "objects": {
     "provides": {
@@ -36,19 +41,6 @@
         "onElement": "sol-query",
         "applyValueTo": "endpoint"
       }
-    }
-  },
-  "bundles": {
-    "rdf-bundle": {
-      "modules": [
-        "solid-logic",
-        "solid-ui",
-        "sol-tree-edit",
-        "sol-form",
-        "sol-modal",
-        "sol-settings",
-        "sol-components/core/edit-placements.js"
-      ]
     }
   },
   "stages": {
@@ -90,6 +82,7 @@
         "sol-window": "../web/sol-window.js"
       },
       "shared-modules": {
+        "rdf-bundle": "../core/rdf-bundle.js",
         "rdflib": "./vendor/rdflib.js",
         "dompurify": "./vendor/dompurify.js",
         "ical.js": "./vendor/ical.js.js",
@@ -144,6 +137,7 @@
         "sol-window": "https://esm.sh/sol-components/web/sol-window.js"
       },
       "shared-modules": {
+        "rdf-bundle": "https://esm.sh/sol-components/core/rdf-bundle.js",
         "rdflib": "https://esm.sh/rdflib@2",
         "dompurify": "https://esm.sh/dompurify@3",
         "ical.js": "https://esm.sh/ical.js@2",

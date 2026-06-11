@@ -1,7 +1,8 @@
-@prefix ui:   <http://www.w3.org/ns/ui#> .
-@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ui:     <http://www.w3.org/ns/ui#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
 
 #######################
 # Configuration Terms #
@@ -99,10 +100,19 @@ ui:Component a rdfs:Class ; rdfs:label "Component" ; rdfs:isDefinedBy <> ;
 ui:href a rdf:Property ; rdfs:label "href" ; rdfs:isDefinedBy <> ;
   rdfs:comment "The URL a ui:Link loads." .
 
+ui:name a rdf:Property ; rdfs:label "name" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "The custom-element tag a ui:Component instantiates (equivalent to the custom-elements-manifest format's tagName)." ;
+  rdfs:range   xsd:string .
+
 ui:icon a rdf:Property ; rdfs:label "icon" ; rdfs:isDefinedBy <> ;
   rdfs:comment "Optional icon URL shown for a menu item." .
 
+ui:hoverTitle a rdf:Property ; rdfs:label "hover title" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "Optional hover/advisory text for a menu item or component, with HTML title-attribute semantics." ;
+  rdfs:range   xsd:string .
+
 ui:attribute a rdf:Property ; rdfs:label "attribute" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "An attribute passed to a ui:Component's element, given as a schema:PropertyValue (schema:name + schema:value)." .
+  rdfs:comment "An attribute passed to a ui:Component's element, given as a schema:PropertyValue (schema:name + schema:value)." ;
+  rdfs:range   schema:PropertyValue .
 
 

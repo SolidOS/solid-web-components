@@ -242,6 +242,7 @@ class SolMenuBuilder extends HTMLElement {
           item.tag = plugin.tag;
           item.params = (plugin.params || []).map(([k, v]) => [k, v]);
           if (!item.name) item.name = plugin.label || plugin.tag;
+          if (!item.icon && plugin.icon) item.icon = plugin.icon;
         } else {
           const at = siblings.indexOf(item) + (before ? 0 : 1);
           siblings.splice(at, 0, this._itemFromPlugin(plugin));
@@ -278,6 +279,7 @@ class SolMenuBuilder extends HTMLElement {
     return {
       type: 'component', id: null,
       name: plugin.label || plugin.tag || '',
+      icon: plugin.icon || undefined,
       tag: plugin.tag || null,
       params: (plugin.params || []).map(([k, v]) => [k, v]),
     };
