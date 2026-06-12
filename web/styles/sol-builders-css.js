@@ -81,6 +81,10 @@ li.item { margin: .15rem 0; }
              background: transparent; color: var(--text-muted, #5d6d7e); }
 .topic-tab:hover { background: var(--hover, #eaf2fb); color: var(--text, #212121); }
 .topic-tab.active { background: var(--accent, #3498db); border-color: var(--accent, #3498db); color: #fff; }
+/* a sub-topic's headed group inside its parent's tab */
+.cards-subhead { flex: 1 1 100%; font-size: max(16px, 1em); font-weight: 600;
+                 color: var(--text-muted, #5d6d7e); margin-top: .35rem;
+                 padding-bottom: .15rem; border-bottom: 1px solid var(--border, #e0e0e0); }
 .card.ghost { border-style: dashed; background: transparent; opacity: .85; }
 /* margin-top:auto pins the byline to the card's bottom edge, so authors
    line up across a row no matter how long each description is (cards in a

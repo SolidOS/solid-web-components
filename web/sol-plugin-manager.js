@@ -150,22 +150,44 @@ class SolPluginManager extends HTMLElement {
 
   // The document's topic categories: skos:Collections, each with a
   // skos:prefLabel heading and skos:member entries (held as fragment names).
-  // Sorted by label so grouped rendering is deterministic across saves.
+  // A collection that is itself a MEMBER of another collection is a
+  // SUB-topic: it renders as a headed group inside its parent's tab, not as
+  // a tab of its own (one level of nesting). Sorted by label so grouped
+  // rendering is deterministic across saves.
   _collections(store) {
-    const out = [];
+    const all = new Map();
     for (const st of store.statementsMatching(null, rdf.sym(RDF + 'type'), rdf.sym(SKOS + 'Collection'))) {
       const node = st.subject;
       const labelNode = store.any(node, rdf.sym(SKOS + 'prefLabel'));
-      const members = store.each(node, rdf.sym(SKOS + 'member'), null)
-        .map((m) => (m.value || '').split('#')[1] || '')
-        .filter(Boolean);
-      out.push({
+      all.set(node.value, {
         iri: node.value,
         label: labelNode ? labelNode.value : (node.value.split('#')[1] || node.value),
-        members: new Set(members),
+        memberIris: store.each(node, rdf.sym(SKOS + 'member'), null).map((m) => m.value || ''),
+        subs: [],
       });
     }
-    out.sort((a, b) => a.label.localeCompare(b.label));
+    const isSub = new Set();
+    for (const c of all.values()) {
+      c.members = new Set(c.memberIris
+        .filter((v) => !all.has(v))
+        .map((v) => v.split('#')[1] || '')
+        .filter(Boolean));
+      for (const v of c.memberIris) {
+        if (all.has(v)) { c.subs.push(all.get(v)); isSub.add(v); }
+      }
+      c.subs.sort((a, b) => a.label.localeCompare(b.label));
+    }
+    const top = [...all.values()].filter((c) => !isSub.has(c.iri));
+    top.sort((a, b) => a.label.localeCompare(b.label));
+    return top;
+  }
+
+  // Every entry fragment any topic (or sub-topic) claims — the complement is
+  // the "Other" group.
+  _claimedFrags() {
+    const out = new Set();
+    const walk = (c) => { for (const f of c.members) out.add(f); (c.subs || []).forEach(walk); };
+    (this._topics || []).forEach(walk);
     return out;
   }
 
@@ -258,16 +280,20 @@ class SolPluginManager extends HTMLElement {
     const ghosts = this._ghosts().sort(byName);
 
     if (this.hasAttribute('grouped')) {
-      // Topic TABS (skos:Collections): pick a topic, see only its cards. An
+      // Topic TABS (skos:Collections): pick a topic, see only its cards. A
+      // topic's SUB-collections render as headed groups inside its tab. An
       // entry in several collections shows under each of its topics; entries
       // in none — and ghost cards — sit under "Other".
-      const inAny = new Set(this._topics.flatMap((t) => [...t.members]));
+      const inAny = this._claimedFrags();
+      const mine = (members) => plugins.filter((p) => p.id && members.has(p.id));
       const groups = this._topics.map((t) => ({
         label: t.label,
-        cards: plugins.filter((p) => p.id && t.members.has(p.id)),
+        cards: mine(t.members),
+        subs: (t.subs || []).map((sub) => ({ label: sub.label, cards: mine(sub.members) }))
+          .filter((sub) => sub.cards.length),
       }));
-      groups.push({ label: 'Other', cards: [...plugins.filter((p) => !p.id || !inAny.has(p.id)), ...ghosts] });
-      const tabs = groups.filter((g) => g.cards.length);
+      groups.push({ label: 'Other', cards: [...plugins.filter((p) => !p.id || !inAny.has(p.id)), ...ghosts], subs: [] });
+      const tabs = groups.filter((g) => g.cards.length || g.subs.length);
       if (!tabs.some((g) => g.label === this._topicTab)) this._topicTab = tabs[0]?.label;
 
       this._cards = document.createElement('div');
@@ -275,6 +301,13 @@ class SolPluginManager extends HTMLElement {
       this._cards.setAttribute('role', 'list');
       const active = tabs.find((g) => g.label === this._topicTab);
       for (const p of active?.cards || []) this._cards.appendChild(this._card(p));
+      for (const sub of active?.subs || []) {
+        const head = document.createElement('div');
+        head.className = 'cards-subhead';
+        head.textContent = sub.label;
+        this._cards.appendChild(head);
+        for (const p of sub.cards) this._cards.appendChild(this._card(p));
+      }
 
       if (tabs.length) {
         const strip = document.createElement('div');
