@@ -158,10 +158,9 @@ describe('SolTabs — from-rdf loading', () => {
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
-    el.switchTab('Settings');           // nested menu tab
-    const sub = content(el).querySelector('sol-tabs[variant="sub"]');
-    expect(sub).toBeTruthy();
-    expect(content(sub).textContent).toContain('light content');
+    el.switchTab('Settings');           // nested menu tab — children stack in the pane
+    const stack = content(el).querySelector('.sol-tabs-stack') || content(el);
+    expect(stack.textContent).toContain('light content');
   });
 
   test('ui:href link wraps the URL in sol-include by default', async () => {
@@ -200,7 +199,7 @@ describe('SolTabs — from-rdf loading', () => {
   });
 });
 
-// ── nested ui:Menu → sub-tab strip ──────────────────────────────────────────
+// ── nested ui:Menu → all children stacked in the one pane ───────────────────
 
 describe('SolTabs — nested ui:Menu', () => {
   beforeEach(() => { mockStore = buildStore(); });
@@ -216,27 +215,28 @@ describe('SolTabs — nested ui:Menu', () => {
     expect(labels).not.toContain('Dark');
   });
 
-  test('selecting the nested tab shows a <sol-tabs variant="sub"> strip', async () => {
+  test('selecting the nested tab stacks ALL its children in the pane', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     el.switchTab('Settings');
-    const sub = content(el).querySelector('sol-tabs[variant="sub"]');
-    expect(sub).toBeTruthy();
-    const subLabels = tabBtns(sub).map(b => b.textContent);
-    expect(subLabels).toEqual(['Light', 'Dark']);
+    // no sub-tab strip — every child is rendered at once, one slot each
+    expect(content(el).querySelector('sol-tabs[variant="sub"]')).toBeNull();
+    const pane = content(el);
+    const slots = pane.querySelectorAll('.sol-tabs-stack-item');
+    expect(slots.length).toBe(2);
   });
 
-  test('sub-tab strip switches its own children independently', async () => {
+  test('all stacked children are live at the same time', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     el.switchTab('Settings');
-    const sub = content(el).querySelector('sol-tabs[variant="sub"]');
-    sub.switchTab('Dark');
-    expect(content(sub).textContent).toContain('dark content');
+    const text = content(el).textContent;
+    expect(text).toContain('light content');
+    expect(text).toContain('dark content');
   });
 });
 

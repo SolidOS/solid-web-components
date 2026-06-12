@@ -253,13 +253,7 @@ class SolTabs extends HTMLElement {
         return {
           name: desc.name,
           id: desc.id,
-          render: (body) => {
-            const sub = document.createElement('sol-tabs');
-            sub.setAttribute('variant', 'sub');
-            sub.tabs = children;
-            body.appendChild(sub);
-            if (children.length) sub.switchTab(children[0].name);
-          },
+          render: (body) => this._renderStack(body, children),
         };
       }
       if (desc.type === 'component') {
@@ -353,17 +347,24 @@ class SolTabs extends HTMLElement {
         return {
           name: label,
           id: node.id || undefined,
-          render: (body) => {
-            const sub = document.createElement('sol-tabs');
-            sub.setAttribute('variant', 'sub');
-            sub.tabs = children;
-            body.appendChild(sub);
-            if (children.length) sub.switchTab(children[0].name);
-          },
+          render: (body) => this._renderStack(body, children),
         };
       }
       return anchorTab(node, i);
     });
+  }
+
+  // A multi-plugin tab shows ALL its plugins together in the pane — each in
+  // its own slot (so keep-alive mounting can't park a sibling), stacked the
+  // way a single plugin fills the pane. Nothing to pick; everything is live.
+  _renderStack(body, children) {
+    body.classList.add('sol-tabs-stack');
+    for (const child of children) {
+      const slot = document.createElement('div');
+      slot.className = 'sol-tabs-stack-item';
+      body.appendChild(slot);
+      child.render(slot);
+    }
   }
 
   get tabs() { return this._tabs; }

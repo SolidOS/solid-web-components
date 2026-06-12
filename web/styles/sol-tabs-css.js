@@ -21,6 +21,15 @@ export const CSS = `
     width: 100%; max-width: 100%;
   }
   sol-tabs > .sol-tabs-content > .sol-tabs-pane[hidden] { display: none; }
+  /* A multi-plugin tab: every plugin lives in the pane at once, stacked.
+     Each slot scrolls ITSELF if its plugin outgrows its share — the pane
+     and page never scroll. */
+  .sol-tabs-stack { display: flex; flex-direction: column; gap: 12px; }
+  .sol-tabs-stack > .sol-tabs-stack-item {
+    display: flex; flex-direction: column;
+    flex: 1 1 auto; min-height: 0; min-width: 0;
+    overflow: auto;
+  }
   sol-tabs[orientation="vertical"] {
     flex-direction: row;
   }

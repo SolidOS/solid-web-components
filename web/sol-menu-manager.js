@@ -166,12 +166,13 @@ class SolMenuManager extends HTMLElement {
     label.addEventListener('input', () => { item.name = label.value; this._markDirty(); });
 
     // The chip speaks to the app USER: a plugin's friendly name (from the
-    // loader-manifest meta) when one is known — never the element tag, which
-    // means nothing to users. An assigned item with no friendly name shows
-    // no chip at all; "unassigned" keeps its drop hint.
+    // loader-manifest meta) when one is known — never the element tag or a
+    // URL, which mean nothing to users. A link row's NAME already is the
+    // plugin's name, so it gets no chip; an assigned component with no
+    // friendly name likewise; "unassigned" keeps its drop hint.
     let chip = document.createElement('span');
     if (item.type === 'submenu') { chip.className = 'chip'; chip.textContent = 'submenu'; }
-    else if (item.type === 'link') { chip.className = 'chip'; chip.textContent = item.href ? `link → ${item.href}` : 'link'; }
+    else if (item.type === 'link') { chip = null; }
     else if (item.tag) {
       const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
       if (meta?.label) { chip.className = 'chip'; chip.textContent = meta.label; }
@@ -373,7 +374,29 @@ class SolMenuManager extends HTMLElement {
     clearTimeout(this._saveTimer);
     this._saveTimer = setTimeout(() => this._save(), 800);
   }
-  _touch() { this._markDirty(); this._render(); }
+  _touch() { this._normalize(this._items); this._markDirty(); this._render(); }
+
+  // The sole-plugin rule, kept true under drag-off: a submenu reduced to ONE
+  // assigned plugin collapses back into a direct item (the tab opens it
+  // again). Submenus that are empty or hold unassigned rows are left alone —
+  // that's someone building structure by hand.
+  _normalize(items) {
+    for (const item of items || []) {
+      if (item.type !== 'submenu') continue;
+      this._normalize(item.children);
+      const kids = item.children || [];
+      const only = kids.length === 1 ? kids[0] : null;
+      if (only && only.type !== 'submenu' && (only.tag || only.href)) {
+        item.type = only.type;
+        item.tag = only.tag || null;
+        item.params = (only.params || []).map(([k, v]) => [k, v]);
+        if (only.href) item.href = only.href; else delete item.href;
+        if (only.region && !item.region) item.region = only.region;
+        if (!item.icon && only.icon) item.icon = only.icon;
+        delete item.children;
+      }
+    }
+  }
   _note(msg, cls) {
     if (!this._status) return;
     this._status.textContent = msg;
