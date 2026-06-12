@@ -177,9 +177,14 @@ class SolMenuManager extends HTMLElement {
     if (item.type === 'submenu') {
       if (!item.children) item.children = [];
       for (const child of item.children) {
+        // The DISPLAY name the plugin was dragged in under (e.g. "Movies
+        // (Internet Archive)") — not the component's name ("Internet
+        // Archive player"). Nameless children get no chip at all.
+        const text = child.name || (child.tag && metaLabel(child.tag));
+        if (!text) continue;
         const chip = document.createElement('span');
         chip.className = 'chip';
-        chip.textContent = (child.tag && metaLabel(child.tag)) || child.name || '…';
+        chip.textContent = text;
         chip.draggable = true;
         chip.addEventListener('dragstart', (e) => {
           this._dragItem = { item: child, siblings: item.children };
@@ -289,27 +294,32 @@ class SolMenuManager extends HTMLElement {
           // SUBMENU of both: one plugin = the item opens it directly;
           // several = the item shows them all as sub-tabs. (The flat bar
           // keeps replace-on-drop.)
-          const hasPlugin = !!(item.tag || item.href);
-          if (hasPlugin && !this.constructor.flat) {
-            // The carried-over plugin is named by what IT is (its friendly
-            // name) — NEVER by the menu item's own name, which would show
-            // the item as a plugin of itself.
-            const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
-            const first = {
-              type: item.type, id: null,
-              name: meta?.label || (item.type === 'link' ? item.name : ''),
-              icon: item.icon || undefined,
-              tag: item.tag || null,
-              params: (item.params || []).map(([k, v]) => [k, v]),
-            };
-            if (item.href) { first.href = item.href; if (item.region) first.region = item.region; }
-            item.type = 'submenu';
-            item.children = [first, this._itemFromPlugin(plugin)];
-            item.tag = null;
-            item.params = [];
-            delete item.href;
-            this._touch();
-            return;
+          // The carried-over plugin is named by what IT is (its friendly
+          // name) — NEVER by the menu item's own name, which would show the
+          // item as a plugin of itself. A NAMELESS assignment (e.g. a stale
+          // page include) is an artifact: it is REPLACED by the drop, not
+          // carried along as a phantom chip.
+          const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
+          const carriedName = (item.type === 'link' ? item.name : '') || meta?.label || '';
+          if (item.tag || item.href) {
+            if (carriedName && !this.constructor.flat) {
+              const first = {
+                type: item.type, id: null,
+                name: carriedName,
+                icon: item.icon || undefined,
+                tag: item.tag || null,
+                params: (item.params || []).map(([k, v]) => [k, v]),
+              };
+              if (item.href) { first.href = item.href; if (item.region) first.region = item.region; }
+              item.type = 'submenu';
+              item.children = [first, this._itemFromPlugin(plugin)];
+              item.tag = null;
+              item.params = [];
+              delete item.href;
+              this._touch();
+              return;
+            }
+            // nameless artifact (or the flat bar) → fall through: replace
           }
           // assign this row's content — a component (tag) or a link (href)
           if (plugin.href) {
