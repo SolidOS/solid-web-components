@@ -60,17 +60,18 @@ li.item { margin: .15rem 0; }
 .save-btn:disabled { opacity: .5; cursor: default; }
 .hint { font-size: max(16px, 1em); font-style: italic; color: var(--text-muted, #7f8c8d); padding: .3rem .2rem; }
 
-/* palette */
-.cards { display: flex; flex-wrap: wrap; gap: .45rem; }
+/* palette — cards are all the SAME width (em: tracks the font-size setting)
+   and vary in height with their content */
+.cards { display: flex; flex-wrap: wrap; gap: .45rem; align-items: flex-start; }
 .card { display: flex; flex-direction: column; gap: .1rem; padding: .4rem .6rem; cursor: grab;
         border: 1px solid var(--border, #d0d0d0); border-radius: 8px; background: var(--bg, #fafafa);
-        user-select: none; min-width: 7rem; }
+        user-select: none; width: 18em; }
 .card:hover { border-color: var(--accent, #3498db); background: var(--surface, #fff); }
 .card.dragging { opacity: .5; }
 .card-top { display: flex; align-items: center; gap: .3rem; }
 .card-icon { font-size: max(16px, 1em); }
 .card-label { font-size: max(16px, 1em); font-weight: 600; }
-.card-desc { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); max-width: 16rem; }
+.card-desc { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
 
 /* plugin manager: drop target, topic tabs, ghost cards, manifest-URL row */
 .cards.drop-over { outline: 2px dashed var(--accent, #3498db); outline-offset: 3px; border-radius: 8px; }
