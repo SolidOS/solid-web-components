@@ -69,8 +69,13 @@ li.item { margin: .15rem 0; }
 .card-tag { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); font-family: var(--font-mono, monospace); }
 .card-desc { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); max-width: 16rem; }
 
-/* plugin manager: drop target, ghost cards, manifest-URL row */
-.cards.drop-over { outline: 2px dashed var(--accent, #3498db); outline-offset: 3px; border-radius: 8px; }
+/* plugin manager: drop target, topic groups, ghost cards, manifest-URL row */
+.cards.drop-over, .cards-groups.drop-over { outline: 2px dashed var(--accent, #3498db); outline-offset: 3px; border-radius: 8px; }
+.cards-groups { display: flex; flex-direction: column; gap: .35rem; }
+.cards-group-title { font-size: max(16px, 1em); font-weight: 600; color: var(--text-muted, #5d6d7e);
+                     margin-top: .35rem; padding-bottom: .15rem;
+                     border-bottom: 1px solid var(--border, #e0e0e0); }
+.cards-group-title:first-child { margin-top: 0; }
 .card.ghost { border-style: dashed; background: transparent; opacity: .85; }
 .card-ghost-note { font-size: max(16px, 1em); font-style: italic; color: var(--text-muted, #7f8c8d); }
 .url-row { display: flex; gap: .4rem; margin-top: .55rem; }

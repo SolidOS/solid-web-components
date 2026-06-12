@@ -11,11 +11,15 @@
  *   </sol-plugin-manager>
  *
  * Attributes:
- *   source — Turtle document + #fragment of the ui:Menu this box edits
- *            (required). The box title is the list's ui:label.
- *   for    — selector naming the manager(s) this palette feeds. Drag data
- *            is set globally (any manager accepts it); `for` exists so pages
- *            can declare the pairing and styling/tooling can use it.
+ *   source  — Turtle document + #fragment of the ui:Menu this box edits
+ *             (required). The box title is the list's ui:label.
+ *   for     — selector naming the manager(s) this palette feeds. Drag data
+ *             is set globally (any manager accepts it); `for` exists so pages
+ *             can declare the pairing and styling/tooling can use it.
+ *   grouped — boolean: render this box's cards under topic headings. The
+ *             topics are skos:Collections in the source document
+ *             (skos:prefLabel = heading, skos:member = the entries); cards
+ *             whose entry is in no collection appear under "Other".
  *
  * The cards are the union of two catalogs:
  *   1. the `source` list's entries — owned cards: draggable to the menu/bar
@@ -31,8 +35,10 @@
  *   - a manifest URL (`text/uri-list` / URL-shaped `text/plain`, e.g. a link
  *     dragged from another window) → import: the manifest must offer
  *     `<> a ui:Component ; ui:name "tag"`; its ui:label / ui:icon /
- *     ui:attribute defaults become the entry. Typing the URL in the box's
- *     input row does the same.
+ *     ui:attribute defaults become the entry, and its dct:subject literal
+ *     (the plugin's CATEGORY) files the entry into the matching
+ *     skos:Collection — created on the fly for a new category. Typing the
+ *     URL in the box's input row does the same.
  *
  * Drag payload: `application/x-sol-plugin` JSON {label, tag, params, icon}
  * plus, on owned cards, {subject, list} — the entry's and origin list's IRIs.
@@ -50,7 +56,7 @@ import { CSS } from './styles/sol-builders-css.js';
 import { rdf } from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
 import { parseMenuItems, rdfVal, rdfComponent } from '../core/menu-rdf.js';
-import { rewriteMenuDocument } from '../core/menu-serialize.js';
+import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
 import { PLUGIN_MIME } from './sol-menu-manager.js';
 
@@ -59,6 +65,8 @@ const SHEET = sheetFrom(CSS);
 const UI   = 'http://www.w3.org/ns/ui#';
 const RDF  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 const RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
+const SKOS = 'http://www.w3.org/2004/02/skos/core#';
+const DCT  = 'http://purl.org/dc/terms/';
 
 const paramsKey = (params) =>
   (params || []).map(([k, v]) => `${k}=${v ?? ''}`).sort().join(' ');
@@ -123,6 +131,7 @@ class SolPluginManager extends HTMLElement {
       this._items = desc.items;
       this._meta = { label: desc.label, comment: desc.comment, orientation: desc.orientation };
       this._docTags = this._tagsInDoc(store);
+      this._topics = this._collections(store);
       if (!store.statementsMatching(menuNode, null, null).length) {
         this._loadError = new Error(`no #${this.source.split('#')[1]} list in the document`);
       }
@@ -131,8 +140,30 @@ class SolPluginManager extends HTMLElement {
       this._items = [];
       this._meta = { label: this.source.split('#')[1] || 'plugins', comment: null, orientation: null };
       this._docTags = new Set();
+      this._topics = [];
     }
     this._render();
+  }
+
+  // The document's topic categories: skos:Collections, each with a
+  // skos:prefLabel heading and skos:member entries (held as fragment names).
+  // Sorted by label so grouped rendering is deterministic across saves.
+  _collections(store) {
+    const out = [];
+    for (const st of store.statementsMatching(null, rdf.sym(RDF + 'type'), rdf.sym(SKOS + 'Collection'))) {
+      const node = st.subject;
+      const labelNode = store.any(node, rdf.sym(SKOS + 'prefLabel'));
+      const members = store.each(node, rdf.sym(SKOS + 'member'), null)
+        .map((m) => (m.value || '').split('#')[1] || '')
+        .filter(Boolean);
+      out.push({
+        iri: node.value,
+        label: labelNode ? labelNode.value : (node.value.split('#')[1] || node.value),
+        members: new Set(members),
+      });
+    }
+    out.sort((a, b) => a.label.localeCompare(b.label));
+    return out;
   }
 
   // A ui:Menu as the description rewriteMenuDocument takes: {iri, label,
@@ -213,13 +244,39 @@ class SolPluginManager extends HTMLElement {
     this._status.className = 'builder-status';
     head.append(title, this._status);
 
-    this._cards = document.createElement('div');
-    this._cards.className = 'cards';
-    this._cards.setAttribute('role', 'list');
     const plugins = this._items.filter((i) => i.type === 'component' && i.tag)
       .map((i) => this._withManifestMeta(i));
-    for (const p of plugins) this._cards.appendChild(this._card(p));
-    for (const g of this._ghosts()) this._cards.appendChild(this._card(g));
+    const ghosts = this._ghosts();
+
+    if (this.hasAttribute('grouped')) {
+      // Topic headings (skos:Collections) with this box's cards under them;
+      // entries in no collection — and ghost cards — go under "Other".
+      this._cards = document.createElement('div');
+      this._cards.className = 'cards-groups';
+      const placed = new Set();
+      const groups = this._topics.map((t) => ({
+        label: t.label,
+        cards: plugins.filter((p) => p.id && t.members.has(p.id) && !placed.has(p.id) && placed.add(p.id)),
+      }));
+      groups.push({ label: 'Other', cards: [...plugins.filter((p) => !placed.has(p.id)), ...ghosts] });
+      for (const g of groups) {
+        if (!g.cards.length) continue;
+        const title = document.createElement('div');
+        title.className = 'cards-group-title';
+        title.textContent = g.label;
+        const row = document.createElement('div');
+        row.className = 'cards';
+        row.setAttribute('role', 'list');
+        for (const p of g.cards) row.appendChild(this._card(p));
+        this._cards.append(title, row);
+      }
+    } else {
+      this._cards = document.createElement('div');
+      this._cards.className = 'cards';
+      this._cards.setAttribute('role', 'list');
+      for (const p of plugins) this._cards.appendChild(this._card(p));
+      for (const g of ghosts) this._cards.appendChild(this._card(g));
+    }
     if (!this._cards.children.length) {
       const empty = document.createElement('div');
       empty.className = 'hint';
@@ -403,12 +460,15 @@ class SolPluginManager extends HTMLElement {
   // Add an entry to this list — adopting a ghost card or importing a
   // manifest. Dedup: an identical tag+params anywhere in the document either
   // reports where it already is, or (if it's only pantry) re-lists it here.
+  // entry.category (a manifest's dct:subject literal) files the entry into
+  // the matching skos:Collection — created when the category is new.
   async _addEntry(entry) {
     const docUrl = this._docUrl();
     let store;
     try { store = await loadRdfStore(docUrl, solFetch); }
     catch { store = rdf.graph(); }
 
+    const category = entry.category;
     const existing = this._findExisting(store, docUrl, entry);
     if (existing) {
       const home = this._listsContaining(store, docUrl, existing.id);
@@ -421,7 +481,35 @@ class SolPluginManager extends HTMLElement {
       return;
     }
     own.items.push(entry);
-    await this._putDoc(store, docUrl, [own], `added “${entry.name}” ✓`);
+    // Membership is written AFTER the menu rewrite: that's when a fresh
+    // entry gets its minted fragment id.
+    await this._putDoc(store, docUrl, [own], `added “${entry.name}” ✓`,
+      () => { if (category && entry.id) this._fileUnderCategory(store, docUrl, entry.id, category); });
+  }
+
+  // Ensure a skos:Collection labelled `category` exists and has the entry as
+  // a member. Matching is by skos:prefLabel, case-insensitive; a new category
+  // becomes a new collection.
+  _fileUnderCategory(store, docUrl, frag, category) {
+    const doc = rdf.sym(docUrl.split('#')[0]);
+    const entryNode = rdf.sym(`${docUrl.split('#')[0]}#${frag}`);
+    const want = String(category).trim();
+    let col = this._collections(store)
+      .find((t) => t.label.toLowerCase() === want.toLowerCase());
+    let colNode;
+    if (col) {
+      colNode = rdf.sym(col.iri);
+    } else {
+      let base = want.replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '') || 'topic';
+      let slug = base, n = 2;
+      while (store.statementsMatching(rdf.sym(`${doc.value}#${slug}`), null, null).length) slug = `${base}-${n++}`;
+      colNode = rdf.sym(`${doc.value}#${slug}`);
+      store.add(colNode, rdf.sym(RDF + 'type'), rdf.sym(SKOS + 'Collection'), doc);
+      store.add(colNode, rdf.sym(SKOS + 'prefLabel'), rdf.literal(want), doc);
+    }
+    if (!store.statementsMatching(colNode, rdf.sym(SKOS + 'member'), entryNode).length) {
+      store.add(colNode, rdf.sym(SKOS + 'member'), entryNode, doc);
+    }
   }
 
   // An existing ui:Component subject in the document with the same tag and
@@ -459,7 +547,8 @@ class SolPluginManager extends HTMLElement {
 
   // Fetch + parse a plugin manifest and add it as an entry. The manifest
   // must offer `<> a ui:Component ; ui:name "tag"`; ui:label / ui:icon /
-  // ui:attribute defaults flesh out the entry.
+  // ui:attribute defaults flesh out the entry, and a dct:subject literal is
+  // the plugin's category.
   async _importManifest(input) {
     let url;
     try { url = new URL(String(input), document.baseURI); }
@@ -475,17 +564,24 @@ class SolPluginManager extends HTMLElement {
     if (!isComponent || !tag) {
       throw new Error(`${input} is not a plugin manifest (need <> a ui:Component with ui:name)`);
     }
+    const subject = mStore.any(subj, rdf.sym(DCT + 'subject'));
     await this._addEntry({
       type: 'component', id: null,
       name: rdfVal(mStore, subj, 'label') || tag,
       icon: rdfVal(mStore, subj, 'icon') || undefined,
       tag,
       params: rdfComponent(mStore, subj).params,
+      category: subject ? subject.value : undefined,
     });
   }
 
-  async _putDoc(store, docUrl, menus, flash) {
-    const turtle = await rewriteMenuDocument(store, docUrl, menus);
+  // Rewrite the given menus in the store, run the optional `after` hook
+  // (post-rewrite, so freshly minted entry ids exist — used to write
+  // skos:member triples), serialize ONCE, PUT.
+  async _putDoc(store, docUrl, menus, flash, after) {
+    for (const m of menus) updateMenuInStore(store, docUrl, m.iri, m);
+    if (after) after();
+    const turtle = await serializeMenuDocument(store, docUrl);
     const res = await solFetch(docUrl, {
       method: 'PUT', headers: { 'Content-Type': 'text/turtle' }, body: turtle,
     });
