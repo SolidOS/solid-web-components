@@ -252,6 +252,12 @@ class SolMenuManager extends HTMLElement {
         chip.addEventListener('dragend', () => { this._dragItem = null; });
         chips.push(chip);
       }
+      if (!chips.length) {
+        const hint = document.createElement('span');
+        hint.className = 'chip empty';
+        hint.textContent = 'drag plugins here';
+        chips.push(hint);
+      }
     } else if (item.type === 'link') {
       // name-only — the row's name is the plugin's name
     } else if (item.tag) {
@@ -287,20 +293,44 @@ class SolMenuManager extends HTMLElement {
     return li;
   }
 
+  // The add row: an input that is BOTH a drop target (drop a plugin card →
+  // it joins the menu as a new item) and, for menus, a submenu maker (type
+  // a name, Enter → an empty submenu ready for plugins). The flat bar takes
+  // drops only.
   _adders(siblings) {
     const div = document.createElement('div');
     div.className = 'adders';
-    const addItem = document.createElement('button');
-    addItem.type = 'button';
-    addItem.className = 'add-btn';
-    addItem.textContent = '＋ item';
-    addItem.addEventListener('click', () => {
-      siblings.push({ type: 'component', id: null, name: '', tag: null, params: [] });
-      this._touch();
+    const input = document.createElement('input');
+    input.className = 'add-input';
+    input.type = 'text';
+    input.placeholder = this.constructor.flat
+      ? 'Drop a plugin here'
+      : 'Drop a plugin here or type the name of a submenu';
+    input.setAttribute('aria-label', input.placeholder);
+    if (!this.constructor.flat) {
+      input.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const name = input.value.trim();
+        if (!name) return;
+        input.value = '';
+        siblings.push({ type: 'submenu', id: null, name, children: [] });
+        this._touch();
+      });
+    }
+    input.addEventListener('dragover', (e) => {
+      if (this._dragPayload(e)) { e.preventDefault(); input.classList.add('drop-over'); }
     });
-    div.appendChild(addItem);
-    // (No "＋ submenu" — a multi-plugin item is made by DROPPING more
-    // plugins on an item; its plugins list as chips on the row itself.)
+    input.addEventListener('dragleave', () => input.classList.remove('drop-over'));
+    input.addEventListener('drop', (e) => {
+      input.classList.remove('drop-over');
+      const plugin = this._dragPayload(e, true);
+      if (plugin) {
+        e.preventDefault();
+        siblings.push(this._itemFromPlugin(plugin));
+        this._touch();
+      }
+    });
+    div.appendChild(input);
     return div;
   }
 

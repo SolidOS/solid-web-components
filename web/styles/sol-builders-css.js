@@ -56,6 +56,12 @@ li.item { margin: .15rem 0; }
            border: 1px dashed var(--border, #c0c0c0); border-radius: 6px;
            background: transparent; color: var(--text-muted, #555); }
 .add-btn:hover { background: var(--hover, #eaf2fb); color: var(--text, #111); }
+.add-input { flex: 1 1 auto; min-width: 12rem; font: inherit; font-size: max(16px, 1em);
+             padding: .25rem .5rem; border: 1px dashed var(--border, #c0c0c0); border-radius: 6px;
+             background: transparent; color: inherit; }
+.add-input:focus { border-color: var(--accent, #3498db); outline: none; }
+.add-input.drop-over { border-style: solid; border-color: var(--accent, #3498db);
+                       background: var(--hover, #eaf2fb); }
 .hint { font-size: max(16px, 1em); font-style: italic; color: var(--text-muted, #7f8c8d); padding: .3rem .2rem; }
 
 /* palette — cards are all the SAME width (em: tracks the font-size setting)
