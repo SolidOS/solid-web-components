@@ -1,4 +1,4 @@
-// Shared styles for the menu/bar builders and the plugins palette.
+// Shared styles for the menu/bar managers and the plugin manager boxes.
 export const CSS = `
 :host { display: block; font-family: var(--font-ui, system-ui, sans-serif);
         font-size: var(--font-size, 1rem); color: var(--text, #212121); }
@@ -64,5 +64,15 @@ li.item { margin: .15rem 0; }
 .card-help:hover { color: var(--accent, #3498db); border-color: var(--accent, #3498db); }
 .card-tag { font-size: max(16px, .68em); color: var(--text-muted, #7f8c8d); font-family: var(--font-mono, monospace); }
 .card-desc { font-size: max(14px, .68em); color: var(--text-muted, #7f8c8d); max-width: 16rem; }
+
+/* plugin manager: drop target, ghost cards, manifest-URL row */
+.cards.drop-over { outline: 2px dashed var(--accent, #3498db); outline-offset: 3px; border-radius: 8px; }
+.card.ghost { border-style: dashed; background: transparent; opacity: .85; }
+.card-ghost-note { font-size: max(16px, .68em); font-style: italic; color: var(--text-muted, #7f8c8d); }
+.url-row { display: flex; gap: .4rem; margin-top: .55rem; }
+.url-input { flex: 1 1 auto; min-width: 10rem; font: inherit; font-size: max(16px, .85em);
+             padding: .25rem .5rem; border: 1px solid var(--border, #c0c0c0); border-radius: 6px;
+             background: var(--surface, #fff); color: inherit; }
+.url-input:focus { border-color: var(--accent, #3498db); outline: none; }
 `;
 export default CSS;

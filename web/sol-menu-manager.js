@@ -1,9 +1,9 @@
 /**
- * <sol-menu-builder> — visual editor for a ui:Menu document: build or edit a
+ * <sol-menu-manager> — visual editor for a ui:Menu document: build or edit a
  * menu TREE (names of items and submenus; what an item DOES is assigned by
- * dragging a plugin from <sol-plugins-available> onto it).
+ * dragging a plugin from <sol-plugin-manager> onto it).
  *
- *   <sol-menu-builder source="./data/tabs.ttl#Tabs"></sol-menu-builder>
+ *   <sol-menu-manager source="./data/tabs.ttl#Tabs"></sol-menu-manager>
  *
  * Attributes:
  *   source — Turtle document + #fragment of the ui:Menu to edit (required).
@@ -13,7 +13,7 @@
  *     showing what the item mounts (its ui:name tag) or "unassigned"
  *   - ＋ item / ＋ submenu append at any level; ✕ removes from the menu
  *     (the item's RDF stays in the document as "pantry" — recoverable)
- *   - a card dragged from <sol-plugins-available> DROPPED ON a row assigns
+ *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
  *     that row's component (ui:name + ui:attribute set); dropped between
  *     rows it inserts a new, fully-assigned item there
  *   - Save rewrites the WHOLE Turtle document via core/menu-serialize
@@ -35,8 +35,8 @@ import { solFetch } from '../core/auth-fetch.js';
 const SHEET = sheetFrom(CSS);
 const PLUGIN_MIME = 'application/x-sol-plugin';
 
-class SolMenuBuilder extends HTMLElement {
-  // Bar variant (sol-bar-builder) flips this: depth-1, no submenus.
+class SolMenuManager extends HTMLElement {
+  // Bar variant (sol-button-bar-manager) flips this: depth-1, no submenus.
   static get flat() { return false; }
   static get title() { return 'Menu'; }
 
@@ -204,7 +204,7 @@ class SolMenuBuilder extends HTMLElement {
 
   // ---- drag & drop -------------------------------------------------------
   // Two flows share the row targets: reordering rows among their siblings
-  // (internal drag) and accepting plugin cards from <sol-plugins-available>.
+  // (internal drag) and accepting plugin cards from <sol-plugin-manager>.
 
   _wireRowDnd(row, item, siblings) {
     row.addEventListener('dragstart', (e) => {
@@ -322,6 +322,6 @@ class SolMenuBuilder extends HTMLElement {
   }
 }
 
-define('sol-menu-builder', SolMenuBuilder);
-export { SolMenuBuilder, PLUGIN_MIME };
-export default SolMenuBuilder;
+define('sol-menu-manager', SolMenuManager);
+export { SolMenuManager, PLUGIN_MIME };
+export default SolMenuManager;
