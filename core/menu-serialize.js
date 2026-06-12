@@ -23,6 +23,7 @@ const RDF    = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 const RDFS   = 'http://www.w3.org/2000/01/rdf-schema#';
 const SCHEMA = 'http://schema.org/';
 const ACL    = 'http://www.w3.org/ns/auth/acl#';
+const DCT    = 'http://purl.org/dc/terms/';
 
 const ui   = (l) => rdf.sym(UI + l);
 const rdfs = (l) => rdf.sym(RDFS + l);
@@ -108,6 +109,8 @@ function emitItem(store, docUrl, doc, item, taken) {
 
   if (item.name != null) store.add(node, ui('label'), rdf.literal(String(item.name)), doc);
   if (item.comment) store.add(node, rdfs('comment'), rdf.literal(String(item.comment)), doc);
+  if (item.creator) store.add(node, rdf.sym(DCT + 'creator'), rdf.literal(String(item.creator)), doc);
+  if (item.publisher) store.add(node, rdf.sym(DCT + 'publisher'), rdf.literal(String(item.publisher)), doc);
   if (item.icon) store.add(node, ui('icon'), rdf.literal(String(item.icon)), doc);
   if (item.region) {
     const local = item.region[0].toUpperCase() + item.region.slice(1).toLowerCase();

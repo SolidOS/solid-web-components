@@ -348,6 +348,14 @@ class SolPluginManager extends HTMLElement {
       note.textContent = 'also on offer — drag into a list to add it';
       card.appendChild(note);
     }
+    // Who made it — dct:creator (else dct:publisher), italic, bottom right.
+    const by = p.creator || p.publisher;
+    if (by) {
+      const byline = document.createElement('span');
+      byline.className = 'card-byline';
+      byline.textContent = by;
+      card.appendChild(byline);
+    }
     card.addEventListener('dragstart', (e) => {
       card.classList.add('dragging');
       const payload = p.type === 'link'
@@ -597,12 +605,18 @@ class SolPluginManager extends HTMLElement {
     const categories = mStore.each(subj, rdf.sym(DCT + 'subject'), null).map((n) => n.value);
     const tag = rdfVal(mStore, subj, 'name');
     const href = rdfVal(mStore, subj, 'href');
+    const lit = (ns, local) => {
+      const n = mStore.any(subj, rdf.sym(ns + local));
+      return n ? n.value : undefined;
+    };
     if (hasType('Link') && href) {
       await this._addEntry({
         type: 'link', id: null,
         name: rdfVal(mStore, subj, 'label') || href,
         icon: rdfVal(mStore, subj, 'icon') || undefined,
         region: (rdfVal(mStore, subj, 'region') || '').split('#').pop().toLowerCase() || undefined,
+        creator: lit(DCT, 'creator'),
+        publisher: lit(DCT, 'publisher'),
         href, categories,
       });
       return;
@@ -614,6 +628,8 @@ class SolPluginManager extends HTMLElement {
         icon: rdfVal(mStore, subj, 'icon') || undefined,
         tag,
         params: rdfComponent(mStore, subj).params,
+        creator: lit(DCT, 'creator'),
+        publisher: lit(DCT, 'publisher'),
         categories,
       });
       return;

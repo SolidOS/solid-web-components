@@ -74,6 +74,8 @@ li.item { margin: .15rem 0; }
 .topic-tab:hover { background: var(--hover, #eaf2fb); color: var(--text, #212121); }
 .topic-tab.active { background: var(--accent, #3498db); border-color: var(--accent, #3498db); color: #fff; }
 .card.ghost { border-style: dashed; background: transparent; opacity: .85; }
+.card-byline { align-self: flex-end; margin-top: .15rem; font-style: italic;
+               font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
 .card-ghost-note { font-size: max(16px, 1em); font-style: italic; color: var(--text-muted, #7f8c8d); }
 .url-row { display: flex; gap: .4rem; margin-top: .55rem; }
 .url-input { flex: 1 1 auto; min-width: 10rem; font: inherit; font-size: max(16px, 1em);

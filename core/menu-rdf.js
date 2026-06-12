@@ -10,6 +10,15 @@ const RDF    = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 const RDFS   = 'http://www.w3.org/2000/01/rdf-schema#';
 const SCHEMA = 'http://schema.org/';
 const ACL    = 'http://www.w3.org/ns/auth/acl#';
+const DCT    = 'http://purl.org/dc/terms/';
+
+// Who made / publishes the thing an item describes (dct:creator /
+// dct:publisher literals) — carried on entries so catalog cards can show a
+// byline; round-tripped by the serializer like every other item field.
+function dctVal(store, subject, localName) {
+  const node = store.any(subject, rdf.sym(DCT + localName));
+  return node ? node.value : null;
+}
 
 // A documentary comment carried on an item as rdfs:comment — used to round-trip
 // the HTML comments that document menu/chrome items (generator re-emits them).
@@ -120,6 +129,8 @@ export function parseMenuItems(store, menuNode) {
     const icon     = rdfVal(store, part, 'icon');
     const region   = regionToken(rdfVal(store, part, 'region'));
     const comment  = rdfsComment(store, part);
+    const creator   = dctVal(store, part, 'creator');
+    const publisher = dctVal(store, part, 'publisher');
     const requiresWrite = requiresWriteMode(store, part);
 
     if (partType && partType.value === menuType.value) {
@@ -129,13 +140,13 @@ export function parseMenuItems(store, menuNode) {
 
     if (partType && partType.value === componentType.value) {
       const { tag, params } = rdfComponent(store, part);
-      items.push({ type: 'component', id, name: label, icon, region, comment, requiresWrite, tag, params });
+      items.push({ type: 'component', id, name: label, icon, region, comment, creator, publisher, requiresWrite, tag, params });
       continue;
     }
 
     const href     = rdfVal(store, part, 'href');
     const contents = rdfVal(store, part, 'contents');
-    items.push({ type: 'link', id, name: label, icon, region, comment, requiresWrite, href, contents });
+    items.push({ type: 'link', id, name: label, icon, region, comment, creator, publisher, requiresWrite, href, contents });
   }
   return items;
 }
