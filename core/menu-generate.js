@@ -44,6 +44,22 @@ export function emitTab(item, warn = () => {}) {
     out += `  </submenu>\n`;
     return out;
   }
+  // A LINK tab/child (ui:Link) — a plain anchor with NO data-handler; that
+  // absence is what marks it as a link (not an include/component tab) on
+  // harvest. ui:region round-trips through the standard target attribute
+  // where it maps cleanly (tab ↔ _blank, inline ↔ _self; menu-html inverts
+  // both) and as region= otherwise; a region-less link normalizes to
+  // target="_blank", a link tab's default. ui:icon has no HTML spelling and
+  // is carried by the RDF only.
+  if (item.type === 'link' && item.href) {
+    let out = emitComment(item.comment);
+    const r = (item.region || 'tab').toLowerCase();
+    const t = r === 'tab' ? '_blank' : r === 'inline' ? '_self' : null;
+    out += `  <a href="${esc(item.href)}"${item.id ? ` id="${esc(item.id)}"` : ''}\n`;
+    out += t ? `     target="${esc(t)}"\n` : `     region="${esc(r)}"\n`;
+    out += `  >${item.name}</a>\n`;
+    return out;
+  }
   if (item.type !== 'component' || !item.tag) {
     warn(`skipping unassigned tab item "${item.name}" — drop a plugin on it first`);
     return '';

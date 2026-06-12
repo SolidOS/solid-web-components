@@ -74,10 +74,38 @@ import { CSS as TABS_CSS } from './styles/sol-tabs-css.js';
 import { attachEditorSelfGear } from '../core/editor-self.js';
 import { registerMenuConsumer, deferUntilLoader } from '../core/menu-consumer.js';
 import { renderComponentItem, renderLinkItem, ensureHandler, isCommandName, dispatchCommand, paramsToObject } from '../core/rdf-render.js';
+import { emitTab } from '../core/menu-generate.js';
+import { extractTab, extractSubmenu } from '../core/menu-html.js';
 
 // For auto-wiring an inline action launcher to this tabs' content area we need
 // a stable selector; mint an id for any <sol-tabs> that lacks one.
 let _solTabsUid = 0;
+
+// Canonical change-signature of a tab DEFINITION, for applyTabs' merge: the
+// generator's emission is round-trip stable (emitTab ∘ extractTab is the
+// identity on its own output), so an UNCHANGED tab gets the same signature
+// whether it was harvested from the shell's anchors at load or parsed from
+// the RDF on a Customize save. The tab's own label is excluded — a pure
+// rename keeps its pane — but submenu children (names included) are in, so
+// any structural change re-renders. Params are SORTED first: attribute order
+// carries no meaning, and the builder's document rewrite is free to reorder
+// ui:attribute entries on every save. Items emitTab skips (links,
+// unassigned) fall back to a JSON shape of the same normalized fields.
+const sigNorm = (item, top) => ({
+  ...item,
+  ...(top ? { name: '' } : {}),
+  comment: undefined,
+  params: [...(item.params || [])].sort((a, b) =>
+    a[0] === b[0] ? (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) : (a[0] < b[0] ? -1 : 1)),
+  children: (item.children || []).map((c) => sigNorm(c, false)),
+});
+const tabSig = (item) => {
+  const n = sigNorm(item, true);
+  return emitTab(n, () => {})
+    || JSON.stringify([n.type, n.tag || '', n.href || '', n.region || '', n.params,
+                       n.children.map((c) => [c.name, c.tag || '', c.href || '', c.params])]);
+};
+
 
 /**
  * Tabbed content container.
@@ -248,12 +276,14 @@ class SolTabs extends HTMLElement {
       sourceName: 'sol-tabs', embedClass: 'sol-tab-embed',
     };
     return descriptions.map(desc => {
+      const sig = tabSig(desc);
       if (desc.type === 'submenu') {
         const children = this._wrapRdfItems(desc.children);
         return {
           name: desc.name,
           id: desc.id,
-          render: (body) => this._renderStack(body, children),
+          sig,
+          render: (body) => this._renderSubmenu(body, desc.children, children, desc.name),
         };
       }
       if (desc.type === 'component') {
@@ -262,13 +292,13 @@ class SolTabs extends HTMLElement {
         // tab's pane (its region). Fire-and-forget commands leave the pane empty.
         if (isCommandName(desc.tag)) {
           return {
-            name: desc.name, id: desc.id,
+            name: desc.name, id: desc.id, sig,
             render: (body) => dispatchCommand(this, desc.tag, paramsToObject(desc.params), { id: desc.id, fallbackEl: body }),
           };
         }
-        return { name: desc.name, id: desc.id, render: renderComponentItem(desc, ctx) };
+        return { name: desc.name, id: desc.id, sig, render: renderComponentItem(desc, ctx) };
       }
-      return { name: desc.name, id: desc.id, render: renderLinkItem(desc, ctx) };
+      return { name: desc.name, id: desc.id, sig, render: renderLinkItem(desc, ctx) };
     }).filter(Boolean);
   }
 
@@ -299,9 +329,26 @@ class SolTabs extends HTMLElement {
     // `data-` prefix is stripped from the forwarded attributes below.
     const parentHandler = (this.getAttribute('data-handler') || '').trim();
     const SKIP = new Set(['href', 'data-handler', 'data-tab-id', 'target', 'rel', 'download', 'hreflang', 'type', 'referrerpolicy']);
+    const linkCtx = {
+      host: this, baseUrl: import.meta.url,
+      sourceName: 'sol-tabs', embedClass: 'sol-tab-embed',
+    };
     const anchorTab = (a, i) => {
       const label = (a.textContent || '').trim() || `Tab ${i + 1}`;
       const url = a.getAttribute('href');
+      // A LINK tab — emitTab's no-data-handler, target/region-marked anchor
+      // (the HTML spelling of a ui:Link). Rendered through the same
+      // renderLinkItem as the from-rdf path, so a links submenu behaves
+      // identically whichever side it loaded from.
+      if (!a.getAttribute('data-handler') && (a.hasAttribute('target') || a.hasAttribute('region'))) {
+        const item = extractTab(a);
+        return {
+          name: item.name || label,
+          id: a.dataset.tabId || a.id || undefined,
+          sig: tabSig(item),
+          render: renderLinkItem(item, linkCtx),
+        };
+      }
       const handlerTag = (a.getAttribute('data-handler') || parentHandler || 'sol-include').trim();
       return {
         name: label,
@@ -309,6 +356,9 @@ class SolTabs extends HTMLElement {
         // explicitly with data-tab-id, independent of the anchor's id — the
         // latter is forwarded to become the content element's id.
         id: a.dataset.tabId || a.id || undefined,
+        // Same normalization as the RDF side, so applyTabs can tell an
+        // unchanged tab (keep its pane) from an edited one (re-render).
+        sig: tabSig(extractTab(a)),
         render: (body) => {
           // A bare handler (no hyphen, not an element) is a command, not a
           // component: dispatch sol-command and let the app render output into
@@ -344,14 +394,47 @@ class SolTabs extends HTMLElement {
       if (node.tagName.toLowerCase() === 'submenu') {
         const label = (node.querySelector(':scope > label')?.textContent || '').trim() || `Tab ${i + 1}`;
         const children = Array.from(node.querySelectorAll(':scope > a[href]')).map((a, j) => anchorTab(a, j));
+        const extracted = extractSubmenu(node);   // same anchors, same order
         return {
           name: label,
           id: node.id || undefined,
-          render: (body) => this._renderStack(body, children),
+          sig: tabSig(extracted),
+          render: (body) => this._renderSubmenu(body, extracted.children, children, label),
         };
       }
       return anchorTab(node, i);
     });
+  }
+
+  // HYBRID submenu pane: a submenu of ONLY components (a multi-plugin tab)
+  // stacks them all in the pane; a submenu containing any LINK is
+  // navigation — it renders as the nested <sol-tabs variant="sub"> strip
+  // (the original submenu rendering, restored verbatim from before the
+  // stack change): one child at a time, lazily, links embedding in the
+  // pane through renderLinkItem like any other tab content.
+  //
+  // THE ARTIFACT RULE (same as the builder's chips): a menu item that calls
+  // a submenu is NOT also an item on that submenu — a child whose name
+  // repeats the submenu's own name is the conversion artifact (the item's
+  // pre-submenu assignment carried along) and is never rendered.
+  //
+  // `descs` are the plain item descriptions, `children` the same items
+  // wrapped with render closures (1:1, same order); `parentName` is the
+  // submenu tab's own name.
+  _renderSubmenu(body, descs, children, parentName) {
+    const own = (parentName || '').trim();
+    const kept = (descs || [])
+      .map((d, i) => ({ d, w: children[i] }))
+      .filter(({ d, w }) => w && ((d.name || '').trim() !== own));
+    if (!kept.length) return;
+    if (!kept.some(({ d }) => d.type === 'link')) {
+      return this._renderStack(body, kept.map(({ w }) => w));
+    }
+    const sub = document.createElement('sol-tabs');
+    sub.setAttribute('variant', 'sub');
+    sub.tabs = kept.map(({ w }) => w);
+    body.appendChild(sub);
+    sub.switchTab(kept[0].w.name);
   }
 
   // A multi-plugin tab shows ALL its plugins together in the pane — each in
@@ -487,25 +570,34 @@ class SolTabs extends HTMLElement {
    * Merge an updated set of tabs (the plain item descriptions from
    * core/menu-rdf.js `parseMenuItems`) into the live tab bar IN PLACE, without
    * tearing down the element. Existing tabs are matched by id (falling back to
-   * name) and REUSED so their keep-alive panes survive; new tabs are added and
-   * removed tabs have their pane dropped. The launchers (bar/chrome) and this
-   * element's event listeners are untouched. Used by an external editor — dk's
-   * Customize save — to reflect a tabs-RDF change immediately, the surgical
-   * alternative to a full reload.
+   * name); a matched tab whose DEFINITION is unchanged (same tabSig — only the
+   * label may differ) is REUSED so its keep-alive pane survives, while an
+   * edited one is re-rendered from its new definition (its stale pane is
+   * dropped). New tabs are added and removed tabs have their pane dropped. The
+   * launchers (bar/chrome) and this element's event listeners are untouched.
+   * Used by an external editor — dk's Customize save — to reflect a tabs-RDF
+   * change immediately, the surgical alternative to a full reload.
    *
    * @param {object[]} items  parseMenuItems output for the tab menu (#Tabs)
    */
   applyTabs(items) {
     const wrapped = this._wrapRdfItems(items || []);
     if (!this._rendered) { this._tabs = wrapped; return; }
-    // Track the active tab by DESCRIPTOR (it survives the merge even when
-    // renamed) so re-asserting it below is recognized as "same tab".
-    const prevActive = (this._tabs || []).find((t) => t.name === this._active) || null;
+    // Track the active tab by KEY (it survives the merge even when renamed
+    // OR rebuilt) so re-asserting it below is recognized as "same tab".
     const key = (t) => t.id || t.name;
+    const prevActive = (this._tabs || []).find((t) => t.name === this._active) || null;
+    const activeKey = prevActive ? key(prevActive) : null;
     const prev = new Map((this._tabs || []).map((t) => [key(t), t]));
     const next = wrapped.map((w) => {
       const old = prev.get(key(w));
-      if (old) { old.name = w.name; return old; }   // reuse descriptor + its pane
+      // Reuse the old descriptor (and its keep-alive pane) ONLY when the
+      // tab's DEFINITION is unchanged — then this is a pure rename/reorder.
+      // An EDITED definition (plugin swapped, submenu added, children
+      // changed) must win: take the fresh render and drop the stale pane so
+      // the tab re-mounts showing what was saved.
+      if (old && old.sig === w.sig) { old.name = w.name; return old; }
+      if (old && old._pane) { old._pane.remove(); old._pane = null; }
       return w;
     });
     const keep = new Set(next.map(key));
@@ -515,10 +607,11 @@ class SolTabs extends HTMLElement {
     this._tabs = next;
     this._renderBar();
     if (this._keepAlive) for (const t of this._tabs) this._ensurePane(t);
-    // Re-assert the selection. Same tab as before → SILENT: this is a live
-    // refresh, not a user pick, and must not fire sol-tab-change.
-    const active = (prevActive && next.includes(prevActive)) ? prevActive : this._tabs[0];
-    if (active) this.switchTab(active.name, { silent: active === prevActive });
+    // Re-assert the selection. Same tab as before (even if rebuilt) →
+    // SILENT: this is a live refresh, not a user pick, and must not fire
+    // sol-tab-change.
+    const active = (activeKey != null && next.find((t) => key(t) === activeKey)) || this._tabs[0];
+    if (active) this.switchTab(active.name, { silent: activeKey != null && key(active) === activeKey });
   }
 
   /**

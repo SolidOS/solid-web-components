@@ -30,7 +30,26 @@ function targetToRegion(v) {
 // Anchor attributes consumed structurally, not captured as a ui:attribute param.
 const TAB_SKIP = new Set(['href', 'id', 'data-handler', 'region', 'target', 'data-tab-id']);
 
-function extractTab(a) {
+// Exported singly (besides extractShell) so sol-tabs can normalize a live
+// anchor / <submenu> child into the same item shape the RDF parse produces —
+// the basis of applyTabs' change detection.
+export function extractTab(a) {
+  // A LINK tab (ui:Link): emitTab's no-data-handler anchor — target (or a
+  // region= for richer placements) marks it; href IS the link, not a
+  // source to include. ui:icon has no HTML spelling, so it survives only
+  // in the RDF (a hand-edited link imports without one).
+  if (!a.getAttribute('data-handler') && (a.hasAttribute('target') || a.hasAttribute('region'))) {
+    const region = a.hasAttribute('target')
+      ? targetToRegion(a.getAttribute('target'))
+      : ((a.getAttribute('region') || '').toLowerCase() || null);
+    return {
+      type: 'link',
+      id: a.getAttribute('id') || undefined,
+      name: (a.textContent || '').trim(),
+      region,
+      href: a.getAttribute('href'),
+    };
+  }
   const params = [];
   let tag = null;
   let region = null;
@@ -58,7 +77,7 @@ function extractTab(a) {
 
 // A <submenu> block (emitted by menu-generate for a multi-plugin menu item):
 // <label> = the item's name, child anchors = its plugins.
-function extractSubmenu(el) {
+export function extractSubmenu(el) {
   const label = el.querySelector(':scope > label');
   const children = Array.from(el.querySelectorAll(':scope > a[href]')).map(extractTab);
   return {

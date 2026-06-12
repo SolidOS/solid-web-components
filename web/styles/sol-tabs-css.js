@@ -21,6 +21,17 @@ export const CSS = `
     width: 100%; max-width: 100%;
   }
   sol-tabs > .sol-tabs-content > .sol-tabs-pane[hidden] { display: none; }
+  /* the per-item mount wrapper (component-mount.js) is layout-neutral by
+     default — inside a tabs pane it must pass the stretch through, or an
+     embedded iframe collapses to its 150px default instead of filling the
+     remaining space */
+  sol-tabs > .sol-tabs-content > [data-menu-item]:not([hidden]),
+  sol-tabs > .sol-tabs-content > .sol-tabs-pane > [data-menu-item]:not([hidden]) {
+    display: flex; flex-direction: column;
+    flex: 1 1 auto; min-height: 0; min-width: 0;
+    width: 100%; max-width: 100%;
+  }
+  sol-tabs iframe.sol-tab-embed { border: 0; }
   /* A multi-plugin tab: every plugin lives in the pane at once, stacked.
      Each slot scrolls ITSELF if its plugin outgrows its share — the pane
      and page never scroll. */
