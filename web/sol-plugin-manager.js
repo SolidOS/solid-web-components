@@ -16,10 +16,11 @@
  *   for     — selector naming the manager(s) this palette feeds. Drag data
  *             is set globally (any manager accepts it); `for` exists so pages
  *             can declare the pairing and styling/tooling can use it.
- *   grouped — boolean: render this box's cards under topic headings. The
- *             topics are skos:Collections in the source document
- *             (skos:prefLabel = heading, skos:member = the entries); cards
- *             whose entry is in no collection appear under "Other".
+ *   grouped — boolean: render this box's topics as TABS — pick a topic, see
+ *             only that topic's cards. The topics are skos:Collections in
+ *             the source document (skos:prefLabel = tab label, skos:member =
+ *             the entries); cards whose entry is in no collection appear
+ *             under an "Other" tab.
  *
  * The cards are the union of two catalogs:
  *   1. the `source` list's entries — owned cards: draggable to the menu/bar
@@ -249,26 +250,41 @@ class SolPluginManager extends HTMLElement {
     const ghosts = this._ghosts();
 
     if (this.hasAttribute('grouped')) {
-      // Topic headings (skos:Collections) with this box's cards under them;
-      // entries in no collection — and ghost cards — go under "Other".
-      this._cards = document.createElement('div');
-      this._cards.className = 'cards-groups';
+      // Topic TABS (skos:Collections): pick a topic, see only its cards.
+      // Entries in no collection — and ghost cards — sit under "Other".
       const placed = new Set();
       const groups = this._topics.map((t) => ({
         label: t.label,
         cards: plugins.filter((p) => p.id && t.members.has(p.id) && !placed.has(p.id) && placed.add(p.id)),
       }));
       groups.push({ label: 'Other', cards: [...plugins.filter((p) => !placed.has(p.id)), ...ghosts] });
-      for (const g of groups) {
-        if (!g.cards.length) continue;
-        const title = document.createElement('div');
-        title.className = 'cards-group-title';
-        title.textContent = g.label;
-        const row = document.createElement('div');
-        row.className = 'cards';
-        row.setAttribute('role', 'list');
-        for (const p of g.cards) row.appendChild(this._card(p));
-        this._cards.append(title, row);
+      const tabs = groups.filter((g) => g.cards.length);
+      if (!tabs.some((g) => g.label === this._topicTab)) this._topicTab = tabs[0]?.label;
+
+      this._cards = document.createElement('div');
+      this._cards.className = 'cards';
+      this._cards.setAttribute('role', 'list');
+      const active = tabs.find((g) => g.label === this._topicTab);
+      for (const p of active?.cards || []) this._cards.appendChild(this._card(p));
+
+      if (tabs.length) {
+        const strip = document.createElement('div');
+        strip.className = 'topic-tabs';
+        strip.setAttribute('role', 'tablist');
+        strip.setAttribute('aria-label', 'Topics');
+        for (const g of tabs) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = g.label === this._topicTab ? 'topic-tab active' : 'topic-tab';
+          btn.setAttribute('role', 'tab');
+          btn.setAttribute('aria-selected', g.label === this._topicTab ? 'true' : 'false');
+          btn.textContent = g.label;
+          btn.addEventListener('click', () => { this._topicTab = g.label; this._render(); });
+          strip.appendChild(btn);
+        }
+        this._root.replaceChildren(head, strip, this._cards, this._urlRow());
+        if (this._flash) { this._note(this._flash, 'saved'); this._flash = null; }
+        return;
       }
     } else {
       this._cards = document.createElement('div');

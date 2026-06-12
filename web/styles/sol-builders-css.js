@@ -68,13 +68,15 @@ li.item { margin: .15rem 0; }
 .card-help:hover { color: var(--accent, #3498db); border-color: var(--accent, #3498db); }
 .card-desc { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); max-width: 16rem; }
 
-/* plugin manager: drop target, topic groups, ghost cards, manifest-URL row */
-.cards.drop-over, .cards-groups.drop-over { outline: 2px dashed var(--accent, #3498db); outline-offset: 3px; border-radius: 8px; }
-.cards-groups { display: flex; flex-direction: column; gap: .35rem; }
-.cards-group-title { font-size: max(16px, 1em); font-weight: 600; color: var(--text-muted, #5d6d7e);
-                     margin-top: .35rem; padding-bottom: .15rem;
-                     border-bottom: 1px solid var(--border, #e0e0e0); }
-.cards-group-title:first-child { margin-top: 0; }
+/* plugin manager: drop target, topic tabs, ghost cards, manifest-URL row */
+.cards.drop-over { outline: 2px dashed var(--accent, #3498db); outline-offset: 3px; border-radius: 8px; }
+.topic-tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .55rem;
+              border-bottom: 1px solid var(--border, #e0e0e0); padding-bottom: .35rem; }
+.topic-tab { font: inherit; font-size: max(16px, 1em); padding: .2rem .75rem; cursor: pointer;
+             border: 1px solid var(--border, #c0c0c0); border-radius: 99px;
+             background: transparent; color: var(--text-muted, #5d6d7e); }
+.topic-tab:hover { background: var(--hover, #eaf2fb); color: var(--text, #212121); }
+.topic-tab.active { background: var(--accent, #3498db); border-color: var(--accent, #3498db); color: #fff; }
 .card.ghost { border-style: dashed; background: transparent; opacity: .85; }
 .card-ghost-note { font-size: max(16px, 1em); font-style: italic; color: var(--text-muted, #7f8c8d); }
 .url-row { display: flex; gap: .4rem; margin-top: .55rem; }
