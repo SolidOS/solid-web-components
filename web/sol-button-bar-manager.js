@@ -9,8 +9,8 @@
  *
  * Same editing model as <sol-menu-manager> (it IS the menu manager,
  * restricted to one level): name buttons, drag plugins from
- * <sol-plugin-manager> onto them, reorder, save (whole-document rewrite,
- * pantry preserved).
+ * <sol-plugin-manager> onto them, reorder; every change auto-saves
+ * (whole-document rewrite, pantry preserved).
  */
 
 import { define } from '../core/define.js';

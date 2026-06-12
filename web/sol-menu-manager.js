@@ -18,8 +18,9 @@
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
  *     that row's component (ui:name + ui:attribute set); dropped between
  *     rows it inserts a new, fully-assigned item there
- *   - Save rewrites the WHOLE Turtle document via core/menu-serialize
- *     (pantry subjects preserved) and PUTs it back with solFetch
+ *   - every change AUTO-SAVES (debounced ~0.8s after the last edit — no
+ *     Save button): the WHOLE Turtle document is rewritten via
+ *     core/menu-serialize (pantry subjects preserved) and PUT with solFetch
  *
  * Events: `sol-menu-built` (detail {source}) after a successful save.
  * Reads/writes the existing ui:Menu vocabulary only — no new RDF terms.
@@ -103,12 +104,7 @@ class SolMenuManager extends HTMLElement {
     title.textContent = `${this.constructor.title}: ${this._meta.label || ''}`;
     this._status = document.createElement('span');
     this._status.className = 'builder-status';
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.className = 'save-btn';
-    save.textContent = 'Save';
-    save.addEventListener('click', () => this._save());
-    head.append(title, this._status, save);
+    head.append(title, this._status);
     return head;
   }
 
@@ -315,8 +311,15 @@ class SolMenuManager extends HTMLElement {
   }
 
   // ---- state + save ------------------------------------------------------
+  // Auto-save: every edit schedules a save ~0.8s after the LAST edit, so a
+  // typing burst in a name field becomes one PUT.
 
-  _markDirty() { this._dirty = true; this._note('edited — not saved', ''); }
+  _markDirty() {
+    this._dirty = true;
+    this._note('saving…', '');
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(() => this._save(), 800);
+  }
   _touch() { this._markDirty(); this._render(); }
   _note(msg, cls) {
     if (!this._status) return;
