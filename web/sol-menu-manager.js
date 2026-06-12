@@ -261,8 +261,11 @@ class SolMenuManager extends HTMLElement {
     } else if (item.type === 'link') {
       // name-only — the row's name is the plugin's name
     } else if (item.tag) {
+      // direct items always show their plugin chip (bar buttons included),
+      // even when it matches the row's name — the artifact suppression only
+      // applies to submenu children above
       const friendly = this._catalogName(item) || metaLabel(item.tag) || '';
-      if (friendly && friendly.trim() !== (item.name || '').trim()) {
+      if (friendly) {
         const chip = document.createElement('span');
         chip.className = 'chip';
         chip.textContent = friendly;
