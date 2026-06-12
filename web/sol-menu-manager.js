@@ -291,10 +291,13 @@ class SolMenuManager extends HTMLElement {
           // keeps replace-on-drop.)
           const hasPlugin = !!(item.tag || item.href);
           if (hasPlugin && !this.constructor.flat) {
+            // The carried-over plugin is named by what IT is (its friendly
+            // name) — NEVER by the menu item's own name, which would show
+            // the item as a plugin of itself.
             const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
             const first = {
               type: item.type, id: null,
-              name: meta?.label || item.name,
+              name: meta?.label || (item.type === 'link' ? item.name : ''),
               icon: item.icon || undefined,
               tag: item.tag || null,
               params: (item.params || []).map(([k, v]) => [k, v]),
