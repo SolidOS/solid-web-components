@@ -5,12 +5,20 @@
 // shrinking text; NOTHING may ever render under 16px.
 export const CSS = `
 :host { display: block; font-family: var(--font-ui, system-ui, sans-serif);
-        font-size: var(--font-size, 1rem); color: var(--text, #212121); }
+        font-size: var(--font-size, 1rem); color: var(--text, #212121);
+        max-height: 100%; min-height: 0; }
 :host([hidden]) { display: none; }
 * { box-sizing: border-box; }
 
+/* THE SCROLL GOES ON THE ITEM THAT NEEDS IT: when the page constrains the
+   box's height, the cards / rows area scrolls inside it — the head, topic
+   tabs and URL row stay put, and the page/pane never grows a scrollbar.
+   Unconstrained, these are no-ops. */
 .builder { border: 1px solid var(--border, #d0d0d0); border-radius: 10px;
-           background: var(--surface, #fff); padding: .6rem .7rem; }
+           background: var(--surface, #fff); padding: .6rem .7rem;
+           display: flex; flex-direction: column; max-height: 100%; min-height: 0; }
+.builder > .cards { overflow: auto; flex: 1 1 auto; min-height: 0; }
+.builder > ul.tree { overflow: auto; min-height: 0; }
 .builder-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
 .builder-title { font-weight: 700; font-size: max(16px, 1em); flex: 1 1 auto; }
 .builder-status { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
