@@ -53,12 +53,30 @@ class SolMenuManager extends HTMLElement {
   }
 
   connectedCallback() {
+    // Another manager saved this document (e.g. the same menu edited on a
+    // different subtab) — re-load so this instance never auto-saves a stale
+    // tree over it. Skipped while THIS instance has unsaved edits (its own
+    // pending save is the newer truth).
+    if (!this._onMenuBuilt) {
+      this._onMenuBuilt = (e) => {
+        if (e.target === this || this._dirty || !this.source) return;
+        const src = (e.detail && e.detail.source) || '';
+        try {
+          if (new URL(src.split('#')[0], document.baseURI).href === this._docUrl()) this._load();
+        } catch { /* unparseable source — not ours */ }
+      };
+    }
+    document.addEventListener('sol-menu-built', this._onMenuBuilt);
     if (this._built) return;
     this._built = true;
     this._root = document.createElement('div');
     this._root.className = 'builder';
     this.shadowRoot.appendChild(this._root);
     this._load();
+  }
+
+  disconnectedCallback() {
+    if (this._onMenuBuilt) document.removeEventListener('sol-menu-built', this._onMenuBuilt);
   }
 
   get source() { return this.getAttribute('source') || ''; }
