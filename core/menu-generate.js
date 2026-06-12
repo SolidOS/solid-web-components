@@ -31,6 +31,19 @@ const attrPairs = (item) => new Map((item.params || []).map(([k, v]) => [k, v]))
 const emitComment = (c) => (c ? `  <!-- ${String(c)} -->\n` : '');
 
 export function emitTab(item, warn = () => {}) {
+  // A submenu tab (several plugins on one menu item) emits as a <submenu>
+  // block — a <label> plus its child anchors — which sol-tabs harvests back
+  // into a nested sub-tabset and menu-html.js extracts back into the model.
+  if (item.type === 'submenu') {
+    const children = (item.children || []).map((c) => emitTab(c, warn)).filter(Boolean)
+      .map((s) => s.replace(/^ {2}/gm, '    '));
+    let out = emitComment(item.comment);
+    out += `  <submenu${item.id ? ` id="${esc(item.id)}"` : ''}>\n`;
+    out += `    <label>${esc(item.name)}</label>\n`;
+    out += children.join('\n');
+    out += `  </submenu>\n`;
+    return out;
+  }
   if (item.type !== 'component' || !item.tag) {
     warn(`skipping unassigned tab item "${item.name}" — drop a plugin on it first`);
     return '';

@@ -18,6 +18,10 @@
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
  *     that row's component (ui:name + ui:attribute set); dropped between
  *     rows it inserts a new, fully-assigned item there
+ *   - a SECOND plugin dropped on an assigned menu item turns it into a
+ *     submenu holding both (one plugin = the item opens it directly;
+ *     several = the item shows them all); dropping on a submenu row adds
+ *     to it. The flat bar variant keeps replace-on-drop.
  *   - every change AUTO-SAVES (debounced ~0.8s after the last edit — no
  *     Save button): the WHOLE Turtle document is rewritten via
  *     core/menu-serialize (pantry subjects preserved) and PUT with solFetch
@@ -261,7 +265,38 @@ class SolMenuManager extends HTMLElement {
 
       const plugin = this._dragPayload(e, true);
       if (plugin) {
+        // Dropping on a SUBMENU row adds the plugin to it (menus only — the
+        // bar is flat).
+        if (onRow && item.type === 'submenu' && !this.constructor.flat) {
+          if (!item.children) item.children = [];
+          item.children.push(this._itemFromPlugin(plugin));
+          this._touch();
+          return;
+        }
         if (onRow && item.type !== 'submenu') {
+          // A second plugin on an already-assigned menu item turns it into a
+          // SUBMENU of both: one plugin = the item opens it directly;
+          // several = the item shows them all as sub-tabs. (The flat bar
+          // keeps replace-on-drop.)
+          const hasPlugin = !!(item.tag || item.href);
+          if (hasPlugin && !this.constructor.flat) {
+            const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
+            const first = {
+              type: item.type, id: null,
+              name: meta?.label || item.name,
+              icon: item.icon || undefined,
+              tag: item.tag || null,
+              params: (item.params || []).map(([k, v]) => [k, v]),
+            };
+            if (item.href) { first.href = item.href; if (item.region) first.region = item.region; }
+            item.type = 'submenu';
+            item.children = [first, this._itemFromPlugin(plugin)];
+            item.tag = null;
+            item.params = [];
+            delete item.href;
+            this._touch();
+            return;
+          }
           // assign this row's content — a component (tag) or a link (href)
           if (plugin.href) {
             item.type = 'link';

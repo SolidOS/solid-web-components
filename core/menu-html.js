@@ -56,6 +56,19 @@ function extractTab(a) {
   };
 }
 
+// A <submenu> block (emitted by menu-generate for a multi-plugin menu item):
+// <label> = the item's name, child anchors = its plugins.
+function extractSubmenu(el) {
+  const label = el.querySelector(':scope > label');
+  const children = Array.from(el.querySelectorAll(':scope > a[href]')).map(extractTab);
+  return {
+    type: 'submenu',
+    id: el.getAttribute('id') || undefined,
+    name: (label ? label.textContent : '').trim(),
+    children,
+  };
+}
+
 function extractBarItem(el) {
   const params = [];
   let region = null;
@@ -105,6 +118,8 @@ export function extractShell(tabsEl) {
     if (el.tagName.toLowerCase() === 'a' && el.hasAttribute('href')
         && el.getAttribute('slot') !== 'actions') {
       item = extractTab(el); tabs.push(item);
+    } else if (el.tagName.toLowerCase() === 'submenu') {
+      item = extractSubmenu(el); tabs.push(item);
     } else if (el.tagName.toLowerCase() !== 'a') {
       item = extractBarItem(el); bar.push(item);
     }

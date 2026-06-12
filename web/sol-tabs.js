@@ -153,7 +153,7 @@ class SolTabs extends HTMLElement {
     // clears on every switch — these persist across tabs. An inline <sol-button>
     // is auto-wired to this tabs' content area (no `for=` needed).
     this._launchers = Array.from(this.children).filter(
-      (el) => el.matches('[slot="actions"]') || !el.matches('a[href]'));
+      (el) => el.matches('[slot="actions"]') || !el.matches('a[href], submenu'));
     for (const el of this._launchers) { el.remove(); this._wireInlineAction(el); }
 
     this.innerHTML = `
@@ -297,13 +297,15 @@ class SolTabs extends HTMLElement {
 
   _harvestAnchors() {
     // Anchors marked slot="actions" are launchers, not tabs — skip them here.
-    const anchors = Array.from(this.querySelectorAll(':scope > a[href]:not([slot="actions"])'));
-    if (!anchors.length) return [];
+    // A <submenu> child (a <label> + its own <a> anchors) is a tab whose pane
+    // is a nested sub-tabset of ALL its items — same as a from-rdf submenu.
+    const nodes = Array.from(this.querySelectorAll(':scope > a[href]:not([slot="actions"]), :scope > submenu'));
+    if (!nodes.length) return [];
     // The picker is `data-handler` (keeps a standard <a> HTML-valid); the
     // `data-` prefix is stripped from the forwarded attributes below.
     const parentHandler = (this.getAttribute('data-handler') || '').trim();
     const SKIP = new Set(['href', 'data-handler', 'data-tab-id', 'target', 'rel', 'download', 'hreflang', 'type', 'referrerpolicy']);
-    return anchors.map((a, i) => {
+    const anchorTab = (a, i) => {
       const label = (a.textContent || '').trim() || `Tab ${i + 1}`;
       const url = a.getAttribute('href');
       const handlerTag = (a.getAttribute('data-handler') || parentHandler || 'sol-include').trim();
@@ -343,6 +345,24 @@ class SolTabs extends HTMLElement {
           body.appendChild(el);
         },
       };
+    };
+    return nodes.map((node, i) => {
+      if (node.tagName.toLowerCase() === 'submenu') {
+        const label = (node.querySelector(':scope > label')?.textContent || '').trim() || `Tab ${i + 1}`;
+        const children = Array.from(node.querySelectorAll(':scope > a[href]')).map((a, j) => anchorTab(a, j));
+        return {
+          name: label,
+          id: node.id || undefined,
+          render: (body) => {
+            const sub = document.createElement('sol-tabs');
+            sub.setAttribute('variant', 'sub');
+            sub.tabs = children;
+            body.appendChild(sub);
+            if (children.length) sub.switchTab(children[0].name);
+          },
+        };
+      }
+      return anchorTab(node, i);
     });
   }
 
