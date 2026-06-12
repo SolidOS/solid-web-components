@@ -17,8 +17,8 @@ export const CSS = `
 .builder { border: 1px solid var(--border, #d0d0d0); border-radius: 10px;
            background: var(--surface, #fff); padding: .6rem .7rem;
            display: flex; flex-direction: column; max-height: 100%; min-height: 0; }
-.builder > .cards { overflow: auto; flex: 1 1 auto; min-height: 0; }
-.builder > ul.tree { overflow: auto; min-height: 0; }
+.builder > .cards { overflow: hidden auto; flex: 1 1 auto; min-height: 0; }
+.builder > ul.tree { overflow: hidden auto; min-height: 0; }
 .builder-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
 .builder-title { font-weight: 700; font-size: max(16px, 1em); flex: 1 1 auto; }
 .builder-status { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
@@ -29,7 +29,8 @@ ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; }
 ul.tree ul { padding-left: 1.4rem; border-left: 1px dashed var(--border, #d0d0d0); margin-left: .55rem; }
 
 li.item { margin: .15rem 0; }
-.row { display: flex; align-items: center; gap: .4rem; padding: .2rem .35rem;
+/* rows WRAP (chips flow onto more lines) — never scroll horizontally */
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding: .2rem .35rem;
        border: 1px solid transparent; border-radius: 7px; background: var(--bg, #fafafa); }
 .row:hover { border-color: var(--border, #d0d0d0); }
 .row.drop-target { outline: 2px solid var(--accent, #3498db); outline-offset: -2px; }

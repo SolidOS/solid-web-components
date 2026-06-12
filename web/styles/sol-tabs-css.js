@@ -35,10 +35,11 @@ export const CSS = `
   }
   sol-tabs > .sol-tabs-bar {
     display: flex; flex-shrink: 0;
+    /* NEVER a horizontal scrollbar — too many tabs wrap to more lines */
+    flex-wrap: wrap;
     border-bottom: 1px solid var(--border, #e0e0e0);
     padding: 0 12px; gap: 2px;
-    overflow-x: auto; overflow-y: hidden;
-    scrollbar-width: thin;
+    overflow: visible;
   }
   /* Page-level action launchers (slot="actions"), grouped at the right of the
      bar. align-self:center keeps them vertically centred in the bar whatever

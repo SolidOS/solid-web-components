@@ -16,8 +16,11 @@
  *   source  — Turtle document + #fragment of the ui:Menu this box edits
  *             (required). The box title is the list's ui:label.
  *   for     — selector naming the manager(s) this palette feeds. Drag data
- *             is set globally (any manager accepts it); `for` exists so pages
- *             can declare the pairing and styling/tooling can use it.
+ *             is set globally (any manager accepts it). The pairing also
+ *             SUBTRACTS what's in use: entries mounted by the paired
+ *             managers' menus (matched by href, or tag + source attribute)
+ *             are hidden from this box, and reappear the moment they're
+ *             dragged off a menu. A box without `for` shows everything.
  *   grouped — boolean: render this box's topics as TABS — pick a topic, see
  *             only that topic's cards. The topics are skos:Collections in
  *             the source document (skos:prefLabel = tab label, skos:member =
@@ -108,15 +111,80 @@ class SolPluginManager extends HTMLElement {
     return frag ? `${this._docUrl()}#${frag}` : null;
   }
 
-  // Another manager saved this document (a move's other half, an import in
-  // the sibling box, our own save) — re-load from the server.
+  // Another manager saved a document we care about: our own catalog (a
+  // move's other half, an import, our own save) — re-load; or one of the
+  // PAIRED managers' menus — recompute what's in use, so a plugin dragged
+  // onto a menu disappears here and one dragged off reappears.
   _onMenuBuilt(e) {
     const src = (e.detail && e.detail.source) || '';
     if (!src || !this.source || !this._menuIri()) return;
     try {
       const doc = new URL(src.split('#')[0], document.baseURI).href;
-      if (doc === this._docUrl()) this._load();
+      if (doc === this._docUrl()) { this._load(); return; }
+      if (this._pairedDocs().has(doc)) this._loadUsed().then(() => this._render());
     } catch { /* unparseable source — not ours */ }
+  }
+
+  // The menu documents of the managers this box feeds (its `for` pairing).
+  _pairedDocs() {
+    const docs = new Set();
+    const sel = this.getAttribute('for');
+    if (!sel) return docs;
+    let els = [];
+    try { els = [...document.querySelectorAll(sel)]; } catch { return docs; }
+    for (const el of els) {
+      const src = el.getAttribute && el.getAttribute('source');
+      if (!src) continue;
+      try { docs.add(new URL(src.split('#')[0], document.baseURI).href); } catch { /* skip */ }
+    }
+    return docs;
+  }
+
+  // What the paired menus mount, keyed for matching catalog entries:
+  // links by href; components by tag + their source attribute (tag alone
+  // when an item has no source). Submenu children count too.
+  async _loadUsed() {
+    const sel = this.getAttribute('for');
+    if (!sel) { this._used = null; return; }
+    const used = { hrefs: new Set(), tagSource: new Set(), tags: new Set() };
+    const perDoc = new Map();
+    let els = [];
+    try { els = [...document.querySelectorAll(sel)]; } catch { els = []; }
+    for (const el of els) {
+      const src = el.getAttribute && el.getAttribute('source');
+      if (!src || !src.includes('#')) continue;
+      try {
+        const docUrl = new URL(src.split('#')[0], document.baseURI).href;
+        if (!perDoc.has(docUrl)) perDoc.set(docUrl, new Set());
+        perDoc.get(docUrl).add(src.split('#')[1]);
+      } catch { /* skip */ }
+    }
+    for (const [docUrl, frags] of perDoc) {
+      try {
+        const store = await loadRdfStore(docUrl, solFetch);
+        const walk = (items) => {
+          for (const it of items || []) {
+            if (it.type === 'submenu') { walk(it.children); continue; }
+            if (it.href) { used.hrefs.add(it.href); continue; }
+            if (!it.tag) continue;
+            const source = (it.params || []).find(([k]) => k === 'source')?.[1] ?? '';
+            if (source) used.tagSource.add(`${it.tag}|${source}`);
+            else used.tags.add(it.tag);
+          }
+        };
+        for (const f of frags) walk(parseMenuItems(store, rdf.sym(`${docUrl}#${f}`)));
+      } catch { /* a missing menu doc hides nothing */ }
+    }
+    this._used = used;
+  }
+
+  // Is this catalog entry mounted by a paired menu?
+  _isUsed(p) {
+    if (!this._used) return false;
+    if (p.type === 'link') return this._used.hrefs.has(p.href);
+    const source = (p.params || []).find(([k]) => k === 'source')?.[1] ?? '';
+    if (source) return this._used.tagSource.has(`${p.tag}|${source}`);
+    return this._used.tags.has(p.tag);
   }
 
   // ---- loading -----------------------------------------------------------
@@ -127,6 +195,7 @@ class SolPluginManager extends HTMLElement {
       return;
     }
     this._loadError = null;
+    await this._loadUsed();
     try {
       const store = await loadRdfStore(this._docUrl(), solFetch);
       const menuNode = rdf.sym(this._menuIri());
@@ -275,6 +344,7 @@ class SolPluginManager extends HTMLElement {
     const byName = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
     const plugins = this._items
       .filter((i) => (i.type === 'component' && i.tag) || (i.type === 'link' && i.href))
+      .filter((i) => !this._isUsed(i))
       .map((i) => this._withManifestMeta(i))
       .sort(byName);
     const ghosts = this._ghosts().sort(byName);
