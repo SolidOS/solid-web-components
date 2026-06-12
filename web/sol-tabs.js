@@ -416,7 +416,7 @@ class SolTabs extends HTMLElement {
     return pane;
   }
 
-  switchTab(name) {
+  switchTab(name, { silent = false } = {}) {
     const tab = this._tabs.find(t => t.name.toLowerCase() === name.toLowerCase());
     if (!tab) return;
     this._active = tab.name;
@@ -441,9 +441,14 @@ class SolTabs extends HTMLElement {
       if (typeof cleanup === 'function') this._cleanup = cleanup;
     }
 
-    this.dispatchEvent(new CustomEvent('sol-tab-change', {
-      bubbles: true, composed: true, detail: { name: tab.name },
-    }));
+    // `silent` = a programmatic refresh (applyTabs re-asserting the SAME
+    // active tab after a live update) — listeners must not mistake it for
+    // the user picking a tab (e.g. the host would dismiss its menu pane).
+    if (!silent) {
+      this.dispatchEvent(new CustomEvent('sol-tab-change', {
+        bubbles: true, composed: true, detail: { name: tab.name },
+      }));
+    }
   }
 
   /**
@@ -472,6 +477,9 @@ class SolTabs extends HTMLElement {
   applyTabs(items) {
     const wrapped = this._wrapRdfItems(items || []);
     if (!this._rendered) { this._tabs = wrapped; return; }
+    // Track the active tab by DESCRIPTOR (it survives the merge even when
+    // renamed) so re-asserting it below is recognized as "same tab".
+    const prevActive = (this._tabs || []).find((t) => t.name === this._active) || null;
     const key = (t) => t.id || t.name;
     const prev = new Map((this._tabs || []).map((t) => [key(t), t]));
     const next = wrapped.map((w) => {
@@ -486,8 +494,10 @@ class SolTabs extends HTMLElement {
     this._tabs = next;
     this._renderBar();
     if (this._keepAlive) for (const t of this._tabs) this._ensurePane(t);
-    const active = this._tabs.find((t) => t.name === this._active) || this._tabs[0];
-    if (active) this.switchTab(active.name);
+    // Re-assert the selection. Same tab as before → SILENT: this is a live
+    // refresh, not a user pick, and must not fire sol-tab-change.
+    const active = (prevActive && next.includes(prevActive)) ? prevActive : this._tabs[0];
+    if (active) this.switchTab(active.name, { silent: active === prevActive });
   }
 
   /**
