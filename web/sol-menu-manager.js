@@ -6,7 +6,12 @@
  *   <sol-menu-manager source="./data/tabs.ttl#Tabs"></sol-menu-manager>
  *
  * Attributes:
- *   source — Turtle document + #fragment of the ui:Menu to edit (required).
+ *   source  — Turtle document + #fragment of the ui:Menu to edit (required).
+ *   catalog — Turtle document + #fragment of the plugin catalog (a ui:Menu
+ *             of ui:Component/ui:Link entries). When given, chips resolve a
+ *             plugin's DISPLAY name from the catalog (matched by what the
+ *             item mounts: tag + source attribute, or href) — e.g. "Movies
+ *             (Internet Archive)", never "ia-player".
  *
  * Editing model:
  *   - every row: drag-grip (reorder among siblings), an editable name, and
@@ -92,11 +97,57 @@ class SolMenuManager extends HTMLElement {
     return frag ? `${this._docUrl()}#${frag}` : null;
   }
 
+  // The catalog (when declared) names chips: entry label looked up by what
+  // an item mounts — links by href; components by tag, disambiguated by the
+  // `source` attribute when several entries share a tag.
+  async _loadCatalog() {
+    const src = this.getAttribute('catalog');
+    if (!src || this._catalog) return;
+    try {
+      const docUrl = new URL(src.split('#')[0], document.baseURI).href;
+      const store = await loadRdfStore(docUrl, solFetch);
+      const UI = 'http://www.w3.org/ns/ui#';
+      const byHref = new Map();
+      const byTag = new Map();
+      for (const st of store.statementsMatching(null, rdf.sym(UI + 'label'), null)) {
+        const subj = st.subject;
+        if (!subj.value || !subj.value.startsWith(docUrl + '#')) continue;
+        const label = st.object.value;
+        const href = (store.any(subj, rdf.sym(UI + 'href')) || {}).value;
+        const tag = (store.any(subj, rdf.sym(UI + 'name')) || {}).value;
+        if (href) byHref.set(href, label);
+        if (tag) {
+          let source = null;
+          for (const b of store.each(subj, rdf.sym(UI + 'attribute'), null)) {
+            const k = (store.any(b, rdf.sym('http://schema.org/name')) || {}).value;
+            if (k === 'source') source = (store.any(b, rdf.sym('http://schema.org/value')) || {}).value || null;
+          }
+          if (!byTag.has(tag)) byTag.set(tag, []);
+          byTag.get(tag).push({ source, label });
+        }
+      }
+      this._catalog = { byHref, byTag };
+      this._render();
+    } catch { /* no catalog — chips fall back to stored / friendly names */ }
+  }
+
+  // The catalog display name for what an item/child mounts, or null.
+  _catalogName(it) {
+    if (!this._catalog) return null;
+    if (it.href) return this._catalog.byHref.get(it.href) || null;
+    if (!it.tag) return null;
+    const candidates = this._catalog.byTag.get(it.tag) || [];
+    if (candidates.length === 1) return candidates[0].label;
+    const source = (it.params || []).find(([k]) => k === 'source')?.[1] ?? null;
+    return candidates.find((c) => c.source && c.source === source)?.label || null;
+  }
+
   async _load() {
     if (!this.source || !this._menuIri()) {
       this._root.innerHTML = '<div class="hint">Set source="menu.ttl#MenuName" to edit a menu.</div>';
       return;
     }
+    this._loadCatalog();
     try {
       const store = await loadRdfStore(this._docUrl(), solFetch);
       const menuNode = rdf.sym(this._menuIri());
@@ -173,14 +224,20 @@ class SolMenuManager extends HTMLElement {
     // the item (or onto another). A link row's NAME already is the plugin's
     // name, so a direct link gets no chip; "unassigned" keeps its drop hint.
     const metaLabel = (tag) => (window.ComponentInterop?.manifest?.meta || {})[tag]?.label;
+    // The DISPLAY name: the catalog's label for what it mounts (e.g. "Movies
+    // (Internet Archive)") — never the component's name — falling back to
+    // the name it was dragged in under, then the loader-manifest label. A
+    // chip that would merely repeat its own item's name is an artifact and
+    // is not shown.
+    const chipText = (it) => {
+      const text = this._catalogName(it) || it.name || (it.tag && metaLabel(it.tag)) || '';
+      return text.trim() === (item.name || '').trim() ? '' : text;
+    };
     const chips = [];
     if (item.type === 'submenu') {
       if (!item.children) item.children = [];
       for (const child of item.children) {
-        // The DISPLAY name the plugin was dragged in under (e.g. "Movies
-        // (Internet Archive)") — not the component's name ("Internet
-        // Archive player"). Nameless children get no chip at all.
-        const text = child.name || (child.tag && metaLabel(child.tag));
+        const text = chipText(child);
         if (!text) continue;
         const chip = document.createElement('span');
         chip.className = 'chip';
@@ -198,8 +255,8 @@ class SolMenuManager extends HTMLElement {
     } else if (item.type === 'link') {
       // name-only — the row's name is the plugin's name
     } else if (item.tag) {
-      const friendly = metaLabel(item.tag);
-      if (friendly) {
+      const friendly = this._catalogName(item) || metaLabel(item.tag) || '';
+      if (friendly && friendly.trim() !== (item.name || '').trim()) {
         const chip = document.createElement('span');
         chip.className = 'chip';
         chip.textContent = friendly;
