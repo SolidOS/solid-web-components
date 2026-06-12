@@ -185,7 +185,8 @@ class SolPluginManager extends HTMLElement {
   }
 
   // Enrich an owned entry's card with its tag's manifest meta (icon / hover
-  // title / description / help fill gaps).
+  // title / description / help fill gaps). The entry's own ui:icon and
+  // rdfs:comment (the curated icon + card blurb) win over manifest meta.
   _withManifestMeta(item) {
     const meta = (window.ComponentInterop
       && window.ComponentInterop.manifest
@@ -195,7 +196,7 @@ class SolPluginManager extends HTMLElement {
       ...item,
       icon: item.icon || m.icon,
       title: m.title,
-      description: m.description,
+      description: item.comment || m.description,
       help: m.help,
     };
   }
