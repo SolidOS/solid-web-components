@@ -6,7 +6,7 @@
  * auto-saves (whole-document rewrite, pantry preserved — see
  * core/menu-serialize).
  *
- *   <sol-plugin-manager source="./data/palette.ttl#InUse"
+ *   <sol-plugin-manager source="./data/plugins-catalog.ttl#InUse"
  *                       for="sol-menu-manager, sol-button-bar-manager">
  *   </sol-plugin-manager>
  *
@@ -112,7 +112,7 @@ class SolPluginManager extends HTMLElement {
 
   async _load() {
     if (!this.source || !this._menuIri()) {
-      this._root.innerHTML = '<div class="hint">Set source="palette.ttl#InUse" (a ui:Menu of plugins) to manage a list.</div>';
+      this._root.innerHTML = '<div class="hint">Set source="plugins-catalog.ttl#InUse" (a ui:Menu of plugins) to manage a list.</div>';
       return;
     }
     this._loadError = null;
