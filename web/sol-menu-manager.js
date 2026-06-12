@@ -148,14 +148,16 @@ class SolMenuManager extends HTMLElement {
     const chip = document.createElement('span');
     if (item.type === 'submenu') { chip.className = 'chip'; chip.textContent = 'submenu'; }
     else if (item.type === 'link') { chip.className = 'chip'; chip.textContent = item.href ? `link → ${item.href}` : 'link'; }
-    else if (item.tag) { chip.className = 'chip'; chip.textContent = `<${item.tag}>`; chip.title = (item.params || []).map(([k, v]) => `${k}="${v}"`).join(' '); }
+    // No tooltip on the chip — an attribute dump is programmer-speak; the
+    // chip itself already names what the item mounts.
+    else if (item.tag) { chip.className = 'chip'; chip.textContent = `<${item.tag}>`; }
     else { chip.className = 'chip empty'; chip.textContent = 'unassigned — drop a plugin here'; }
 
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'row-btn danger';
     del.textContent = '✕';
-    del.title = 'Remove from menu (kept in the document)';
+    del.title = 'Remove from this menu (you can drag it back in later)';
     del.setAttribute('aria-label', `Remove ${item.name || 'item'}`);
     del.addEventListener('click', () => {
       siblings.splice(siblings.indexOf(item), 1);

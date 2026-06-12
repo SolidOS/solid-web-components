@@ -323,9 +323,10 @@ class SolPluginManager extends HTMLElement {
     const tag = document.createElement('span');
     tag.className = 'card-tag';
     tag.textContent = `<${p.tag}>`;
-    card.title = p.title
-      || (p.params || []).map(([k, v]) => `${k}="${v}"`).join('\n')
-      || 'no default attributes';
+    // Tooltips speak to the app USER, never about internals (no tags, no
+    // attribute dumps): the manifest's hover text, else the card blurb.
+    const hover = p.title || p.description;
+    if (hover) card.title = hover;
     card.append(top, tag);
     if (p.description) {
       const desc = document.createElement('span');
@@ -336,7 +337,7 @@ class SolPluginManager extends HTMLElement {
     if (p.ghost) {
       const note = document.createElement('span');
       note.className = 'card-ghost-note';
-      note.textContent = 'from manifest — drag here to adopt';
+      note.textContent = 'also on offer — drag into a list to add it';
       card.appendChild(note);
     }
     card.addEventListener('dragstart', (e) => {
