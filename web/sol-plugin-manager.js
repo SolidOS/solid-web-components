@@ -1,6 +1,8 @@
 /**
- * <sol-plugin-manager> — an editable plugin list backed by a ui:Menu of
- * ui:Component entries. Renders the entries as draggable cards AND accepts
+ * <sol-plugin-manager> — an editable plugin list backed by a ui:Menu whose
+ * entries are ui:Components (mountable plugins) or ui:Links (external apps:
+ * ui:href + a ui:region like ui:Tab saying how they open — e.g. a new
+ * browser tab). Renders the entries as draggable cards AND accepts
  * drops, so two instances side by side ("Plugins to Use" / "Plugins
  * Available") let the user drag plugins between the lists. Every change
  * auto-saves (whole-document rewrite, pantry preserved — see
@@ -244,19 +246,23 @@ class SolPluginManager extends HTMLElement {
     this._status.className = 'builder-status';
     head.append(title, this._status);
 
-    const plugins = this._items.filter((i) => i.type === 'component' && i.tag)
+    // Entries are components (mountable plugins) OR links (external apps —
+    // a ui:Link with ui:href; clicking the placed item fires the link).
+    const plugins = this._items
+      .filter((i) => (i.type === 'component' && i.tag) || (i.type === 'link' && i.href))
       .map((i) => this._withManifestMeta(i));
     const ghosts = this._ghosts();
 
     if (this.hasAttribute('grouped')) {
-      // Topic TABS (skos:Collections): pick a topic, see only its cards.
-      // Entries in no collection — and ghost cards — sit under "Other".
-      const placed = new Set();
+      // Topic TABS (skos:Collections): pick a topic, see only its cards. An
+      // entry in several collections shows under each of its topics; entries
+      // in none — and ghost cards — sit under "Other".
+      const inAny = new Set(this._topics.flatMap((t) => [...t.members]));
       const groups = this._topics.map((t) => ({
         label: t.label,
-        cards: plugins.filter((p) => p.id && t.members.has(p.id) && !placed.has(p.id) && placed.add(p.id)),
+        cards: plugins.filter((p) => p.id && t.members.has(p.id)),
       }));
-      groups.push({ label: 'Other', cards: [...plugins.filter((p) => !placed.has(p.id)), ...ghosts] });
+      groups.push({ label: 'Other', cards: [...plugins.filter((p) => !p.id || !inAny.has(p.id)), ...ghosts] });
       const tabs = groups.filter((g) => g.cards.length);
       if (!tabs.some((g) => g.label === this._topicTab)) this._topicTab = tabs[0]?.label;
 
@@ -344,9 +350,9 @@ class SolPluginManager extends HTMLElement {
     }
     card.addEventListener('dragstart', (e) => {
       card.classList.add('dragging');
-      const payload = {
-        label: p.name || p.tag, tag: p.tag, params: p.params || [], icon: p.icon || '',
-      };
+      const payload = p.type === 'link'
+        ? { label: p.name || p.href, href: p.href, region: p.region || '', icon: p.icon || '' }
+        : { label: p.name || p.tag, tag: p.tag, params: p.params || [], icon: p.icon || '' };
       if (!p.ghost && p.id) {
         payload.subject = `${this._docUrl()}#${p.id}`;
         payload.list = this._menuIri();
@@ -355,7 +361,7 @@ class SolPluginManager extends HTMLElement {
         e.dataTransfer.effectAllowed = 'copy';
       }
       e.dataTransfer.setData(PLUGIN_MIME, JSON.stringify(payload));
-      e.dataTransfer.setData('text/plain', p.tag);
+      e.dataTransfer.setData('text/plain', p.tag || p.href || p.name || '');
     });
     card.addEventListener('dragend', () => card.classList.remove('dragging'));
     return card;
@@ -413,19 +419,23 @@ class SolPluginManager extends HTMLElement {
     if ([...(dt.types || [])].includes(PLUGIN_MIME)) {
       let p = null;
       try { p = JSON.parse(dt.getData(PLUGIN_MIME)); } catch { /* not ours */ }
-      if (!p || !p.tag) return;
+      if (!p || (!p.tag && !p.href)) return;
       if (p.subject && p.list && p.list === this._menuIri()) return; // own card
       if (p.subject && p.list && p.list.split('#')[0] === this._docUrl().split('#')[0]) {
         this._enqueue(() => this._moveHere(p));
       } else {
         // ghost card, or a card from some other document — add a copy here
-        this._enqueue(() => this._addEntry({
-          type: 'component', id: null,
-          name: p.label || p.tag,
-          icon: p.icon || undefined,
-          tag: p.tag,
-          params: (p.params || []).map(([k, v]) => [k, v]),
-        }));
+        this._enqueue(() => this._addEntry(p.href
+          ? { type: 'link', id: null,
+              name: p.label || p.href,
+              icon: p.icon || undefined,
+              region: p.region || undefined,
+              href: p.href }
+          : { type: 'component', id: null,
+              name: p.label || p.tag,
+              icon: p.icon || undefined,
+              tag: p.tag,
+              params: (p.params || []).map(([k, v]) => [k, v]) }));
       }
       return;
     }
@@ -461,17 +471,18 @@ class SolPluginManager extends HTMLElement {
   }
 
   // Add an entry to this list — adopting a ghost card or importing a
-  // manifest. Dedup: an identical tag+params anywhere in the document either
-  // reports where it already is, or (if it's only pantry) re-lists it here.
-  // entry.category (a manifest's dct:subject literal) files the entry into
-  // the matching skos:Collection — created when the category is new.
+  // manifest. Dedup: an identical entry anywhere in the document (components
+  // by tag+params, links by href) either reports where it already is, or (if
+  // it's only pantry) re-lists it here. entry.categories (a manifest's
+  // dct:subject literals) file the entry into the matching skos:Collections
+  // — created when a category is new.
   async _addEntry(entry) {
     const docUrl = this._docUrl();
     let store;
     try { store = await loadRdfStore(docUrl, solFetch); }
     catch { store = rdf.graph(); }
 
-    const category = entry.category;
+    const categories = entry.categories || (entry.category ? [entry.category] : []);
     const existing = this._findExisting(store, docUrl, entry);
     if (existing) {
       const home = this._listsContaining(store, docUrl, existing.id);
@@ -479,15 +490,16 @@ class SolPluginManager extends HTMLElement {
       entry = existing; // pantry subject — re-list it rather than duplicate
     }
     const own = this._menuDesc(store, this._menuIri());
-    if (own.items.some((it) => it.tag === entry.tag && paramsKey(it.params) === paramsKey(entry.params))) {
-      this._note('already in this list', '');
-      return;
-    }
+    const dup = entry.type === 'link'
+      ? own.items.some((it) => it.type === 'link' && it.href === entry.href)
+      : own.items.some((it) => it.type === 'component' && it.tag === entry.tag
+          && paramsKey(it.params) === paramsKey(entry.params));
+    if (dup) { this._note('already in this list', ''); return; }
     own.items.push(entry);
     // Membership is written AFTER the menu rewrite: that's when a fresh
     // entry gets its minted fragment id.
     await this._putDoc(store, docUrl, [own], `added “${entry.name}” ✓`,
-      () => { if (category && entry.id) this._fileUnderCategory(store, docUrl, entry.id, category); });
+      () => { if (entry.id) for (const c of categories) this._fileUnderCategory(store, docUrl, entry.id, c); });
   }
 
   // Ensure a skos:Collection labelled `category` exists and has the entry as
@@ -515,10 +527,27 @@ class SolPluginManager extends HTMLElement {
     }
   }
 
-  // An existing ui:Component subject in the document with the same tag and
-  // the same attribute defaults, as a re-listable entry.
+  // An existing subject in the document describing the same thing —
+  // components by tag + identical attribute defaults, links by href — as a
+  // re-listable entry.
   _findExisting(store, docUrl, entry) {
     const doc = docUrl.split('#')[0];
+    if (entry.type === 'link') {
+      for (const st of store.statementsMatching(null, rdf.sym(UI + 'href'), null)) {
+        const subj = st.subject;
+        if (!subj.value || !subj.value.startsWith(doc + '#')) continue;
+        if (st.object.value !== entry.href) continue;
+        return {
+          type: 'link',
+          id: subj.value.slice(doc.length + 1),
+          name: rdfVal(store, subj, 'label') || entry.href,
+          icon: rdfVal(store, subj, 'icon') || undefined,
+          region: (rdfVal(store, subj, 'region') || '').split('#').pop().toLowerCase() || undefined,
+          href: entry.href,
+        };
+      }
+      return null;
+    }
     const want = paramsKey(entry.params);
     for (const st of store.statementsMatching(null, rdf.sym(UI + 'name'), null)) {
       const subj = st.subject;
@@ -548,10 +577,12 @@ class SolPluginManager extends HTMLElement {
     return labels;
   }
 
-  // Fetch + parse a plugin manifest and add it as an entry. The manifest
-  // must offer `<> a ui:Component ; ui:name "tag"`; ui:label / ui:icon /
-  // ui:attribute defaults flesh out the entry, and a dct:subject literal is
-  // the plugin's category.
+  // Fetch + parse a manifest and add it as an entry. Two kinds:
+  //   `<> a ui:Component ; ui:name "tag"` — a mountable plugin (ui:label /
+  //   ui:icon / ui:attribute defaults flesh out the entry);
+  //   `<> a ui:Link ; ui:href <url>`      — an external app (ui:region, e.g.
+  //   ui:Tab, says how it opens).
+  // dct:subject literals are the categories the entry files under.
   async _importManifest(input) {
     let url;
     try { url = new URL(String(input), document.baseURI); }
@@ -560,22 +591,34 @@ class SolPluginManager extends HTMLElement {
     const manifestUrl = url.href;
     const mStore = await loadRdfStore(manifestUrl, solFetch);
     const subj = rdf.sym(manifestUrl);
-    const isComponent = mStore.statementsMatching(
-      subj, rdf.sym(RDF + 'type'), rdf.sym(UI + 'Component'),
+    const hasType = (local) => mStore.statementsMatching(
+      subj, rdf.sym(RDF + 'type'), rdf.sym(UI + local),
     ).length > 0;
+    const categories = mStore.each(subj, rdf.sym(DCT + 'subject'), null).map((n) => n.value);
     const tag = rdfVal(mStore, subj, 'name');
-    if (!isComponent || !tag) {
-      throw new Error(`${input} is not a plugin manifest (need <> a ui:Component with ui:name)`);
+    const href = rdfVal(mStore, subj, 'href');
+    if (hasType('Link') && href) {
+      await this._addEntry({
+        type: 'link', id: null,
+        name: rdfVal(mStore, subj, 'label') || href,
+        icon: rdfVal(mStore, subj, 'icon') || undefined,
+        region: (rdfVal(mStore, subj, 'region') || '').split('#').pop().toLowerCase() || undefined,
+        href, categories,
+      });
+      return;
     }
-    const subject = mStore.any(subj, rdf.sym(DCT + 'subject'));
-    await this._addEntry({
-      type: 'component', id: null,
-      name: rdfVal(mStore, subj, 'label') || tag,
-      icon: rdfVal(mStore, subj, 'icon') || undefined,
-      tag,
-      params: rdfComponent(mStore, subj).params,
-      category: subject ? subject.value : undefined,
-    });
+    if (hasType('Component') && tag) {
+      await this._addEntry({
+        type: 'component', id: null,
+        name: rdfVal(mStore, subj, 'label') || tag,
+        icon: rdfVal(mStore, subj, 'icon') || undefined,
+        tag,
+        params: rdfComponent(mStore, subj).params,
+        categories,
+      });
+      return;
+    }
+    throw new Error(`${input} is not a plugin manifest (need <> a ui:Component with ui:name, or a ui:Link with ui:href)`);
   }
 
   // Rewrite the given menus in the store, run the optional `after` hook

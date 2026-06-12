@@ -248,11 +248,20 @@ class SolMenuManager extends HTMLElement {
       const plugin = this._dragPayload(e, true);
       if (plugin) {
         if (onRow && item.type !== 'submenu') {
-          // assign this row's component
-          item.type = 'component';
-          item.tag = plugin.tag;
-          item.params = (plugin.params || []).map(([k, v]) => [k, v]);
-          if (!item.name) item.name = plugin.label || plugin.tag;
+          // assign this row's content — a component (tag) or a link (href)
+          if (plugin.href) {
+            item.type = 'link';
+            item.href = plugin.href;
+            if (plugin.region) item.region = plugin.region;
+            item.tag = null;
+            item.params = [];
+          } else {
+            item.type = 'component';
+            item.tag = plugin.tag;
+            item.params = (plugin.params || []).map(([k, v]) => [k, v]);
+            delete item.href;
+          }
+          if (!item.name) item.name = plugin.label || plugin.tag || plugin.href;
           if (!item.icon && plugin.icon) item.icon = plugin.icon;
         } else {
           const at = siblings.indexOf(item) + (before ? 0 : 1);
@@ -287,6 +296,15 @@ class SolMenuManager extends HTMLElement {
   }
 
   _itemFromPlugin(plugin) {
+    if (plugin.href) {
+      return {
+        type: 'link', id: null,
+        name: plugin.label || plugin.href,
+        icon: plugin.icon || undefined,
+        region: plugin.region || undefined,
+        href: plugin.href,
+      };
+    }
     return {
       type: 'component', id: null,
       name: plugin.label || plugin.tag || '',
