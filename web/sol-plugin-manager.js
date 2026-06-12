@@ -248,10 +248,14 @@ class SolPluginManager extends HTMLElement {
 
     // Entries are components (mountable plugins) OR links (external apps —
     // a ui:Link with ui:href; clicking the placed item fires the link).
+    // Cards DISPLAY alphabetically by name; the stored list keeps its own
+    // order (sorting is presentation only).
+    const byName = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
     const plugins = this._items
       .filter((i) => (i.type === 'component' && i.tag) || (i.type === 'link' && i.href))
-      .map((i) => this._withManifestMeta(i));
-    const ghosts = this._ghosts();
+      .map((i) => this._withManifestMeta(i))
+      .sort(byName);
+    const ghosts = this._ghosts().sort(byName);
 
     if (this.hasAttribute('grouped')) {
       // Topic TABS (skos:Collections): pick a topic, see only its cards. An
