@@ -9,12 +9,13 @@
  *   source — Turtle document + #fragment of the ui:Menu to edit (required).
  *
  * Editing model:
- *   - every row: drag-grip (reorder among siblings), an editable name, and —
- *     when the mounted plugin has a friendly name in the loader-manifest
- *     meta — a chip naming it ("unassigned" items show a drop hint; element
- *     tags are never shown, they mean nothing to app users)
- *   - ＋ item / ＋ submenu append at any level; ✕ removes from the menu
- *     (the item's RDF stays in the document as "pantry" — recoverable)
+ *   - every row: drag-grip (reorder among siblings), an editable name, and
+ *     a chip per plugin the item holds (friendly names only — element tags
+ *     and URLs are never shown). A multi-plugin item lists ALL its plugins
+ *     as chips on the row itself; chips are draggable, so a plugin can be
+ *     dragged off an item. "Unassigned" items show a drop hint.
+ *   - ＋ item appends; ✕ removes from the menu (the item's RDF stays in
+ *     the document as "pantry" — recoverable)
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
  *     that row's component (ui:name + ui:attribute set); dropped between
  *     rows it inserts a new, fully-assigned item there
@@ -161,24 +162,50 @@ class SolMenuManager extends HTMLElement {
     const label = document.createElement('input');
     label.className = 'label';
     label.value = item.name || '';
-    label.placeholder = item.type === 'submenu' ? 'submenu name' : 'item name';
+    label.placeholder = 'item name';
     label.setAttribute('aria-label', 'Item name');
     label.addEventListener('input', () => { item.name = label.value; this._markDirty(); });
 
-    // The chip speaks to the app USER: a plugin's friendly name (from the
-    // loader-manifest meta) when one is known — never the element tag or a
-    // URL, which mean nothing to users. A link row's NAME already is the
-    // plugin's name, so it gets no chip; an assigned component with no
-    // friendly name likewise; "unassigned" keeps its drop hint.
-    let chip = document.createElement('span');
-    if (item.type === 'submenu') { chip.className = 'chip'; chip.textContent = 'submenu'; }
-    else if (item.type === 'link') { chip = null; }
-    else if (item.tag) {
-      const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
-      if (meta?.label) { chip.className = 'chip'; chip.textContent = meta.label; }
-      else chip = null;
+    // Chips speak to the app USER: a plugin's friendly name (loader-manifest
+    // meta label, else the plugin's own name) — never element tags or URLs.
+    // A multi-plugin item lists EVERY plugin as a chip ON ITS OWN ROW (no
+    // nested rows); each chip is draggable, so a plugin can be dragged off
+    // the item (or onto another). A link row's NAME already is the plugin's
+    // name, so a direct link gets no chip; "unassigned" keeps its drop hint.
+    const metaLabel = (tag) => (window.ComponentInterop?.manifest?.meta || {})[tag]?.label;
+    const chips = [];
+    if (item.type === 'submenu') {
+      if (!item.children) item.children = [];
+      for (const child of item.children) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = (child.tag && metaLabel(child.tag)) || child.name || '…';
+        chip.draggable = true;
+        chip.addEventListener('dragstart', (e) => {
+          this._dragItem = { item: child, siblings: item.children };
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', chip.textContent);
+          e.stopPropagation();
+        });
+        chip.addEventListener('dragend', () => { this._dragItem = null; });
+        chips.push(chip);
+      }
+    } else if (item.type === 'link') {
+      // name-only — the row's name is the plugin's name
+    } else if (item.tag) {
+      const friendly = metaLabel(item.tag);
+      if (friendly) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = friendly;
+        chips.push(chip);
+      }
+    } else {
+      const chip = document.createElement('span');
+      chip.className = 'chip empty';
+      chip.textContent = 'unassigned — drop a plugin here';
+      chips.push(chip);
     }
-    else { chip.className = 'chip empty'; chip.textContent = 'unassigned — drop a plugin here'; }
 
     const del = document.createElement('button');
     del.type = 'button';
@@ -191,16 +218,8 @@ class SolMenuManager extends HTMLElement {
       this._touch();
     });
 
-    if (chip) row.append(grip, label, chip, del);
-    else row.append(grip, label, del);
+    row.append(grip, label, ...chips, del);
     li.appendChild(row);
-
-    // submenu children + their adders
-    if (item.type === 'submenu') {
-      if (!item.children) item.children = [];
-      li.appendChild(this._tree(item.children, item.children));
-      li.appendChild(this._adders(item.children));
-    }
 
     this._wireRowDnd(row, item, siblings);
     return li;
@@ -218,17 +237,8 @@ class SolMenuManager extends HTMLElement {
       this._touch();
     });
     div.appendChild(addItem);
-    if (!this.constructor.flat) {
-      const addSub = document.createElement('button');
-      addSub.type = 'button';
-      addSub.className = 'add-btn';
-      addSub.textContent = '＋ submenu';
-      addSub.addEventListener('click', () => {
-        siblings.push({ type: 'submenu', id: null, name: '', children: [] });
-        this._touch();
-      });
-      div.appendChild(addSub);
-    }
+    // (No "＋ submenu" — a multi-plugin item is made by DROPPING more
+    // plugins on an item; its plugins list as chips on the row itself.)
     return div;
   }
 
