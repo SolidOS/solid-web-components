@@ -25,6 +25,17 @@ export const CSS = `
 .builder-status.error { color: var(--error, #c0392b); }
 .builder-status.saved { color: var(--success, #27ae60); }
 
+/* accordion mode (accordion= group attribute): the header stays visible and
+   toggles the body; a closed member is just its header row */
+:host([accordion]) .builder-head { cursor: pointer; user-select: none; }
+:host([accordion]) .builder-head:focus-visible { outline: 2px solid var(--accent, #3498db); outline-offset: 2px; border-radius: 5px; }
+.builder-disclosure { flex: 0 0 auto; font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
+.builder-disclosure::before { content: '▶'; }
+:host([open]) .builder-disclosure::before { content: '▼'; }
+:host([accordion]:not([open])) .builder > ul.tree,
+:host([accordion]:not([open])) .builder > .adders { display: none; }
+:host([accordion]:not([open])) .builder-head { margin-bottom: 0; }
+
 ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; }
 ul.tree ul { padding-left: 1.4rem; border-left: 1px dashed var(--border, #d0d0d0); margin-left: .55rem; }
 
@@ -51,6 +62,10 @@ li.item { margin: .15rem 0; }
 .chip { flex: 0 0 auto; font-size: max(16px, 1em); padding: .1rem .45rem; border-radius: 99px;
         background: var(--hover, #eaf2fb); color: var(--text-muted, #5d6d7e); white-space: nowrap; }
 .chip.empty { background: transparent; border: 1px dashed var(--border, #c0c0c0); }
+/* a dragged chip held over another chip's left/right half — the reorder
+   insertion point within the item */
+.chip.drop-before { box-shadow: -3px 0 0 0 var(--accent, #3498db); }
+.chip.drop-after  { box-shadow:  3px 0 0 0 var(--accent, #3498db); }
 
 .row-btn { flex: 0 0 auto; font: inherit; font-size: max(16px, 1em); line-height: 1; padding: .2rem .35rem;
            border: none; border-radius: 5px; background: transparent; cursor: pointer;

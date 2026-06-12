@@ -12,13 +12,22 @@
  *             plugin's DISPLAY name from the catalog (matched by what the
  *             item mounts: tag + source attribute, or href) — e.g. "Movies
  *             (Internet Archive)", never "ia-player".
+ *   heading — replaces the built-in header title ("Menu: <label>") with the
+ *             given text.
+ *   accordion — group name; the header becomes a click-to-open toggle, and
+ *             opening one manager closes the other members of its group
+ *             (each header stays visible). Pairs with `open`:
+ *   open    — the manager's body (rows + add input) is shown. Without
+ *             `accordion` the body is always shown and `open` is ignored.
  *
  * Editing model:
  *   - every row: drag-grip (reorder among siblings), an editable name, and
  *     a chip per plugin the item holds (friendly names only — element tags
  *     and URLs are never shown). A multi-plugin item lists ALL its plugins
  *     as chips on the row itself; chips are draggable, so a plugin can be
- *     dragged off an item. "Unassigned" items show a drop hint.
+ *     dragged off an item — and chips are drop targets, so dropping a chip
+ *     on another's left/right half REORDERS the plugins within the item.
+ *     "Unassigned" items show a drop hint.
  *   - ＋ item appends; ✕ removes from the menu (the item's RDF stays in
  *     the document as "pantry" — recoverable)
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
@@ -77,6 +86,34 @@ class SolMenuManager extends HTMLElement {
       };
     }
     document.addEventListener('sol-menu-built', this._onMenuBuilt);
+    // Accordion peers: when another member of this group opens, close.
+    if (!this._onAccordionOpen) {
+      this._onAccordionOpen = (e) => {
+        const group = this.getAttribute('accordion');
+        if (!group || e.target === this) return;
+        if (e.detail && e.detail.group === group) {
+          this.removeAttribute('open');
+          this._headEl?.setAttribute('aria-expanded', 'false');
+        }
+      };
+    }
+    document.addEventListener('sol-accordion-open', this._onAccordionOpen);
+    // The app's shell sync (dk-tabs-sync) reports whether the companion HTML
+    // regeneration landed for our document. Our own "saved ✓" covers only the
+    // RDF PUT — upgrade it when the shell write succeeded too, downgrade to a
+    // visible error when it failed. (No sync listener in the app → the plain
+    // "saved ✓" simply stands.)
+    if (!this._onShellSynced) {
+      this._onShellSynced = (e) => {
+        const src = (e.detail && e.detail.source) || '';
+        try {
+          if (new URL(src.split('#')[0], document.baseURI).href !== this._docUrl()) return;
+        } catch { return; }
+        if (e.detail.ok) this._note('saved ✓ (menu + shell)', 'saved');
+        else this._note('saved, but the shell update FAILED — reload may show stale tabs', 'error');
+      };
+    }
+    document.addEventListener('sol-shell-synced', this._onShellSynced);
     if (this._built) return;
     this._built = true;
     this._root = document.createElement('div');
@@ -87,6 +124,8 @@ class SolMenuManager extends HTMLElement {
 
   disconnectedCallback() {
     if (this._onMenuBuilt) document.removeEventListener('sol-menu-built', this._onMenuBuilt);
+    if (this._onAccordionOpen) document.removeEventListener('sol-accordion-open', this._onAccordionOpen);
+    if (this._onShellSynced) document.removeEventListener('sol-shell-synced', this._onShellSynced);
   }
 
   get source() { return this.getAttribute('source') || ''; }
@@ -175,9 +214,36 @@ class SolMenuManager extends HTMLElement {
     head.className = 'builder-head';
     const title = document.createElement('span');
     title.className = 'builder-title';
-    title.textContent = `${this.constructor.title}: ${this._meta.label || ''}`;
+    title.textContent = this.getAttribute('heading')
+      || `${this.constructor.title}: ${this._meta.label || ''}`;
     this._status = document.createElement('span');
     this._status.className = 'builder-status';
+    // Accordion: the whole header is the click-to-open toggle. Opening
+    // announces the group so the other members close ("exactly one open");
+    // clicking the open member is a no-op, so its body never disappears
+    // without a replacement.
+    const group = this.getAttribute('accordion');
+    if (group) {
+      const marker = document.createElement('span');
+      marker.className = 'builder-disclosure';
+      head.prepend(marker);
+      head.setAttribute('role', 'button');
+      head.tabIndex = 0;
+      head.setAttribute('aria-expanded', String(this.hasAttribute('open')));
+      const open = () => {
+        if (this.hasAttribute('open')) return;
+        this.setAttribute('open', '');
+        head.setAttribute('aria-expanded', 'true');
+        this.dispatchEvent(new CustomEvent('sol-accordion-open', {
+          bubbles: true, composed: true, detail: { group },
+        }));
+      };
+      head.addEventListener('click', open);
+      head.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      });
+    }
+    this._headEl = head;
     head.append(title, this._status);
     return head;
   }
@@ -250,6 +316,36 @@ class SolMenuManager extends HTMLElement {
           e.stopPropagation();
         });
         chip.addEventListener('dragend', () => { this._dragItem = null; });
+        // A chip is also a DROP target for another dragged chip: dropping on
+        // its left/right half places the dragged plugin before/after it in
+        // this submenu — reordering within the item (or moving in from
+        // another row, at an exact position). Palette cards are not handled
+        // here — they keep bubbling to the row (assign / add-to-submenu).
+        chip.addEventListener('dragover', (e) => {
+          const drag = this._dragItem;
+          if (!drag || drag.item === child) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const r = chip.getBoundingClientRect();
+          const before = e.clientX < r.left + r.width / 2;
+          chip.classList.toggle('drop-before', before);
+          chip.classList.toggle('drop-after', !before);
+        });
+        chip.addEventListener('dragleave', () => chip.classList.remove('drop-before', 'drop-after'));
+        chip.addEventListener('drop', (e) => {
+          const drag = this._dragItem;
+          if (!drag || drag.item === child) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const r = chip.getBoundingClientRect();
+          const before = e.clientX < r.left + r.width / 2;
+          chip.classList.remove('drop-before', 'drop-after');
+          const { item: moved, siblings: from } = drag;
+          from.splice(from.indexOf(moved), 1);
+          const at = item.children.indexOf(child) + (before ? 0 : 1);
+          item.children.splice(at, 0, moved);
+          this._touch();
+        });
         chips.push(chip);
       }
       if (!chips.length) {
