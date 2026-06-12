@@ -38,9 +38,12 @@ li.item { margin: .15rem 0; }
 .row.drop-after  { box-shadow: 0  2px 0 0 var(--accent, #3498db); }
 
 .grip { cursor: grab; color: var(--text-muted, #9aa0a6); user-select: none; padding: 0 .15rem; }
+/* Editable names LOOK like input fields: always boxed, light background,
+   dark text (whatever the app theme). */
 .label { flex: 1 1 auto; min-width: 6rem; font: inherit; font-size: max(16px, 1em); padding: .15rem .4rem;
-         border: 1px solid transparent; border-radius: 5px; background: transparent; color: inherit; }
-.label:hover, .label:focus { border-color: var(--border, #c0c0c0); background: var(--surface, #fff); outline: none; }
+         border: 1px solid var(--border, #c0c0c0); border-radius: 5px;
+         background: #fafafa; color: #1a1a1a; }
+.label:hover, .label:focus { border-color: var(--accent, #3498db); outline: none; }
 .chip { flex: 0 0 auto; font-size: max(16px, 1em); padding: .1rem .45rem; border-radius: 99px;
         background: var(--hover, #eaf2fb); color: var(--text-muted, #5d6d7e); white-space: nowrap; }
 .chip.empty { background: transparent; border: 1px dashed var(--border, #c0c0c0); }
@@ -58,7 +61,8 @@ li.item { margin: .15rem 0; }
 .add-btn:hover { background: var(--hover, #eaf2fb); color: var(--text, #111); }
 .add-input { flex: 1 1 auto; min-width: 12rem; font: inherit; font-size: max(16px, 1em);
              padding: .25rem .5rem; border: 1px dashed var(--border, #c0c0c0); border-radius: 6px;
-             background: transparent; color: inherit; }
+             background: #fafafa; color: #1a1a1a; }
+.add-input::placeholder { color: #777; }
 .add-input:focus { border-color: var(--accent, #3498db); outline: none; }
 .add-input.drop-over { border-style: solid; border-color: var(--accent, #3498db);
                        background: var(--hover, #eaf2fb); }
@@ -100,7 +104,8 @@ li.item { margin: .15rem 0; }
 .url-row { display: flex; gap: .4rem; margin-top: .55rem; }
 .url-input { flex: 1 1 auto; min-width: 10rem; font: inherit; font-size: max(16px, 1em);
              padding: .25rem .5rem; border: 1px solid var(--border, #c0c0c0); border-radius: 6px;
-             background: var(--surface, #fff); color: inherit; }
+             background: #fafafa; color: #1a1a1a; }
+.url-input::placeholder { color: #777; }
 .url-input:focus { border-color: var(--accent, #3498db); outline: none; }
 `;
 export default CSS;
