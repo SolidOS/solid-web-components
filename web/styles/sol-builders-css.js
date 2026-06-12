@@ -74,7 +74,10 @@ li.item { margin: .15rem 0; }
 .topic-tab:hover { background: var(--hover, #eaf2fb); color: var(--text, #212121); }
 .topic-tab.active { background: var(--accent, #3498db); border-color: var(--accent, #3498db); color: #fff; }
 .card.ghost { border-style: dashed; background: transparent; opacity: .85; }
-.card-byline { align-self: flex-end; margin-top: .15rem; font-style: italic;
+/* margin-top:auto pins the byline to the card's bottom edge, so authors
+   line up across a row no matter how long each description is (cards in a
+   row stretch to equal height). */
+.card-byline { align-self: flex-end; margin-top: auto; padding-top: .15rem; font-style: italic;
                font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
 .card-ghost-note { font-size: max(16px, 1em); font-style: italic; color: var(--text-muted, #7f8c8d); }
 .url-row { display: flex; gap: .4rem; margin-top: .55rem; }
