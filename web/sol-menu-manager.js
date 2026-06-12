@@ -289,7 +289,12 @@ class SolMenuManager extends HTMLElement {
       this._touch();
     });
 
-    row.append(grip, label, ...chips, del);
+    // Three columns: [grip + name field] [plugins — wrapping in their own
+    // column, a second row of chips starts under the first chip] [✕ right].
+    const chipCol = document.createElement('span');
+    chipCol.className = 'chips';
+    chipCol.append(...chips);
+    row.append(grip, label, chipCol, del);
     li.appendChild(row);
 
     this._wireRowDnd(row, item, siblings);

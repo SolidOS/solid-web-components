@@ -29,9 +29,13 @@ ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; }
 ul.tree ul { padding-left: 1.4rem; border-left: 1px dashed var(--border, #d0d0d0); margin-left: .55rem; }
 
 li.item { margin: .15rem 0; }
-/* rows WRAP (chips flow onto more lines) — never scroll horizontally */
-.row { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; padding: .2rem .35rem;
+/* row = three columns: [grip + name] [plugins column] [✕ at the right];
+   chips WRAP within their own column (a second row of plugins starts under
+   the first) — never horizontal scrolling */
+.row { display: flex; align-items: flex-start; gap: .4rem; padding: .2rem .35rem;
        border: 1px solid transparent; border-radius: 7px; background: var(--bg, #fafafa); }
+.row > .chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+                flex: 1 1 auto; min-width: 0; }
 .row:hover { border-color: var(--border, #d0d0d0); }
 .row.drop-target { outline: 2px solid var(--accent, #3498db); outline-offset: -2px; }
 .row.drop-before { box-shadow: 0 -2px 0 0 var(--accent, #3498db); }
