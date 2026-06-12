@@ -66,7 +66,6 @@ li.item { margin: .15rem 0; }
              text-decoration: none; border: 1px solid var(--border, #d0d0d0); border-radius: 50%;
              width: 1.2em; height: 1.2em; line-height: 1.2em; text-align: center; }
 .card-help:hover { color: var(--accent, #3498db); border-color: var(--accent, #3498db); }
-.card-tag { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); font-family: var(--font-mono, monospace); }
 .card-desc { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); max-width: 16rem; }
 
 /* plugin manager: drop target, topic groups, ghost cards, manifest-URL row */

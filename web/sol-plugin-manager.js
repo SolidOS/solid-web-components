@@ -320,14 +320,12 @@ class SolPluginManager extends HTMLElement {
       help.addEventListener('dragstart', (e) => e.preventDefault());
       top.appendChild(help);
     }
-    const tag = document.createElement('span');
-    tag.className = 'card-tag';
-    tag.textContent = `<${p.tag}>`;
-    // Tooltips speak to the app USER, never about internals (no tags, no
-    // attribute dumps): the manifest's hover text, else the card blurb.
+    // No tag line — element names mean nothing to the app user; the card is
+    // its icon, name and blurb. Tooltips likewise speak to the USER (the
+    // manifest's hover text, else the blurb) — never tags or attributes.
     const hover = p.title || p.description;
     if (hover) card.title = hover;
-    card.append(top, tag);
+    card.append(top);
     if (p.description) {
       const desc = document.createElement('span');
       desc.className = 'card-desc';

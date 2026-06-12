@@ -9,8 +9,10 @@
  *   source — Turtle document + #fragment of the ui:Menu to edit (required).
  *
  * Editing model:
- *   - every row: drag-grip (reorder among siblings), an editable name, a chip
- *     showing what the item mounts (its ui:name tag) or "unassigned"
+ *   - every row: drag-grip (reorder among siblings), an editable name, and —
+ *     when the mounted plugin has a friendly name in the loader-manifest
+ *     meta — a chip naming it ("unassigned" items show a drop hint; element
+ *     tags are never shown, they mean nothing to app users)
  *   - ＋ item / ＋ submenu append at any level; ✕ removes from the menu
  *     (the item's RDF stays in the document as "pantry" — recoverable)
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
@@ -145,12 +147,18 @@ class SolMenuManager extends HTMLElement {
     label.setAttribute('aria-label', 'Item name');
     label.addEventListener('input', () => { item.name = label.value; this._markDirty(); });
 
-    const chip = document.createElement('span');
+    // The chip speaks to the app USER: a plugin's friendly name (from the
+    // loader-manifest meta) when one is known — never the element tag, which
+    // means nothing to users. An assigned item with no friendly name shows
+    // no chip at all; "unassigned" keeps its drop hint.
+    let chip = document.createElement('span');
     if (item.type === 'submenu') { chip.className = 'chip'; chip.textContent = 'submenu'; }
     else if (item.type === 'link') { chip.className = 'chip'; chip.textContent = item.href ? `link → ${item.href}` : 'link'; }
-    // No tooltip on the chip — an attribute dump is programmer-speak; the
-    // chip itself already names what the item mounts.
-    else if (item.tag) { chip.className = 'chip'; chip.textContent = `<${item.tag}>`; }
+    else if (item.tag) {
+      const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
+      if (meta?.label) { chip.className = 'chip'; chip.textContent = meta.label; }
+      else chip = null;
+    }
     else { chip.className = 'chip empty'; chip.textContent = 'unassigned — drop a plugin here'; }
 
     const del = document.createElement('button');
@@ -164,7 +172,8 @@ class SolMenuManager extends HTMLElement {
       this._touch();
     });
 
-    row.append(grip, label, chip, del);
+    if (chip) row.append(grip, label, chip, del);
+    else row.append(grip, label, del);
     li.appendChild(row);
 
     // submenu children + their adders
