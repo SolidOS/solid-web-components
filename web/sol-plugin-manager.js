@@ -208,7 +208,6 @@ class SolPluginManager extends HTMLElement {
         icon: m.icon,
         title: m.title,
         description: m.description,
-        help: m.help,
         params: (m.params || []).map((pv) => [pv.name, pv.value]),
         ghost: true,
       });
@@ -217,8 +216,9 @@ class SolPluginManager extends HTMLElement {
   }
 
   // Enrich an owned entry's card with its tag's manifest meta (icon / hover
-  // title / description / help fill gaps). The entry's own ui:icon and
-  // rdfs:comment (the curated icon + card blurb) win over manifest meta.
+  // title / description fill gaps). The entry's own ui:icon and rdfs:comment
+  // (the curated icon + card blurb) win over manifest meta. (No help link on
+  // cards — plugin help belongs to the app's ? button, not the catalog.)
   _withManifestMeta(item) {
     const meta = (window.ComponentInterop
       && window.ComponentInterop.manifest
@@ -229,7 +229,6 @@ class SolPluginManager extends HTMLElement {
       icon: item.icon || m.icon,
       title: m.title,
       description: item.comment || m.description,
-      help: m.help,
     };
   }
 
@@ -325,17 +324,6 @@ class SolPluginManager extends HTMLElement {
     label.className = 'card-label';
     label.textContent = p.name || p.tag;
     top.appendChild(label);
-    if (p.help) {
-      const help = document.createElement('a');
-      help.className = 'card-help';
-      help.href = p.help;
-      help.target = '_blank';
-      help.rel = 'noopener';
-      help.textContent = '?';
-      help.setAttribute('aria-label', `Help for ${p.name || p.tag}`);
-      help.addEventListener('dragstart', (e) => e.preventDefault());
-      top.appendChild(help);
-    }
     // No tag line — element names mean nothing to the app user; the card is
     // its icon, name and blurb. Tooltips likewise speak to the USER (the
     // manifest's hover text, else the blurb) — never tags or attributes.
