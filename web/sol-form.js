@@ -124,7 +124,7 @@ class SolForm extends HTMLElement {
     const root = this.shadowRoot;
     root.innerHTML = `
       <div class="sol-form-body"></div>
-      <div class="sol-form-save-bar">
+      <div class="sol-form-save-bar" style="display:none">
         <div class="sol-form-validation-summary" style="display:none"></div>
         <div class="sol-form-pod-url" style="display:none">
           <label>Save to:
@@ -152,10 +152,34 @@ class SolForm extends HTMLElement {
       if (!input.value && this.getAttribute('save-to')) input.value = this.getAttribute('save-to');
       input.focus();
     }
+    this._syncSaveBar();
   }
 
   _showSaveButton(show) {
     this.shadowRoot.querySelector('.sol-form-save-btn').style.display = show ? '' : 'none';
+    this._syncSaveBar();
+  }
+
+  // The save bar paints a panel (border + muted background); an auto-saving
+  // form with a preset location has nothing to put in it, and the empty panel
+  // reads as a stray stripe. Show the bar only while one of its pieces —
+  // validation summary, location prompt, Save button, status text — is
+  // actually visible (and never while suppressed: read-only / rolodex).
+  _syncSaveBar() {
+    const root = this.shadowRoot;
+    const bar = root.querySelector('.sol-form-save-bar');
+    if (!bar) return;
+    if (this._barSuppressed) { bar.style.display = 'none'; return; }
+    const visible = (sel) => {
+      const el = root.querySelector(sel);
+      return !!el && el.style.display !== 'none';
+    };
+    const status = root.querySelector('.sol-form-save-status');
+    const any = visible('.sol-form-validation-summary')
+      || visible('.sol-form-pod-url')
+      || visible('.sol-form-save-btn')
+      || !!(status && status.textContent);
+    bar.style.display = any ? '' : 'none';
   }
 
   // ── loading ──
@@ -423,9 +447,9 @@ class SolForm extends HTMLElement {
         }
       },
     });
-    // Hide the save bar entirely when read-only — nothing to save.
-    const saveBar = this.shadowRoot.querySelector('.sol-form-save-bar');
-    if (saveBar) saveBar.style.display = readOnly ? 'none' : '';
+    // Suppress the save bar entirely when read-only — nothing to save.
+    this._barSuppressed = readOnly;
+    this._syncSaveBar();
   }
 
   // ── rolodex view (one form per matching subject) ──
@@ -791,8 +815,8 @@ class SolForm extends HTMLElement {
     if (!subjects.length && editable) { card.replaceChildren(); counter.textContent = '0 of 0'; }
     else show(Math.min(startIndex, subjects.length - 1));
 
-    const saveBar = this.shadowRoot.querySelector('.sol-form-save-bar');
-    if (saveBar) saveBar.style.display = 'none';
+    this._barSuppressed = true;   // rolodex cards save themselves
+    this._syncSaveBar();
   }
 
   // ── save ──
@@ -909,7 +933,7 @@ class SolForm extends HTMLElement {
 
   _showValidation(report) {
     const el = this.shadowRoot.querySelector('.sol-form-validation-summary');
-    if (!report || report.conforms) { el.style.display = 'none'; return; }
+    if (!report || report.conforms) { el.style.display = 'none'; this._syncSaveBar(); return; }
     const msgs = Array.from(report.results || []).map(r => {
       const path = r.path ? r.path.value.replace(/.*[/#]/, '') : '';
       const msg = (Array.isArray(r.message) ? r.message[0]?.value : r.message?.value) || 'Validation error';
@@ -917,11 +941,13 @@ class SolForm extends HTMLElement {
     });
     el.innerHTML = `<strong>Validation errors:</strong><ul>${msgs.map(m => `<li>${this._esc(m)}</li>`).join('')}</ul>`;
     el.style.display = 'block';
+    this._syncSaveBar();
   }
 
   _hideValidation() {
     const el = this.shadowRoot.querySelector('.sol-form-validation-summary');
     if (el) el.style.display = 'none';
+    this._syncSaveBar();
   }
 
   // ── small UI helpers ──
@@ -930,11 +956,13 @@ class SolForm extends HTMLElement {
     const el = this.shadowRoot.querySelector('.sol-form-save-status');
     el.className = 'sol-form-save-status ' + cls;
     el.textContent = msg;
+    this._syncSaveBar();
   }
 
   _clearStatus() {
     const el = this.shadowRoot.querySelector('.sol-form-save-status');
     if (el) { el.className = 'sol-form-save-status'; el.textContent = ''; }
+    this._syncSaveBar();
   }
 
   _esc(s) {

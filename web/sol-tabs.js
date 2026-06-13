@@ -432,6 +432,9 @@ class SolTabs extends HTMLElement {
     }
     const sub = document.createElement('sol-tabs');
     sub.setAttribute('variant', 'sub');
+    // A nested navigation strip is not a user setting — keep its menu editor
+    // out of <sol-settings>' collected panels.
+    sub.setAttribute('data-settings-skip', '');
     sub.tabs = kept.map(({ w }) => w);
     body.appendChild(sub);
     sub.switchTab(kept[0].w.name);

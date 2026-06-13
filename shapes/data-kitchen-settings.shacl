@@ -40,12 +40,6 @@ swc:DataKitchenSettingsFile
     sh:name "Font size" ;
   ] ,
   [
-    sh:path ui:editorKeys ;
-    sh:class ui:EditorKeys ;
-    sh:maxCount 1 ;
-    sh:name "Editor keys" ;
-  ] ,
-  [
     sh:path ui:proxy ;
     sh:datatype xsd:string ;
     sh:maxCount 1 ;
