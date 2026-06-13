@@ -355,7 +355,15 @@ class SolMenuManager extends HTMLElement {
         chips.push(hint);
       }
     } else if (item.type === 'link') {
-      // name-only — the row's name is the plugin's name
+      // A link shows its plugin chip too (catalog label, else its own name) —
+      // same as a component, so a dropped link reads the same in the editor.
+      const friendly = this._catalogName(item) || item.name || '';
+      if (friendly) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = friendly;
+        chips.push(chip);
+      }
     } else if (item.tag) {
       // direct items always show their plugin chip (bar buttons included),
       // even when it matches the row's name — the artifact suppression only

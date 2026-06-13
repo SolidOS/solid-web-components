@@ -430,7 +430,24 @@ class SolPluginManager extends HTMLElement {
       const icon = document.createElement('span');
       icon.className = 'card-icon';
       icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = p.icon;
+      // An emoji icon paints as text; a URL or data: icon (e.g. a site
+      // favicon) paints as an <img> — same split sol-menu makes for its icons.
+      if (/^(?:https?:\/\/|data:|\.{0,2}\/)/.test(p.icon)) {
+        if (p.icon.startsWith('data:image/svg+xml')) {
+          try {
+            icon.innerHTML = decodeURIComponent(p.icon.replace('data:image/svg+xml,', ''));
+            const svg = icon.querySelector('svg');
+            if (svg) { svg.setAttribute('width', '1.2em'); svg.setAttribute('height', '1.2em'); }
+          } catch { icon.textContent = p.icon; }
+        } else {
+          const img = document.createElement('img');
+          img.src = p.icon;
+          img.alt = '';
+          icon.appendChild(img);
+        }
+      } else {
+        icon.textContent = p.icon;
+      }
       top.appendChild(icon);
     }
     const label = document.createElement('span');

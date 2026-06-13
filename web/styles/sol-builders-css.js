@@ -97,6 +97,7 @@ li.item { margin: .15rem 0; }
 .card.dragging { opacity: .5; }
 .card-top { display: flex; align-items: center; gap: .3rem; }
 .card-icon { font-size: max(16px, 1em); }
+.card-icon img { width: 1.2em; height: 1.2em; object-fit: contain; vertical-align: middle; }
 .card-label { font-size: max(16px, 1em); font-weight: 600; }
 .card-desc { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
 

@@ -254,16 +254,50 @@ class SolTabs extends HTMLElement {
   // tag, ui:label → text, ui:attribute → attributes; the slot="actions" marker
   // is dropped). Mirrors an inline non-anchor launcher.
   _buildLauncher(desc) {
+    // A link part has no component tag — render it as a bar button that opens
+    // its href like the help button (an inline overlay in the tab content),
+    // but KEEP-ALIVE: the embed mounts once and toggles hidden/shown, so its
+    // state survives (help rebuilds each toggle; this preserves it).
+    if (desc.type === 'link' && desc.href) return this._buildLinkLauncher(desc);
     const el = document.createElement(desc.tag);
     if (desc.region) el.setAttribute('region', desc.region);
     for (const [k, v] of desc.params || []) {
       if (k === 'slot' && v === 'actions') continue;
       el.setAttribute(k, v);
     }
+    // Every launcher gets a hover tooltip — keep an explicit title= param, else
+    // fall back to the plugin's name (icon-only buttons need it most).
+    if (!el.hasAttribute('title') && desc.name) el.setAttribute('title', desc.name);
     // Only a button carries its label as text (?, A, 🌙); search / login /
     // dropdown render themselves, so a text node would show as a bare word.
     if (desc.name && desc.tag === 'sol-button') el.textContent = desc.name;
     return el;
+  }
+
+  // A link launcher: an icon button on the bar. Its favicon shows as the icon
+  // (a URL/data: ui:icon paints as <img>; an emoji paints as text — the same
+  // split sol-plugin-manager makes for its catalog cards). Clicking opens the
+  // href with window.open: in the desktop app main's setWindowOpenHandler
+  // routes that into a NATIVE reader view (no iframe — so cross-origin sites
+  // that block framing still load); in a browser it's a normal new tab. This
+  // mirrors what a ui:region ui:Tab launcher does (display-target's 'tab' case).
+  _buildLinkLauncher(desc) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sol-bar-link';
+    const title = desc.name || desc.href;
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+    const icon = desc.icon || '';
+    if (/^(?:https?:\/\/|data:|\.{0,2}\/)/.test(icon)) {
+      const img = document.createElement('img');
+      img.src = icon; img.alt = '';
+      btn.appendChild(img);
+    } else {
+      btn.textContent = icon || desc.name || '🔗';
+    }
+    btn.addEventListener('click', () => { if (desc.href) window.open(desc.href, '_blank'); });
+    return btn;
   }
 
   // Wrap the plain item descriptions from core/menu-rdf.js with render
@@ -483,6 +517,7 @@ class SolTabs extends HTMLElement {
       btn.type = 'button';
       btn.setAttribute('role', 'tab');
       btn.textContent = tab.name;
+      btn.title = tab.name;   // hover tooltip (and the full name when a tab label is truncated)
       if (tab.id) btn.dataset.tabId = tab.id;
       btn.onclick = () => this.switchTab(tab.name);
       bar.appendChild(btn);

@@ -139,4 +139,20 @@ export const CSS = `
   sol-tabs > .sol-tabs-content pre {
     max-width: 100%;
   }
+  /* Link launchers (sol-tabs.js _buildLinkLauncher): an icon button on the bar
+     whose click toggles a keep-alive embed overlay over the tab content. */
+  sol-tabs > .sol-tabs-bar .sol-bar-link {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer;
+    padding: 4px; border-radius: 4px; color: inherit;
+    font-size: max(16px, 1em); line-height: 1; font-family: inherit;
+  }
+  sol-tabs > .sol-tabs-bar .sol-bar-link:hover { background: var(--focus-bg, #e3f2fd); }
+  sol-tabs > .sol-tabs-bar .sol-bar-link[aria-expanded="true"] {
+    background: var(--focus-bg, #e3f2fd);
+    box-shadow: inset 0 0 0 2px var(--accent-dark, #1976d2);
+  }
+  sol-tabs > .sol-tabs-bar .sol-bar-link img {
+    width: 1.3em; height: 1.3em; object-fit: contain; display: block;
+  }
 `;
