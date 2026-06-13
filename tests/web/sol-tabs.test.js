@@ -199,7 +199,10 @@ describe('SolTabs — from-rdf loading', () => {
   });
 });
 
-// ── nested ui:Menu → all children stacked in the one pane ───────────────────
+// ── nested ui:Menu → the HYBRID rule ─────────────────────────────────────────
+// A submenu containing any ui:Link is navigation: it renders as a nested
+// <sol-tabs variant="sub"> strip, one child at a time, lazily. A submenu of
+// ONLY components (a multi-plugin tab) stacks all its children in the pane.
 
 describe('SolTabs — nested ui:Menu', () => {
   beforeEach(() => { mockStore = buildStore(); });
@@ -215,28 +218,69 @@ describe('SolTabs — nested ui:Menu', () => {
     expect(labels).not.toContain('Dark');
   });
 
-  test('selecting the nested tab stacks ALL its children in the pane', async () => {
+  test('a link-bearing submenu renders as a nested sub-tab strip', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     el.switchTab('Settings');
-    // no sub-tab strip — every child is rendered at once, one slot each
-    expect(content(el).querySelector('sol-tabs[variant="sub"]')).toBeNull();
-    const pane = content(el);
-    const slots = pane.querySelectorAll('.sol-tabs-stack-item');
-    expect(slots.length).toBe(2);
+    const sub = content(el).querySelector('sol-tabs[variant="sub"]');
+    expect(sub).toBeTruthy();
+    // the strip is navigation, not a user setting — opted out of sol-settings
+    expect(sub.hasAttribute('data-settings-skip')).toBe(true);
+    const labels = Array.from(sub.querySelectorAll(':scope > .sol-tabs-bar button'))
+      .map((b) => b.textContent);
+    expect(labels).toEqual(['Light', 'Dark']);
+    // strip, not stack
+    expect(content(el).querySelectorAll('.sol-tabs-stack-item').length).toBe(0);
   });
 
-  test('all stacked children are live at the same time', async () => {
+  test('sub-tab children render lazily, one at a time', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     el.switchTab('Settings');
-    const text = content(el).textContent;
-    expect(text).toContain('light content');
-    expect(text).toContain('dark content');
+    const sub = content(el).querySelector('sol-tabs[variant="sub"]');
+    expect(content(el).textContent).toContain('light content');
+    expect(content(el).textContent).not.toContain('dark content');
+
+    Array.from(sub.querySelectorAll(':scope > .sol-tabs-bar button'))
+      .find((b) => b.textContent === 'Dark').click();
+    await flush();
+    expect(content(el).textContent).toContain('dark content');
+  });
+
+  test('an all-component submenu stacks every child in the pane', async () => {
+    // Own root so the #Main-based count assertions elsewhere stay untouched:
+    // #StackMain → ( #Tools ), #Tools → ( #Table #About ) — components only.
+    const s = (v) => rdflib.sym(v);
+    const l = (v) => rdflib.literal(v);
+    mockStore = buildStore();
+    mockStore.add(s(BASE + '#StackMain'), s(RDF + 'type'), s(UI + 'Menu'));
+    mockStore.add(s(BASE + '#StackMain'), s(UI + 'label'), l('stackmain'));
+    const m1 = s(BASE + '#_m1');
+    mockStore.add(s(BASE + '#StackMain'), s(UI + 'parts'), m1);
+    mockStore.add(m1, s(RDF + 'first'), s(BASE + '#Tools'));
+    mockStore.add(m1, s(RDF + 'rest'), s(RDF + 'nil'));
+    mockStore.add(s(BASE + '#Tools'), s(RDF + 'type'), s(UI + 'Menu'));
+    mockStore.add(s(BASE + '#Tools'), s(UI + 'label'), l('Tools'));
+    const t1 = s(BASE + '#_t1');
+    const t2 = s(BASE + '#_t2');
+    mockStore.add(s(BASE + '#Tools'), s(UI + 'parts'), t1);
+    mockStore.add(t1, s(RDF + 'first'), s(BASE + '#Table'));
+    mockStore.add(t1, s(RDF + 'rest'), t2);
+    mockStore.add(t2, s(RDF + 'first'), s(BASE + '#About'));
+    mockStore.add(t2, s(RDF + 'rest'), s(RDF + 'nil'));
+
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('from-rdf', BASE + '#StackMain');
+    await flush();
+
+    el.switchTab('Tools');
+    // no sub-tab strip — every child is rendered at once, one slot each
+    expect(content(el).querySelector('sol-tabs[variant="sub"]')).toBeNull();
+    expect(content(el).querySelectorAll('.sol-tabs-stack-item').length).toBe(2);
   });
 });
 
