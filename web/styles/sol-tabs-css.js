@@ -109,6 +109,27 @@ export const CSS = `
     border-bottom-color: var(--accent-dark, #1976d2);
     font-weight: 600;
   }
+  /* A submenu tab is a <sol-dropdown-button> launcher on the bar (sol-tabs.js
+     _buildSubmenuDropdown). Style its trigger to read as a tab — same padding,
+     colour and active underline as a plain tab button. */
+  sol-tabs > .sol-tabs-bar > sol-dropdown-button.sol-tabs-submenu::part(trigger) {
+    background: none; border: none;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    padding: 1rem;
+    font-size: max(16px, 105%);
+    color: var(--text-muted, #666);
+    cursor: pointer; margin-bottom: -1px; font-family: inherit;
+    white-space: nowrap;
+  }
+  sol-tabs > .sol-tabs-bar > sol-dropdown-button.sol-tabs-submenu::part(trigger):hover {
+    color: var(--accent-dark, #1976d2);
+  }
+  sol-tabs > .sol-tabs-bar > sol-dropdown-button.sol-tabs-submenu.active::part(trigger) {
+    color: var(--accent-dark, #1976d2);
+    border-bottom-color: var(--accent-dark, #1976d2);
+    font-weight: 600;
+  }
   sol-tabs > .sol-tabs-actions {
     flex-shrink: 0;
     display: flex;

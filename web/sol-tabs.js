@@ -317,6 +317,10 @@ class SolTabs extends HTMLElement {
           name: desc.name,
           id: desc.id,
           sig,
+          // A from-rdf submenu renders as a dropdown launcher on the bar (see
+          // _buildSubmenuDropdown) — the in-pane render is the fallback used
+          // when the dropdown path is unavailable (no from-rdf / no loader).
+          isSubmenu: true,
           render: (body) => this._renderSubmenu(body, desc.children, children, desc.name),
         };
       }
@@ -502,6 +506,48 @@ class SolTabs extends HTMLElement {
   get activeTab() { return this._active; }
   get body() { return this.querySelector(':scope > .sol-tabs-content'); }
 
+  // The menu document URL behind `from-rdf`, without its #fragment — the base
+  // for a submenu's own subject IRI (doc#SubmenuId), used as a dropdown source.
+  _menuDocUrl() {
+    const v = this.getAttribute('from-rdf') || '';
+    return v ? v.split('#')[0] : '';
+  }
+
+  // A from-rdf submenu can render as a bar dropdown when we can address its
+  // subject (the menu doc URL) and the menu-from-rdf loader is active.
+  _canDropdown() {
+    return !!this._menuDocUrl() && !!this.constructor.fromRdfLoader;
+  }
+
+  // Build a <sol-dropdown-button> for a submenu tab. It loads the submenu's own
+  // subject (doc#id) — the same ui:Menu shape the ☰ menu uses — and renders its
+  // items as a vertical dropdown. `region="#paneId"` routes a picked item into
+  // THIS tab's pane (a keep-alive pane like any other tab's); component-mount's
+  // pruneSiblings then makes repeated picks switch within the pane. On a pick we
+  // surface that pane by switching to this tab.
+  _buildSubmenuDropdown(tab, i) {
+    if (!this.id) this.id = `sol-tabs-${++_solTabsUid}`;
+    const paneId = `${this.id}__sub__${tab.id || i}`;
+    tab._paneId = paneId;
+    tab.render = () => {};                 // the pane is filled by the dropdown's picks
+    // The pane (region= target) is created by _activateInitial/_ensurePane in
+    // keep-alive mode — which dk uses — so #paneId resolves before any pick.
+    ensureHandler('sol-dropdown-button', this, import.meta.url, 'sol-tabs');
+    const dd = document.createElement('sol-dropdown-button');
+    dd.setAttribute('label', `${tab.name} ▾`);   // name + ▾ affordance
+    dd.setAttribute('title', tab.name);
+    dd.setAttribute('source', `${this._menuDocUrl()}#${tab.id}`);
+    dd.setAttribute('region', `#${paneId}`);
+    // Mirror the old nested-strip: a submenu launcher is not a user setting —
+    // keep its menu editor out of <sol-settings>' collected panels.
+    dd.setAttribute('data-settings-skip', '');
+    dd.classList.add('sol-tabs-submenu');
+    if (tab.id) dd.dataset.tabId = tab.id;
+    dd.addEventListener('sol-menu-change', () => this.switchTab(tab.name));
+    this._btns[tab.name] = dd;             // switchTab toggles .active on it
+    return dd;
+  }
+
   _renderBar() {
     const bar = this.querySelector(':scope > .sol-tabs-bar');
     if (!bar) return;
@@ -512,7 +558,16 @@ class SolTabs extends HTMLElement {
     // page-level launchers. Launchers alone keep the bar visible.
     if (this._tabs.length <= 1 && !launchers.length) { bar.style.display = 'none'; return; }
     bar.style.display = '';
-    this._tabs.forEach(tab => {
+    this._tabs.forEach((tab, i) => {
+      // A submenu tab is a dropdown launcher on the bar (the ☰-menu pattern),
+      // not a plain tab button — its items drop down vertically and mount into
+      // this tab's own pane. Needs from-rdf (for the submenu's subject IRI) and
+      // the menu-from-rdf loader; otherwise it falls back to a plain button
+      // whose pane renders the submenu inline.
+      if (tab.isSubmenu && tab.id && this._canDropdown()) {
+        bar.appendChild(this._buildSubmenuDropdown(tab, i));
+        return;
+      }
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.setAttribute('role', 'tab');
@@ -550,6 +605,7 @@ class SolTabs extends HTMLElement {
     const pane = document.createElement('div');
     pane.className = 'sol-tabs-pane';
     if (tab.id) pane.dataset.tabId = tab.id;
+    if (tab._paneId) pane.id = tab._paneId;   // a submenu dropdown's region= target
     pane.dataset.tabName = tab.name;
     pane.hidden = true;
     this.body.appendChild(pane);

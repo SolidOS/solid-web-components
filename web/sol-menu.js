@@ -465,26 +465,32 @@ class SolMenu extends HTMLElement {
         // Surface the declared access requirement for the app to act on; the
         // menu itself takes no policy (no hide / disable here).
         if (item.requiresWrite) btn.setAttribute('part', 'item requires-write');
-        if (item.icon) {
+        // A real image icon (favicon URL / path / inline svg) renders before the
+        // label; an emoji / text "icon" is OMITTED — emoji in a vertical menu
+        // only mis-align the rows (icon-bearing items indent, plain ones don't)
+        // and the label alone is clearer. So: image icon → icon + label; emoji
+        // or no icon → label only, all left-aligned.
+        const imageIcon = item.icon && /^(?:https?:\/\/|data:|\.{0,2}\/)/.test(item.icon);
+        if (imageIcon) {
           btn.title = item.name;
-          btn.setAttribute('aria-label', item.name);
           const span = document.createElement('span');
           span.className = 'sol-menu-icon';
           span.setAttribute('aria-hidden', 'true');
-          btn.appendChild(span);
           if (item.icon.startsWith('data:image/svg+xml')) {
             try {
               const raw = decodeURIComponent(item.icon.replace('data:image/svg+xml,', ''));
               span.innerHTML = raw;
               const svg = span.querySelector('svg');
               if (svg) { svg.setAttribute('width', '1.2em'); svg.setAttribute('height', '1.2em'); }
-            } catch { span.textContent = item.name; }
+            } catch { span.textContent = ''; }
           } else {
             const img = document.createElement('img');
             img.src = item.icon;
             img.alt = '';
             span.appendChild(img);
           }
+          btn.appendChild(span);
+          btn.appendChild(document.createTextNode(item.name));
         } else {
           btn.textContent = item.name;
         }

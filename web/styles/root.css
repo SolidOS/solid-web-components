@@ -17,6 +17,20 @@
   --shadow-modal: 0 8px 24px rgba(0,0,0,0.25);
   --scrim: rgba(0,0,0,0.4);
 
+  /* Menu color scheme. sol-menu / sol-dropdown-button popups + items theme
+     from THESE tokens (not --surface/--text directly) so a menu keeps correct
+     contrast even when a host app remaps --surface/--text for its own areas.
+     Values are CONCRETE (not var(--surface)) on purpose — that's what makes
+     them immune to such remapping. An app may still override --menu-* to match
+     its own theme, but the default is always legible. (light values) */
+  --menu-bg: #ffffff;
+  --menu-text: #1a1a1a;
+  --menu-border: #d9d9d9;
+  --menu-hover-bg: #eef2f7;
+  --menu-hover-color: #1565c0;
+  --menu-active-bg: #e3f2fd;
+  --menu-active-color: #1565c0;
+
   /* doc-page palette */
   --pre-bg: #2c3e50;
   --pre-fg: #ecf0f1;
@@ -98,6 +112,15 @@
   --accent: #4dabf7;
   --accent-dark: #339af0;
 
+  /* Menu color scheme — dark values (see :root for rationale). */
+  --menu-bg: #2a2c30;
+  --menu-text: #e8e8ea;
+  --menu-border: #41454c;
+  --menu-hover-bg: #3a3d44;
+  --menu-hover-color: #8ecbff;
+  --menu-active-bg: #34373d;
+  --menu-active-color: #8ecbff;
+
   --pre-bg: #0e1620;
   --pre-fg: #cfd9e6;
   --th-bg: #2a2e34;
@@ -107,6 +130,21 @@
   --warn-bg: #2e1817;     --warn-border: #e57373;
   --tip-bg:  #15281a;     --tip-border:  #66bb6a;
   --hero-bg: #122a3e;     --hero-border: #4dabf7;
+}
+
+/* Menus follow a dark OS preference even with no explicit [data-theme] (e.g. an
+   app whose default theme is dark). Scoped to --menu-* ONLY — it does not turn
+   on dark mode for anything else — and yields to an explicit light choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --menu-bg: #2a2c30;
+    --menu-text: #e8e8ea;
+    --menu-border: #41454c;
+    --menu-hover-bg: #3a3d44;
+    --menu-hover-color: #8ecbff;
+    --menu-active-bg: #34373d;
+    --menu-active-color: #8ecbff;
+  }
 }
 
 *, *::before, *::after { box-sizing: border-box; }

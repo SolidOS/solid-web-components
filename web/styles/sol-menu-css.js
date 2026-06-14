@@ -27,7 +27,7 @@ export const CSS = `
     max-width: var(--menu-nav-max-width, 260px);
     padding: var(--space-md, 8px);
     gap: var(--space-xs, 2px);
-    border-right: 1px solid var(--border, #e0e0e0);
+    border-right: 1px solid var(--menu-border, var(--border, #e0e0e0));
     overflow-y: auto; overflow-x: hidden;
     scrollbar-width: thin;
     box-sizing: border-box;
@@ -39,7 +39,7 @@ export const CSS = `
     padding: var(--space-sm, 4px) var(--space-lg, 12px);
     gap: var(--space-sm, 4px);
     border-right: none;
-    border-bottom: var(--menu-nav-border-bottom, 1px solid var(--border, #e0e0e0));
+    border-bottom: var(--menu-nav-border-bottom, 1px solid var(--menu-border, var(--border, #e0e0e0)));
     /* No overflow scroll on the nav itself — when items don't fit
        the row (large font, narrow chrome) they wrap onto a second
        row. Scroll bars belong inside component content (sol-pod's
@@ -52,7 +52,7 @@ export const CSS = `
     text-align: left;
     padding: var(--menu-button-padding, var(--space-md, 8px) var(--space-lg, 12px));
     border-radius: var(--menu-button-radius, var(--radius-sm, 4px));
-    color: var(--text, black) !important;
+    color: var(--menu-text, var(--text, black)) !important;
     cursor: pointer; font-family: inherit;
     white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis;
@@ -65,6 +65,7 @@ export const CSS = `
   .sol-menu-nav button .sol-menu-icon {
     display: inline-flex; align-items: center;
     vertical-align: middle;
+    margin-right: var(--space-md, 8px);
     pointer-events: none;
   }
   .sol-menu-nav button .sol-menu-icon svg {
@@ -112,8 +113,8 @@ export const CSS = `
     position: fixed;
     min-width: var(--menu-popup-min-width, 160px);
     padding: var(--space-md, 8px);
-    background: var(--surface, #fff);
-    border: 1px solid var(--border, #e0e0e0);
+    background: var(--menu-bg, var(--surface, #fff));
+    border: 1px solid var(--menu-border, var(--border, #e0e0e0));
     border-radius: var(--radius-md, 6px);
     box-shadow: var(--shadow-popup, 0 4px 12px rgba(0,0,0,0.12));
     z-index: 1000;

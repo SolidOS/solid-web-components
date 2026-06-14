@@ -66,9 +66,11 @@ const DD_CSS = `
     width: max-content;
     min-width: var(--menu-popup-min-width, 200px);
     max-width: min(90vw, 360px);
-    border: 1px solid var(--border, #e0e0e0);
+    /* Silver lining by default (overridable via --menu-popup-border) — gives
+       every dropdown popup a crisp light border on dark or light surfaces. */
+    border: 1px solid var(--menu-popup-border, silver);
     border-radius: var(--radius-md, 8px);
-    background: var(--surface, #fff);
+    background: var(--menu-bg, var(--surface, #fff));
     box-shadow: var(--shadow-popup, 0 8px 24px rgba(0,0,0,0.28));
   }
   .sol-dd-popup[hidden] { display: none; }
@@ -76,7 +78,7 @@ const DD_CSS = `
      the standard items, separated by a rule. */
   .sol-dd-separator {
     margin: 4px 10px;
-    border-top: 1px solid var(--border, #e0e0e0);
+    border-top: 1px solid var(--menu-border, var(--border, #e0e0e0));
   }
   /* A dropdown has no inline content panel; items use the region= cascade. The
      authored <menu> (and content panel) is a declaration, not UI — its items
@@ -248,6 +250,13 @@ class SolDropdownButton extends SolMenu {
   get _trigger() { return this.shadowRoot.querySelector('.sol-dd-trigger'); }
 
   _open() {
+    // Close any other open dropdown first. A trigger click stopPropagation()s
+    // (so it won't reach the document), which means a sibling dropdown's
+    // outside-click dismiss never fires — without this, opening one leaves the
+    // others open (e.g. several tab-bar submenu dropdowns).
+    for (const el of document.querySelectorAll('sol-dropdown-button')) {
+      if (el !== this && el._popup && !el._popup.hidden && typeof el._close === 'function') el._close();
+    }
     this._popup.hidden = false;
     this._trigger.setAttribute('aria-expanded', 'true');
     // Position the popup viewport-fixed against the trigger so it escapes any
@@ -267,8 +276,18 @@ class SolDropdownButton extends SolMenu {
     const pop = this._popup;
     pop.style.position = 'fixed';
     pop.style.top = `${Math.round(r.bottom + 4)}px`;
-    pop.style.right = `${Math.round(window.innerWidth - r.right)}px`;
-    pop.style.left = 'auto';
+    // Align the popup's LEFT edge under the trigger's left edge (a menu drops
+    // down from where you clicked), flipping to right-aligned only if that
+    // would overflow the viewport — so a far-right trigger (e.g. the ☰ menu)
+    // still opens leftward and stays on-screen.
+    const popW = pop.offsetWidth || 200;
+    if (Math.round(r.left) + popW <= window.innerWidth - 4) {
+      pop.style.left = `${Math.round(r.left)}px`;
+      pop.style.right = 'auto';
+    } else {
+      pop.style.right = `${Math.round(window.innerWidth - r.right)}px`;
+      pop.style.left = 'auto';
+    }
   }
 
   _close() {
