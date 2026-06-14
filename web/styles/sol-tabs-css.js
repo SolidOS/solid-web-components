@@ -9,10 +9,15 @@ export const CSS = `
     overflow: hidden;
     box-sizing: border-box;
   }
-  sol-tabs .sol-tab-embed {
+  /* A handler/link/include mounted into a tab pane fills it — whether tagged
+     .sol-tab-embed (sol-tabs' own embeds) or .sol-menu-embed (an item picked
+     from a submenu dropdown, mounted via sol-menu). Without this an embedded
+     iframe collapses to its ~150px intrinsic height → a truncated panel. */
+  sol-tabs .sol-tab-embed,
+  sol-tabs .sol-tabs-pane .sol-menu-embed {
     display: flex; flex-direction: column;
-    flex: 1; min-height: 0; min-width: 0;
-    width: 100%; max-width: 100%;
+    flex: 1 1 auto; min-height: 0; min-width: 0;
+    width: 100%; max-width: 100%; height: 100%;
     overflow: auto;
   }
   sol-tabs > .sol-tabs-content > .sol-tabs-pane {

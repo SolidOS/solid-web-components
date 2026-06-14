@@ -22,6 +22,11 @@
  *   sol-form-change — detail: { subject, ok, message } — every field edit
  *   sol-form-save   — detail: { subject, turtle, target } — after save
  *
+ * Methods:
+ *   reload() — re-read the subject (force-refetching past rdflib's cache) and
+ *              re-render; call after another control writes the same document so
+ *              the form reflects it. Mirrors sol-default.reload().
+ *
  * @class SolForm
  * @extends HTMLElement
  */
@@ -113,6 +118,11 @@ class SolForm extends HTMLElement {
   get store()   { return this._store; }
   get subject() { return this._subject; }
 
+  /** Re-read the form's data and re-render. The subject document is re-fetched
+   *  from the server (bypassing rdflib's cache), so an external change — another
+   *  control writing the same document — is reflected. Mirrors sol-default.reload(). */
+  reload() { return this._load(true); }
+
   getTurtle() {
     if (!this._store || !this._docNode) return '';
     return rdf.serialize(this._docNode, this._store, this._docNode.value, 'text/turtle') || '';
@@ -184,7 +194,7 @@ class SolForm extends HTMLElement {
 
   // ── loading ──
 
-  async _load() {
+  async _load(force = false) {
     const source = this.getAttribute('source');
     const shape  = this.getAttribute('shape');
     const view   = (this.getAttribute('view') || '').toLowerCase();
@@ -233,9 +243,13 @@ class SolForm extends HTMLElement {
       if (subjectUri) {
         docUrl = subjectUri.split('#')[0];
         dataStore = this._initStore(docUrl);
-        await dataStore.fetcher.load(docUrl);
-        subjectNode = rdf.sym(subjectUri);
         docNode = rdf.sym(docUrl);
+        // On an explicit reload the doc may have changed on the server since it
+        // was first fetched; drop the cached copy and force a re-fetch so the
+        // form shows current values (rdflib's fetcher otherwise serves cache).
+        if (force) { try { dataStore.removeDocument(docNode); } catch (_) {} }
+        await dataStore.fetcher.load(docUrl, force ? { force: true } : undefined);
+        subjectNode = rdf.sym(subjectUri);
       } else {
         // Use save-to as the doc URL when given; otherwise a synthetic local
         // base — _docUrl stays null until the user supplies a real location.

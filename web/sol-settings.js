@@ -82,6 +82,10 @@ class SolSettings extends HTMLElement {
 
     const accordion = document.createElement('sol-accordion');
     accordion.setAttribute('start-closed', '');
+    // Fill the container's width so the accordion bars line up with a sibling
+    // sol-form's fields (which also fill) — the calling app sets the width by
+    // the element it places these in.
+    accordion.style.width = '100%';
     widgets.forEach((w, i) => {
       const panel = document.createElement('div');
       const head = document.createElement('div');

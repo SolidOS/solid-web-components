@@ -307,6 +307,8 @@ export const CSS = `
      in a column across every field, regardless of which solid-ui
      widget renders the row. Each row container uses display:contents
      so the widget's emitted label + input become direct grid items. */
+  /* The form fills its container's width; the calling app sizes it by placing
+     it in an element of the width it wants. No intrinsic max-width here. */
   .sol-form-shape-fields {
     display: grid;
     grid-template-columns: minmax(8rem, max-content) 1fr;
@@ -355,7 +357,6 @@ export const CSS = `
   .sol-form-shape-fields .formFieldValue > textarea,
   .sol-form-shape-fields .choiceBox-selectBox select {
     width: 100%;
-    max-width: 28rem;
     box-sizing: border-box;
     background: var(--surface, #fff) !important;
     color: var(--text, #000) !important;
@@ -410,7 +411,6 @@ export const CSS = `
   }
   .sol-form-shape-multi-item > input {
     flex: 1;
-    max-width: 28rem;
     box-sizing: border-box;
     background: var(--surface, #fff);
     color: var(--text, #000);
