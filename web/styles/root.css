@@ -31,6 +31,14 @@
   --menu-active-bg: #e3f2fd;
   --menu-active-color: #1565c0;
 
+  /* Form fields. Concrete light values that are deliberately NOT remapped by a
+     dark theme (like --menu-* above) so an input/select/textarea is ALWAYS a
+     light field with dark text — lighter than, and clearly distinguishable
+     from, a dark page background. An app may override --input-* for its theme. */
+  --input-bg: #eef;
+  --input-text: #1a1a1a;
+  --input-border: #9aa0a8;
+
   /* doc-page palette */
   --pre-bg: #2c3e50;
   --pre-fg: #ecf0f1;
@@ -148,3 +156,19 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+
+/* Inputs are ALWAYS a light field (see --input-* above), so they stay legible
+   and obviously editable on any background, including dark themes. Checkboxes /
+   radios / range / color keep their native rendering. A component may still set
+   its own borders/padding (more specific) — only the field colour is enforced. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+select,
+textarea {
+  /* color-scheme: light forces the UA to paint the control (incl. native
+     <select>) as a LIGHT field even when a dark theme set color-scheme: dark on
+     an ancestor — without it, native controls render dark and ignore the bg. */
+  color-scheme: light;
+  background: var(--input-bg, #ffffff);
+  color: var(--input-text, #1a1a1a);
+  border: 1px solid var(--input-border, #9aa0a8);
+}

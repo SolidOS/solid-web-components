@@ -25,6 +25,18 @@ export const CSS = `
     overflow: auto;
     padding: 0.75em;
   }
+  /* Every field in this form stays a light field (solid-ui's own #eef) with dark
+     text on any theme — document CSS can't reach this shadow root, and a dark
+     theme sets color-scheme: dark on an ancestor, so we set it here. (The more
+     specific !important rule below re-asserts the same on solid-ui's
+     inline-styled shape inputs.) */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    color-scheme: light;
+    background: #eef;
+    color: #1a1a1a;
+  }
   .sol-form-body input[type="text"],
   .sol-form-body input[type="url"],
   .sol-form-body select,
@@ -358,8 +370,12 @@ export const CSS = `
   .sol-form-shape-fields .choiceBox-selectBox select {
     width: 100%;
     box-sizing: border-box;
-    background: var(--surface, #fff) !important;
-    color: var(--text, #000) !important;
+    /* Follow solid-ui's own light field (#eef) so the control stays a light,
+       legible field on dark themes; color-scheme: light keeps the native
+       <select> light too (without it the dark UA paint shows through). */
+    color-scheme: light !important;
+    background: #eef !important;
+    color: #1a1a1a !important;
     border: 1px solid var(--border, #9e9e9e) !important;
     border-radius: var(--radius-sm, 4px) !important;
     padding: 0.35em 0.6em !important;

@@ -59,6 +59,36 @@ ui:orientation a rdf:Property ; rdfs:isDefinedBy <> ;
   rdfs:comment "Menu layout direction; the value is a ui:Orientation instance (ui:Horizontal default, or ui:Vertical)." ;
   rdfs:range   ui:Orientation .
 
+ui:publicPort a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "public port" ;
+  rdfs:comment "TCP port the public routing server (the origin clients talk to) listens on." ;
+  rdfs:range   xsd:integer .
+
+ui:privatePort a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "private port" ;
+  rdfs:comment "TCP port the private server, behind the router, listens on." ;
+  rdfs:range   xsd:integer .
+
+ui:proxyPort a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "proxy port" ;
+  rdfs:comment "TCP port the CORS proxy listens on." ;
+  rdfs:range   xsd:integer .
+
+ui:windowX a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "window x" ;
+  rdfs:comment "The x (horizontal) screen coordinate, in pixels, of the application window's top-left corner." ;
+  rdfs:range   xsd:integer .
+
+ui:windowY a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "window y" ;
+  rdfs:comment "The y (vertical) screen coordinate, in pixels, of the application window's top-left corner." ;
+  rdfs:range   xsd:integer .
+
+ui:ignorePattern a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "ignore pattern" ;
+  rdfs:comment "A filename/path glob pattern hidden from listings (e.g. \"*~\", \".*\"); repeatable." ;
+  rdfs:range   xsd:string .
+
 ###################
 # ???             #
 ###################

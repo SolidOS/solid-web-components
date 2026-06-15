@@ -1,0 +1,34 @@
+@prefix :     <#> .
+@prefix swc:  <urn:swc:shape:live-edit-settings:> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix wd:   <http://www.wikidata.org/entity/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix ui:   <http://www.w3.org/ns/ui#> .
+
+<>
+  owl:imports <../data/ui-vocab.ttl> .
+
+swc:LiveEditSettingsFile
+  a rdfs:Class ;
+  rdfs:subClassOf wd:Q1193846 .
+
+:LiveEditSettingsFileShape
+  a sh:NodeShape ;
+  sh:targetClass swc:LiveEditSettingsFile ;
+  sh:property [
+    sh:path foaf:primaryTopic ;
+    sh:minCount 1 ; sh:maxCount 1 ;
+    sh:node :LiveEditSettingsShape ;
+  ] .
+
+:LiveEditSettingsShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path ui:editorKeys ;
+    sh:class ui:EditorKeys ;
+    sh:maxCount 1 ;
+    sh:name "Editor keys" ;
+    sh:description "Keybinding mode for the live editor: Default, Emacs, or Vim." ;
+  ] .

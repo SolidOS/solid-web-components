@@ -7,6 +7,7 @@
 @prefix wd:   <http://www.wikidata.org/entity/> .
 @prefix foaf: <http://xmlns.com/foaf/0.1/> .
 @prefix ui:   <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
 
 <>
   owl:imports <../data/ui-vocab.ttl> .
@@ -45,4 +46,11 @@ swc:DataKitchenSettingsFile
     sh:maxCount 1 ;
     sh:name "CORS proxy" ;
     sh:description "URL prefix wrapping a target URL for CORS proxying; the target is URI-encoded onto the end." ;
+  ] ,
+  [
+    sh:path schema:softwareHelp ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:name "Help document" ;
+    sh:description "Path or URL of the help document the ? button opens when the active plugin doesn't supply its own." ;
   ] .
