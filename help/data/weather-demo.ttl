@@ -6,7 +6,7 @@
 @prefix time: <http://www.w3.org/2006/time#>.
 
 <>
-    a <urn:swc:shape:weather-settings:WeatherSettingsFile>;
+    a <http://www.wikidata.org/entity/Q1193846>;
     foaf:primaryTopic :Settings.
 :Settings
     schema:addressLocality "Portland, OR";

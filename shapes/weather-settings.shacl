@@ -1,5 +1,4 @@
 @prefix :       <#> .
-@prefix swc:    <urn:swc:shape:weather-settings:> .
 @prefix sh:     <http://www.w3.org/ns/shacl#> .
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 @prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
@@ -14,13 +13,10 @@
 <>
   owl:imports <../data/ui-vocab.ttl> .
 
-swc:WeatherSettingsFile
-  a rdfs:Class ;
-  rdfs:subClassOf wd:Q1193846 .
 
 :WeatherSettingsFileShape
   a sh:NodeShape ;
-  sh:targetClass swc:WeatherSettingsFile ;
+  sh:targetClass wd:Q1193846 ;
   sh:property [
     sh:path foaf:primaryTopic ;
     sh:minCount 1 ; sh:maxCount 1 ;

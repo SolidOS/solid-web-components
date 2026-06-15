@@ -6,7 +6,7 @@ PREFIX time: <http://www.w3.org/2006/time#>
 PREFIX ui: <http://www.w3.org/ns/ui#>
 PREFIX wd: <http://www.wikidata.org/entity/>
 
-shape <#WeatherSettingsFileShape> -> <urn:swc:shape:weather-settings:WeatherSettingsFile> {
+shape <#WeatherSettingsFileShape> -> wd:Q1193846 {
     foaf:primaryTopic [1..1] @<#WeatherSettingsShape> .
 }
 shape <#WeatherSettingsShape> {
@@ -18,6 +18,4 @@ shape <#WeatherSettingsShape> {
 }
 
 <> owl:imports <../data/ui-vocab.ttl> .
-<urn:swc:shape:weather-settings:WeatherSettingsFile> a rdfs:Class ;
-    rdfs:subClassOf wd:Q1193846 .
 

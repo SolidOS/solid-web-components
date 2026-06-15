@@ -1,5 +1,4 @@
 @prefix :     <#> .
-@prefix swc:  <urn:swc:shape:data-kitchen-settings:> .
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
@@ -12,13 +11,10 @@
 <>
   owl:imports <../data/ui-vocab.ttl> .
 
-swc:DataKitchenSettingsFile
-  a rdfs:Class ;
-  rdfs:subClassOf wd:Q1193846 .
 
 :DataKitchenSettingsFileShape
   a sh:NodeShape ;
-  sh:targetClass swc:DataKitchenSettingsFile ;
+  sh:targetClass wd:Q1193846 ;
   sh:property [
     sh:path foaf:primaryTopic ;
     sh:minCount 1 ; sh:maxCount 1 ;
