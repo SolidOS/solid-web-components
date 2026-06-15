@@ -100,6 +100,12 @@ li.item { margin: .15rem 0; }
 .card-icon img { width: 1.2em; height: 1.2em; object-fit: contain; vertical-align: middle; }
 .card-label { font-size: max(16px, 1em); font-weight: 600; }
 .card-desc { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
+/* delete an entry from the catalog (removes the plugin + its manifest). Pushed
+   to the card's top-right; quiet until hover. */
+.card-del { margin-left: auto; align-self: flex-start; background: none; border: none;
+  cursor: pointer; font-size: max(16px, 1em); line-height: 1; padding: 0 .1rem;
+  color: var(--text-muted, #7f8c8d); opacity: .55; }
+.card-del:hover, .card-del:focus-visible { opacity: 1; color: var(--danger, #c0392b); }
 
 /* plugin manager: drop target, topic tabs, ghost cards, manifest-URL row */
 .cards.drop-over { outline: 2px dashed var(--accent, #3498db); outline-offset: 3px; border-radius: 8px; }

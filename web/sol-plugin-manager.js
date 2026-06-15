@@ -454,6 +454,27 @@ class SolPluginManager extends HTMLElement {
     label.className = 'card-label';
     label.textContent = p.name || p.tag;
     top.appendChild(label);
+    // Delete: an owned entry (not a loader-manifest ghost) can be removed from
+    // the catalog entirely — entry + its manifest (via dct:source). Confirmed,
+    // since it's destructive.
+    if (!p.ghost && p.id) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'card-del';
+      del.textContent = '✕';
+      del.title = `Remove “${p.name || p.tag}” from the catalog`;
+      del.setAttribute('aria-label', del.title);
+      del.draggable = false;
+      del.addEventListener('mousedown', (e) => e.stopPropagation());
+      del.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.confirm(`Remove “${p.name || p.tag}” from your catalog?\nThis deletes the plugin (and its manifest).`)) {
+          this._enqueue(() => this._deleteEntry(p));
+        }
+      });
+      top.appendChild(del);
+    }
     // No tag line — element names mean nothing to the app user; the card is
     // its icon, name and blurb. Tooltips likewise speak to the USER (the
     // manifest's hover text, else the blurb) — never tags or attributes.
@@ -619,7 +640,10 @@ class SolPluginManager extends HTMLElement {
     if (existing) {
       const home = this._listsContaining(store, docUrl, existing.id);
       if (home.length) { this._note(`already listed under “${home[0]}”`, ''); return; }
-      entry = existing; // pantry subject — re-list it rather than duplicate
+      // Re-list the existing node (keep its id), but refresh its label + icon to
+      // the dropped plugin's current identity — otherwise a node that got a
+      // stale/wrong label keeps it forever when re-added.
+      entry = { ...existing, name: entry.name || existing.name, icon: entry.icon || existing.icon };
     }
     const own = this._menuDesc(store, this._menuIri());
     const dup = entry.type === 'link'
@@ -632,6 +656,28 @@ class SolPluginManager extends HTMLElement {
     // entry gets its minted fragment id.
     await this._putDoc(store, docUrl, [own], `added “${entry.name}” ✓`,
       () => { if (entry.id) for (const c of categories) this._fileUnderCategory(store, docUrl, entry.id, c); });
+  }
+
+  // Delete an entry from the catalog ENTIRELY (not just unlist it): drop it
+  // from this list, strip its skos:Collection memberships and its own triples,
+  // PUT — then DELETE its manifest (dct:source provenance). The plugin is gone.
+  async _deleteEntry(p) {
+    const docUrl = this._docUrl();
+    const store = await loadRdfStore(docUrl, solFetch);
+    const entry = rdf.sym(`${docUrl.split('#')[0]}#${p.id}`);
+    const srcN = store.any(entry, rdf.sym(DCT + 'source'));
+    const manifestUrl = srcN ? new URL(srcN.value, docUrl).href : null;
+    const own = this._menuDesc(store, this._menuIri());
+    own.items = own.items.filter((it) => it.id !== p.id);
+    for (const st of [...store.statementsMatching(null, rdf.sym(SKOS + 'member'), entry)]) store.remove(st);
+    for (const st of [...store.statementsMatching(entry, null, null)]) store.remove(st);
+    await this._putDoc(store, docUrl, [own], `removed “${p.name || p.tag}” ✓`);
+    if (manifestUrl) {
+      try {
+        const r = await solFetch(manifestUrl, { method: 'DELETE' });
+        if (r && r.ok === false && r.status !== 404) this._note(`removed; manifest DELETE → ${r.status}`, '');
+      } catch (_) { /* manifest already gone / unreachable — the catalog removal stands */ }
+    }
   }
 
   // Ensure a skos:Collection labelled `category` exists and has the entry as

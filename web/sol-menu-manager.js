@@ -311,11 +311,10 @@ class SolMenuManager extends HTMLElement {
         chip.draggable = true;
         chip.addEventListener('dragstart', (e) => {
           this._dragItem = { item: child, siblings: item.children };
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', chip.textContent);
+          this._setDragData(e, child, item.id ? `${this._docUrl()}#${item.id}` : this._menuIri());
           e.stopPropagation();
         });
-        chip.addEventListener('dragend', () => { this._dragItem = null; });
+        chip.addEventListener('dragend', (e) => this._endItemDrag(e));
         // A chip is also a DROP target for another dragged chip: dropping on
         // its left/right half places the dragged plugin before/after it in
         // this submenu — reordering within the item (or moving in from
@@ -344,6 +343,7 @@ class SolMenuManager extends HTMLElement {
           from.splice(from.indexOf(moved), 1);
           const at = item.children.indexOf(child) + (before ? 0 : 1);
           item.children.splice(at, 0, moved);
+          this._dragItem = null;   // consumed internally — not a move-out
           this._touch();
         });
         chips.push(chip);
@@ -453,11 +453,10 @@ class SolMenuManager extends HTMLElement {
   _wireRowDnd(row, item, siblings) {
     row.addEventListener('dragstart', (e) => {
       this._dragItem = { item, siblings };
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', item.name || '');
+      this._setDragData(e, item, this._menuIri());
       e.stopPropagation();
     });
-    row.addEventListener('dragend', () => { this._dragItem = null; });
+    row.addEventListener('dragend', (e) => this._endItemDrag(e));
 
     row.addEventListener('dragover', (e) => {
       const plugin = this._dragPayload(e);
@@ -547,6 +546,7 @@ class SolMenuManager extends HTMLElement {
         from.splice(from.indexOf(moved), 1);
         const at = siblings.indexOf(item) + (before ? 0 : 1);
         siblings.splice(at, 0, moved);
+        this._dragItem = null;   // consumed internally — not a move-out
         this._touch();
       }
     });
@@ -556,6 +556,35 @@ class SolMenuManager extends HTMLElement {
     if (![...(e.dataTransfer?.types || [])].includes(PLUGIN_MIME)) return null;
     if (!read) return true;
     try { return JSON.parse(e.dataTransfer.getData(PLUGIN_MIME)); } catch { return null; }
+  }
+
+  // Outgoing drag for one of OUR items: write the PLUGIN_MIME payload the
+  // plugin-manager (the catalog box) understands, in the same shape its own
+  // palette cards use. Without this a dragged item carried only text/plain
+  // (its display name), which the catalog box then tried to fetch as a
+  // manifest URL — a 404. `listIri` is the list this item sits in (the menu
+  // for a row, the submenu for a chip).
+  _setDragData(e, item, listIri) {
+    const p = item.href
+      ? { label: item.name || item.href, href: item.href, region: item.region || '', icon: item.icon || '' }
+      : { label: item.name || item.tag, tag: item.tag, params: (item.params || []).map(([k, v]) => [k, v]), icon: item.icon || '' };
+    if (item.id) { p.subject = `${this._docUrl()}#${item.id}`; p.list = listIri; }
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData(PLUGIN_MIME, JSON.stringify(p));
+    e.dataTransfer.setData('text/plain', item.name || item.tag || item.href || '');
+  }
+
+  // A drag of one of our items ended. Internal reorders clear `_dragItem`
+  // when they consume it, and a cancelled drag reports dropEffect 'none' — so
+  // if `_dragItem` is still set AND a target accepted the drop, the item was
+  // moved OUT of this menu (onto the catalog or another menu): remove it here.
+  // `_touch` re-normalizes (sole-plugin collapse) and saves.
+  _endItemDrag(e) {
+    const drag = this._dragItem;
+    this._dragItem = null;
+    if (!drag || (e.dataTransfer && e.dataTransfer.dropEffect === 'none')) return;
+    const at = drag.siblings.indexOf(drag.item);
+    if (at >= 0) { drag.siblings.splice(at, 1); this._touch(); }
   }
   _inUpperHalf(row, e) {
     const r = row.getBoundingClientRect();
