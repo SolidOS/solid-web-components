@@ -29,10 +29,17 @@ jest.unstable_mockModule('../../core/rdf-utils.js', () => ({
 }));
 
 const { SolTabs } = await import('../../web/sol-tabs.js');
+// A from-rdf submenu now renders as a <sol-dropdown-button> launcher on the bar
+// (commit cef974b, "Tab submenus as dropdowns"); the dropdown is itself a menu
+// consumer, so it needs the loader too. Importing it registers it.
+await import('../../web/sol-dropdown-button.js');
 // `from-rdf` is now an opt-in capability — install the loader the way the
-// web/menu-from-rdf.js add-on does on a real page (rdf-utils is mocked above).
+// web/menu-from-rdf.js add-on does on a real page: installFromRdfLoader sets it
+// on EVERY registered consumer (sol-tabs AND the submenu dropdown), so the
+// dropdown can load its own submenu subject. (rdf-utils is mocked above.)
 const { loadMenuFromUri } = await import('../../core/menu-rdf.js');
-SolTabs.fromRdfLoader = loadMenuFromUri;
+const { installFromRdfLoader } = await import('../../core/menu-consumer.js');
+installFromRdfLoader(loadMenuFromUri);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -115,8 +122,20 @@ function flush() {
 }
 
 function tabBar(el)  { return el.querySelector(':scope > .sol-tabs-bar'); }
-function tabBtns(el) { return Array.from(tabBar(el).querySelectorAll('button')); }
+// Plain tab buttons live in the bar's light DOM. A submenu now renders as a
+// <sol-dropdown-button> (its own trigger button is in shadow DOM), so it is NOT
+// counted here — exactly the on-bar split the component makes.
+function tabBtns(el) { return Array.from(tabBar(el).querySelectorAll(':scope > button')); }
 function content(el) { return el.querySelector(':scope > .sol-tabs-content'); }
+// The on-bar launcher a from-rdf submenu builds (see _buildSubmenuDropdown).
+function submenuDropdown(el) {
+  return tabBar(el).querySelector(':scope > sol-dropdown-button.sol-tabs-submenu');
+}
+// Items rendered inside a submenu dropdown's popup (shadow DOM).
+function dropdownItemLabels(dd) {
+  return Array.from(dd.shadowRoot.querySelectorAll('.sol-dd-popup button[role="menuitem"]'))
+    .map((b) => b.textContent);
+}
 
 afterEach(() => {
   document.body.innerHTML = '';
@@ -135,13 +154,22 @@ describe('SolTabs — observedAttributes', () => {
 describe('SolTabs — from-rdf loading', () => {
   beforeEach(() => { mockStore = buildStore(); });
 
-  test('renders one tab button per ui:parts entry', async () => {
+  test('renders a tab button per leaf ui:parts entry; a nested ui:Menu becomes a bar dropdown', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
+    // #Settings is a nested ui:Menu — it renders as a <sol-dropdown-button>
+    // launcher on the bar (commit cef974b), NOT as a plain tab button. So the
+    // tab buttons are the three leaf parts, in order.
     const labels = tabBtns(el).map(b => b.textContent);
-    expect(labels).toEqual(['Home', 'Settings', 'Data Table', 'About']);
+    expect(labels).toEqual(['Home', 'Data Table', 'About']);
+
+    // The submenu IS present on the bar, as a dropdown launcher between Home
+    // and Data Table — its items reachable via the dropdown, not deleted.
+    const dd = submenuDropdown(el);
+    expect(dd).toBeTruthy();
+    expect(dd.getAttribute('label')).toBe('Settings ▾');
   });
 
   test('first tab is active after load', async () => {
@@ -153,14 +181,24 @@ describe('SolTabs — from-rdf loading', () => {
     expect(tabBtns(el)[0].classList.contains('active')).toBe(true);
   });
 
-  test('ui:contents link renders its literal HTML into the body', async () => {
+  test('a submenu child ui:contents renders its literal HTML into the submenu pane', async () => {
+    // The submenu is a bar dropdown whose picks mount into a keep-alive pane
+    // (region= target) — so this needs keep-alive, the mode dk runs in.
     const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
+    await flush();   // let the dropdown load its own submenu subject
 
-    el.switchTab('Settings');           // nested menu tab — children stack in the pane
-    const stack = content(el).querySelector('.sol-tabs-stack') || content(el);
-    expect(stack.textContent).toContain('light content');
+    const dd = submenuDropdown(el);
+    expect(dropdownItemLabels(dd)).toEqual(['Light', 'Dark']);   // children reachable
+
+    // Pick "Light" — its ui:contents renders into the submenu's pane.
+    Array.from(dd.shadowRoot.querySelectorAll('.sol-dd-popup button[role="menuitem"]'))
+      .find((b) => b.textContent === 'Light').click();
+    await flush();
+    const pane = content(el).querySelector('.sol-tabs-pane[data-tab-id="Settings"]');
+    expect(pane.textContent).toContain('light content');
   });
 
   test('ui:href link wraps the URL in sol-include by default', async () => {
@@ -199,56 +237,76 @@ describe('SolTabs — from-rdf loading', () => {
   });
 });
 
-// ── nested ui:Menu → the HYBRID rule ─────────────────────────────────────────
-// A submenu containing any ui:Link is navigation: it renders as a nested
-// <sol-tabs variant="sub"> strip, one child at a time, lazily. A submenu of
-// ONLY components (a multi-plugin tab) stacks all its children in the pane.
+// ── nested ui:Menu → a bar DROPDOWN launcher ─────────────────────────────────
+// A from-rdf submenu (a nested ui:Menu) no longer becomes a tab / sub-tab strip
+// (commit cef974b, "Tab submenus as dropdowns"). It renders as a
+// <sol-dropdown-button> launcher on the bar: its items drop down vertically and
+// a pick mounts into the submenu's own keep-alive pane (region= target). The
+// ALL-component case (no ui:Link) still stacks in the pane — see below.
 
 describe('SolTabs — nested ui:Menu', () => {
   beforeEach(() => { mockStore = buildStore(); });
 
-  test('nested menu becomes a single tab, not flattened', async () => {
+  test('a nested menu is a single bar dropdown, not flattened into tabs', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
+    // The submenu collapses to one launcher; its children are NOT promoted to
+    // top-level tab buttons.
     const labels = tabBtns(el).map(b => b.textContent);
-    expect(labels).toContain('Settings');
+    expect(labels).not.toContain('Settings');   // it's a dropdown, not a plain tab button
     expect(labels).not.toContain('Light');
     expect(labels).not.toContain('Dark');
+
+    const dd = submenuDropdown(el);
+    expect(dd).toBeTruthy();                     // present as a single bar launcher
+    expect(dd.dataset.tabId).toBe('Settings');
   });
 
-  test('a link-bearing submenu renders as a nested sub-tab strip', async () => {
+  test('a link-bearing submenu renders as a bar dropdown of its children', async () => {
     const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
+    await flush();   // dropdown loads its own submenu subject
 
-    el.switchTab('Settings');
-    const sub = content(el).querySelector('sol-tabs[variant="sub"]');
-    expect(sub).toBeTruthy();
-    // the strip is navigation, not a user setting — opted out of sol-settings
-    expect(sub.hasAttribute('data-settings-skip')).toBe(true);
-    const labels = Array.from(sub.querySelectorAll(':scope > .sol-tabs-bar button'))
-      .map((b) => b.textContent);
-    expect(labels).toEqual(['Light', 'Dark']);
-    // strip, not stack
+    const dd = submenuDropdown(el);
+    expect(dd).toBeTruthy();
+    // The launcher points at the submenu's own subject and routes picks into
+    // its keep-alive pane.
+    expect(dd.getAttribute('source')).toBe(BASE + '#Settings');
+    expect(dd.getAttribute('region')).toBe(`#${el.id}__sub__Settings`);
+    // A navigation launcher is not a user setting — opted out of sol-settings.
+    expect(dd.hasAttribute('data-settings-skip')).toBe(true);
+    // Its children are the dropdown's popup items, in order.
+    expect(dropdownItemLabels(dd)).toEqual(['Light', 'Dark']);
+    // No old in-pane sub-tab strip / stack is built for it.
+    expect(content(el).querySelector('sol-tabs[variant="sub"]')).toBeNull();
     expect(content(el).querySelectorAll('.sol-tabs-stack-item').length).toBe(0);
   });
 
-  test('sub-tab children render lazily, one at a time', async () => {
+  test('dropdown picks mount one child at a time into the submenu pane', async () => {
     const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
-
-    el.switchTab('Settings');
-    const sub = content(el).querySelector('sol-tabs[variant="sub"]');
-    expect(content(el).textContent).toContain('light content');
-    expect(content(el).textContent).not.toContain('dark content');
-
-    Array.from(sub.querySelectorAll(':scope > .sol-tabs-bar button'))
-      .find((b) => b.textContent === 'Dark').click();
     await flush();
-    expect(content(el).textContent).toContain('dark content');
+
+    const dd = submenuDropdown(el);
+    const item = (label) =>
+      Array.from(dd.shadowRoot.querySelectorAll('.sol-dd-popup button[role="menuitem"]'))
+        .find((b) => b.textContent === label);
+    const pane = () => content(el).querySelector('.sol-tabs-pane[data-tab-id="Settings"]');
+
+    item('Light').click();
+    await flush();
+    expect(pane().textContent).toContain('light content');
+    expect(pane().textContent).not.toContain('dark content');   // one at a time
+
+    item('Dark').click();
+    await flush();
+    expect(pane().textContent).toContain('dark content');
   });
 
   test('an all-component submenu stacks every child in the pane', async () => {
@@ -335,7 +393,10 @@ describe('SolTabs — attributeChangedCallback', () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
-    expect(tabBtns(el).length).toBe(4);
+    // 3 leaf tab buttons (Home, Data Table, About) + the #Settings submenu as a
+    // bar dropdown launcher.
+    expect(tabBtns(el).length).toBe(3);
+    expect(submenuDropdown(el)).toBeTruthy();
 
     // Swap in a smaller menu document.
     const store2 = rdflib.graph();
@@ -586,7 +647,11 @@ describe('SolTabs — keep-alive', () => {
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
-    expect(tabBtns(el).map(b => b.dataset.tabId)).toEqual(['Home', 'Settings', 'Table', 'About']);
+    // #Settings is a submenu → a bar dropdown, not a plain tab button, so the
+    // tab buttons are the three leaf items. The dropdown carries the submenu's
+    // id on its own data-tab-id.
+    expect(tabBtns(el).map(b => b.dataset.tabId)).toEqual(['Home', 'Table', 'About']);
+    expect(submenuDropdown(el).dataset.tabId).toBe('Settings');
   });
 });
 

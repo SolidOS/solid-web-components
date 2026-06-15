@@ -526,7 +526,7 @@ class SolPluginManager extends HTMLElement {
     const input = document.createElement('input');
     input.className = 'url-input';
     input.type = 'text';
-    input.placeholder = 'manifest URL — e.g. plugins/news/manifest.ttl';
+    input.placeholder = 'manifest URL — e.g. plugins/news/manifest.jsonld';
     input.setAttribute('aria-label', 'Manifest URL');
     const add = document.createElement('button');
     add.type = 'button';

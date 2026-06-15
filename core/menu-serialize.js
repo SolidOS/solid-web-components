@@ -163,6 +163,14 @@ export function updateMenuInStore(store, docUrl, menuIri, menu) {
   const doc = rdf.sym(docUrl.split('#')[0]);
   const menuNode = rdf.sym(menuIri);
   const taken = usedFragments(store, docUrl);
+  // emitItem re-emits only the predicates it knows; a rebuilt entry would lose
+  // any dct:source provenance (added so the catalog can find a plugin's
+  // manifest). Snapshot it before the clear and re-attach after the re-emit.
+  const provenance = new Map();
+  for (const node of treeNodes(store, docUrl, menu.items)) {
+    const src = store.any(node, rdf.sym(DCT + 'source'));
+    if (src) provenance.set(node.value, src);
+  }
   // Clear what's being rebuilt: the menu node (and its old list), every item
   // the NEW tree references, and any old SUBMENU nodes the new tree carries.
   for (const node of treeNodes(store, docUrl, menu.items)) {
@@ -171,6 +179,9 @@ export function updateMenuInStore(store, docUrl, menuIri, menu) {
   }
   removeMenuNode(store, menuNode);
   emitMenu(store, docUrl, doc, menuNode, menu, taken);
+  for (const [nodeVal, src] of provenance) {
+    store.add(rdf.sym(nodeVal), rdf.sym(DCT + 'source'), src, doc);
+  }
 }
 
 /** Serialize the document graph to Turtle (rdflib's serialize is async). */

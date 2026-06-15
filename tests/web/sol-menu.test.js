@@ -138,16 +138,19 @@ describe('SolMenu — from-rdf loading', () => {
     expect(groupBtns[0].textContent).toBe('Settings');
   });
 
-  test('uses icon image instead of text when ui:icon present', async () => {
+  test('renders the icon image before the visible label when ui:icon present', async () => {
     const el = attached(document.createElement('sol-menu'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
 
     const nav = el.shadowRoot.querySelector('.sol-menu-nav');
     const homeBtn = nav.querySelector(':scope > button[role="menuitem"]');
+    // An image icon now renders BEFORE the label (icon + label), not in place
+    // of it — so the accessible name comes from the visible text, and the
+    // button carries a hover title rather than an aria-label.
     expect(homeBtn.querySelector('.sol-menu-icon')).toBeTruthy();
+    expect(homeBtn.textContent).toBe('Home');
     expect(homeBtn.title).toBe('Home');
-    expect(homeBtn.getAttribute('aria-label')).toBe('Home');
   });
 
   test('icon span is aria-hidden, img alt is empty (decorative)', async () => {
