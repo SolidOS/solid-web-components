@@ -239,6 +239,10 @@ class SolPodOps extends HTMLElement {
     const el = document.createElement('sol-live-edit');
     el.setAttribute('source', item.url);
     el.setAttribute('format', fmt);
+    // Inherit the keybinding mode from the host pod's settings (sol-pod sets
+    // `editorKeys` on this ops element). Changes bubble back up via
+    // sol-editor-keys-change for sol-pod to persist.
+    if (this.editorKeys) el.setAttribute('keys', this.editorKeys);
     el.className = 'pod-live-edit';
     if (fetchFn !== fetch) el.fetchFn = fetchFn;
     el.addEventListener('sol-save', async (ev) => {

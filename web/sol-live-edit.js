@@ -85,7 +85,7 @@ const CM_EXT = {turtle:'ttl',jsonld:'jsonld',markdown:'md',html:'html'};
  * @fires sol-format - detail: { format, canZoom, canStats }
  */
 class SolLiveEdit extends HTMLElement {
-  static get observedAttributes() { return ['source','format','readonly']; }
+  static get observedAttributes() { return ['source','format','readonly','keys']; }
   static registerModules({ renderers, help, examples } = {}) {
     if (renderers) Object.assign(_preloaded.renderers, renderers);
     if (help) Object.assign(_preloaded.help, help);
@@ -107,6 +107,7 @@ class SolLiveEdit extends HTMLElement {
     if(!this.shadowRoot.firstChild)return;
     if(n==='source')this._loadSrc(v);
     if(n==='format')this._setFmt(v);
+    if(n==='keys'){this._cfg.keys=v||'default';const p=this.content;this._buildEditor().then(()=>this._setContent(p));}
   }
 
   // ── Public API for host page buttons ────────────────────────────────────────
@@ -170,7 +171,13 @@ class SolLiveEdit extends HTMLElement {
       const nm=e.target.name;if(!nm?.startsWith('sle-'))return;
       const k=nm.slice(4);this._cfg[k]=e.target.value;this._saveCfg();
       if(k==='view')this._applyView();
-      else{const p=this.content;this._buildEditor().then(()=>this._setContent(p));}
+      else{
+        // Editor keybindings are owned by the host (sol-pod, via its settings
+        // doc) — rebuild locally AND report the change so it gets persisted.
+        this.dispatchEvent(new CustomEvent('sol-editor-keys-change',
+          {detail:{keys:this._cfg.keys},bubbles:true,composed:true}));
+        const p=this.content;this._buildEditor().then(()=>this._setContent(p));
+      }
     });
 
     // Close modal on backdrop click or close button
@@ -218,6 +225,9 @@ class SolLiveEdit extends HTMLElement {
     });
 
     this._loadCfg();
+    // The host (sol-pod) supplies editor keybindings via the `keys` attribute,
+    // sourced from its settings doc; it overrides any local cache.
+    const ka=this.getAttribute('keys');if(ka)this._cfg.keys=ka;
     const src=this.getAttribute('source');
     const fmt=this.getAttribute('format')||EXT[src?.split('.').pop()?.toLowerCase()]||'markdown';
     await this._setFmt(fmt);

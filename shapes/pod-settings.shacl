@@ -27,4 +27,11 @@
     sh:datatype xsd:string ;
     sh:name "Hide paths" ;
     sh:description "Filename/path glob patterns hidden from the pod browser (e.g. \"*~\", \".*\", \"#*#\"). One per value — add as many as you like." ;
+  ] ;
+  sh:property [
+    sh:path ui:editorKeys ;
+    sh:class ui:EditorKeys ;
+    sh:maxCount 1 ;
+    sh:name "Editor keys" ;
+    sh:description "Keybinding mode for the live editor: Default, Emacs, or Vim." ;
   ] .

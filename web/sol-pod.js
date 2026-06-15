@@ -25,6 +25,26 @@ import {
 import { getRegistry } from '../core/pod-registry.js';
 import './sol-modal.js';   // modal shell is part of sol-pod's own UX
 import './sol-login.js';   // built-in login button in the pod header
+import { loadConfig } from './utils/rdf-config.js';
+
+const UI_NS = 'http://www.w3.org/ns/ui#';
+
+// Convert a shell-style glob (*, ?) into an anchored RegExp, for matching
+// ui:ignorePattern values against file/folder names.
+function globToRegExp(glob) {
+  const body = String(glob)
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
+  return new RegExp('^' + body + '$');
+}
+
+// ui:editorKeys is a ui:EditorKeys individual; map it to sol-live-edit's token.
+function editorKeysToken(uri) {
+  if (uri === UI_NS + 'EmacsKeys') return 'emacs';
+  if (uri === UI_NS + 'VimKeys')   return 'vim';
+  return 'default';
+}
 
 // ── SolPod component ──────────────────────────────────────────────────
 
@@ -79,18 +99,18 @@ import './sol-login.js';   // built-in login button in the pod header
  * @fires sol-drag-end
  * @fires sol-auth-needed - detail: { url }
  * @fires sol-status - detail: { message, type }
- * @fires sol-prefs-change - detail: { prefs } — a hide-pattern filter was toggled
  * @fires sol-pod-pods-changed - detail: { group, pods } — the group's pod list
  *                 grew (discovery / add). May fire once per pod in the group;
  *                 a host listener should treat it idempotently.
  */
 class SolPod extends HTMLElement {
   static get observedAttributes() { return ['source', 'login', 'pod-click-action', 'data-handler', 'side']; }
-  /** SHACL shape for this component's own settings (the hide-path filters).
-   *  `<sol-settings>` discovery picks this up while a sol-pod is mounted,
-   *  resolving the settings doc from the host's `data-subject` (its `source` is
-   *  the pods being browsed, not its settings). NB: applying ui:ignorePattern
-   *  is not yet wired — sol-pod still filters via its hardcoded hide* prefs. */
+  /** SHACL shape for this component's own settings — the hide-path filters
+   *  (ui:ignorePattern) and the live-editor keybindings (ui:editorKeys).
+   *  `<sol-settings>` discovery picks this up while a sol-pod is mounted and
+   *  drives the editing form, resolving the settings doc from the host's
+   *  `data-subject` (its `source` is the pods being browsed, not its settings).
+   *  sol-pod loads + applies the values itself (see _loadSettings). */
   static get shape() {
     return new URL('../shapes/pod-settings.shacl', import.meta.url).href;
   }
@@ -120,7 +140,10 @@ class SolPod extends HTMLElement {
     this._allItems = [];
     this._filterText = '';
     this._focusIndex = -1;
-    this._prefs = { hideDot: true, hideHash: true, hideTilde: true };
+    // Settings loaded from the host's data-subject doc (see _loadSettings):
+    this._ignorePatterns = [];    // ui:ignorePattern globs (strings)
+    this._ignoreRes = [];         // …compiled to anchored RegExps
+    this._editorKeys = 'default'; // ui:editorKeys → 'default' | 'emacs' | 'vim'
   }
 
   get login() { return this._login || this._loginEl; }
@@ -167,8 +190,9 @@ class SolPod extends HTMLElement {
     else this._pendingSeed = (this._pendingSeed || []).concat(urls || []);
   }
 
-  get prefs() { return this._prefs; }
-  set prefs(p) { this._prefs = { ...this._prefs, ...p }; }
+  /** Live-editor keybinding mode loaded from the settings doc; the item modal's
+   *  <sol-live-edit> inherits it. */
+  get editorKeys() { return this._editorKeys; }
 
   get source() { return this.getAttribute('source') || ''; }
   set source(v) { this.setAttribute('source', v); }
@@ -247,6 +271,10 @@ class SolPod extends HTMLElement {
         this._loginEl.addEventListener('sol-logout', reload);
         this._loginEl.initialize().catch(() => {});
       }
+
+      // Load this pod's own settings (hide patterns + editor keys) from the
+      // host's data-subject doc, then apply. Independent of pod discovery.
+      this._loadSettings().catch(() => {});
 
       // Kick off discovery + first-container load on mount so the
       // pod always resolves out of its "Loading pods..." placeholder.
@@ -452,21 +480,93 @@ class SolPod extends HTMLElement {
   }
 
   _filterItems(items) {
+    if (!this._ignoreRes.length) return items;
     return items.filter(item => {
-      // Match the user's mental model: filter on the decoded name so
-      // e.g. %23foo (decodes to #foo) hides when 'hide hash' is on.
+      // Match on the decoded name so e.g. %23foo (decodes to #foo) is hidden
+      // by a "#*" pattern — mirrors the user's mental model.
       const n = item.displayName || item.name;
-      if (this._prefs.hideDot && n.startsWith('.')) return false;
-      if (this._prefs.hideHash && n.startsWith('#')) return false;
-      if (this._prefs.hideTilde && n.endsWith('~')) return false;
-      return true;
+      return !this._ignoreRes.some(re => re.test(n));
     });
   }
 
-  // Re-apply the pattern prefs to the cached listing — no refetch.
-  _reapplyPrefs() {
-    this._items = this._allItems = this._filterItems(this._rawItems || []);
+  // Re-apply the hide patterns to the cached listing — no refetch.
+  _reapplyFilter() {
+    if (!this._rawItems) return;
+    this._items = this._allItems = this._filterItems(this._rawItems);
     this._renderTree(this._allItems, { preserveFocus: false });
+  }
+
+  /**
+   * Load this pod's settings from the host's `data-subject` doc:
+   * ui:ignorePattern (hide-path globs) and ui:editorKeys (live-editor mode).
+   * The mechanism lives here; <sol-settings> only presents the editing form.
+   */
+  async _loadSettings() {
+    const subject = this.getAttribute('data-subject') || this.getAttribute('subject');
+    if (!subject) return;
+    try {
+      const cfg = await loadConfig(subject);
+      const pats = cfg[UI_NS + 'ignorePattern'];
+      this._ignorePatterns = pats == null ? []
+        : (Array.isArray(pats) ? pats : [pats]).map(String);
+      this._ignoreRes = this._ignorePatterns.map(globToRegExp);
+      const keys = cfg[UI_NS + 'editorKeys'];
+      this._editorKeys = editorKeysToken(Array.isArray(keys) ? keys[0] : keys);
+      this._reapplyFilter();
+    } catch (err) {
+      console.warn(`[sol-pod] settings ${subject}: ${err.message}`);
+    }
+  }
+
+  /** Re-read the settings doc and re-apply — called by <sol-settings> after a
+   *  save so a change shows without a full reload. */
+  async reload() {
+    await this._loadSettings();
+  }
+
+  /**
+   * Persist a live-editor keybinding change (from the item modal's
+   * <sol-live-edit>) back to the settings doc as ui:editorKeys, so it sticks
+   * and the central form reflects it. ignorePattern values are preserved.
+   */
+  async _persistEditorKeys(keys) {
+    const token = (keys === 'emacs' || keys === 'vim') ? keys : 'default';
+    if (token === this._editorKeys) return;
+    this._editorKeys = token;
+    const subject = this.getAttribute('data-subject') || this.getAttribute('subject');
+    if (!subject) return;
+    try {
+      const fileUri = new URL(subject, document.baseURI).href.split('#')[0];
+      const resp = await this._fetchFor(fileUri)(fileUri, {
+        method: 'PUT', headers: { 'Content-Type': 'text/turtle' },
+        body: this._serializeSettings(),
+      });
+      if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+    } catch (err) {
+      console.warn(`[sol-pod] could not persist editor keys: ${err.message}`);
+    }
+  }
+
+  /** Serialize this pod's in-memory settings (ignorePattern + editorKeys) back
+   *  to the Turtle document shape <sol-settings> reads. */
+  _serializeSettings() {
+    const keysUri = this._editorKeys === 'emacs' ? 'ui:EmacsKeys'
+                  : this._editorKeys === 'vim'   ? 'ui:VimKeys'
+                  : 'ui:DefaultKeys';
+    const pats = this._ignorePatterns.length
+      ? `\n  ui:ignorePattern ${this._ignorePatterns.map(p => JSON.stringify(p)).join(', ')} ;`
+      : '';
+    return `@prefix ui:   <http://www.w3.org/ns/ui#> .
+@prefix wd:   <http://www.wikidata.org/entity/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix :     <#> .
+
+<> a wd:Q1193846 ;
+   foaf:primaryTopic <#Settings> .
+
+<#Settings>${pats}
+  ui:editorKeys ${keysUri} .
+`;
   }
 
   // ── DOM rendering ───────────────────────────────────────────────────
@@ -480,13 +580,6 @@ class SolPod extends HTMLElement {
             <option value="">Loading pods...</option>
           </select>
           <sol-login class="pod-login" visible></sol-login>
-          <button class="pod-settings-btn" type="button" title="Settings"
-                  aria-label="Display settings" aria-expanded="false">⚙</button>
-        </div>
-        <div class="pod-settings" role="group" aria-label="Display settings">
-          <label><input type="checkbox" data-pref="hideDot"> Hide dot-files</label>
-          <label><input type="checkbox" data-pref="hideHash"> Hide #-files</label>
-          <label><input type="checkbox" data-pref="hideTilde"> Hide ~ backups</label>
         </div>
       </div>
       <div class="breadcrumb"></div>
@@ -535,38 +628,9 @@ class SolPod extends HTMLElement {
       }
     });
 
-    // Display-settings panel — toggle the pattern prefs (hide dot / # / ~).
-    const settingsBtn = s.querySelector('.pod-settings-btn');
-    const settings = s.querySelector('.pod-settings');
-    settingsBtn.addEventListener('click', () => {
-      const open = settings.classList.toggle('open');
-      settingsBtn.setAttribute('aria-expanded', String(open));
-      if (open) {
-        settings.querySelectorAll('input[data-pref]').forEach(cb => {
-          cb.checked = !!this._prefs[cb.dataset.pref];
-        });
-      }
-    });
-    settings.addEventListener('change', (e) => {
-      const cb = e.target;
-      if (!cb?.dataset?.pref) return;
-      this._prefs[cb.dataset.pref] = cb.checked;
-      this._reapplyPrefs();
-      // Let a host persist the change — the panel itself keeps no storage.
-      this.dispatchEvent(new CustomEvent('sol-prefs-change', {
-        bubbles: true, composed: true, detail: { prefs: { ...this._prefs } }
-      }));
-    });
-    // Close the panel on any click outside it. composedPath() crosses the
-    // shadow boundary, so this also catches clicks elsewhere in the pod.
-    this._onDocClick = (e) => {
-      if (!settings.classList.contains('open')) return;
-      const path = e.composedPath();
-      if (path.includes(settings) || path.includes(settingsBtn)) return;
-      settings.classList.remove('open');
-      settingsBtn.setAttribute('aria-expanded', 'false');
-    };
-    document.addEventListener('click', this._onDocClick);
+    // The hide-path filters now come from the settings doc (ui:ignorePattern),
+    // loaded in _loadSettings and edited via the central <sol-settings> form —
+    // sol-pod no longer renders its own inline settings panel.
 
     // Keyboard nav at the wrapper level so it works whether the wrapper
     // or an individual li has focus.
@@ -969,9 +1033,13 @@ class SolPod extends HTMLElement {
       const ops = document.createElement('sol-pod-ops');
       ops.item = item;
       ops.fetchFn = this._fetchFor(item.url);
+      ops.editorKeys = this._editorKeys;      // live editor inherits the mode
       ops.setAttribute('source', item.url);
       ops.style.height = '100%';
       ops.addEventListener('sol-status', (e) => this._emitStatus(e.detail.message, e.detail.type));
+      // A keybinding change in the live editor is persisted back to our
+      // settings doc (ui:editorKeys), so it sticks and the form reflects it.
+      ops.addEventListener('sol-editor-keys-change', (e) => this._persistEditorKeys(e.detail.keys));
       ops.addEventListener('sol-navigate', async () => {
         modal.close();
         await this.loadContainer(this._currentPath);
