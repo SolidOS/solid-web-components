@@ -1,0 +1,30 @@
+@prefix :     <#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix wd:   <http://www.wikidata.org/entity/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix ui:   <http://www.w3.org/ns/ui#> .
+
+<>
+  owl:imports <../data/ui-vocab.ttl> .
+
+
+:PodSettingsFileShape
+  a sh:NodeShape ;
+  sh:targetClass wd:Q1193846 ;
+  sh:property [
+    sh:path foaf:primaryTopic ;
+    sh:minCount 1 ; sh:maxCount 1 ;
+    sh:node :PodSettingsShape ;
+  ] .
+
+:PodSettingsShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path ui:ignorePattern ;
+    sh:datatype xsd:string ;
+    sh:name "Hide paths" ;
+    sh:description "Filename/path glob patterns hidden from the pod browser (e.g. \"*~\", \".*\", \"#*#\"). One per value — add as many as you like." ;
+  ] .

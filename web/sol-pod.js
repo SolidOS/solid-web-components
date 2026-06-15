@@ -86,6 +86,14 @@ import './sol-login.js';   // built-in login button in the pod header
  */
 class SolPod extends HTMLElement {
   static get observedAttributes() { return ['source', 'login', 'pod-click-action', 'data-handler', 'side']; }
+  /** SHACL shape for this component's own settings (the hide-path filters).
+   *  `<sol-settings>` discovery picks this up while a sol-pod is mounted,
+   *  resolving the settings doc from the host's `data-subject` (its `source` is
+   *  the pods being browsed, not its settings). NB: applying ui:ignorePattern
+   *  is not yet wired — sol-pod still filters via its hardcoded hide* prefs. */
+  static get shape() {
+    return new URL('../shapes/pod-settings.shacl', import.meta.url).href;
+  }
 
   constructor() {
     super();
