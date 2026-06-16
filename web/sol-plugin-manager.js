@@ -18,9 +18,10 @@
  *   for     — selector naming the manager(s) this palette feeds. Drag data
  *             is set globally (any manager accepts it). The pairing also
  *             SUBTRACTS what's in use: entries mounted by the paired
- *             managers' menus (matched by href, or tag + source attribute)
- *             are hidden from this box, and reappear the moment they're
- *             dragged off a menu. A box without `for` shows everything.
+ *             managers' menus (links matched by href, components by tag —
+ *             a plugin is in use once mounted, whatever attributes the menu
+ *             gives it) are hidden from this box, and reappear the moment
+ *             they're dragged off a menu. A box without `for` shows everything.
  *   grouped — boolean: render this box's topics as TABS — pick a topic, see
  *             only that topic's cards. The topics are skos:Collections in
  *             the source document (skos:prefLabel = tab label, skos:member =
@@ -141,12 +142,13 @@ class SolPluginManager extends HTMLElement {
   }
 
   // What the paired menus mount, keyed for matching catalog entries:
-  // links by href; components by tag + their source attribute (tag alone
-  // when an item has no source). Submenu children count too.
+  // links by href, components by tag — a plugin is "in use" once its
+  // component is mounted anywhere, whatever attributes the menu gives it.
+  // Submenu children count too.
   async _loadUsed() {
     const sel = this.getAttribute('for');
     if (!sel) { this._used = null; return; }
-    const used = { hrefs: new Set(), tagSource: new Set(), tags: new Set() };
+    const used = { hrefs: new Set(), tags: new Set() };
     const perDoc = new Map();
     let els = [];
     try { els = [...document.querySelectorAll(sel)]; } catch { els = []; }
@@ -166,10 +168,7 @@ class SolPluginManager extends HTMLElement {
           for (const it of items || []) {
             if (it.type === 'submenu') { walk(it.children); continue; }
             if (it.href) { used.hrefs.add(it.href); continue; }
-            if (!it.tag) continue;
-            const source = (it.params || []).find(([k]) => k === 'source')?.[1] ?? '';
-            if (source) used.tagSource.add(`${it.tag}|${source}`);
-            else used.tags.add(it.tag);
+            if (it.tag) used.tags.add(it.tag);
           }
         };
         for (const f of frags) walk(parseMenuItems(store, rdf.sym(`${docUrl}#${f}`)));
@@ -178,12 +177,11 @@ class SolPluginManager extends HTMLElement {
     this._used = used;
   }
 
-  // Is this catalog entry mounted by a paired menu?
+  // Is this catalog entry mounted by a paired menu? Links match by href,
+  // components by tag — independent of the attributes either side carries.
   _isUsed(p) {
     if (!this._used) return false;
     if (p.type === 'link') return this._used.hrefs.has(p.href);
-    const source = (p.params || []).find(([k]) => k === 'source')?.[1] ?? '';
-    if (source) return this._used.tagSource.has(`${p.tag}|${source}`);
     return this._used.tags.has(p.tag);
   }
 
@@ -347,7 +345,7 @@ class SolPluginManager extends HTMLElement {
       .filter((i) => !this._isUsed(i))
       .map((i) => this._withManifestMeta(i))
       .sort(byName);
-    const ghosts = this._ghosts().sort(byName);
+    const ghosts = this._ghosts().filter((g) => !this._isUsed(g)).sort(byName);
 
     if (this.hasAttribute('grouped')) {
       // Topic TABS (skos:Collections): pick a topic, see only its cards. A

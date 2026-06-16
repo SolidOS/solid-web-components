@@ -497,8 +497,13 @@ class SolMenuManager extends HTMLElement {
           // item as a plugin of itself. A NAMELESS assignment (e.g. a stale
           // page include) is an artifact: it is REPLACED by the drop, not
           // carried along as a phantom chip.
+          // Name the carried child by what it IS — the catalog entry for its
+          // href/tag, else its manifest label — NOT item.name (the menu item's
+          // display label, which is typically the new submenu's category name,
+          // e.g. "Apps"/"AU"; reusing it makes the first child echo the menu).
           const meta = (window.ComponentInterop?.manifest?.meta || {})[item.tag];
-          const carriedName = (item.type === 'link' ? item.name : '') || meta?.label || '';
+          const carriedName = this._catalogName(item) || meta?.label
+            || (item.type === 'link' ? item.name : '');
           if (item.tag || item.href) {
             if (carriedName && !this.constructor.flat) {
               const first = {

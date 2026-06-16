@@ -465,29 +465,32 @@ class SolMenu extends HTMLElement {
         // Surface the declared access requirement for the app to act on; the
         // menu itself takes no policy (no hide / disable here).
         if (item.requiresWrite) btn.setAttribute('part', 'item requires-write');
-        // A real image icon (favicon URL / path / inline svg) renders before the
-        // label; an emoji / text "icon" is OMITTED — emoji in a vertical menu
-        // only mis-align the rows (icon-bearing items indent, plain ones don't)
-        // and the label alone is clearer. So: image icon → icon + label; emoji
-        // or no icon → label only, all left-aligned.
+        // An icon renders before the label in a fixed icon slot so rows align:
+        // an image (favicon URL / path / inline svg) paints as <img>/<svg>; an
+        // emoji or other text "icon" paints as text in that same slot. Putting
+        // emoji in the slot keeps icon-bearing rows aligned (an earlier version
+        // dropped emoji to avoid the indent mismatch — the shared slot fixes it
+        // instead). No icon → label only.
         const imageIcon = item.icon && /^(?:https?:\/\/|data:|\.{0,2}\/)/.test(item.icon);
-        if (imageIcon) {
+        if (item.icon) {
           btn.title = item.name;
           const span = document.createElement('span');
           span.className = 'sol-menu-icon';
           span.setAttribute('aria-hidden', 'true');
-          if (item.icon.startsWith('data:image/svg+xml')) {
+          if (imageIcon && item.icon.startsWith('data:image/svg+xml')) {
             try {
               const raw = decodeURIComponent(item.icon.replace('data:image/svg+xml,', ''));
               span.innerHTML = raw;
               const svg = span.querySelector('svg');
               if (svg) { svg.setAttribute('width', '1.2em'); svg.setAttribute('height', '1.2em'); }
             } catch { span.textContent = ''; }
-          } else {
+          } else if (imageIcon) {
             const img = document.createElement('img');
             img.src = item.icon;
             img.alt = '';
             span.appendChild(img);
+          } else {
+            span.textContent = item.icon;   // emoji / text icon
           }
           btn.appendChild(span);
           btn.appendChild(document.createTextNode(item.name));

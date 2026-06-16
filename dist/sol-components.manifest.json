@@ -6,7 +6,9 @@
   "components": {
     "sol-feed": { "label": "News (three-panel feeds)" },
     "sol-search": { "label": "Search" },
-    "sol-login": { "label": "Sign in" }
+    "sol-login": { "label": "Sign in" },
+    "sol-time": { "label": "Clock", "icon": "🕐", "shape": "../shapes/time-settings.shacl" },
+    "sol-weather": { "label": "Weather", "icon": "🌤", "shape": "../shapes/weather-settings.shacl" }
   },
   "attributes": {
     "data-from-query": { "module": "sol-components/core/from-query.js" },
