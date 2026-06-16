@@ -44,10 +44,12 @@ function isCrossOrigin(absUrl) {
  * Fetch a feed / source-list URL, routing it through the CORS proxy only
  * when it is cross-origin. A same-origin resource (e.g. your own bookmark
  * file) is fetched directly so the proxy is never asked to relay it.
+ * `init` is passed through to `fetch` (e.g. `{ cache: 'no-store' }` so an
+ * edited source list isn't re-read from the stale browser cache).
  */
-function feedFetch(url, proxy) {
+function feedFetch(url, proxy, init) {
   const abs = resolveUrl(url);
-  return fetch(isCrossOrigin(abs) ? applyProxy(abs, proxy) : abs);
+  return fetch(isCrossOrigin(abs) ? applyProxy(abs, proxy) : abs, init);
 }
 
 /** Strip a wrapping `<![CDATA[ ... ]]>` and trim. */
@@ -362,7 +364,9 @@ export async function parseSourceList(sourceUri, { proxy } = {}) {
     );
   }
   const fileUri = abs.slice(0, hashIdx);
-  const resp = await feedFetch(fileUri, proxy);
+  // no-store: the source list is editable, so a re-read right after a PATCH
+  // must see the new file, not a stale cached copy.
+  const resp = await feedFetch(fileUri, proxy, { cache: 'no-store' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching source list`);
   return feedsFromRdf(fileUri, abs, await resp.text());
 }
@@ -390,7 +394,7 @@ export async function parseBookmarkTree(sourceUri, { proxy } = {}) {
     throw new Error('A topic IRI is required — e.g. source="images.ttl#Images"');
   }
   const fileUri = abs.slice(0, hashIdx);
-  const resp = await feedFetch(fileUri, proxy);
+  const resp = await feedFetch(fileUri, proxy, { cache: 'no-store' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching source list`);
 
   let rdf;

@@ -10,6 +10,7 @@ import { buildEditor } from './utils/code-mirror-editor.js';
 import { CSS, sheet as LIVE_EDIT_SHEET } from './styles/sol-live-edit-css.js';
 import { adopt } from '../core/adopt.js';
 import { define } from '../core/define.js';
+import { kitchenLoggedIn } from '../core/auth-core.js';
 
 // Pre-loaded module registry — kept as an optional escape hatch for
 // hosts that want to inject custom renderers/help/examples. Standard
@@ -111,6 +112,10 @@ class SolLiveEdit extends HTMLElement {
   }
 
   // ── Public API for host page buttons ────────────────────────────────────────
+  // `readonly` hides Save — but SolidKitchen desktop users are treated as
+  // logged in and fully editable, so the flag is ignored there (a plain web
+  // build keeps it). Mirrors the shared kitchenLoggedIn() gate.
+  _readonly()    { return this.hasAttribute('readonly') && !kitchenLoggedIn(); }
   get canZoom()  { return ZOOM_FMTS.has(this._fmt); }
   get canStats() { return this._fmt === 'csv'; }
   get zoom()     { return Math.round(this._zoom * 100); }
@@ -195,7 +200,7 @@ class SolLiveEdit extends HTMLElement {
     s.getElementById('svBtn').addEventListener('click',()=>this.save());
     s.getElementById('cfgBtn').addEventListener('click',e=>{e.stopPropagation();this.toggleSettings();});
     s.getElementById('hlpBtn').addEventListener('click',()=>this.toggleHelp());
-    if(this.hasAttribute('readonly'))s.getElementById('svBtn').style.display='none';
+    if(this._readonly())s.getElementById('svBtn').style.display='none';
 
     // Close settings dropdown when clicking outside
     s.addEventListener('click',e=>{
@@ -312,7 +317,7 @@ class SolLiveEdit extends HTMLElement {
       const mf=MIME[(resp.headers.get('content-type')||'').split(';')[0].trim()];
       if(mf&&mf!==this._fmt)await this._setFmt(mf);
       await this._setContent(text);
-      if(!this.hasAttribute('readonly')){
+      if(!this._readonly()){
         const sb=this.shadowRoot.getElementById('svBtn');if(sb)sb.style.display='';
       }
       this.dispatchEvent(new CustomEvent('sol-load',{detail:{content:text,url},bubbles:true,composed:true}));

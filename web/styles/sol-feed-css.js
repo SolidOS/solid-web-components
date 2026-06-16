@@ -218,29 +218,84 @@ export const CSS = `
     outline-offset: 2px;
   }
 
-  /* Two-column picker: left = the drag palette (instruction + topic groups
-     of chips + trash); right = the add-topic / add-feed forms (editable). */
+  /* The feed-management editor opens as a full panel (header + body) that
+     takes over the article area; see the .editor-open rules below. The body
+     is a two-zone grid: left = the drag palette (instruction + topic-group
+     cards + trash); right = the add-source drop panel + add-topic form. */
   .feed-picker {
     flex: 0 0 auto;
-    align-self: center;
     width: 100%;
-    max-width: 1280px;
-    display: grid;
-    /* left column carries the topic groups — give it room so each group
-       can fit several chips side-by-side. */
-    grid-template-columns: 2fr 1fr;
-    gap: 1rem;
-    margin: 2rem 0 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    margin: 0;
   }
   .feed-picker[hidden] { display: none; }
-  .feed-picker-left,
-  .feed-picker-right { display: flex; flex-direction: column; gap: .55rem; min-width: 0; }
+
+  /* Editor open: hide the articles / reader split and let the picker grow to
+     fill the component, with its own scroll. */
+  .sol-feed.editor-open .feed-articles,
+  .sol-feed.editor-open .feed-reader-split { display: none; }
+  .sol-feed.editor-open .feed-picker {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 1.1rem 1.3rem 1.5rem;
+    background: var(--feed-articles-bg,
+                    color-mix(in srgb, var(--bg, #f5f5f5) 92%, #000));
+    border-radius: 0 0 var(--radius-md, 6px) var(--radius-md, 6px);
+  }
+
+  .feed-editor-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .feed-editor-title {
+    margin: 0;
+    font-size: 1.05em;
+    font-weight: 700;
+    letter-spacing: .01em;
+    color: var(--text, #212121);
+  }
+  .feed-editor-close {
+    flex: 0 0 auto;
+    font: inherit;
+    font-size: 1em;
+    line-height: 1;
+    padding: .3rem .6rem;
+    border: 1px solid var(--border, #d0d0d0);
+    border-radius: 6px;
+    background: var(--surface, #fff);
+    color: var(--text-muted, #7f8c8d);
+    cursor: pointer;
+  }
+  .feed-editor-close:hover { background: var(--hover, #eaf2fb); color: var(--text, #212121); }
+  .feed-editor-close:focus-visible { outline: 2px solid var(--accent, #3498db); outline-offset: 2px; }
+
+  /* Subtitle, then one panel grid; the status note spans below it. */
+  .feed-picker-left { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+
+  /* One responsive grid for every panel — topic-group cards plus the add-feed /
+     add-topic panels and the trash — all the same width with a uniform 1rem
+     gap so they sit flush with one another. */
+  .feed-panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+  /* Add-feed + add-topic stack in one cell (add-topic under add-feed). */
+  .feed-add-stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+  /* Trash starts a fresh row under all the other panels, three columns wide. */
+  .feed-panel-grid .feed-trash { grid-column: 1 / span 3; }
   .feed-picker-instruct {
     margin: 0;
-    font-style: italic;
     color: var(--text-muted, #7f8c8d);
     font-size: .9em;
   }
+  .feed-picker-instruct strong { color: var(--text, #212121); }
   .feed-picker-note {
     margin: 0;
     font-size: .75em;
@@ -300,6 +355,98 @@ export const CSS = `
     margin-top: .15rem;
   }
   .feed-add-form button[type="submit"]:hover { filter: brightness(.94); }
+
+  /* Add-a-source panel: a drop / paste / type zone, then an inline
+     Name + Topic confirm revealed once a URL is captured. */
+  .feed-drop-panel { gap: .6rem; }
+  .feed-drop-zone {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: 1rem .8rem;
+    border: 2px dashed var(--border, #c4c4c4);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent, #3498db) 4%, var(--surface, #fff));
+    text-align: center;
+    transition: border-color .12s, background .12s;
+  }
+  .feed-drop-zone.drop-target {
+    border-color: var(--accent, #3498db);
+    border-style: solid;
+    background: color-mix(in srgb, var(--accent, #3498db) 12%, var(--surface, #fff));
+  }
+  .feed-drop-hint {
+    font-size: .78em;
+    line-height: 1.3;
+    color: var(--text-muted, #7f8c8d);
+  }
+  .feed-drop-input {
+    font: inherit;
+    font-size: .9em;
+    width: 100%;
+    padding: .3rem .45rem;
+    border: 1px solid var(--border, #d0d0d0);
+    border-radius: 4px;
+    background: var(--surface, #fff);
+    color: var(--text, #212121);
+  }
+  .feed-drop-confirm { display: flex; flex-direction: column; gap: .4rem; }
+  .feed-drop-confirm[hidden] { display: none; }
+  .feed-drop-captured {
+    margin: 0;
+    font-size: .72em;
+    color: var(--text-muted, #7f8c8d);
+    word-break: break-all;
+  }
+  .feed-drop-confirm label {
+    display: flex;
+    flex-direction: column;
+    gap: .15rem;
+    font-size: .8em;
+    color: var(--text, #212121);
+  }
+  .feed-drop-confirm input,
+  .feed-drop-confirm select {
+    font: inherit;
+    font-size: .9em;
+    padding: .2rem .35rem;
+    border: 1px solid var(--border, #d0d0d0);
+    border-radius: 4px;
+    background: var(--surface, #fff);
+    color: var(--text, #212121);
+  }
+  .feed-drop-actions {
+    display: flex;
+    gap: .4rem;
+    justify-content: flex-end;
+    margin-top: .15rem;
+  }
+  .feed-drop-actions button {
+    font: inherit;
+    font-size: .8em;
+    padding: .25rem .8rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .feed-drop-cancel {
+    border: 1px solid var(--border, #d0d0d0);
+    background: var(--surface, #fff);
+    color: var(--text, #212121);
+  }
+  .feed-drop-cancel:hover { background: var(--hover, #eaf2fb); }
+  .feed-drop-add {
+    border: 1px solid var(--accent, #3498db);
+    background: var(--accent, #3498db);
+    color: #fff;
+  }
+  .feed-drop-add:hover { filter: brightness(.94); }
+
+  /* Green borders around the feed-manager panels (topic-group cards, the
+     add-source / add-topic panels, and the trash). */
+  .feed-picker .feed-topic,
+  .feed-picker .feed-add-form,
+  .feed-picker .feed-trash { border-color: var(--feed-panel-border, #2e9e57); }
+  .feed-picker .feed-drop-zone { border-color: var(--feed-panel-border, #2e9e57); }
   .feed-topic {
     border: 1px solid var(--border, #d0d0d0);
     border-radius: 6px;
@@ -318,8 +465,9 @@ export const CSS = `
     color: var(--text-muted, #7f8c8d);
     padding: 0 .3rem;
   }
-  /* Each source is now a draggable, click-to-toggle chip (no checkbox).
-     .active marks a chip whose feed is currently shown on the bar. */
+  /* Each source is a draggable chip. A chip whose feed is shown on the bar is
+     hidden from its topic (see .feed-chip[hidden]); drag it off the bar to
+     bring the chip back. */
   .feed-chip {
     font: inherit;
     font-size: .82em;
@@ -339,12 +487,9 @@ export const CSS = `
     outline: 2px solid var(--accent, #3498db);
     outline-offset: 2px;
   }
-  .feed-chip.active {
-    background: var(--accent, #3498db);
-    border-color: transparent;
-    color: #fff;
-  }
-  .feed-chip.active::before { content: "✓ "; }
+  /* A selected feed is shown on the bar and removed from its topic, so its
+     chip is hidden rather than highlighted. */
+  .feed-chip[hidden] { display: none; }
   .feed-chip.dragging { opacity: .45; cursor: grabbing; }
 
   /* Drop affordances. The bar lights up when a palette chip is dragged onto
@@ -365,9 +510,12 @@ export const CSS = `
     background: var(--hover, #eaf2fb);
   }
 
-  /* Trash drop target (editable only) — sits at the foot of the palette. */
+  /* Trash drop target (editable only) — a grid cell the same width as the
+     other panels. */
   .feed-trash {
-    margin-top: .4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: .5rem .8rem;
     border: 1px dashed var(--border, #c0c0c0);
     border-radius: 8px;
@@ -383,8 +531,8 @@ export const CSS = `
     background: color-mix(in srgb, var(--error, #e74c3c) 8%, transparent);
   }
 
-  /* No add-forms (non-editable): the palette uses the full width. */
-  .feed-picker.palette-only { grid-template-columns: 1fr; }
+  /* (Non-editable "choose feeds" carries the .palette-only marker — no add
+     panels or trash, just the topic-card grid.) */
 
   /* Articles container — a grid of horizontal cards for the active
      feed. Sits flush against the top-bar above; together they form a

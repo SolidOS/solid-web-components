@@ -12,12 +12,14 @@
  *                   article-card area (under inline reader: a card list +
  *                   reading pane, hence "three panel"). The pool of feeds is
  *                   scoped to a root topic and its full subtree. The gear
- *                   opens a drag palette of every available feed grouped by
- *                   topic: drag a feed onto the bar (or click its chip) to
- *                   show it, drag it back off to hide it, and — with
- *                   `editable` — drag between topic groups to re-file it or
- *                   onto the trash to delete it (recoverable bin). The
- *                   legacy value `view="all"` is still accepted.
+ *                   opens a full-panel editor (with a ✕ to return to the
+ *                   articles) — a drag palette of every available feed grouped
+ *                   by topic: drag a feed onto the bar to show it, back off to
+ *                   hide it, and — with `editable` — drag between topic groups
+ *                   to re-file it, onto the trash to delete it (recoverable
+ *                   bin), or add a feed by dropping / pasting / typing a URL
+ *                   in the "Add a feed" panel. Drag-only: chips don't toggle
+ *                   on click. The legacy value `view="all"` is still accepted.
  *   view="topics" — a "newsstand": one column per topic in the subtree,
  *                   each listing that topic's sources. Clicking a source
  *                   shows its articles as image cards (same cards as
@@ -52,12 +54,13 @@ import { adopt } from '../core/adopt.js';
 import { define } from '../core/define.js';
 import { CSS as FEED_CSS, sheet as FEED_SHEET } from './styles/sol-feed-css.js';
 import {
-  renameTopicEdit, recategorizeEdit, addFeedEdit, addTopicEdit, deleteToBinEdit,
+  renameTopicEdit, addFeedEdit, addTopicEdit, deleteToBinEdit,
   restoreEdit, setPositionsEdit, mintFeedUri, mintTopicUri, patchDoc, purgeFeed,
-  binUriFor,
+  recategorizeFeed, binUriFor,
 } from './utils/feed-edit.js';
 import { getFeedItems, parseSourceList } from './utils/feed-fetch.js';
 import { getDefault, onDefaultChange } from '../core/defaults.js';
+import { kitchenLoggedIn } from '../core/auth-core.js';
 
 /** Human-readable date, or '' when the string is missing / unparseable. */
 function formatDate(s) {
@@ -567,16 +570,16 @@ class SolFeed extends HTMLElement {
       for (const src of chosenInTopicOrder()) addSourceButton(src);
     };
 
-    /** Show or hide a source, then reflect it: re-mark its chip, rebuild the
-     *  bar in topic order, and move the active tab onto the newly-shown feed
-     *  (or onto a fallback when the active one was just hidden). The shared
-     *  workhorse for drag-onto-bar, drag-off, and click-to-toggle. */
+    /** Show or hide a source, then reflect it: hide/unhide its topic chip,
+     *  rebuild the bar in topic order, and move the active tab onto the
+     *  newly-shown feed (or onto a fallback when the active one was just
+     *  hidden). The shared workhorse for drag-onto-bar and drag-off. */
     const setSelected = async (src, on) => {
       const prevSelectedUrl = sourceButtons.querySelector('.feed-source-btn.selected')
         ?.dataset.feedUrl;
       if (on) selected.add(src.url); else selected.delete(src.url);
       const chip = chipByUrl.get(src.url);
-      if (chip) { chip.classList.toggle('active', on); chip.setAttribute('aria-pressed', String(on)); }
+      if (chip) chip.hidden = on;   // on the bar → hidden in its topic; off → shown
       rebuildSourceButtons();
       this.saveSelection();
       if (on) {
@@ -598,14 +601,11 @@ class SolFeed extends HTMLElement {
     };
 
     // Left: a drag palette of every available feed, grouped by topic — drag a
-    // chip onto the bar (or click it) to show that feed, drag it onto another
-    // topic group to re-file it, or onto the trash to delete it. Right: the
-    // add-topic / add-feed forms. Both edits are editable-only.
+    // Everything sits in one container: a subtitle, then a single responsive
+    // grid of equal-width panels — the topic-group cards plus (editable) the
+    // add-feed / add-topic panels and the trash, all flush with one another.
     const pickerLeft = document.createElement('div');
     pickerLeft.className = 'feed-picker-left';
-
-    const pickerRight = document.createElement('div');
-    pickerRight.className = 'feed-picker-right';
 
     // The bar accepts a palette chip dropped on it (→ show that feed); the
     // palette accepts a bar pill dragged back into it (→ hide that feed).
@@ -614,10 +614,16 @@ class SolFeed extends HTMLElement {
 
     const instruct = document.createElement('p');
     instruct.className = 'feed-picker-instruct';
-    instruct.textContent = editable
-      ? 'Drag a feed onto the bar to show it, back here to hide it, onto another topic to re-file it, or onto the trash to remove it. Click a feed to toggle it.'
-      : 'Drag a feed onto the bar to show it, back here to hide it — or just click it.';
+    const instructLead = document.createElement('strong');
+    instructLead.textContent = 'Choose feeds to view on startup:';
+    instruct.append(instructLead, document.createTextNode(' drag a feed on or off the bar above.'));
     pickerLeft.appendChild(instruct);
+
+    // One responsive grid holds every panel (topic cards + add panels + trash),
+    // each the same width with a uniform gap.
+    const groupsWrap = document.createElement('div');
+    groupsWrap.className = 'feed-panel-grid';
+    pickerLeft.appendChild(groupsWrap);
 
     /** Build one topic group (a fieldset of chips), wired as a re-file drop
      *  target when editable. */
@@ -628,7 +634,7 @@ class SolFeed extends HTMLElement {
       legend.textContent = topicLabel || 'Sources';
       fieldset.appendChild(legend);
       if (editable && topicUri) this._wireTopicRefileDrop(fieldset, topicUri);
-      pickerLeft.appendChild(fieldset);
+      groupsWrap.appendChild(fieldset);
       return fieldset;
     };
     /** Build one draggable, click-to-toggle feed chip inside a topic group. */
@@ -638,11 +644,10 @@ class SolFeed extends HTMLElement {
       chip.className = 'feed-chip';
       chip.dataset.feedUrl = src.url;
       chip.textContent = src.label;
-      const on = selected.has(src.url);
-      chip.classList.toggle('active', on);
-      chip.setAttribute('aria-pressed', String(on));
-      chip.title = `${src.label} — click to ${on ? 'hide' : 'show'}; drag to the bar, another topic, or the trash`;
-      chip.addEventListener('click', () => setSelected(src, !selected.has(src.url)));
+      // A selected feed lives on the bar, not in its topic — hide its chip
+      // here; it reappears in the topic when dragged off the bar.
+      chip.hidden = selected.has(src.url);
+      chip.title = `${src.label} — drag to the bar to show it, to another topic to re-file it, or to the trash to remove it`;
       this._wireFeedDrag(chip, src, 'palette');
       fieldset.appendChild(chip);
       chipByUrl.set(src.url, chip);
@@ -668,18 +673,7 @@ class SolFeed extends HTMLElement {
       for (const src of group.feeds) addChip(fieldset, src);
     }
 
-    // Editable: a trash drop target that moves a dropped feed to the bin.
-    if (editable) {
-      const trash = document.createElement('div');
-      trash.className = 'feed-trash';
-      trash.textContent = '🗑 Trash';
-      trash.setAttribute('aria-label', 'Drop a feed here to move it to the deleted bin');
-      trash.title = 'Drop a feed here to move it to the deleted bin';
-      this._wireTrashDrop(trash);
-      pickerLeft.appendChild(trash);
-    }
-
-    // ── Add-topic / add-feed forms (editable only) ─────────────────────
+    // ── Add-feed / add-topic panels + trash (editable only) ───────────
     // Topic IRIs come from the RDF parse (attached by parseSourceList). Each
     // add PATCHes the SKOS/DCAT source then reloads, so the new topic / feed
     // re-renders from the saved doc.
@@ -695,7 +689,7 @@ class SolFeed extends HTMLElement {
         // The focus concept scheme itself is never an option — feeds attach
         // to a leaf topic.
         const options = topicList.filter(t => t.uri !== focusUri);
-        for (const sel of pickerRight.querySelectorAll('[data-role="topic-select"]')) {
+        for (const sel of groupsWrap.querySelectorAll('[data-role="topic-select"]')) {
           const current = sel.value;
           sel.replaceChildren(...options.map(t => {
             const opt = document.createElement('option');
@@ -719,25 +713,51 @@ class SolFeed extends HTMLElement {
         </fieldset>
       `;
 
-      const sourceForm = document.createElement('form');
-      sourceForm.className = 'feed-add-wrap';
-      sourceForm.innerHTML = `
-        <fieldset class="feed-add-form">
-          <legend>Add feed</legend>
-          <label>Feed URL
-            <input name="url" type="url" required placeholder="https://example.org/rss.xml">
-          </label>
-          <label>Label
-            <input name="label" required>
-          </label>
-          <label>Topic
-            <select name="topic" data-role="topic-select"></select>
-          </label>
-          <button type="submit">Add feed</button>
+      // Add a feed by URL: a drop / paste / type zone. Dropping a link,
+      // pasting one, or typing one + Enter captures the URL, then an inline
+      // confirm asks for a Name and Topic before the feed is added.
+      const dropForm = document.createElement('form');
+      dropForm.className = 'feed-add-wrap';
+      dropForm.innerHTML = `
+        <fieldset class="feed-add-form feed-drop-panel">
+          <legend>Add a feed</legend>
+          <div class="feed-drop-zone" role="group" aria-label="Drop, paste, or type a feed URL">
+            <span class="feed-drop-hint">Drop a link here, or paste / type a feed URL and press Enter</span>
+            <input class="feed-drop-input" name="url" type="url"
+                   placeholder="https://example.org/rss.xml" aria-label="Feed URL">
+          </div>
+          <div class="feed-drop-confirm" hidden>
+            <p class="feed-drop-captured"></p>
+            <label>Name
+              <input name="label" required aria-required="true">
+            </label>
+            <label>Topic
+              <select name="topic" data-role="topic-select"></select>
+            </label>
+            <div class="feed-drop-actions">
+              <button type="button" class="feed-drop-cancel">Cancel</button>
+              <button type="submit" class="feed-drop-add">Add feed</button>
+            </div>
+          </div>
         </fieldset>
       `;
 
-      pickerRight.append(topicForm, sourceForm, status);
+      // A trash drop target that moves a dropped feed to the bin — a grid
+      // cell the same width as the other panels.
+      const trash = document.createElement('div');
+      trash.className = 'feed-trash';
+      trash.textContent = '🗑 Trash';
+      trash.setAttribute('aria-label', 'Drop a feed here to move it to the deleted bin');
+      trash.title = 'Drop a feed here to move it to the deleted bin';
+      this._wireTrashDrop(trash);
+
+      // Add-feed with add-topic stacked beneath it occupy one grid cell, flush
+      // with the topic cards; the trash spans a full-width row under everything.
+      const addStack = document.createElement('div');
+      addStack.className = 'feed-add-stack';
+      addStack.append(dropForm, topicForm);
+      groupsWrap.append(addStack, trash);
+      pickerLeft.appendChild(status);
       refreshTopicSelects();
 
       // New topic: mint a skos:Concept under the focus scheme, then reload.
@@ -747,38 +767,106 @@ class SolFeed extends HTMLElement {
         if (!labelVal) return;
         const existing = [focusUri, ...topicList.map(t => t.uri)];
         const topicUri = mintTopicUri(fileUri, labelVal, existing);
+        this._editorOpen = true;
         this._edit(addTopicEdit(topicUri, labelVal, focusUri));
       });
 
-      // New feed: mint a dcat:Dataset under the chosen topic, pre-show it on
-      // the bar, then reload so it appears already selected.
-      sourceForm.addEventListener('submit', (ev) => {
+      // Drop / paste / type a URL → capture it, then reveal the Name + Topic
+      // confirm. A new feed mints a dcat:Dataset under the chosen topic,
+      // pre-shows it on the bar, and keeps the editor open across the reload.
+      const dropZone = dropForm.querySelector('.feed-drop-zone');
+      const dropInput = dropForm.querySelector('.feed-drop-input');
+      const dropConfirm = dropForm.querySelector('.feed-drop-confirm');
+      const dropCaptured = dropForm.querySelector('.feed-drop-captured');
+      const dropName = dropConfirm.querySelector('input[name="label"]');
+      let capturedUrl = '';
+
+      const firstUrlIn = (text) => {
+        const m = String(text || '').match(/https?:\/\/[^\s<>"']+/i);
+        return (m ? m[0] : String(text || '').trim()).replace(/[).,;]+$/, '');
+      };
+      const guessName = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+      const beginConfirm = (raw) => {
+        const url = (raw || '').trim();
+        if (!url) return;
+        capturedUrl = url;
+        dropCaptured.textContent = url;
+        if (!dropName.value.trim()) dropName.value = guessName(url);
+        dropConfirm.hidden = false;
+        refreshTopicSelects();
+        dropName.focus(); dropName.select();
+      };
+
+      dropInput.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); beginConfirm(firstUrlIn(dropInput.value)); }
+      });
+      // Accept an external URL drop; ignore internal chip / pill drags (those
+      // carry this._dragFeed and are handled by the palette / trash targets).
+      dropZone.addEventListener('dragover', (ev) => {
+        if (this._dragFeed) return;
+        ev.preventDefault(); dropZone.classList.add('drop-target');
+      });
+      dropZone.addEventListener('dragleave', (ev) => {
+        if (!dropZone.contains(ev.relatedTarget)) dropZone.classList.remove('drop-target');
+      });
+      dropZone.addEventListener('drop', (ev) => {
+        dropZone.classList.remove('drop-target');
+        if (this._dragFeed) return;
         ev.preventDefault();
-        const data = new FormData(sourceForm);
-        const url = String(data.get('url') || '').trim();
-        const labelVal = String(data.get('label') || '').trim();
-        const topicUri = String(data.get('topic') || '');
-        if (!url || !labelVal || !topicUri) return;
+        const dt = ev.dataTransfer;
+        const raw = (dt.getData('text/uri-list') || dt.getData('text/plain') || '')
+          .split('\n').map(s => s.trim()).find(s => s && !s.startsWith('#')) || '';
+        beginConfirm(firstUrlIn(raw));
+      });
+      dropForm.querySelector('.feed-drop-cancel').addEventListener('click', () => {
+        dropConfirm.hidden = true; capturedUrl = ''; dropInput.value = ''; dropInput.focus();
+      });
+
+      dropForm.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        const labelVal = dropName.value.trim();
+        const topicUri = String(new FormData(dropForm).get('topic') || '');
+        if (!capturedUrl || !labelVal || !topicUri) return;
         const feedUri = mintFeedUri(fileUri, labelVal, this._allFeedUris);
         try {
           const sel = new Set(this.loadSelection());
-          sel.add(url);
+          sel.add(capturedUrl);
           localStorage.setItem(this.selectionKey, JSON.stringify([...sel]));
         } catch (_) {}
-        this._edit(addFeedEdit(feedUri, { title: labelVal, url, topicUri, catalogUri: this._catalogUri }));
+        this._editorOpen = true;
+        this._edit(addFeedEdit(feedUri, { title: labelVal, url: capturedUrl, topicUri, catalogUri: this._catalogUri }));
       });
     }
 
-    if (editable) picker.append(pickerLeft, pickerRight);
-    else { picker.classList.add('palette-only'); picker.append(pickerLeft); }
+    // The editor opens as a full panel (header + a single panel grid) that
+    // takes over the article area; the ✕ in the header (or the gear) closes it
+    // and brings the articles back.
+    const head = document.createElement('div');
+    head.className = 'feed-editor-head';
+    const headTitle = document.createElement('h2');
+    headTitle.className = 'feed-editor-title';
+    headTitle.textContent = editable ? 'Manage feeds' : 'Choose feeds';
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'feed-editor-close';
+    closeBtn.textContent = '✕';
+    closeBtn.title = 'Close';
+    closeBtn.setAttribute('aria-label', 'Close and show articles');
+    head.append(headTitle, closeBtn);
+
+    if (!editable) picker.classList.add('palette-only');
+    picker.append(head, pickerLeft);
 
     const setExpanded = open => {
       picker.hidden = !open;
+      this._editorOpen = open;
+      this._root.classList.toggle('editor-open', open);
       toggle.setAttribute('aria-expanded', String(open));
       toggle.setAttribute('aria-label', open ? 'Hide feeds' : 'Show feeds');
     };
     toggle.addEventListener('click', () => setExpanded(picker.hidden));
-    setExpanded(false);
+    closeBtn.addEventListener('click', () => setExpanded(false));
+    setExpanded(!!this._editorOpen);
 
     if (!remembered.length) {
       // First visit on this page — nothing in localStorage yet.
@@ -801,12 +889,8 @@ class SolFeed extends HTMLElement {
         }
       }
       if (!matched && sources.length) selected.add(sources[0].url);
-      // Reflect the cold-start selection onto the chips.
-      for (const [url, chip] of chipByUrl) {
-        const on = selected.has(url);
-        chip.classList.toggle('active', on);
-        chip.setAttribute('aria-pressed', String(on));
-      }
+      // Reflect the cold-start selection: hide chips whose feed is on the bar.
+      for (const [url, chip] of chipByUrl) chip.hidden = selected.has(url);
     }
 
     // Inline reader: top bar stays full-width, the article grid becomes a
@@ -913,21 +997,22 @@ class SolFeed extends HTMLElement {
     });
   }
 
-  /** A topic group accepts a palette chip from a DIFFERENT topic → re-file it
-   *  (rewrites dcat:theme) and reload. */
+  /** A topic group accepts a feed from a DIFFERENT topic — dragged from the
+   *  palette or off the bar → re-file it (rewrites dcat:theme) and reload. */
   _wireTopicRefileDrop(fieldset, topicUri) {
     fieldset.addEventListener('dragover', (e) => {
       const d = this._dragFeed;
-      if (!d || d.origin !== 'palette' || d.fromTopicUri === topicUri) return;
+      if (!d || d.fromTopicUri === topicUri) return;
       e.preventDefault(); e.stopPropagation(); fieldset.classList.add('drop-target');
     });
     fieldset.addEventListener('dragleave', (e) => { if (!fieldset.contains(e.relatedTarget)) fieldset.classList.remove('drop-target'); });
     fieldset.addEventListener('drop', (e) => {
       fieldset.classList.remove('drop-target');
       const d = this._dragFeed;
-      if (!d || d.origin !== 'palette' || d.fromTopicUri === topicUri) return;
+      if (!d || d.fromTopicUri === topicUri) return;
       e.preventDefault(); e.stopPropagation();
-      this._edit(recategorizeEdit(d.uri, d.fromTopicUri, topicUri));
+      this._editorOpen = true;
+      this._refile(d.uri, topicUri);
     });
   }
 
@@ -944,6 +1029,7 @@ class SolFeed extends HTMLElement {
       const d = this._dragFeed;
       if (!d) return;
       e.preventDefault(); e.stopPropagation();
+      this._editorOpen = true;
       this._edit(deleteToBinEdit(d.uri, d.fromTopicUri, this._binUri));
     });
   }
@@ -1145,7 +1231,7 @@ class SolFeed extends HTMLElement {
    * the view re-renders from the saved doc. Owner-gating is the host's job
    * (it sets/clears the `editable` attribute). */
 
-  get editable() { return this.hasAttribute('editable'); }
+  get editable() { return this.hasAttribute('editable') || kitchenLoggedIn(); }
 
   /** Host hook routed from the app chrome (⋮ → "View deleted"). */
   appAction(name) {
@@ -1157,6 +1243,18 @@ class SolFeed extends HTMLElement {
     this._view = 'topics';            // a normal-view edit returns to the columns
     try {
       await patchDoc(this._fileUri, editObj);
+      await this.reload();
+    } catch (e) {
+      this.setStatus(e.message || 'Edit failed', true);
+    }
+  }
+
+  /** Robust re-file: re-theme a feed to `toTopicUri` (drops its current theme
+   *  via DELETE … WHERE, so a stale/absent from-theme can't 500), then reload. */
+  async _refile(feedUri, toTopicUri) {
+    this._view = 'topics';
+    try {
+      await recategorizeFeed(this._fileUri, feedUri, toTopicUri);
       await this.reload();
     } catch (e) {
       this.setStatus(e.message || 'Edit failed', true);
@@ -1240,7 +1338,7 @@ class SolFeed extends HTMLElement {
       if (!d) return;
       e.preventDefault();
       if (d.fromTopicUri === topicUri) this._reorder(topicUri, d.uri, null, false);   // → end
-      else this._edit(recategorizeEdit(d.uri, d.fromTopicUri, topicUri));
+      else this._refile(d.uri, topicUri);
     });
   }
 
@@ -1267,7 +1365,7 @@ class SolFeed extends HTMLElement {
       if (!d || d.uri === src.uri) return;
       e.preventDefault(); e.stopPropagation();
       if (d.fromTopicUri === src.topicUri) this._reorder(src.topicUri, d.uri, src.uri, before(e));
-      else this._edit(recategorizeEdit(d.uri, d.fromTopicUri, src.topicUri));
+      else this._refile(d.uri, src.topicUri);
     });
   }
 

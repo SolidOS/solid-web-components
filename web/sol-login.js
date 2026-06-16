@@ -25,6 +25,7 @@ import {
   isLoggedInFor,
   getWebId as _getWebId,
   getFirstLoggedIn as _getFirstLoggedIn,
+  kitchenLoggedIn,
 } from '../core/auth-core.js';
 import { PopupProxySession } from '../core/popup-proxy.js';
 import { solFetch } from '../core/auth-fetch.js';
@@ -261,6 +262,7 @@ class SolLogin extends HTMLElement {
   }
 
   get isLoggedIn() {
+    if (kitchenLoggedIn()) return true;
     if (this._mode === 'popup') {
       return !!this._sideSession()?.info?.isLoggedIn;
     }

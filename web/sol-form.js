@@ -37,6 +37,7 @@ import { rdf }    from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
 import { UI, RDF, readFormParts, findForm } from '../core/form-utils.js';
 import { parseShape, renderRecordForm, findSubjects } from '../core/shape-to-form.js';
+import { kitchenLoggedIn } from '../core/auth-core.js';
 import { CSS as FORM_CSS, sheet as formSheet } from './styles/sol-form-css.js';
 import { CSS as ROLODEX_CSS, sheet as rolodexSheet } from './styles/view-rolodex-css.js';
 
@@ -439,7 +440,9 @@ class SolForm extends HTMLElement {
       return;
     }
 
-    const readOnly = this.hasAttribute('no-edit');
+    // SolidKitchen desktop users are treated as logged in → fully editable, so
+    // an authored `no-edit` is ignored there (a plain web build keeps it).
+    const readOnly = this.hasAttribute('no-edit') && !kitchenLoggedIn();
     this._shapeCleanup?.();
     this._shapeCleanup = renderRecordForm(body, store, subject, parsed.properties, {
       doc,
@@ -486,7 +489,7 @@ class SolForm extends HTMLElement {
     // Editable rolodexes write through a raw sparql-update PATCH (rdflib's
     // own PATCH 500s on CSS for some docs). Field edits (solid-ui) and our
     // Add / Remove both go through updater.update, so this one swap covers all.
-    if (this.hasAttribute('editable')) installRawSparqlUpdate(dataStore);
+    if (this.hasAttribute('editable') || kitchenLoggedIn()) installRawSparqlUpdate(dataStore);
     await dataStore.fetcher.load(docUrl);
     const docNode = rdf.sym(docUrl);
 
@@ -498,7 +501,7 @@ class SolForm extends HTMLElement {
 
     this._buildRolodexCards(body, dataStore, docNode, subjects, parsed.properties, null, {
       lazy: this.hasAttribute('lazy'),
-      editable: this.hasAttribute('editable'),
+      editable: this.hasAttribute('editable') || kitchenLoggedIn(),
       targets: parsed.targets,
     });
   }

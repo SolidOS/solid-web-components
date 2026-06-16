@@ -123,6 +123,12 @@
 &lt;!-- with two logins on the page, target one explicitly --&gt;
 &lt;sol-query login="#alt" source="data.ttl"&gt;&lt;/sol-query&gt;</code></pre>
 
+  <p>Inside the <b>SolidKitchen</b> desktop app (or with
+  <code>&lt;sol-default solid-kitchen&gt;</code>) the user is always treated as
+  signed in, so every <code>if-logged-in</code> switch and every editable
+  feature is on. A plain web build sets neither, so there real sign-in still
+  governs what's shown and what's editable.</p>
+
   <h3>Set shared options once — <code>&lt;sol-default&gt;</code></h3>
   <p>Rather than repeating the same setting on every component, put a single
   <code>&lt;sol-default&gt;</code> on the page. A component checks its own

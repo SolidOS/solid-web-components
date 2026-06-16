@@ -55,7 +55,25 @@ export function makeFetchFor(sessions, url, tag, noAuthConfig, defaultFetch) {
   return (input, init) => session.fetch(input, init);
 }
 
+/**
+ * True when the app should treat the user as logged in regardless of any Solid
+ * session — i.e. running inside the SolidKitchen desktop shell, signalled by the
+ * `window.SolidKitchen` global or a `solid-kitchen` attribute on <sol-default>.
+ * A plain web build sets neither, so real session checks still apply there (and
+ * the `if-logged-in` switch stays meaningful). This is the single short-circuit
+ * shared by every login / editable gate across the components.
+ */
+export function kitchenLoggedIn() {
+  try { if (typeof window !== 'undefined' && window.SolidKitchen === true) return true; } catch { /* ignore */ }
+  try {
+    if (typeof document !== 'undefined' &&
+        document.querySelector('sol-default')?.hasAttribute('solid-kitchen')) return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
 export function isLoggedInFor(sessions, url, tag, noAuthConfig) {
+  if (kitchenLoggedIn()) return true;
   if (!url || isNoAuth(url, noAuthConfig)) return true;
   const s = getSessionFor(sessions, url, tag, noAuthConfig);
   return s?.info?.isLoggedIn ?? false;

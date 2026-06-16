@@ -25,6 +25,7 @@ import { define } from '../core/define.js';
 import { adopt } from '../core/adopt.js';
 import { fetchIncludeContent, filterWithSelector } from '../core/include-core.js';
 import { getAuthFetch } from '../core/auth-fetch.js';
+import { kitchenLoggedIn } from '../core/auth-core.js';
 import { CSS as INCLUDE_CSS, sheet as includeSheet } from './styles/sol-include-css.js';
 
 function browserContainer(html) {
@@ -41,9 +42,10 @@ function browserContainer(html) {
  * logged in. Used by the `if-logged-in` source switch.
  */
 function isLoggedIn() {
-  try { if (typeof window !== 'undefined' && window.SolidKitchen === true) return true; } catch { /* ignore */ }
+  // SolidKitchen desktop shell (window.SolidKitchen / <sol-default solid-kitchen>)
+  // counts as logged in — shared with every other gate via kitchenLoggedIn().
+  if (kitchenLoggedIn()) return true;
   if (typeof document === 'undefined') return false;
-  if (document.querySelector('sol-default')?.hasAttribute('solid-kitchen')) return true;
   const login = document.querySelector('sol-login');
   if (login && login.isLoggedIn) return true;
   try {

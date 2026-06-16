@@ -179,3 +179,26 @@ export async function purgeFeed(fileUri, feedUri, { catalogUri, prefixes, fetchI
   });
   if (!resp.ok) throw new Error(`Permanent delete failed (HTTP ${resp.status}).`);
 }
+
+/**
+ * Robust re-file: drop whatever `dcat:theme` the feed currently has (via
+ * DELETE … WHERE, so it never fails on a stale or absent from-theme — unlike
+ * `recategorizeEdit`'s DELETE DATA of one specific triple) and set the chosen
+ * topic. The two statements run as one `application/sparql-update`.
+ */
+export function recategorizeBody(feedUri, toTopicUri, prefixes = DEFAULT_PREFIXES) {
+  const pfx = Object.entries(prefixes).map(([k, v]) => `PREFIX ${k}: <${v}>`).join('\n');
+  return `${pfx}\n` +
+    `DELETE { <${feedUri}> dcat:theme ?t . } WHERE { <${feedUri}> dcat:theme ?t . } ;\n` +
+    `INSERT DATA { <${feedUri}> dcat:theme <${toTopicUri}> . }\n`;
+}
+
+export async function recategorizeFeed(fileUri, feedUri, toTopicUri, { prefixes, fetchImpl } = {}) {
+  const f = fetchImpl || fetch;
+  const resp = await f(fileUri, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/sparql-update' },
+    body: recategorizeBody(feedUri, toTopicUri, prefixes),
+  });
+  if (!resp.ok) throw new Error(`Save failed (HTTP ${resp.status}) — the feeds file must be writable.`);
+}

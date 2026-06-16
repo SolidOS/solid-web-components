@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import {
   renameTopicEdit, recategorizeEdit, addFeedEdit, deleteToBinEdit, restoreEdit,
   reorderEdit, mintFeedUri, patchBody, patchDoc, binUriFor, lit,
+  recategorizeBody, recategorizeFeed,
 } from './feed-edit.js';
 
 let n = 0; const ok = (m) => { console.log('  ✓ ' + m); n++; };
@@ -18,6 +19,18 @@ e = recategorizeEdit(F+'#f1', F+'#News', F+'#Culture');
 assert.ok(e.deletes[0].includes('#News') && e.inserts[0].includes('#Culture'));
 assert.deepEqual(recategorizeEdit(F+'#f1', F+'#News', F+'#News'), {deletes:[],inserts:[]});
 ok('recategorizeEdit moves dcat:theme (no-op when unchanged)');
+
+// robust re-file: DELETE … WHERE drops any current theme, then INSERT DATA the new one
+const rb = recategorizeBody(F+'#f1', F+'#Culture');
+assert.ok(/DELETE \{ <[^>]+#f1> dcat:theme \?t \. \} WHERE \{ <[^>]+#f1> dcat:theme \?t \. \}/.test(rb));
+assert.ok(rb.includes(' ;\n') && rb.includes(`INSERT DATA { <${F}#f1> dcat:theme <${F}#Culture> . }`));
+let cap = null;
+await recategorizeFeed(F, F+'#f1', F+'#Culture', { fetchImpl: async (u, o) => { cap = { u, o }; return { ok: true }; } });
+assert.equal(cap.u, F);
+assert.equal(cap.o.method, 'PATCH');
+assert.equal(cap.o.headers['Content-Type'], 'application/sparql-update');
+await assert.rejects(() => recategorizeFeed(F, F+'#f1', F+'#x', { fetchImpl: async () => ({ ok: false, status: 500 }) }), /500/);
+ok('recategorizeBody/recategorizeFeed: DELETE…WHERE re-file, throws on !ok');
 
 // add (with + without catalog)
 e = addFeedEdit(F+'#feed-x', { title:'X "Y"', url:'http://x/r.xml', topicUri:F+'#News', catalogUri:F+'#catalog' });
