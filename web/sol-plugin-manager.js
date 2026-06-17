@@ -78,6 +78,8 @@ const DCT  = 'http://purl.org/dc/terms/';
 const paramsKey = (params) =>
   (params || []).map(([k, v]) => `${k}=${v ?? ''}`).sort().join(' ');
 
+const usedKey = (tag, params) => tag + '\n' + paramsKey(params);
+
 class SolPluginManager extends HTMLElement {
   constructor() {
     super();
@@ -148,7 +150,7 @@ class SolPluginManager extends HTMLElement {
   async _loadUsed() {
     const sel = this.getAttribute('for');
     if (!sel) { this._used = null; return; }
-    const used = { hrefs: new Set(), tags: new Set() };
+    const used = { hrefs: new Set(), keys: new Set() };
     const perDoc = new Map();
     let els = [];
     try { els = [...document.querySelectorAll(sel)]; } catch { els = []; }
@@ -168,7 +170,7 @@ class SolPluginManager extends HTMLElement {
           for (const it of items || []) {
             if (it.type === 'submenu') { walk(it.children); continue; }
             if (it.href) { used.hrefs.add(it.href); continue; }
-            if (it.tag) used.tags.add(it.tag);
+            if (it.tag) used.keys.add(usedKey(it.tag, it.params));
           }
         };
         for (const f of frags) walk(parseMenuItems(store, rdf.sym(`${docUrl}#${f}`)));
@@ -182,7 +184,7 @@ class SolPluginManager extends HTMLElement {
   _isUsed(p) {
     if (!this._used) return false;
     if (p.type === 'link') return this._used.hrefs.has(p.href);
-    return this._used.tags.has(p.tag);
+    return this._used.keys.has(usedKey(p.tag, p.params));
   }
 
   // ---- loading -----------------------------------------------------------
