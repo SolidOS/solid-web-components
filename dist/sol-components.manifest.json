@@ -8,7 +8,8 @@
     "sol-search": { "label": "Search" },
     "sol-login": { "label": "Sign in" },
     "sol-time": { "label": "Clock", "icon": "🕐", "shape": "../shapes/time-settings.shacl" },
-    "sol-weather": { "label": "Weather", "icon": "🌤", "shape": "../shapes/weather-settings.shacl" }
+    "sol-weather": { "label": "Weather", "icon": "🌤", "shape": "../shapes/weather-settings.shacl" },
+    "sol-solidos": { "label": "SolidOS", "icon": "https://solidproject.org/assets/img/solid-emblem.svg" }
   },
   "attributes": {
     "data-from-query": { "module": "sol-components/core/from-query.js" },
