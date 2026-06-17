@@ -1,5 +1,6 @@
 import { define } from '../core/define.js';
 import { ensureDocStyle } from '../core/adopt.js';
+import { getAuthFetch } from '../core/auth-fetch.js';
 
 function getMashlib() {
   const w = typeof window !== 'undefined' ? window : {};
@@ -9,21 +10,20 @@ function getMashlib() {
   const $rdf = w.$rdf || g.$rdf;
   const panes = w.panes || g.panes;
   if (!Mashlib || !panes) return null;
-  const initMainPage = Mashlib.initMainPage || Mashlib.default?.initMainPage || Mashlib.default;
+  // mashlib 2.x exposes initMainPage/getOutliner on `panes`, not on the Mashlib
+  // global (which is only { versionInfo }). Fall back to panes.* for compat.
+  const initMainPage = Mashlib.initMainPage || Mashlib.default?.initMainPage
+    || Mashlib.default || panes.initMainPage;
   if (!initMainPage) return null;
   return { Mashlib, initMainPage, SolidLogic, $rdf, panes };
 }
 
-// Hide mashlib's own header/footer chrome — when sol-solidos is mounted
-// inside a host shell (dk), the host already owns login + help/prefs
-// affordances, so a duplicate login button in mashlib's header is both
-// confusing and broken (popup-mode pod sessions don't reach mashlib's
-// default Inrupt session, so its login button stalls). Mashlib's reads
-// go through rdflib's patched Fetcher → solFetch → sol-auth-needed →
-// the host's <sol-login> chip handles the prompt and retries.
+// Show mashlib's full SolidOS banner (header) so the embedded data browser looks
+// and behaves like SolidOS; only the page footer is suppressed. Mashlib's reads/
+// writes go through the page's authenticated fetch (shared in via component-interop;
+// see _init), so the banner's own actions inherit the session.
 const HOST_CSS = `
   sol-solidos { display: block; width: 100%; height: 100%; }
-  sol-solidos > #PageHeader,
   sol-solidos > #PageFooter { display: none; }
 `;
 
@@ -66,14 +66,20 @@ class SolSolidos extends HTMLElement {
     this._m = m;
     ensureDocStyle(document, 'sol-solidos-style', HOST_CSS);
 
-    // Build the DOM structure mashlib expects
+    // Build the DOM structure mashlib 2.x expects (matches its databrowser.html:
+    // initMainPage fills #mainSolidUiHeader / #MainContent / #OutlineView /
+    // #GlobalDashboard / #NavMenu / #PageFooter by id).
     this.innerHTML = `
-      <header id="PageHeader" role="banner"></header>
-      <main id="mainContent" tabindex="-1">
-        <div class="TabulatorOutline" id="DummyUUID">
-          <table id="outline"></table>
-          <div id="GlobalDashboard"></div>
+      <solid-ui-header id="mainSolidUiHeader" theme="" layout="" brand-link="/"><span slot="title"></span></solid-ui-header>
+      <main id="MainContent" role="main" tabindex="-1" aria-live="polite">
+        <div class="app-shell">
+          <aside id="NavMenu" class="app-nav" aria-label="Application menu" hidden><div id="NavMenuContent" class="menu-content"></div></aside>
+          <div class="app-view">
+            <table id="OutlineView" class="outline-view" aria-label="Resource browser"></table>
+            <section id="GlobalDashboard" class="global-dashboard" aria-label="Dashboard" hidden></section>
+          </div>
         </div>
+        <div id="MenuOverlay" class="menu-overlay" hidden aria-hidden="true"></div>
       </main>
       <footer id="PageFooter" role="contentinfo"></footer>
     `;
@@ -81,6 +87,25 @@ class SolSolidos extends HTMLElement {
     const SL = m.SolidLogic?.solidLogicSingleton || m.SolidLogic?.default?.solidLogicSingleton;
     const store = SL?.store;
     const uri = this.getAttribute('source') || window.location.href;
+
+    // Route mashlib's reads/writes through the page's authenticated fetch. A host
+    // shares its fetch via component-interop (SolidWebComponents.adoptFetch), which
+    // getAuthFetch() returns; solid-logic's boundFetch resolves the global fetch at
+    // call time, so overriding it here makes every pane request inherit the session.
+    // Resolved per-call so a fetch adopted after init is still honoured.
+    if (!window.__solSolidosFetchPatched) {
+      window.__solSolidosFetchPatched = true;
+      const nativeFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const u = typeof input === 'string' ? input
+          : (input && (input.url || input.href)) || uri;
+        try {
+          const f = getAuthFetch(u);
+          if (typeof f === 'function') return f(input, init);
+        } catch (_) { /* fall through to native */ }
+        return nativeFetch(input, init);
+      };
+    }
 
     this._outliner = m.panes.getOutliner(document);
     m.initMainPage(store, uri);
