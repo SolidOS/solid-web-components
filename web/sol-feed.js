@@ -454,9 +454,16 @@ class SolFeed extends HTMLElement {
     const fileUri = sources.fileUri || this.source.split('#')[0];
     const focusUri = sources.focusUri || this.source;
 
-    const remembered = this.loadSelection();
+    // url → feed RDF subject, and uri → its current schema:position, so the bar
+    // selection can be mirrored to (and restored from) the feeds doc on disk.
+    this._urlToUri = new Map(sources.map(s => [s.url, s.uri]));
+    this._feedPos = {};
+    for (const s of sources) if (s.position !== undefined) this._feedPos[s.uri] = s.position;
+
+    const remembered = this.loadSelection(sources);
     /** Shown feed URLs — the pills on the bar. Drag-onto-bar / click adds;
-     *  drag-off / click removes. Persisted to localStorage. */
+     *  drag-off / click removes. Cached in localStorage and persisted to the
+     *  feeds doc as schema:position (survives a localStorage reset). */
     const selected = new Set(remembered);
     /** url → its palette chip, so a selection change can re-mark the chip. */
     const chipByUrl = new Map();
@@ -1497,22 +1504,58 @@ class SolFeed extends HTMLElement {
     return `sol-feed:selected:${this.source || location.pathname}`;
   }
 
-  /** Read the remembered set of selected feed URLs (empty on any failure). */
-  loadSelection() {
+  /** The selected feed URLs. localStorage is the live cache; when it's empty
+   *  (cleared, new machine), fall back to the feeds doc — feeds carrying a
+   *  schema:position are the on-bar set, in position order — so the selection
+   *  survives a localStorage reset. `sources` is the parsed feed list. */
+  loadSelection(sources) {
     try {
       const raw = localStorage.getItem(this.selectionKey);
       const list = raw ? JSON.parse(raw) : [];
-      return Array.isArray(list) ? list : [];
-    } catch { return []; }
+      if (Array.isArray(list) && list.length) return list;
+    } catch { /* fall through to the doc */ }
+    if (Array.isArray(sources)) {
+      return sources.filter(s => s.position !== undefined)
+        .sort((a, b) => a.position - b.position)
+        .map(s => s.url);
+    }
+    return [];
   }
 
-  /** Persist the shown feed URLs (the bar's pills, left→right) to localStorage. */
+  /** Persist the shown feed URLs (the bar's pills, left→right): localStorage as
+   *  the live cache, and the feeds doc as the durable store. */
   saveSelection() {
     const urls = Array.from(
       this.shadowRoot.querySelectorAll('.feed-source-buttons .feed-source-btn'),
     ).map(b => b.dataset.feedUrl).filter(Boolean);
     try { localStorage.setItem(this.selectionKey, JSON.stringify(urls)); }
-    catch { /* storage unavailable / full — selection just won't persist */ }
+    catch { /* storage unavailable / full — fall back to the doc */ }
+    this._saveSelectionToDisk(urls);
+  }
+
+  /** Mirror the on-bar set into the feeds doc as schema:position markers so it
+   *  survives a localStorage reset. Adds a position (after the current max) to
+   *  newly-on-bar feeds and removes it from those taken off; positions already
+   *  set (the custom bar order) are left untouched. Owner-only, best-effort. */
+  _saveSelectionToDisk(urls) {
+    // Not gated on `editable`: in the Electron home pod every user is the owner
+    // (writes go through the gate, not a WebID login, so `kitchenLoggedIn()` may
+    // be false while the doc is still writable). A genuinely read-only doc just
+    // makes the PATCH fail harmlessly (caught below).
+    if (!this._urlToUri || !this._fileUri) return;
+    const had = this._feedPos || (this._feedPos = {});
+    const want = new Set(urls.map(u => this._urlToUri.get(u)).filter(Boolean));
+    const deletes = [], inserts = [];
+    let next = Object.values(had).reduce((m, p) => Math.max(m, Number(p)), -1) + 1;
+    for (const uri of want) {
+      if (had[uri] == null) { inserts.push(`<${uri}> schema:position ${next} .`); had[uri] = next++; }
+    }
+    for (const uri of Object.keys(had)) {
+      if (!want.has(uri)) { deletes.push(`<${uri}> schema:position ${Number(had[uri])} .`); delete had[uri]; }
+    }
+    if (!deletes.length && !inserts.length) return;
+    patchDoc(this._fileUri, { deletes, inserts })
+      .catch(e => console.warn('[sol-feed] selection save to disk:', e.message));
   }
 
   /** Fetch a source into `_cache` once; failures cache as empty. */
