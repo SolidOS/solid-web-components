@@ -73,8 +73,8 @@ async function mkEditor(attrs = {}) {
 // ── scaffold ────────────────────────────────────────────────────────────────
 
 describe('SolLiveEdit — scaffold', () => {
-  test('observes source, format, readonly', () => {
-    expect(SolLiveEdit.observedAttributes).toEqual(['source', 'format', 'readonly']);
+  test('observes source, format, readonly, keys', () => {
+    expect(SolLiveEdit.observedAttributes).toEqual(['source', 'format', 'readonly', 'keys']);
   });
 
   test('init builds the toolbar and editor/preview panes', async () => {

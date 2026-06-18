@@ -3,8 +3,8 @@
  *
  * Tests for <sol-pod> — the pod file-browser component:
  *   - shadow-DOM scaffold and observedAttributes
- *   - property accessors (source / side / login / prefs / podClickAction / storages)
- *   - _filterItems (prefs) and _applyFilter (search text)
+ *   - property accessors (source / side / login / podClickAction / storages)
+ *   - _filterItems (ui:ignorePattern globs) and _applyFilter (search text)
  *   - _parentOf URL math
  *   - loadContainer → sol-navigate, and the auth-error → sol-auth-needed path
  */
@@ -21,6 +21,13 @@ jest.unstable_mockModule('../../core/pod-ops.js', () => ({
   fetchContainer:        (...a) => mockFetchContainer(...a),
   discoverOwnerWebIds:   (...a) => mockWebIds(...a),
   getStoragesFromWebIds: (...a) => mockStorages(...a),
+}));
+
+// _loadSettings() reads the host's data-subject doc via loadConfig; mock it so
+// tests can stage ui:ignorePattern / ui:editorKeys without a real fetch.
+let mockLoadConfig = async () => ({});
+jest.unstable_mockModule('../../web/utils/rdf-config.js', () => ({
+  loadConfig: (...a) => mockLoadConfig(...a),
 }));
 
 const { SolPod } = await import('../../web/sol-pod.js');
@@ -45,6 +52,7 @@ beforeEach(() => {
   mockFetchContainer = async () => [];
   mockWebIds        = async () => [];
   mockStorages      = async () => [];
+  mockLoadConfig    = async () => ({});
 });
 afterEach(() => { document.body.innerHTML = ''; _resetRegistries(); });
 
@@ -62,9 +70,10 @@ describe('SolPod — scaffold', () => {
     const row = el.shadowRoot.querySelector('.pod-header-row');
     const login = row.querySelector('sol-login');
     expect(login).toBeTruthy();
-    // ...sitting between the pod select and the settings gear.
+    // ...sitting right after the pod select (settings now live in the central
+    // <sol-settings> form, not an inline gear in the header row).
     const kids = [...row.children].map(c => c.className || c.tagName.toLowerCase());
-    expect(kids).toEqual(['pod-select', 'pod-login', 'pod-settings-btn']);
+    expect(kids).toEqual(['pod-select', 'pod-login']);
   });
 
   test('connectedCallback renders the select / breadcrumb / filter / tree', () => {
@@ -77,9 +86,11 @@ describe('SolPod — scaffold', () => {
     expect(s.querySelector('.tree-wrapper')).toBeTruthy();
   });
 
-  test('default prefs hide dot, hash, and tilde entries', () => {
+  test('starts with no ignore patterns (nothing hidden until a settings doc supplies them)', () => {
     const el = document.createElement('sol-pod');
-    expect(el.prefs).toEqual({ hideDot: true, hideHash: true, hideTilde: true });
+    expect(el._ignorePatterns).toEqual([]);
+    const items = [{ name: '.acl' }, { name: 'a.txt' }];
+    expect(el._filterItems(items)).toEqual(items);   // no patterns → no filtering
   });
 });
 
@@ -110,12 +121,6 @@ describe('SolPod — properties', () => {
     expect(el.login).toBe(login);
   });
 
-  test('prefs setter merges into the existing prefs', () => {
-    const el = document.createElement('sol-pod');
-    el.prefs = { hideDot: false };
-    expect(el.prefs).toEqual({ hideDot: false, hideHash: true, hideTilde: true });
-  });
-
   test('podClickAction accepts a function or string and rejects others', () => {
     const el = document.createElement('sol-pod');
     const fn = () => {};
@@ -140,7 +145,7 @@ describe('SolPod — properties', () => {
 
 // ── filtering ───────────────────────────────────────────────────────────────
 
-describe('SolPod — _filterItems (prefs)', () => {
+describe('SolPod — _filterItems (ui:ignorePattern)', () => {
   const items = [
     { name: 'notes.txt' },
     { name: '.acl' },
@@ -149,19 +154,29 @@ describe('SolPod — _filterItems (prefs)', () => {
     { name: 'photo.png' },
   ];
 
-  test('hides dot/hash/tilde entries with default prefs', () => {
+  // Stage ignore-pattern globs the way a settings doc would, through
+  // _loadSettings — so the component's own globToRegExp compilation is what runs.
+  async function withPatterns(el, patterns) {
+    el.setAttribute('data-subject', 'https://pod.example/settings.ttl#Settings');
+    mockLoadConfig = async () => ({ 'http://www.w3.org/ns/ui#ignorePattern': patterns });
+    await el._loadSettings();
+  }
+
+  test('with no patterns, returns every item', () => {
     const el = document.createElement('sol-pod');
+    expect(el._filterItems(items).map(i => i.name))
+      .toEqual(['notes.txt', '.acl', '#frag', 'backup~', 'photo.png']);
+  });
+
+  test('hides names matching the configured dot/hash/tilde globs', async () => {
+    const el = document.createElement('sol-pod');
+    await withPatterns(el, ['.*', '#*', '*~']);
     expect(el._filterItems(items).map(i => i.name)).toEqual(['notes.txt', 'photo.png']);
   });
 
-  test('shows dotfiles when hideDot is turned off', () => {
+  test('matches on displayName when present', async () => {
     const el = document.createElement('sol-pod');
-    el.prefs = { hideDot: false };
-    expect(el._filterItems(items).map(i => i.name)).toContain('.acl');
-  });
-
-  test('filters on displayName when present', () => {
-    const el = document.createElement('sol-pod');
+    await withPatterns(el, ['#*']);
     const decoded = [{ name: '%23x', displayName: '#x' }];
     expect(el._filterItems(decoded)).toEqual([]);
   });
@@ -207,13 +222,16 @@ describe('SolPod — _parentOf', () => {
 // ── loadContainer ───────────────────────────────────────────────────────────
 
 describe('SolPod — loadContainer', () => {
-  test('loads, filters, and fires sol-navigate', async () => {
+  test('loads, filters by ui:ignorePattern, and fires sol-navigate', async () => {
     mockFetchContainer = async () => [
       { name: 'a.txt', url: 'https://pod.example/a.txt', isContainer: false },
       { name: '.hidden', url: 'https://pod.example/.hidden', isContainer: false },
     ];
     const el = document.createElement('sol-pod');
+    el.setAttribute('data-subject', 'https://pod.example/settings.ttl#Settings');
+    mockLoadConfig = async () => ({ 'http://www.w3.org/ns/ui#ignorePattern': ['.*'] });
     document.body.appendChild(el);
+    await el._loadSettings();           // apply the hide-dotfiles pattern first
 
     let nav = null;
     el.addEventListener('sol-navigate', (e) => { nav = e.detail; });
@@ -770,55 +788,50 @@ describe('SolPod — filter input', () => {
   });
 });
 
-describe('SolPod — settings UI', () => {
-  test('the settings button toggles the prefs panel', () => {
+describe('SolPod — settings (ui:ignorePattern / ui:editorKeys)', () => {
+  test('_loadSettings reads ignorePattern + editorKeys from the data-subject doc', async () => {
     const el = mkPod();
-    const btn = el.shadowRoot.querySelector('.pod-settings-btn');
-    const panel = el.shadowRoot.querySelector('.pod-settings');
-    expect(panel.classList.contains('open')).toBe(false);
-    btn.click();
-    expect(panel.classList.contains('open')).toBe(true);
-    expect(btn.getAttribute('aria-expanded')).toBe('true');
-    btn.click();
-    expect(panel.classList.contains('open')).toBe(false);
+    el.setAttribute('data-subject', 'https://pod.example/settings.ttl#Settings');
+    mockLoadConfig = async () => ({
+      'http://www.w3.org/ns/ui#ignorePattern': ['.*', '#*'],
+      'http://www.w3.org/ns/ui#editorKeys': 'http://www.w3.org/ns/ui#VimKeys',
+    });
+    await el._loadSettings();
+    expect(el._ignorePatterns).toEqual(['.*', '#*']);
+    expect(el._editorKeys).toBe('vim');
   });
 
-  test('clicking outside the panel closes it', () => {
+  test('re-reading the settings doc re-filters the cached listing without a refetch', async () => {
+    let fetched = 0;
+    mockFetchContainer = async () => {
+      fetched++;
+      return [
+        { name: 'a.txt', url: 'https://pod.example/a.txt', isContainer: false },
+        { name: '.acl', url: 'https://pod.example/.acl', isContainer: false },
+      ];
+    };
     const el = mkPod();
-    const btn = el.shadowRoot.querySelector('.pod-settings-btn');
-    const panel = el.shadowRoot.querySelector('.pod-settings');
-    btn.click();
-    expect(panel.classList.contains('open')).toBe(true);
-    document.body.click();                       // a click outside the pod
-    expect(panel.classList.contains('open')).toBe(false);
-  });
-
-  test('opening the panel reflects the current prefs in the checkboxes', () => {
-    const el = mkPod();
-    el.prefs = { hideHash: false };
-    el.shadowRoot.querySelector('.pod-settings-btn').click();
-    const state = {};
-    el.shadowRoot.querySelectorAll('.pod-settings input[data-pref]')
-      .forEach(cb => { state[cb.dataset.pref] = cb.checked; });
-    expect(state).toEqual({ hideDot: true, hideHash: false, hideTilde: true });
-  });
-
-  test('toggling a checkbox re-filters the listing without a refetch', async () => {
-    mockFetchContainer = async () => [
-      { name: 'a.txt', url: 'https://pod.example/a.txt', isContainer: false },
-      { name: '.acl', url: 'https://pod.example/.acl', isContainer: false },
-    ];
-    const el = mkPod();
+    el.setAttribute('data-subject', 'https://pod.example/settings.ttl#Settings');
+    mockLoadConfig = async () => ({ 'http://www.w3.org/ns/ui#ignorePattern': ['.*'] });
+    await el._loadSettings();
     await el.loadContainer('https://pod.example/');
     expect(el.items.map(i => i.name)).toEqual(['a.txt']);          // .acl hidden
+    expect(fetched).toBe(1);
 
-    el.shadowRoot.querySelector('.pod-settings-btn').click();
-    const dotCb = el.shadowRoot.querySelector('.pod-settings input[data-pref="hideDot"]');
-    dotCb.checked = false;
-    dotCb.dispatchEvent(new Event('change', { bubbles: true }));
-
-    expect(el.prefs.hideDot).toBe(false);
+    // Clear the patterns and reload() — the cached listing re-filters, no refetch.
+    mockLoadConfig = async () => ({ 'http://www.w3.org/ns/ui#ignorePattern': [] });
+    await el.reload();
     expect(el.items.map(i => i.name).sort()).toEqual(['.acl', 'a.txt']);
+    expect(fetched).toBe(1);                                       // still just one fetch
+  });
+
+  test('_serializeSettings round-trips the in-memory ignorePattern + editorKeys', () => {
+    const el = mkPod();
+    el._ignorePatterns = ['.*', '#*'];
+    el._editorKeys = 'emacs';
+    const ttl = el._serializeSettings();
+    expect(ttl).toContain('ui:ignorePattern ".*", "#*" ;');
+    expect(ttl).toContain('ui:editorKeys ui:EmacsKeys');
   });
 });
 
