@@ -242,7 +242,12 @@ class SolLogin extends HTMLElement {
     this._initialized = false;
     this._mode = 'redirect';
     this._side = 'default';
-    this._popupCallback = './popup-auth-callback.html';
+    // Default to this module's own packaged callback page (sc ships it next
+    // to this file under web/). Resolving against import.meta.url means
+    // consumers no longer need to vendor their own copy or set popup-callback;
+    // the loader import()s this module by URL, so import.meta.url is the real
+    // served path. An explicit `popup-callback` attribute still overrides it.
+    this._popupCallback = new URL('./popup-auth-callback.html', import.meta.url).href;
     this._popupWindow = null;
     this._popupMsgHandler = null;
   }
@@ -522,10 +527,13 @@ class SolLogin extends HTMLElement {
       this._popupWindow = null;
     }
 
+    // Optional display/clientName hint for the (generic) callback page.
+    const label = this.getAttribute('client-name') || this.getAttribute('label');
     const url = this._popupCallback +
       (this._popupCallback.includes('?') ? '&' : '?') +
       'side=' + encodeURIComponent(this._side) +
-      '&issuer=' + encodeURIComponent(issuer);
+      '&issuer=' + encodeURIComponent(issuer) +
+      (label ? '&label=' + encodeURIComponent(label) : '');
     const features = 'popup=yes,width=480,height=620';
     const w = window.open(url, 'sol-login-' + this._side, features);
     if (!w) {
@@ -722,7 +730,15 @@ _integrateWithRdflib() {
   }
 
   _handleClick() {
-    if (this.isLoggedIn) {
+    // Decide login-vs-logout from THIS element's displayed session — the same
+    // basis as _updateUI — NOT the global `isLoggedIn` getter, which returns
+    // true whenever the host reports a "kitchen"/owner session. Using the
+    // getter made a popup-mode button that still shows "Log in" wrongly call
+    // logout() on click: no dropdown opened, so it looked like nothing happened.
+    const session = this._mode === 'popup'
+      ? this._sideSession()
+      : this._auth.getFirstLoggedIn();
+    if (session && session.info && session.info.isLoggedIn) {
       this.logout();
     } else {
       this._toggleDropdown();

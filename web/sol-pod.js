@@ -703,6 +703,13 @@ class SolPod extends HTMLElement {
     if (tw) tw.innerHTML = `<div class="empty${isError ? ' error' : ''}">${msg}</div>`;
   }
 
+  /**
+   * Public: show a one-line notice in this pod's panel body — the same surface the
+   * no-auth / load-error notices use. Lets a host (e.g. podz) put panel-level errors
+   * in the panel instead of a separate status line.
+   */
+  showMessage(msg, isError = false) { this._showMessage(msg, isError); }
+
   _updateBreadcrumb(url) {
     const el = this.shadowRoot.querySelector('.breadcrumb');
     if (!el || !this._rootUrl) return;
