@@ -131,6 +131,12 @@ export function parseMenuItems(store, menuNode) {
     const comment  = rdfsComment(store, part);
     const creator   = dctVal(store, part, 'creator');
     const publisher = dctVal(store, part, 'publisher');
+    // dct:source — the chip's MANIFEST IRI (e.g. plugins/music.ttl). This is the
+    // chip's stable identity: a chip is a PLUGIN (one manifest), not a component
+    // (one ui:name tag backs many chips). It links a mounted menu item back to
+    // its catalog entry. NB: distinct from any ui:attribute `source` PARAM, which
+    // is the plugin's data source, not its identity.
+    const manifest  = dctVal(store, part, 'source');
     const requiresWrite = requiresWriteMode(store, part);
 
     if (partType && partType.value === menuType.value) {
@@ -140,13 +146,13 @@ export function parseMenuItems(store, menuNode) {
 
     if (partType && partType.value === componentType.value) {
       const { tag, params } = rdfComponent(store, part);
-      items.push({ type: 'component', id, name: label, icon, region, comment, creator, publisher, requiresWrite, tag, params });
+      items.push({ type: 'component', id, name: label, icon, region, comment, creator, publisher, requiresWrite, tag, params, manifest });
       continue;
     }
 
     const href     = rdfVal(store, part, 'href');
     const contents = rdfVal(store, part, 'contents');
-    items.push({ type: 'link', id, name: label, icon, region, comment, creator, publisher, requiresWrite, href, contents });
+    items.push({ type: 'link', id, name: label, icon, region, comment, creator, publisher, requiresWrite, href, contents, manifest });
   }
   return items;
 }

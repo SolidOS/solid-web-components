@@ -67,6 +67,11 @@ import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize
 import { solFetch } from '../core/auth-fetch.js';
 import { PLUGIN_MIME } from './sol-menu-manager.js';
 
+// The catalog/menu docs are editable, so read them past the renderer's HTTP
+// cache (no-store) — the same reason feed-fetch reads its source list fresh.
+// Otherwise an edit (or an external sync) keeps showing the stale grouping.
+const freshFetch = (url, opts) => solFetch(url, { ...(opts || {}), cache: 'no-store' });
+
 const SHEET = sheetFrom(CSS);
 
 const UI   = 'http://www.w3.org/ns/ui#';
@@ -75,10 +80,26 @@ const RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
 const SKOS = 'http://www.w3.org/2004/02/skos/core#';
 const DCT  = 'http://purl.org/dc/terms/';
 
+// A chip's identity among entries that share a component tag is its DATA SOURCE
+// (the `source` ui:attribute — the doc/library the chip opens). Every OTHER
+// attribute (id, class, title, defer, storage-ns, view, reader, …) is render
+// decoration a menu/bar adds and the catalog entry lacks, so none of them may
+// enter the match key — otherwise a mounted chip's signature never equals its
+// catalog entry's and it wrongly shows in both lists. This mirrors how
+// sol-menu-manager._catalogName already disambiguates (tag + source). When a
+// mounted item carries dct:source, that manifest identity wins over this (see
+// _isUsed).
+const sourceParam = (params) => {
+  const s = (params || []).find(([k]) => k === 'source');
+  return s ? (s[1] ?? '') : '';
+};
+const usedKey = (tag, params) => tag + '\n' + sourceParam(params);
+
+// Exact-params key — a STRICTER check than chip identity, used to detect a
+// duplicate of the very same entry within a single list (two same-tag items
+// with different attributes are distinct list entries). NOT used for in-use.
 const paramsKey = (params) =>
   (params || []).map(([k, v]) => `${k}=${v ?? ''}`).sort().join(' ');
-
-const usedKey = (tag, params) => tag + '\n' + paramsKey(params);
 
 class SolPluginManager extends HTMLElement {
   constructor() {
@@ -150,7 +171,7 @@ class SolPluginManager extends HTMLElement {
   async _loadUsed() {
     const sel = this.getAttribute('for');
     if (!sel) { this._used = null; return; }
-    const used = { hrefs: new Set(), keys: new Set() };
+    const used = { hrefs: new Set(), keys: new Set(), manifests: new Set() };
     const perDoc = new Map();
     let els = [];
     try { els = [...document.querySelectorAll(sel)]; } catch { els = []; }
@@ -165,10 +186,15 @@ class SolPluginManager extends HTMLElement {
     }
     for (const [docUrl, frags] of perDoc) {
       try {
-        const store = await loadRdfStore(docUrl, solFetch);
+        const store = await loadRdfStore(docUrl, freshFetch);
         const walk = (items) => {
           for (const it of items || []) {
             if (it.type === 'submenu') { walk(it.children); continue; }
+            // Primary identity: the chip's manifest (dct:source) — record it
+            // whenever present so a mounted chip matches its catalog entry
+            // regardless of tag/param coincidences.
+            if (it.manifest) used.manifests.add(it.manifest);
+            // Fallbacks for legacy items mounted before dct:source was carried.
             if (it.href) { used.hrefs.add(it.href); continue; }
             if (it.tag) used.keys.add(usedKey(it.tag, it.params));
           }
@@ -183,6 +209,10 @@ class SolPluginManager extends HTMLElement {
   // components by tag — independent of the attributes either side carries.
   _isUsed(p) {
     if (!this._used) return false;
+    // A chip is a PLUGIN (a manifest), not a component: match on dct:source
+    // identity first. Fall back to href / tag+params only for legacy menu
+    // items that predate the dct:source link.
+    if (p.manifest && this._used.manifests.has(p.manifest)) return true;
     if (p.type === 'link') return this._used.hrefs.has(p.href);
     return this._used.keys.has(usedKey(p.tag, p.params));
   }
@@ -197,7 +227,7 @@ class SolPluginManager extends HTMLElement {
     this._loadError = null;
     await this._loadUsed();
     try {
-      const store = await loadRdfStore(this._docUrl(), solFetch);
+      const store = await loadRdfStore(this._docUrl(), freshFetch);
       const menuNode = rdf.sym(this._menuIri());
       const desc = this._menuDesc(store, this._menuIri());
       this._items = desc.items;
@@ -506,6 +536,9 @@ class SolPluginManager extends HTMLElement {
       const payload = p.type === 'link'
         ? { label: p.name || p.href, href: p.href, region: p.region || '', icon: p.icon || '' }
         : { label: p.name || p.tag, tag: p.tag, params: p.params || [], icon: p.icon || '' };
+      // Carry the chip's manifest identity (dct:source) so the dropped menu item
+      // records which plugin it is — see sol-menu-manager `_itemFromPlugin`.
+      if (p.manifest) payload.manifest = p.manifest;
       if (!p.ghost && p.id) {
         payload.subject = `${this._docUrl()}#${p.id}`;
         payload.list = this._menuIri();
@@ -612,7 +645,7 @@ class SolPluginManager extends HTMLElement {
   // just one (the serializer clears subjects the new tree references).
   async _moveHere(payload) {
     const docUrl = this._docUrl();
-    const store = await loadRdfStore(docUrl, solFetch);
+    const store = await loadRdfStore(docUrl, freshFetch);
     const origin = this._menuDesc(store, payload.list);
     const own = this._menuDesc(store, this._menuIri());
     const frag = payload.subject.split('#')[1] || '';
@@ -632,7 +665,7 @@ class SolPluginManager extends HTMLElement {
   async _addEntry(entry) {
     const docUrl = this._docUrl();
     let store;
-    try { store = await loadRdfStore(docUrl, solFetch); }
+    try { store = await loadRdfStore(docUrl, freshFetch); }
     catch { store = rdf.graph(); }
 
     const categories = entry.categories || (entry.category ? [entry.category] : []);
@@ -663,7 +696,7 @@ class SolPluginManager extends HTMLElement {
   // PUT — then DELETE its manifest (dct:source provenance). The plugin is gone.
   async _deleteEntry(p) {
     const docUrl = this._docUrl();
-    const store = await loadRdfStore(docUrl, solFetch);
+    const store = await loadRdfStore(docUrl, freshFetch);
     const entry = rdf.sym(`${docUrl.split('#')[0]}#${p.id}`);
     const srcN = store.any(entry, rdf.sym(DCT + 'source'));
     const manifestUrl = srcN ? new URL(srcN.value, docUrl).href : null;
@@ -767,7 +800,7 @@ class SolPluginManager extends HTMLElement {
     catch { throw new Error(`not a URL: ${input}`); }
     url.hash = '';
     const manifestUrl = url.href;
-    const mStore = await loadRdfStore(manifestUrl, solFetch);
+    const mStore = await loadRdfStore(manifestUrl, freshFetch);
     const subj = rdf.sym(manifestUrl);
     const hasType = (local) => mStore.statementsMatching(
       subj, rdf.sym(RDF + 'type'), rdf.sym(UI + local),

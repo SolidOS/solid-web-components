@@ -111,6 +111,10 @@ function emitItem(store, docUrl, doc, item, taken) {
   if (item.comment) store.add(node, rdfs('comment'), rdf.literal(String(item.comment)), doc);
   if (item.creator) store.add(node, rdf.sym(DCT + 'creator'), rdf.literal(String(item.creator)), doc);
   if (item.publisher) store.add(node, rdf.sym(DCT + 'publisher'), rdf.literal(String(item.publisher)), doc);
+  // dct:source = the chip's MANIFEST IRI (its stable identity), emitted as a
+  // RESOURCE so a mounted item links back to its catalog plugin. This is what
+  // lets the pantry know a chip is in use without guessing from tag+params.
+  if (item.manifest) store.add(node, rdf.sym(DCT + 'source'), rdf.sym(String(item.manifest)), doc);
   if (item.icon) store.add(node, ui('icon'), rdf.literal(String(item.icon)), doc);
   if (item.region) {
     const local = item.region[0].toUpperCase() + item.region.slice(1).toLowerCase();

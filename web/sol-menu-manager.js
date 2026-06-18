@@ -54,6 +54,10 @@ import { parseMenuItems } from '../core/menu-rdf.js';
 import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
 
+// Catalog/menu docs are editable — read them past the renderer's HTTP cache
+// (no-store) so an edit (or external sync) isn't masked by a stale copy.
+const freshFetch = (url, opts) => solFetch(url, { ...(opts || {}), cache: 'no-store' });
+
 const SHEET = sheetFrom(CSS);
 const PLUGIN_MIME = 'application/x-sol-plugin';
 
@@ -144,16 +148,19 @@ class SolMenuManager extends HTMLElement {
     if (!src || this._catalog) return;
     try {
       const docUrl = new URL(src.split('#')[0], document.baseURI).href;
-      const store = await loadRdfStore(docUrl, solFetch);
+      const store = await loadRdfStore(docUrl, freshFetch);
       const UI = 'http://www.w3.org/ns/ui#';
       const byHref = new Map();
       const byTag = new Map();
+      const byManifest = new Map();   // dct:source (chip identity) → label
       for (const st of store.statementsMatching(null, rdf.sym(UI + 'label'), null)) {
         const subj = st.subject;
         if (!subj.value || !subj.value.startsWith(docUrl + '#')) continue;
         const label = st.object.value;
         const href = (store.any(subj, rdf.sym(UI + 'href')) || {}).value;
         const tag = (store.any(subj, rdf.sym(UI + 'name')) || {}).value;
+        const manifest = (store.any(subj, rdf.sym('http://purl.org/dc/terms/source')) || {}).value;
+        if (manifest) byManifest.set(manifest, label);
         if (href) byHref.set(href, label);
         if (tag) {
           let source = null;
@@ -165,7 +172,7 @@ class SolMenuManager extends HTMLElement {
           byTag.get(tag).push({ source, label });
         }
       }
-      this._catalog = { byHref, byTag };
+      this._catalog = { byHref, byTag, byManifest };
       this._render();
     } catch { /* no catalog — chips fall back to stored / friendly names */ }
   }
@@ -173,6 +180,11 @@ class SolMenuManager extends HTMLElement {
   // The catalog display name for what an item/child mounts, or null.
   _catalogName(it) {
     if (!this._catalog) return null;
+    // Chip identity first: the entry whose dct:source matches the item's.
+    if (it.manifest) {
+      const byId = this._catalog.byManifest.get(it.manifest);
+      if (byId) return byId;
+    }
     if (it.href) return this._catalog.byHref.get(it.href) || null;
     if (!it.tag) return null;
     const candidates = this._catalog.byTag.get(it.tag) || [];
@@ -188,7 +200,7 @@ class SolMenuManager extends HTMLElement {
     }
     this._loadCatalog();
     try {
-      const store = await loadRdfStore(this._docUrl(), solFetch);
+      const store = await loadRdfStore(this._docUrl(), freshFetch);
       const menuNode = rdf.sym(this._menuIri());
       this._items = parseMenuItems(store, menuNode);
       const label = store.any(menuNode, rdf.sym('http://www.w3.org/ns/ui#label'));
@@ -512,6 +524,7 @@ class SolMenuManager extends HTMLElement {
                 icon: item.icon || undefined,
                 tag: item.tag || null,
                 params: (item.params || []).map(([k, v]) => [k, v]),
+                manifest: item.manifest || undefined,
               };
               if (item.href) { first.href = item.href; if (item.region) first.region = item.region; }
               item.type = 'submenu';
@@ -537,6 +550,7 @@ class SolMenuManager extends HTMLElement {
             item.params = (plugin.params || []).map(([k, v]) => [k, v]);
             delete item.href;
           }
+          item.manifest = plugin.manifest || undefined;   // adopt the chip's identity
           if (!item.name) item.name = plugin.label || plugin.tag || plugin.href;
           if (!item.icon && plugin.icon) item.icon = plugin.icon;
         } else {
@@ -609,6 +623,8 @@ class SolMenuManager extends HTMLElement {
         icon: plugin.icon || undefined,
         region: plugin.region || undefined,
         href: plugin.href,
+        // chip identity (dct:source) — keep the link back to the catalog plugin
+        manifest: plugin.manifest || undefined,
       };
     }
     return {
@@ -617,6 +633,8 @@ class SolMenuManager extends HTMLElement {
       icon: plugin.icon || undefined,
       tag: plugin.tag || null,
       params: (plugin.params || []).map(([k, v]) => [k, v]),
+      // chip identity (dct:source) — keep the link back to the catalog plugin
+      manifest: plugin.manifest || undefined,
     };
   }
 
@@ -665,7 +683,7 @@ class SolMenuManager extends HTMLElement {
     try {
       // Rewrite over a FRESH parse so concurrent pantry edits aren't lost.
       let store;
-      try { store = await loadRdfStore(this._docUrl(), solFetch); }
+      try { store = await loadRdfStore(this._docUrl(), freshFetch); }
       catch { store = rdf.graph(); }
       updateMenuInStore(store, this._docUrl(), this._menuIri(), {
         label: this._meta.label, orientation: this._meta.orientation, items: this._items,
