@@ -103,7 +103,7 @@ ui:Vertical   a ui:Orientation ; rdfs:label "Vertical"   .
 
 ui:region a rdf:Property ; rdfs:isDefinedBy <> ;
   rdfs:label   "region" ;
-  rdfs:comment "Where an item's rendered content is placed; the value is a ui:Region instance (ui:Inline default; ui:Element, ui:Modal, ui:Floating, ui:Window, ui:Tab)." ;
+  rdfs:comment "Where an item's rendered content is placed; the value is a ui:Region instance (ui:Inline default; ui:Element, ui:Modal, ui:Floating, ui:Window, ui:Tab, ui:Dropdown)." ;
   rdfs:range   ui:Region .
 
 ui:Region a rdfs:Class ; rdfs:isDefinedBy <> ; rdfs:label "Region" .
@@ -113,6 +113,7 @@ ui:Modal    a ui:Region ; rdfs:label "Modal"    .
 ui:Floating a ui:Region ; rdfs:label "Floating" .
 ui:Window   a ui:Region ; rdfs:label "Window"   .
 ui:Tab      a ui:Region ; rdfs:label "Tab"      .
+ui:Dropdown a ui:Region ; rdfs:label "Dropdown" .
 
 ##############
 # MENU TERMS #

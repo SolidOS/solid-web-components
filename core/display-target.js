@@ -19,7 +19,7 @@
 
 import { mountInTarget } from './component-mount.js';
 
-const SURFACE_KEYWORDS = new Set(['modal', 'floating', 'tab', 'window']);
+const SURFACE_KEYWORDS = new Set(['modal', 'floating', 'tab', 'window', 'dropdown']);
 
 /** True for a cross-origin http(s) URL. */
 export function isExternal(href) {
@@ -120,6 +120,7 @@ export function displayItem({
     case 'window': return href ? window.open(href, '_blank', 'width=900,height=700,menubar=no,toolbar=no') : null;
     case 'modal':    return conjure('sol-modal',  name, mount, ensure);
     case 'floating': return conjure('sol-window', name, mount, ensure);
+    case 'dropdown': return conjure('sol-dropdown', name, mount, ensure, launcher);
     case 'element':  return mountInElement(region.element, { tag, attrs, name, replace, contents, embedClass, mount });
     default:         return null;
   }
@@ -171,14 +172,17 @@ export function placeOutput({ launcher = null, id = null, fallbackEl = null, nam
   switch (region.kind) {
     case 'modal':    return conjure('sol-modal',  name, mount, ensure);
     case 'floating': return conjure('sol-window', name, mount, ensure);
+    case 'dropdown': return conjure('sol-dropdown', name, mount, ensure, launcher);
     case 'element':  mount(region.element); return region.element;
     default:         return null;   // tab/window (URL openers) or no region
   }
 }
 
-// Conjure an ephemeral host (sol-modal / sol-window) with no author element.
-// Deferred via whenDefined so open()/body exist once the module upgrades.
-function conjure(hostTag, name, mount, ensure) {
+// Conjure an ephemeral host (sol-modal / sol-window / sol-dropdown) with no
+// author element. Deferred via whenDefined so open()/body exist once the module
+// upgrades. `anchor` (the launcher) is handed to a sol-dropdown so it can
+// position its panel under the button.
+function conjure(hostTag, name, mount, ensure, anchor) {
   if (ensure) ensure(hostTag);
   const run = () => {
     const host = document.createElement(hostTag);
@@ -187,6 +191,7 @@ function conjure(hostTag, name, mount, ensure) {
       host.handler = (body) => mount(body);
       host.open();
     } else {
+      if (anchor) host._anchor = anchor;   // sol-dropdown anchors under its launcher
       document.body.appendChild(host);
       mount(host.body || host);
     }

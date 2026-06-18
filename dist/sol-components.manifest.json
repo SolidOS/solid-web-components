@@ -5,10 +5,11 @@
   "name": "sol-components",
   "components": {
     "sol-feed": { "label": "News (three-panel feeds)" },
-    "sol-search": { "label": "Search" },
+    "sol-search": { "label": "Search", "icon": "🔍", "description": "Search box for the button bar (pluggable search engines).", "shape": "../shapes/search-engines.shacl", "data": "../data/search-engines.ttl" },
     "sol-login": { "label": "Sign in" },
-    "sol-time": { "label": "Clock", "icon": "🕐", "shape": "../shapes/time-settings.shacl" },
-    "sol-weather": { "label": "Weather", "icon": "🌤", "shape": "../shapes/weather-settings.shacl" },
+    "sol-time": { "label": "Clock", "icon": "🕐", "description": "Clock widget (timezone in its settings file).", "shape": "../shapes/time-settings.shacl", "data": "../data/time-settings.ttl" },
+    "sol-weather": { "label": "Weather", "icon": "🌤", "description": "Weather widget (location and units in its settings file).", "shape": "../shapes/weather-settings.shacl", "data": "../data/weather-settings.ttl" },
+    "sol-calendar": { "label": "Calendar", "icon": "📅", "description": "Pop-out month calendar for the button bar.", "shape": "../shapes/calendar-settings.shacl", "data": "../data/calendar-settings.ttl" },
     "sol-solidos": { "icon": "https://solidproject.org/assets/img/solid-emblem.svg" }
   },
   "attributes": {
@@ -82,7 +83,8 @@
         "sol-tree-edit": "../web/sol-tree-edit.js",
         "sol-wac": "../web/sol-wac.js",
         "sol-weather": "../web/sol-weather.js",
-        "sol-window": "../web/sol-window.js"
+        "sol-window": "../web/sol-window.js",
+        "sol-dropdown": "../web/sol-dropdown.js"
       },
       "shared-modules": {
         "rdf-bundle": "../core/rdf-bundle.js",
@@ -137,7 +139,8 @@
         "sol-tree-edit": "https://esm.sh/sol-components/web/sol-tree-edit.js",
         "sol-wac": "https://esm.sh/sol-components/web/sol-wac.js",
         "sol-weather": "https://esm.sh/sol-components/web/sol-weather.js",
-        "sol-window": "https://esm.sh/sol-components/web/sol-window.js"
+        "sol-window": "https://esm.sh/sol-components/web/sol-window.js",
+        "sol-dropdown": "https://esm.sh/sol-components/web/sol-dropdown.js"
       },
       "shared-modules": {
         "rdf-bundle": "https://esm.sh/sol-components/core/rdf-bundle.js",
