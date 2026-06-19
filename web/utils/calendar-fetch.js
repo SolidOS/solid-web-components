@@ -76,38 +76,54 @@ export function applyProxy(proxy, target) {
   return proxy + encodeURIComponent(target);
 }
 
+/** Resolve a (possibly relative) URL against the current document. */
+function resolveUrl(url) {
+  try { return new URL(url, document.baseURI).href; } catch { return url; }
+}
+
+/** True when `absUrl` points at a different origin than the page. */
+function isCrossOrigin(absUrl) {
+  try { return new URL(absUrl).origin !== location.origin; }
+  catch { return false; }
+}
+
 /**
- * Fetch an ICS document, falling back to the proxy on CORS / network
- * failure. Returns the raw text body.
+ * Fetch an ICS document. Mirrors feed-fetch's routing: a cross-origin feed
+ * goes through the CORS proxy FIRST. Most provider ICS endpoints (Google,
+ * Apple, Outlook) block cross-origin reads, and a doomed bare fetch logs a
+ * CORS error to the console even when it's caught — so we don't probe direct.
+ * A same-origin ICS (a pod's own export) is fetched directly, so the proxy is
+ * never asked to relay it. If the proxied attempt fails, a bare fetch is the
+ * last-resort fallback (covers a down proxy / a CORS-friendly cross host).
  *
  * @param {string} url
  * @param {{proxy?: string, signal?: AbortSignal}} opts
  */
 async function fetchICSText(url, { proxy = '', signal } = {}) {
-  // Try bare first — Solid pods and self-hosted ICS often do CORS, and
-  // a successful bare fetch saves a hop through the proxy.
-  try {
-    const resp = await fetch(url, { signal });
-    if (resp.ok) {
-      const text = await resp.text();
-      // Sniff: some servers respond 200 to misrouted requests with HTML.
-      if (text.includes('BEGIN:VCALENDAR')) return text;
-    }
-    // fall through to proxy attempt — server returned non-ICS or non-2xx
-  } catch (e) {
-    // Network / CORS error — try the proxy if one is configured.
-    if (!proxy) throw e;
-  }
+  const abs = resolveUrl(url);
+  const useProxy = proxy && isCrossOrigin(abs);
+  // Proxy-first for cross-origin; bare direct as the same-origin path and the
+  // last-resort fallback. No proxy configured → direct only.
+  const attempts = useProxy ? [applyProxy(proxy, abs), abs] : [abs];
 
-  if (!proxy) throw new Error(`Couldn't fetch calendar — try setting proxy=`);
-  const proxied = applyProxy(proxy, url);
-  const resp = await fetch(proxied, { signal });
-  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching calendar`);
-  const text = await resp.text();
-  if (!text.includes('BEGIN:VCALENDAR')) {
-    throw new Error('Proxy returned a non-ICS body');
+  let lastErr;
+  for (const target of attempts) {
+    try {
+      const resp = await fetch(target, { signal });
+      if (resp.ok) {
+        const text = await resp.text();
+        // Sniff: some servers respond 200 to misrouted requests with HTML.
+        if (text.includes('BEGIN:VCALENDAR')) return text;
+        lastErr = new Error('Fetched a non-ICS body');
+      } else {
+        lastErr = new Error(`HTTP ${resp.status} fetching calendar`);
+      }
+    } catch (e) {
+      if (signal?.aborted) throw e;   // honour cancellation; don't retry
+      lastErr = e;
+    }
   }
-  return text;
+  throw lastErr || new Error(`Couldn't fetch calendar — try setting proxy=`);
 }
 
 /** Convert an ical.js Time to a native JS Date in the local TZ. */
