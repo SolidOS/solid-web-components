@@ -253,18 +253,18 @@ class SolFeed extends HTMLElement {
   }
 
   /**
-   * Load an article into the inline reading pane. Cross-origin pages refuse to
-   * be framed directly, so route through the CORS proxy when one is configured
-   * (its response carries no X-Frame-Options and gets an injected <base> so
-   * relative assets resolve). With no proxy, try the bare URL as a last resort.
+   * Show an article in the inline reading pane. The pane only carries the
+   * article's URL on `data-article-url`; a desktop host (dk/Electron) reads that
+   * and paints a native view that loads the live page — running its own JS, so a
+   * Cloudflare/JS check clears, which the old script-stripping proxy iframe could
+   * not. Reached only in inline-reader mode; on the plain web `_readerInline()`
+   * is false and the pop-out window is used, because a browser refuses to frame
+   * most cross-origin articles.
    */
   showInPane(url) {
     if (!url || url === '#') return;
-    const frame = document.createElement('iframe');
-    frame.className = 'feed-article-frame';
-    frame.setAttribute('title', 'Article');
-    frame.src = this.proxy ? this.proxy + encodeURIComponent(url) : url;
-    this._articlePane.replaceChildren(frame);
+    this._articlePane.setAttribute('data-article-url', url);
+    this._articlePane.replaceChildren(emptyEl('Loading…'));
   }
 
   /** localStorage key for the last-opened article URL (per feed source). */

@@ -119,6 +119,12 @@ function pickLink(el) {
     link = (linkEl.textContent || '').trim();
     if (!link || /\s/.test(link)) link = linkEl.getAttribute('href') || link;
   }
+  // Atom entries often carry no <link> — the canonical URL is the <id>. Prefer
+  // it over scraping the body (which may yield an unrelated inline href).
+  if (!link || /\s/.test(link)) {
+    const id = tagText(el, 'id').trim();
+    if (/^https?:\/\//i.test(id)) link = id;
+  }
   if (!link || /\s/.test(link)) {
     const content = tagText(el, 'content:encoded', 'content', 'description');
     const m = content && content.match(/href=["']([^"']+)["']/i);
