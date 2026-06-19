@@ -18,8 +18,11 @@
  *                   hide it, and — with `editable` — drag between topic groups
  *                   to re-file it, onto the trash to delete it (recoverable
  *                   bin), or add a feed by dropping / pasting / typing a URL
- *                   in the "Add a feed" panel. Drag-only: chips don't toggle
- *                   on click. The legacy value `view="all"` is still accepted.
+ *                   in the "Add a feed" panel. Each topic group's legend is
+ *                   click-to-rename, with a ✕ that deletes the topic once it is
+ *                   empty (disabled while it still holds feeds). Drag-only: chips
+ *                   don't toggle on click. The legacy value `view="all"` is still
+ *                   accepted.
  *   view="topics" — a "newsstand": one column per topic in the subtree,
  *                   each listing that topic's sources. Clicking a source
  *                   shows its articles as image cards (same cards as
@@ -56,7 +59,7 @@ import { CSS as FEED_CSS, sheet as FEED_SHEET } from './styles/sol-feed-css.js';
 import {
   renameTopicEdit, addFeedEdit, addTopicEdit, deleteToBinEdit,
   restoreEdit, setPositionsEdit, mintFeedUri, mintTopicUri, patchDoc, purgeFeed,
-  recategorizeFeed, binUriFor,
+  recategorizeFeed, removeTopic, binUriFor,
 } from './utils/feed-edit.js';
 import { getFeedItems, parseSourceList } from './utils/feed-fetch.js';
 import { getDefault, onDefaultChange } from '../core/defaults.js';
@@ -633,12 +636,36 @@ class SolFeed extends HTMLElement {
     pickerLeft.appendChild(groupsWrap);
 
     /** Build one topic group (a fieldset of chips), wired as a re-file drop
-     *  target when editable. */
-    const buildFieldset = (topicLabel, topicUri) => {
+     *  target when editable. When editable the legend carries a click-to-rename
+     *  name and a ✕ that deletes the topic — disabled unless the topic is empty
+     *  (a topic with feeds is still referenced by their dcat:theme). */
+    const buildFieldset = (group) => {
+      const { topic: topicLabel, topicUri, feeds = [] } = group;
       const fieldset = document.createElement('fieldset');
       fieldset.className = 'feed-topic';
       const legend = document.createElement('legend');
-      legend.textContent = topicLabel || 'Sources';
+      if (editable && topicUri) {
+        const name = document.createElement('span');
+        name.className = 'feed-topic-name editable';
+        name.textContent = topicLabel || 'Sources';
+        name.title = 'Click to rename';
+        name.addEventListener('click', () => { this._editorOpen = true; this._renameTopicInline(name, group); });
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'feed-del feed-topic-del';
+        del.textContent = '✕';
+        if (feeds.length) {
+          del.disabled = true;
+          del.title = 'Empty this topic before deleting it';
+        } else {
+          del.title = `Delete topic ${topicLabel}`;
+          del.addEventListener('click', () => this._confirmDeleteTopic(legend, group));
+        }
+        del.setAttribute('aria-label', del.title);
+        legend.append(name, del);
+      } else {
+        legend.textContent = topicLabel || 'Sources';
+      }
       fieldset.appendChild(legend);
       if (editable && topicUri) this._wireTopicRefileDrop(fieldset, topicUri);
       groupsWrap.appendChild(fieldset);
@@ -676,7 +703,7 @@ class SolFeed extends HTMLElement {
       groups = this.groupByTopic(sources).map(g => ({ ...g, topicUri: g.feeds[0]?.topicUri }));
     }
     for (const group of groups) {
-      const fieldset = buildFieldset(group.topic, group.topicUri);
+      const fieldset = buildFieldset(group);
       for (const src of group.feeds) addChip(fieldset, src);
     }
 
@@ -1288,6 +1315,31 @@ class SolFeed extends HTMLElement {
       else if (e.key === 'Escape') { done = true; input.replaceWith(head); }
     });
     input.addEventListener('blur', commit);
+  }
+
+  /** Inline confirm in the topic's legend: «Delete topic "X"? [Delete] [Cancel]».
+   *  Only reachable for an empty topic (the ✕ is disabled otherwise). */
+  _confirmDeleteTopic(legend, group) {
+    if (legend.querySelector('.feed-del-confirm')) return;
+    const orig = [...legend.childNodes];
+    const wrap = document.createElement('div');
+    wrap.className = 'feed-del-confirm';
+    const q = document.createElement('span');
+    q.className = 'feed-del-q';
+    q.textContent = `Delete topic “${group.topic}”?`;
+    const yes = document.createElement('button');
+    yes.type = 'button'; yes.className = 'feed-del-yes'; yes.textContent = 'Delete';
+    const no = document.createElement('button');
+    no.type = 'button'; no.className = 'feed-del-no'; no.textContent = 'Cancel';
+    wrap.append(q, yes, no);
+    legend.replaceChildren(wrap);
+    no.focus();
+    no.addEventListener('click', () => legend.replaceChildren(...orig));
+    yes.addEventListener('click', async () => {
+      this._editorOpen = true;                       // keep the editor open across reload
+      try { await removeTopic(this._fileUri, group.topicUri); await this.reload(); }
+      catch (e) { this.setStatus(e.message || 'Delete topic failed', true); }
+    });
   }
 
   /** Inline "add a feed to this topic" form, inserted under the topic head. */

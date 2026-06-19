@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import {
   renameTopicEdit, recategorizeEdit, addFeedEdit, deleteToBinEdit, restoreEdit,
   reorderEdit, mintFeedUri, patchBody, patchDoc, binUriFor, lit,
-  recategorizeBody, recategorizeFeed,
+  recategorizeBody, recategorizeFeed, removeTopicBody, removeTopic,
 } from './feed-edit.js';
 
 let n = 0; const ok = (m) => { console.log('  ✓ ' + m); n++; };
@@ -53,6 +53,18 @@ ok('deleteToBinEdit re-themes to #Deleted and mints the bin concept');
 e = restoreEdit(F+'#f1', bin, F+'#Culture');
 assert.ok(e.deletes[0].includes('#Deleted') && e.inserts[0].includes('#Culture'));
 ok('restoreEdit re-files out of the bin');
+
+// remove topic: DELETE … WHERE every triple where the topic is the subject
+const tb = removeTopicBody(F+'#Old');
+assert.ok(/DELETE \{\s*<[^>]+#Old> \?p \?o \.\s*\} WHERE \{\s*<[^>]+#Old> \?p \?o \.\s*\}/s.test(tb));
+assert.ok(tb.includes('PREFIX skos:'));
+let tcap = null;
+await removeTopic(F, F+'#Old', { fetchImpl: async (u, o) => { tcap = { u, o }; return { ok: true }; } });
+assert.equal(tcap.u, F);
+assert.equal(tcap.o.method, 'PATCH');
+assert.equal(tcap.o.headers['Content-Type'], 'application/sparql-update');
+await assert.rejects(() => removeTopic(F, F+'#Old', { fetchImpl: async () => ({ ok: false, status: 409 }) }), /409/);
+ok('removeTopicBody/removeTopic: DELETE…WHERE drops the concept, throws on !ok');
 
 // reorder
 e = reorderEdit(F+'#f1', 3, 7);

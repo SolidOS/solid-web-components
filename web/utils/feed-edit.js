@@ -202,3 +202,25 @@ export async function recategorizeFeed(fileUri, feedUri, toTopicUri, { prefixes,
   });
   if (!resp.ok) throw new Error(`Save failed (HTTP ${resp.status}) — the feeds file must be writable.`);
 }
+
+/**
+ * Remove a topic concept entirely: DELETE … WHERE every triple where the topic
+ * is the subject (its type, prefLabel, topConceptOf, …), so it works whatever
+ * predicates the concept carries — unlike DELETE DATA of a guessed triple set.
+ * Only safe for an EMPTY topic: a topic with feeds is still referenced by their
+ * `dcat:theme`, which this does not touch (the caller must block that case).
+ */
+export function removeTopicBody(topicUri, prefixes = DEFAULT_PREFIXES) {
+  const pfx = Object.entries(prefixes).map(([k, v]) => `PREFIX ${k}: <${v}>`).join('\n');
+  return `${pfx}\nDELETE {\n  <${topicUri}> ?p ?o .\n} WHERE {\n  <${topicUri}> ?p ?o .\n}\n`;
+}
+
+export async function removeTopic(fileUri, topicUri, { prefixes, fetchImpl } = {}) {
+  const f = fetchImpl || fetch;
+  const resp = await f(fileUri, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/sparql-update' },
+    body: removeTopicBody(topicUri, prefixes),
+  });
+  if (!resp.ok) throw new Error(`Delete topic failed (HTTP ${resp.status}).`);
+}

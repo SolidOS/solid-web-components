@@ -17,6 +17,7 @@ const TTL = `
 <#Feeds> a skos:ConceptScheme ; skos:prefLabel "Feeds" .
 <#News>  a skos:Concept ; skos:prefLabel "News" ; skos:topConceptOf <#Feeds> .
 <#Tech>  a skos:Concept ; skos:prefLabel "Tech" ; skos:topConceptOf <#Feeds> .
+<#Empty> a skos:Concept ; skos:prefLabel "Empty" ; skos:topConceptOf <#Feeds> .
 <http://feed/a.xml> a dcat:Dataset, rss:channel ; dct:title "Feed A" ; dcat:theme <#News> .
 <http://feed/b.xml> a dcat:Dataset, rss:channel ; dct:title "Feed B" ; dcat:theme <#Tech> .
 <#catalog> a dcat:Catalog ; dcat:dataset <http://feed/a.xml>, <http://feed/b.xml> .
@@ -32,7 +33,12 @@ for (const k of ['window', 'document', 'HTMLElement', 'customElements',
 for (const k of ['localStorage', 'location'])
   Object.defineProperty(globalThis, k, { value: window[k], configurable: true, writable: true });
 
-globalThis.fetch = window.fetch = async (url) => {
+const patches = [];   // bodies of any PATCH (sparql-update) the editor sends
+globalThis.fetch = window.fetch = async (url, opts = {}) => {
+  if ((opts.method || 'GET').toUpperCase() === 'PATCH') {
+    patches.push(String(opts.body || ''));
+    return { ok: true, status: 200, headers: { get: () => 'text/turtle' }, text: async () => '' };
+  }
   const u = String(url);
   const isTtl = u.includes('.ttl');
   return { ok: true, status: 200,
@@ -127,6 +133,43 @@ if (nameVal !== 'example.org') fail(`expected guessed name "example.org", got "$
 const opts = sr.querySelectorAll('.feed-drop-confirm select[name="topic"] option').length;
 if (opts < 2) fail('topic select should be populated');
 ok(`URL captured → confirm shown (name="${nameVal}", ${opts} topic options)`);
+
+// 6. Topic legends carry a click-to-rename name + a ✕ that deletes only an
+//    EMPTY topic (the ✕ is disabled while the topic still holds feeds).
+const legendOf = (name) => [...sr.querySelectorAll('.feed-topic > legend')]
+  .find(l => l.querySelector('.feed-topic-name')?.textContent === name);
+if (!legendOf('News') || !legendOf('Empty'))
+  fail('expected editable topic legends with click-to-rename names');
+const newsDel = legendOf('News').querySelector('.feed-topic-del');
+const emptyDel = legendOf('Empty').querySelector('.feed-topic-del');
+if (!newsDel || !emptyDel) fail('expected a ✕ delete control on each topic');
+if (!newsDel.disabled) fail('✕ should be disabled on a topic that still has feeds');
+if (emptyDel.disabled) fail('✕ should be enabled on an empty topic');
+ok('topic ✕: disabled when the topic has feeds, enabled when empty');
+
+// rename: click the name → inline input → Enter PATCHes renameTopicEdit
+patches.length = 0;
+click(legendOf('News').querySelector('.feed-topic-name')); await settle();
+const renameInput = sr.querySelector('.feed-topic-rename');
+if (!renameInput) fail('clicking a topic name should reveal an inline rename input');
+renameInput.value = 'World News';
+renameInput.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+await settle();
+if (!patches.some(b => b.includes('DELETE DATA') && b.includes('skos:prefLabel "News"') && b.includes('skos:prefLabel "World News"')))
+  fail('renaming a topic should PATCH renameTopicEdit (swap skos:prefLabel)');
+ok('topic rename PATCHes renameTopicEdit');
+
+// delete empty topic: ✕ → inline confirm → Delete PATCHes removeTopicBody.
+// (re-query after the rename reload rebuilt the shadow DOM)
+patches.length = 0;
+click(legendOf('Empty').querySelector('.feed-topic-del')); await settle();
+const topicConfirm = legendOf('Empty')?.querySelector('.feed-del-confirm')
+  || [...sr.querySelectorAll('.feed-topic > legend .feed-del-confirm')][0];
+if (!topicConfirm) fail('clicking an empty topic ✕ should show a Delete/Cancel confirm');
+click(topicConfirm.querySelector('.feed-del-yes')); await settle();
+if (!patches.some(b => /DELETE\s*\{\s*<[^>]+#Empty>\s+\?p\s+\?o\s+\./.test(b)))
+  fail('confirming a topic delete should PATCH removeTopicBody (DELETE … WHERE)');
+ok('empty topic delete PATCHes removeTopicBody (DELETE … WHERE)');
 
 console.log('\nALL EDITOR CHECKS PASSED');
 process.exit(0);

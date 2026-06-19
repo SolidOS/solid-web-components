@@ -465,6 +465,13 @@ export const CSS = `
     color: var(--text-muted, #7f8c8d);
     padding: 0 .3rem;
   }
+  /* Editable legend (Manage-feeds editor): click-to-rename name + ✕ delete. */
+  .feed-topic legend:has(.feed-topic-name) { display: inline-flex; align-items: center; gap: .25rem; }
+  .feed-topic-name.editable { cursor: text; border-radius: 4px; padding: 0 .15rem; }
+  .feed-topic-name.editable:hover { background: var(--hover, rgba(0,0,0,.06)); }
+  .feed-topic-del { font-size: .95em; line-height: 1; padding: 0 .15rem; }
+  .feed-topic-del[disabled] { opacity: .35; cursor: not-allowed; }
+  .feed-topic-del[disabled]:hover { color: var(--text-muted, #9aa0a6); }
   /* Each source is a draggable chip. A chip whose feed is shown on the bar is
      hidden from its topic (see .feed-chip[hidden]); drag it off the bar to
      bring the chip back. */
