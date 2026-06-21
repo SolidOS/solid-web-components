@@ -192,6 +192,27 @@ async function main() {
       }
     } else if (issuerParam) {
       let issuer = issuerParam.endsWith('/') ? issuerParam : issuerParam + '/';
+      // Tier-1 silent re-auth: if this side previously signed into THIS issuer,
+      // try to restore that session with prompt=none — no credential entry. The
+      // refresh token/keys persist in this side's namespaced storage across
+      // restarts, so a prior session can come back with no UI. Falls through to
+      // the interactive login below when there's nothing to restore, it fails, or
+      // the restored session is for a different issuer. (It may redirect the popup
+      // to the IdP and back; that returns via the hasOidcParams branch above, so
+      // the parent app never sees a flash.)
+      try {
+        show(appLabel, 'Resuming session…');
+        await session.handleIncomingRedirect({ restorePreviousSession: true });
+      } catch (_) { /* nothing to restore — interactive login */ }
+      const restored = session.info || {};
+      if (restored.isLoggedIn && restored.issuer &&
+          new URL(restored.issuer).origin === new URL(issuer).origin) {
+        history.replaceState({}, '', window.location.origin + window.location.pathname);
+        const delivered = notifyParent({
+          type: 'logged-in', webId: restored.webId, sessionId: restored.sessionId, issuer: restored.issuer,
+        });
+        if (delivered) { parkWindow(); return; }
+      }
       show(appLabel, 'Redirecting to ' + new URL(issuer).host + '…');
       await session.login({
         oidcIssuer: issuer,
