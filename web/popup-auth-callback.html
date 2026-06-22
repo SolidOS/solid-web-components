@@ -79,6 +79,11 @@ const side   = params.get('side') || sessionStorage.getItem('sol_popup_side') ||
 const issuerParam = params.get('issuer');
 const appLabel = params.get('label') || 'Sign in';
 sessionStorage.setItem('sol_popup_side', side);
+// Persist the chosen issuer the same per-window way as `side`, so the
+// post-redirect (hasOidcParams) branch can report which issuer was used —
+// inrupt's session.info carries no issuer, and the ?issuer= param is gone
+// from the stripped redirect URL on the way back.
+if (issuerParam) sessionStorage.setItem('sol_popup_issuer', issuerParam);
 titleEl.textContent = appLabel;
 
 const openerOrigin = window.location.origin; // opener is the host app, same origin
@@ -179,7 +184,7 @@ async function main() {
           type: 'logged-in',
           webId: info.webId,
           sessionId: info.sessionId,
-          issuer: info.issuer,
+          issuer: info.issuer || sessionStorage.getItem('sol_popup_issuer') || null,
         });
         if (delivered) {
           parkWindow();
