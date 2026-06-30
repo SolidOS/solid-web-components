@@ -234,6 +234,15 @@ class SolFeed extends HTMLElement {
    * the plain web most articles refuse to be iframed, so the pop-out is used.
    */
   _readerInline() {
+    // A coarse-pointer / touch device (phone, tablet) has no room for a
+    // side-by-side reading pane beside the list, and a phone WebView has no
+    // native view to render one — so there the full-width list + pop-out
+    // reader is used regardless of reader="inline". (matchMedia is guarded so
+    // non-DOM / jsdom test envs without it fall through unchanged.)
+    try {
+      if (typeof matchMedia === 'function' &&
+          matchMedia('(hover: none) and (pointer: coarse)').matches) return false;
+    } catch (_) { /* no matchMedia — treat as non-touch */ }
     const v = (this.getAttribute('reader') || '').toLowerCase();
     if (v === 'inline') return true;
     if (v === 'window') return false;

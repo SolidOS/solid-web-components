@@ -739,6 +739,60 @@ export const CSS = `
   }
   .feed-bin-purge:hover { background: var(--error, #e74c3c); color: #fff; }
 
+  /* ── Phone / touch layout ────────────────────────────────────────────────
+     Scoped to coarse-pointer + no-hover devices, so a mouse/Electron desktop
+     (pointer:fine, hover:hover) never reaches these rules — the desktop layout
+     above is left exactly as-is. On touch, _readerInline() is off (sol-feed.js),
+     so the component renders the full-width list (no side-by-side reader split);
+     this tunes that list for a narrow screen: the source picker scrolls
+     horizontally instead of wrapping into a tall stack, and articles become
+     full-width tappable rows. */
+  @media (hover: none) and (pointer: coarse) {
+    .feed-top-bar { flex-wrap: nowrap; align-items: center; gap: .5rem; padding: .6rem .7rem; }
+
+    /* Source picker: one swipeable row, not a tall wrapped column. */
+    .feed-source-buttons {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      scroll-snap-type: x proximity;
+      gap: .4rem;
+      padding-bottom: 2px;
+    }
+    .feed-source-buttons::-webkit-scrollbar { display: none; }
+    .feed-source-btn {
+      flex: 0 0 auto;
+      scroll-snap-align: start;
+      font-size: 1rem;            /* ≥16px, tracks the text-size setter */
+      padding: .5rem 1rem;
+      min-height: 44px;
+    }
+    .feed-picker-toggle {
+      flex: 0 0 auto;
+      min-width: 44px; min-height: 44px;
+    }
+
+    /* Articles: a full-width single-column list of compact horizontal rows
+       (image left, title right) — the whole list scrolls, nothing else. */
+    .feed-articles {
+      grid-template-columns: 1fr;
+      gap: .55rem;
+      padding: .8rem .7rem;
+    }
+    .feed-card {
+      width: auto;
+      aspect-ratio: auto;
+      height: 5.5rem;
+    }
+    .feed-card-img,
+    .feed-card.no-image::before { flex-basis: 5.5rem; width: 5.5rem; }
+    .feed-card-title {
+      font-size: 1rem;            /* ≥16px, tracks the text-size setter */
+      -webkit-line-clamp: 3;
+    }
+  }
+
 `;
 
 export const sheet = sheetFrom(CSS);
