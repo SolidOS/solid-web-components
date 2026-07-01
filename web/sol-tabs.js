@@ -210,6 +210,16 @@ class SolTabs extends HTMLElement {
     }
 
     if (this.hasAttribute('editor-self')) attachEditorSelfGear(this);
+
+    // Re-render the bar when the pointer type flips (fine ↔ coarse) so the
+    // <select> navigator appears/disappears — chiefly for DevTools device
+    // emulation; on a real device it fires once at most. Wired once.
+    const mql = this._coarseMql();
+    if (mql && !this._mqlWired) {
+      this._mqlWired = true;
+      this._onPointerFlip = () => this._renderBar();
+      mql.addEventListener?.('change', this._onPointerFlip);
+    }
   }
 
   // Fetch a ui:Menu RDF document and render its parts as tabs. This is the
@@ -321,6 +331,10 @@ class SolTabs extends HTMLElement {
           // _buildSubmenuDropdown) — the in-pane render is the fallback used
           // when the dropdown path is unavailable (no from-rdf / no loader).
           isSubmenu: true,
+          // The wrapped child descriptors are kept on the tab so the mobile
+          // select navigator (_renderSelect) can list a submenu's leaves as an
+          // <optgroup> — the bar dropdown loads them too, from the same RDF.
+          children,
           render: (body) => this._renderSubmenu(body, desc.children, children, desc.name),
         };
       }
@@ -330,13 +344,16 @@ class SolTabs extends HTMLElement {
         // tab's pane (its region). Fire-and-forget commands leave the pane empty.
         if (isCommandName(desc.tag)) {
           return {
-            name: desc.name, id: desc.id, sig,
+            name: desc.name, id: desc.id, sig, type: desc.type,
             render: (body) => dispatchCommand(this, desc.tag, paramsToObject(desc.params), { id: desc.id, fallbackEl: body }),
           };
         }
-        return { name: desc.name, id: desc.id, sig, render: renderComponentItem(desc, ctx) };
+        return { name: desc.name, id: desc.id, sig, type: desc.type, render: renderComponentItem(desc, ctx) };
       }
-      return { name: desc.name, id: desc.id, sig, render: renderLinkItem(desc, ctx) };
+      // A link leaf carries its href/type so the mobile navigator can open it
+      // externally (into the dismissible overlay) rather than switching to an
+      // empty submenu pane — see _navigateTo.
+      return { name: desc.name, id: desc.id, sig, type: desc.type, href: desc.href, render: renderLinkItem(desc, ctx) };
     }).filter(Boolean);
   }
 
@@ -486,6 +503,7 @@ class SolTabs extends HTMLElement {
     for (const child of children) {
       const slot = document.createElement('div');
       slot.className = 'sol-tabs-stack-item';
+      if (child?.name) slot.dataset.tabName = child.name;   // so the mobile select can scroll to a leaf
       body.appendChild(slot);
       child.render(slot);
     }
@@ -586,6 +604,243 @@ class SolTabs extends HTMLElement {
       for (const el of launchers) group.appendChild(el);
       bar.appendChild(group);
     }
+
+    // Touch/coarse-pointer devices (phones): collapse the whole strip into a
+    // full-width trigger that opens a bottom SHEET — a themed, room-coloured list
+    // (submenus as sections, leaves as rows), far better looking and more
+    // touch-ergonomic than the OS <select> picker. The buttons / dropdowns /
+    // launchers above stay in the DOM (CSS hides them) so the sheet drives them;
+    // on a fine-pointer (desktop / Electron) device nothing is built, so the DOM
+    // is byte-identical to before.
+    if (this._isCoarsePointer()) this._renderNavSheet(bar);
+    else this._removeSheet();   // a flip back to fine pointer drops the body-mounted sheet
+  }
+
+  // The phone media — built lazily, kept so the change listener (wired in
+  // connectedCallback) can re-render the bar when the pointer type flips
+  // (e.g. DevTools device emulation toggling on/off).
+  _coarseMql() {
+    if (this._mqlCoarse === undefined) {
+      this._mqlCoarse = (typeof matchMedia === 'function')
+        ? matchMedia('(hover: none) and (pointer: coarse)') : null;
+    }
+    return this._mqlCoarse;
+  }
+
+  _isCoarsePointer() { return !!this._coarseMql()?.matches; }
+
+  // Build the mobile navigator: a full-width trigger button on the bar plus a
+  // bottom SHEET (mounted on <body> so it overlays everything and escapes any
+  // clipping ancestor). Top tabs are rows; a submenu becomes a section of its
+  // leaves; link launchers gather under a "Launch" section so they leave the
+  // dock. Picking a row drives the SAME machinery the bar uses — switchTab for a
+  // tab, the submenu dropdown's .select() for a leaf, the chip's own click for a
+  // launcher — so there's no parallel render path.
+  _renderNavSheet(bar) {
+    const trig = document.createElement('button');
+    trig.type = 'button';
+    trig.className = 'sol-tabs-navtrigger';
+    trig.setAttribute('aria-haspopup', 'dialog');
+    trig.setAttribute('aria-expanded', 'false');
+    trig.innerHTML =
+      '<span class="sol-tabs-navtrigger-dot" aria-hidden="true"></span>'
+      + '<span class="sol-tabs-navtrigger-label"></span>'
+      + '<span class="sol-tabs-navtrigger-chev" aria-hidden="true"></span>';
+    trig.addEventListener('click', () => this._openSheet());
+    this._navTrigger = trig;
+    bar.appendChild(trig);
+    this._buildSheet();
+    this._syncNav();
+  }
+
+  // (Re)build the bottom sheet from the current tab model, mounted on <body>.
+  _buildSheet() {
+    this._removeSheet();
+    const sheet = document.createElement('div');
+    sheet.className = 'sol-tabs-sheet';
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-modal', 'true');
+    sheet.setAttribute('aria-label', 'Go to');
+
+    const scrim = document.createElement('div');
+    scrim.className = 'sol-tabs-sheet-scrim';
+    scrim.addEventListener('click', () => this._closeSheet());
+
+    const panel = document.createElement('div');
+    panel.className = 'sol-tabs-sheet-panel';
+    const grab = document.createElement('div');
+    grab.className = 'sol-tabs-sheet-grabber';
+    panel.appendChild(grab);
+    const list = document.createElement('div');
+    list.className = 'sol-tabs-sheet-list';
+    panel.appendChild(list);
+
+    this._navItems = [];   // { el, meta, key, groupKey } for active-state sync
+    this._groups = [];     // { key, head, group } for accordion expand/collapse
+    this._openGroup = null;
+
+    // A navigable destination row. `parent` is the list (direct rooms) or a
+    // group's inner wrapper (submenu leaves).
+    const row = (parent, label, meta, tabId, key, groupKey) => {
+      const it = document.createElement('button');
+      it.type = 'button';
+      it.className = 'sol-tabs-sheet-item';
+      if (tabId) it.dataset.tabId = tabId;   // reuses the existing attribute; dk maps a room colour
+      it.innerHTML =
+        '<span class="sol-tabs-sheet-bar" aria-hidden="true"></span>'
+        + '<span class="sol-tabs-sheet-label"></span>'
+        + '<span class="sol-tabs-sheet-check" aria-hidden="true"></span>';
+      it.querySelector('.sol-tabs-sheet-label').textContent = label;
+      it.addEventListener('click', () => { this._navigateTo(meta); this._closeSheet(); });
+      parent.appendChild(it);
+      this._navItems.push({ el: it, meta, key, groupKey });
+    };
+
+    // A collapsible group (submenu / Launch): a header row + a hidden wrapper of
+    // leaf rows. Returns the inner wrapper to fill. Header toggles the accordion.
+    const group = (label, groupKey) => {
+      const head = document.createElement('button');
+      head.type = 'button';
+      head.className = 'sol-tabs-sheet-grouphead';
+      head.setAttribute('aria-expanded', 'false');
+      head.innerHTML =
+        '<span class="sol-tabs-sheet-grouplabel"></span>'
+        + '<span class="sol-tabs-sheet-groupchev" aria-hidden="true"></span>';
+      head.querySelector('.sol-tabs-sheet-grouplabel').textContent = label;
+      head.addEventListener('click', () => this._toggleGroup(groupKey));
+      const wrap = document.createElement('div');
+      wrap.className = 'sol-tabs-sheet-group';
+      const inner = document.createElement('div');
+      inner.className = 'sol-tabs-sheet-group-inner';
+      wrap.appendChild(inner);
+      list.appendChild(head);
+      list.appendChild(wrap);
+      this._groups.push({ key: groupKey, head, group: wrap });
+      return inner;
+    };
+
+    for (const tab of this._tabs) {
+      if (tab.isSubmenu && Array.isArray(tab.children) && tab.children.length) {
+        const gk = `g:${tab.name}`;
+        const inner = group(tab.name, gk);
+        for (const child of tab.children) {
+          // THE ARTIFACT RULE (mirrors _renderSubmenu): a child whose name
+          // repeats the submenu's own is the conversion artifact — skip it.
+          if (!child?.name || child.name.trim() === tab.name.trim()) continue;
+          row(inner, child.name, { kind: 'child', parent: tab.name, child: child.name, link: child.type === 'link' && !!child.href, href: child.href },
+              child.id, `c:${tab.name}${child.name}`, gk);
+        }
+      } else {
+        row(list, tab.name, { kind: 'tab', name: tab.name }, tab.id, `t:${tab.name}`, null);
+      }
+    }
+    // Link launchers (.sol-bar-link) → a "Launch" section; chrome controls
+    // (search, calendar, ☰, sign-in, …) stay in the slim dock.
+    const links = (this._launchers || []).filter(
+      (el) => el.classList && el.classList.contains('sol-bar-link'));
+    if (links.length) {
+      const inner = group('Launch', 'g:Launch');
+      links.forEach((el, i) => row(
+        inner, (el.getAttribute('aria-label') || el.title || el.textContent || 'Open').trim(),
+        { kind: 'launch', el }, null, `l:${i}`, 'g:Launch'));
+    }
+
+    sheet.appendChild(scrim);
+    sheet.appendChild(panel);
+    document.body.appendChild(sheet);
+    this._sheet = sheet;
+  }
+
+  // Accordion: open `key` (collapsing any other), or collapse if already open.
+  _toggleGroup(key) { this._setOpenGroup(this._openGroup === key ? null : key); }
+
+  _setOpenGroup(key) {
+    this._openGroup = key;
+    for (const g of (this._groups || [])) {
+      const on = g.key === key;
+      g.group.classList.toggle('expanded', on);
+      g.head.classList.toggle('expanded', on);
+      g.head.setAttribute('aria-expanded', on ? 'true' : 'false');
+    }
+  }
+
+  _openSheet() {
+    if (!this._sheet) return;
+    this._syncNav();
+    // Pre-expand the group holding the current destination, so the sheet opens
+    // showing where you are (a leaf's group; a direct room opens all-collapsed).
+    const active = (this._navItems || []).find((i) => i.key === this._navKey);
+    this._setOpenGroup(active?.groupKey || null);
+    this._sheet.classList.add('open');
+    this._navTrigger?.setAttribute('aria-expanded', 'true');
+    this._onSheetKey = (e) => { if (e.key === 'Escape') this._closeSheet(); };
+    document.addEventListener('keydown', this._onSheetKey);
+  }
+
+  _closeSheet() {
+    if (!this._sheet) return;
+    this._sheet.classList.remove('open');   // CSS animates out, then visibility:hidden
+    this._navTrigger?.setAttribute('aria-expanded', 'false');
+    if (this._onSheetKey) { document.removeEventListener('keydown', this._onSheetKey); this._onSheetKey = null; }
+  }
+
+  _removeSheet() {
+    if (this._onSheetKey) { document.removeEventListener('keydown', this._onSheetKey); this._onSheetKey = null; }
+    if (this._sheet) { this._sheet.remove(); this._sheet = null; }
+  }
+
+  // Reflect the active destination on the trigger (label + room dot) and the
+  // sheet rows (highlight). `_navKey` is set by _navigateTo for a submenu leaf
+  // (which switchTab alone can't identify); otherwise the active top tab wins.
+  _syncNav() {
+    if (!this._navTrigger) return;
+    let active = this._navKey ? this._navItems?.find((i) => i.key === this._navKey) : null;
+    if (!active) active = this._navItems?.find((i) => i.meta.kind === 'tab' && i.meta.name === this._active);
+    const label = this._navTrigger.querySelector('.sol-tabs-navtrigger-label');
+    if (label) label.textContent = active ? active.el.querySelector('.sol-tabs-sheet-label').textContent : (this._active || '');
+    // Carry the active room's id onto the trigger so dk can colour its dot.
+    const id = active?.el.dataset.tabId;
+    if (id) this._navTrigger.dataset.tabId = id; else delete this._navTrigger.dataset.tabId;
+    for (const i of (this._navItems || [])) i.el.classList.toggle('is-active', i === active);
+  }
+
+  // Act on a sheet pick, reusing the bar's own machinery.
+  _navigateTo(meta) {
+    if (meta.kind === 'launch') { meta.el?.click(); return; }
+    if (meta.kind === 'tab') { this._navKey = `t:${meta.name}`; this.switchTab(meta.name); return; }
+    if (meta.kind === 'child') {
+      if (meta.link) {
+        // External link leaf — open it (→ the host's dismissible overlay / new
+        // tab) and leave the CURRENT room active. A link-only submenu (e.g. Apps)
+        // thus never becomes the active tab, so its empty pane is never shown.
+        if (meta.href) window.open(meta.href, '_blank');
+        return;
+      }
+      // Remember the leaf (switchTab only knows the parent), surface the pane,
+      // then mount the chosen leaf into it.
+      this._navKey = `c:${meta.parent}${meta.child}`;
+      this.switchTab(meta.parent);
+      const dd = this._btns[meta.parent];
+      if (dd && typeof dd.select === 'function') {
+        dd.select(meta.child);            // the dropdown's proven region-cascade mount
+      } else {
+        this._revealChild(meta.parent, meta.child);   // inline-submenu fallback
+      }
+      this._syncNav();
+    }
+  }
+
+  // Fallback leaf reveal when a submenu rendered inline (_renderSubmenu) rather
+  // than as a bar dropdown: a nested <sol-tabs> switches to the child; a stacked
+  // submenu scrolls the child's slot into view.
+  _revealChild(parentName, childName) {
+    const tab = this._tabs.find((t) => t.name === parentName);
+    const pane = tab?._pane;
+    if (!pane) return;
+    const sub = pane.querySelector(':scope sol-tabs');
+    if (sub && typeof sub.switchTab === 'function') { sub.switchTab(childName); return; }
+    const item = pane.querySelector(`[data-tab-name="${(window.CSS && CSS.escape) ? CSS.escape(childName) : childName}"]`);
+    if (item) item.scrollIntoView({ block: 'start' });
   }
 
   // Render every tab once (keep-alive) then show the first, else just
@@ -642,6 +897,21 @@ class SolTabs extends HTMLElement {
     // `silent` = a programmatic refresh (applyTabs re-asserting the SAME
     // active tab after a live update) — listeners must not mistake it for
     // the user picking a tab (e.g. the host would dismiss its menu pane).
+    // Keep the mobile navigator in step when the active tab changes by any path.
+    // A switch TO a top-level tab clears any remembered submenu leaf; a leaf pick
+    // re-sets _navKey in _navigateTo right after this runs.
+    if (this._navTrigger) {
+      if (this._navItems?.some((i) => i.meta.kind === 'tab' && i.meta.name === tab.name)) {
+        this._navKey = `t:${tab.name}`;
+      } else if (!(this._navKey || '').startsWith(`c:${tab.name}`)) {
+        // Switched to a submenu parent by some path OTHER than a known leaf pick
+        // (e.g. a restore) — drop the stale key so the trigger shows the parent's
+        // own name, not a leftover room.
+        this._navKey = null;
+      }
+      this._syncNav();
+    }
+
     if (!silent) {
       this.dispatchEvent(new CustomEvent('sol-tab-change', {
         bubbles: true, composed: true, detail: { name: tab.name },
@@ -729,6 +999,7 @@ class SolTabs extends HTMLElement {
 
   disconnectedCallback() {
     if (typeof this._cleanup === 'function') { this._cleanup(); this._cleanup = null; }
+    this._removeSheet();   // the sheet lives on <body>, so detach it with the element
   }
 }
 

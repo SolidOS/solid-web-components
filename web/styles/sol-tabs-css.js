@@ -181,4 +181,113 @@ export const CSS = `
   sol-tabs > .sol-tabs-bar .sol-bar-link img {
     width: 1.3em; height: 1.3em; object-fit: contain; display: block;
   }
+
+  /* ── Mobile navigator ───────────────────────────────────────────────────
+     On a touch / coarse-pointer device <sol-tabs> swaps its strip for a
+     full-width TRIGGER (in the bar) that opens a bottom SHEET (mounted on
+     <body>, sol-tabs.js _renderNavSheet): a tactile, themeable, room-coloured
+     list — submenus as sections, leaves as rows — far nicer on a phone than a
+     horizontal tab strip or the OS <select> picker. Only built on coarse
+     pointers, so a fine-pointer (desktop) DOM is unchanged. Colours come from
+     host vars (--surface/--text/--accent and a per-row --row-accent), so an app
+     themes it without forking the component.
+     ── the trigger ── */
+  .sol-tabs-navtrigger { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    /* Hide the tab CONTROLS the sheet replaces — but NOT the .sol-tabs-launch
+       group: those are page-level launchers the host may re-home (dk docks them
+       at the bottom of the phone). */
+    sol-tabs > .sol-tabs-bar > button,
+    sol-tabs > .sol-tabs-bar > sol-dropdown-button { display: none; }
+    sol-tabs > .sol-tabs-bar { flex-wrap: nowrap; padding: 8px 12px; gap: 0; }
+    sol-tabs > .sol-tabs-bar > .sol-tabs-navtrigger {
+      display: flex; align-items: center; gap: 10px;
+      flex: 1 1 auto; width: 100%; max-width: 100%; box-sizing: border-box;
+      min-height: 48px; padding: 0 14px;
+      font: inherit; font-size: max(16px, 1.05em); font-weight: 600;
+      color: var(--text, #1a1a1a); text-align: left;
+      background: var(--surface, #fff);
+      border: 1px solid var(--border, #c8c8c8); border-radius: 14px;
+      cursor: pointer;
+    }
+    .sol-tabs-navtrigger-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sol-tabs-navtrigger-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto;
+      background: var(--row-accent, var(--accent, #888)); }
+    .sol-tabs-navtrigger-chev { flex: 0 0 auto; width: 0; height: 0; opacity: .5;
+      border-left: 5px solid transparent; border-right: 5px solid transparent;
+      border-bottom: 6px solid currentColor; }   /* up-caret: the sheet rises */
+  }
+
+  /* ── the sheet (mounted on <body>; only created on coarse pointers) ── */
+  .sol-tabs-sheet {
+    position: fixed; inset: 0; z-index: 1200;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    visibility: hidden; transition: visibility 0s linear .30s;
+  }
+  .sol-tabs-sheet.open { visibility: visible; transition-delay: 0s; }
+  .sol-tabs-sheet-scrim { position: absolute; inset: 0; background: rgba(20,16,10,.46);
+    opacity: 0; transition: opacity .30s ease; }
+  .sol-tabs-sheet.open .sol-tabs-sheet-scrim { opacity: 1; }
+  .sol-tabs-sheet-panel {
+    position: relative; z-index: 1;
+    max-height: 84vh; display: flex; flex-direction: column;
+    background: var(--surface, #fff);
+    border-radius: 20px 20px 0 0;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    box-shadow: 0 -10px 44px rgba(0,0,0,.34);
+    transform: translateY(101%);
+    transition: transform .32s cubic-bezier(.32,.72,0,1);
+  }
+  .sol-tabs-sheet.open .sol-tabs-sheet-panel { transform: translateY(0); }
+  .sol-tabs-sheet-grabber { flex: 0 0 auto; width: 38px; height: 5px; border-radius: 3px;
+    margin: 9px auto 4px; background: var(--border, #c8c8c8); opacity: .8; }
+  .sol-tabs-sheet-list { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 10px; }
+  /* Accordion group header (a submenu / Launch): reads like a section label but
+     is a tappable row with a chevron that rotates when its leaves are expanded. */
+  .sol-tabs-sheet-grouphead {
+    display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box;
+    min-height: 46px; padding: 6px 12px; margin: 2px 0 0;
+    font: inherit; font-size: max(16px, .82em);
+    text-transform: uppercase; letter-spacing: .07em; font-weight: 700;
+    color: var(--text-muted, #8a8a8a);
+    background: none; border: 0; border-radius: 11px; cursor: pointer; text-align: left;
+  }
+  .sol-tabs-sheet-grouphead:active { background: var(--hover, rgba(0,0,0,.06)); }
+  .sol-tabs-sheet-grouplabel { flex: 1 1 auto; }
+  .sol-tabs-sheet-groupchev { flex: 0 0 auto; width: 0; height: 0; opacity: .7;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid currentColor; transition: transform .2s ease; }
+  .sol-tabs-sheet-grouphead.expanded .sol-tabs-sheet-groupchev { transform: rotate(-180deg); }
+  /* Collapsible body: grid 0fr→1fr animates height with no magic max-height. */
+  .sol-tabs-sheet-group { display: grid; grid-template-rows: 0fr;
+    transition: grid-template-rows .24s ease; }
+  .sol-tabs-sheet-group.expanded { grid-template-rows: 1fr; }
+  .sol-tabs-sheet-group-inner { overflow: hidden; min-height: 0; }
+  .sol-tabs-sheet-item {
+    display: flex; align-items: center; gap: 12px; width: 100%; box-sizing: border-box;
+    min-height: 44px; padding: 4px 12px;
+    font: inherit; font-size: max(16px, 1.03em); color: var(--text, #1a1a1a);
+    background: none; border: 0; border-radius: 12px; cursor: pointer; text-align: left;
+  }
+  /* leaves sit indented under their group header */
+  .sol-tabs-sheet-group-inner .sol-tabs-sheet-item { padding-left: 22px; }
+  .sol-tabs-sheet-item:active { background: var(--hover, rgba(0,0,0,.06)); }
+  /* The accent rail shows only on the ACTIVE row (Apple-Music-style: inactive
+     rows stay clean text); the transparent rail keeps every label aligned. */
+  .sol-tabs-sheet-bar { flex: 0 0 auto; width: 4px; align-self: stretch; margin: 9px 0;
+    border-radius: 2px; background: transparent; }
+  .sol-tabs-sheet-label { flex: 1 1 auto; }
+  .sol-tabs-sheet-check { flex: 0 0 auto; width: 17px; text-align: center; opacity: 0;
+    color: var(--row-accent, var(--accent, #333)); font-weight: 800; }
+  .sol-tabs-sheet-check::after { content: '\\2713'; }   /* ✓ */
+  .sol-tabs-sheet-item.is-active {
+    background: color-mix(in srgb, var(--row-accent, var(--accent, #999)) 15%, transparent);
+    color: var(--row-accent, var(--accent)); font-weight: 700;
+  }
+  .sol-tabs-sheet-item.is-active .sol-tabs-sheet-bar { background: var(--row-accent, var(--accent, #999)); }
+  .sol-tabs-sheet-item.is-active .sol-tabs-sheet-check { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .sol-tabs-sheet, .sol-tabs-sheet-scrim, .sol-tabs-sheet-panel,
+    .sol-tabs-sheet-group, .sol-tabs-sheet-groupchev { transition: none; }
+  }
 `;

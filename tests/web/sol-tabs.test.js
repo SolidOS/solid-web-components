@@ -237,6 +237,137 @@ describe('SolTabs — from-rdf loading', () => {
   });
 });
 
+// ── Mobile navigator: bottom sheet (coarse pointer) ──────────────────────────
+// On a touch device <sol-tabs> swaps its strip for a full-width trigger that
+// opens a bottom SHEET (mounted on <body>): top tabs are rows, a submenu is a
+// section of its leaves. Picking a row drives the SAME machinery the bar uses
+// (switchTab; the submenu dropdown's .select()), so there's no parallel render
+// path. Gated on matchMedia, so a fine-pointer (desktop) DOM is unchanged —
+// every test above runs without a matchMedia stub and sees no trigger/sheet.
+
+describe('SolTabs — mobile navigator bottom sheet (coarse pointer)', () => {
+  beforeEach(() => {
+    mockStore = buildStore();
+    // jsdom has no matchMedia; stub a coarse/touch device for these tests only.
+    window.matchMedia = (q) => ({
+      matches: /coarse/.test(q),
+      media: q,
+      addEventListener() {}, removeEventListener() {},
+      addListener() {}, removeListener() {},
+    });
+  });
+  afterEach(() => { delete window.matchMedia; });
+
+  const navTrigger = (el) => tabBar(el).querySelector(':scope > .sol-tabs-navtrigger');
+  const navSheet = () => document.querySelector('.sol-tabs-sheet');
+  const sheetGroups = () =>
+    Array.from(navSheet().querySelectorAll('.sol-tabs-sheet-grouphead .sol-tabs-sheet-grouplabel')).map((s) => s.textContent);
+  const directRows = () =>
+    Array.from(navSheet().querySelectorAll('.sol-tabs-sheet-list > .sol-tabs-sheet-item .sol-tabs-sheet-label')).map((l) => l.textContent);
+  const sheetItems = () =>
+    Array.from(navSheet().querySelectorAll('.sol-tabs-sheet-item .sol-tabs-sheet-label')).map((l) => l.textContent);
+  const headByLabel = (label) =>
+    Array.from(navSheet().querySelectorAll('.sol-tabs-sheet-grouphead'))
+      .find((h) => h.querySelector('.sol-tabs-sheet-grouplabel').textContent === label);
+  const leavesOf = (label) =>
+    Array.from(headByLabel(label).nextElementSibling.querySelectorAll('.sol-tabs-sheet-item .sol-tabs-sheet-label')).map((l) => l.textContent);
+  const itemByLabel = (label) =>
+    Array.from(navSheet().querySelectorAll('.sol-tabs-sheet-item'))
+      .find((it) => it.querySelector('.sol-tabs-sheet-label').textContent === label);
+
+  test('desktop (fine pointer) builds NO trigger or sheet — only the strip', async () => {
+    window.matchMedia = (q) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} });
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+    expect(navTrigger(el)).toBeNull();
+    expect(navSheet()).toBeNull();
+    expect(tabBtns(el).map((b) => b.textContent)).toEqual(['Home', 'Data Table', 'About']);
+  });
+
+  test('builds a trigger + accordion sheet; a submenu is a collapsed group of its leaves', async () => {
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+    await flush();   // let the submenu dropdown load its own subject
+
+    expect(navTrigger(el)).toBeTruthy();
+    expect(navSheet()).toBeTruthy();
+    // Direct rooms are rows; the nested ui:Menu (#Settings) is a collapsible group.
+    expect(directRows()).toEqual(['Home', 'Data Table', 'About']);
+    expect(sheetGroups()).toEqual(['Settings']);
+    expect(leavesOf('Settings')).toEqual(['Light', 'Dark']);
+    // Collapsed by default (the sheet isn't open, and the active tab is a direct room).
+    expect(headByLabel('Settings').classList.contains('expanded')).toBe(false);
+    expect(navTrigger(el).querySelector('.sol-tabs-navtrigger-label').textContent).toBe('Home');
+  });
+
+  test('tapping a group header expands its leaves; tapping again collapses (accordion)', async () => {
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+    await flush();
+
+    const head = headByLabel('Settings');
+    const grp = head.nextElementSibling;
+    head.click();
+    expect(head.classList.contains('expanded')).toBe(true);
+    expect(grp.classList.contains('expanded')).toBe(true);
+    head.click();
+    expect(head.classList.contains('expanded')).toBe(false);
+    expect(grp.classList.contains('expanded')).toBe(false);
+  });
+
+  test('picking a top-level row switches that tab and updates the trigger', async () => {
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+
+    itemByLabel('Data Table').click();
+    expect(el.activeTab).toBe('Data Table');
+    expect(navTrigger(el).querySelector('.sol-tabs-navtrigger-label').textContent).toBe('Data Table');
+  });
+
+  test('picking a submenu leaf surfaces its pane and mounts the leaf (reuses the dropdown)', async () => {
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+    await flush();   // dropdown loads its submenu subject (its .select() backs the leaf)
+
+    itemByLabel('Light').click();
+    await flush();
+
+    expect(el.activeTab).toBe('Settings');                       // submenu pane surfaced
+    const pane = content(el).querySelector('.sol-tabs-pane[data-tab-id="Settings"]');
+    expect(pane.textContent).toContain('light content');        // leaf mounted via dropdown.select
+    // The trigger shows the picked LEAF, not the parent section.
+    expect(navTrigger(el).querySelector('.sol-tabs-navtrigger-label').textContent).toBe('Light');
+  });
+
+  test('an EXTERNAL link leaf opens via window.open and does NOT switch to the submenu', async () => {
+    // Give #Light an href so it becomes an external link leaf (like an Apps item).
+    mockStore.add(rdflib.sym(BASE + '#Light'), rdflib.sym(UI + 'href'), rdflib.sym('http://ext.example/read'));
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+    await flush();
+
+    const before = el.activeTab;                 // first tab (Home)
+    const opened = [];
+    const realOpen = window.open;
+    window.open = (url) => { opened.push(url); return null; };
+    try { itemByLabel('Light').click(); } finally { window.open = realOpen; }
+
+    expect(opened).toEqual(['http://ext.example/read']);   // opened externally (→ overlay on device)
+    expect(el.activeTab).toBe(before);                     // current room stays active — no blank submenu
+  });
+});
+
 // ── nested ui:Menu → a bar DROPDOWN launcher ─────────────────────────────────
 // A from-rdf submenu (a nested ui:Menu) no longer becomes a tab / sub-tab strip
 // (commit cef974b, "Tab submenus as dropdowns"). It renders as a
