@@ -806,6 +806,11 @@ class SolPod extends HTMLElement {
 
     const ul = document.createElement('ul');
     ul.className = 'file-tree';
+    // A flat, multi-select list of the current container's contents (folders
+    // navigate INTO, they don't expand inline) — so it's a listbox, not a tree.
+    ul.setAttribute('role', 'listbox');
+    ul.setAttribute('aria-multiselectable', 'true');
+    ul.setAttribute('aria-label', 'Pod files and folders');
     visible.forEach((item, idx) => ul.appendChild(this._createTreeItem(item, idx)));
     tw.appendChild(ul);
 
@@ -935,6 +940,8 @@ class SolPod extends HTMLElement {
     const li = document.createElement('li');
     li.className = item.isContainer ? 'folder' : 'file';
     li.tabIndex = 0;
+    li.setAttribute('role', 'option');
+    li.setAttribute('aria-selected', 'false');
     li.dataset.url = item.url;
     li.dataset.index = String(idx);
 
@@ -1019,7 +1026,9 @@ class SolPod extends HTMLElement {
     const ul = this.shadowRoot.querySelector('.file-tree');
     if (!ul) return;
     for (const li of ul.children) {
-      li.classList.toggle('selected', this._selected.has(li.dataset.url));
+      const on = this._selected.has(li.dataset.url);
+      li.classList.toggle('selected', on);
+      li.setAttribute('aria-selected', on ? 'true' : 'false');
     }
   }
 

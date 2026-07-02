@@ -298,6 +298,21 @@ describe('SolPod — _renderTree', () => {
     expect(fileTreeItems(el)[0].querySelector('.item-gear')).toBeTruthy();
   });
 
+  test('exposes multi-select listbox semantics (role/aria-selected)', () => {
+    const el = mkPod();
+    el._renderTree([item('a.txt'), item('b.txt')]);
+    const ul = el.shadowRoot.querySelector('.file-tree');
+    expect(ul.getAttribute('role')).toBe('listbox');
+    expect(ul.getAttribute('aria-multiselectable')).toBe('true');
+    const lis = fileTreeItems(el);
+    expect(lis.every((li) => li.getAttribute('role') === 'option')).toBe(true);
+    expect(lis.every((li) => li.getAttribute('aria-selected') === 'false')).toBe(true);
+    el._selected.add(lis[0].dataset.url);
+    el._refreshSelectionUI();
+    expect(lis[0].getAttribute('aria-selected')).toBe('true');
+    expect(lis[1].getAttribute('aria-selected')).toBe('false');
+  });
+
   test('an empty container shows the empty-container message', () => {
     const el = mkPod();
     el._renderTree([]);
