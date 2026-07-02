@@ -132,6 +132,17 @@ function openInReader(url) {
   return false;   // window.open blocked — fall back to a normal link open
 }
 
+// A feed's <link> is remote and untrusted, so only http(s) is safe to put on an
+// href or navigate to — a `javascript:` (or other-scheme) link would be
+// click-to-XSS. Returns '#' for anything else.
+function safeHttpUrl(url) {
+  if (!url || url === '#') return '#';
+  try {
+    const u = new URL(url, location.href);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '#';
+  } catch { return '#'; }
+}
+
 /**
  * RSS / Atom feed viewer web component.
  *
@@ -255,6 +266,8 @@ class SolFeed extends HTMLElement {
    * pop-out reader window. Returns true when the click should be suppressed.
    */
   openArticle(url, el = null) {
+    url = safeHttpUrl(url);              // never navigate to a non-http(s) feed link
+    if (url === '#') return false;
     if (this._readerInline() && this._articlePane) {
       this.showInPane(url);
       this._highlightArticle(el);
@@ -337,7 +350,7 @@ class SolFeed extends HTMLElement {
       const li = document.createElement('li');
       const a = document.createElement('a');
       a.className = 'feed-link';
-      a.href = it.link || '#';
+      a.href = safeHttpUrl(it.link);
       a.textContent = it.title || '(untitled)';
       a.addEventListener('click', ev => { if (this.openArticle(a.href, a)) ev.preventDefault(); });
 
@@ -442,7 +455,7 @@ class SolFeed extends HTMLElement {
       const li = document.createElement('li');
       const a = document.createElement('a');
       a.className = 'feed-link';
-      a.href = src.url;
+      a.href = safeHttpUrl(src.url);
       a.textContent = src.label;
       a.addEventListener('click', ev => { ev.preventDefault(); selectSource(src, a); });
       allLinks.push(a);
@@ -1213,7 +1226,7 @@ class SolFeed extends HTMLElement {
         const li = document.createElement('li');
         const a = document.createElement('a');
         a.className = 'feed-link';
-        a.href = src.url;
+        a.href = safeHttpUrl(src.url);
         a.textContent = src.label;
         a.setAttribute('role', 'tab');
         a.addEventListener('click', ev => { ev.preventDefault(); selectSource(src, a); });
@@ -1634,7 +1647,7 @@ class SolFeed extends HTMLElement {
   newsCard(it) {
     const a = document.createElement('a');
     a.className = 'feed-card';
-    a.href = it.link || '#';
+    a.href = safeHttpUrl(it.link);
     a.addEventListener('click', ev => { if (this.openArticle(a.href, a)) ev.preventDefault(); });
     // The visible title + overlay would make a very long accessible name;
     // pin the link's name to the article title instead.

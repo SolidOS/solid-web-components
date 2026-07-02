@@ -152,3 +152,15 @@ textarea {
   color: var(--input-text, #1a1a1a);
   border: 1px solid var(--input-border, #9aa0a8);
 }
+
+/* Respect the user's reduced-motion preference: neutralize animations and
+   transitions across the document scope (the shell + light-DOM component
+   surfaces). Individual shadow-DOM components can honour it in their own CSS. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

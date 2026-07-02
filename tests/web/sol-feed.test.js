@@ -214,6 +214,13 @@ describe('openArticle (pop-out reader)', () => {
     expect(el.openArticle('#')).toBe(false);
     expect(el.openArticle('')).toBe(false);
   });
+
+  test('refuses to open a non-http(s) (e.g. javascript:) feed link', () => {
+    const el = document.createElement('sol-feed');
+    expect(el.openArticle('javascript:alert(1)')).toBe(false);
+    expect(el.openArticle('data:text/html,<script>1</script>')).toBe(false);
+    expect(el.openArticle('file:///etc/passwd')).toBe(false);
+  });
 });
 
 // ── threePanel selection persistence ─────────────────────────────────────────
