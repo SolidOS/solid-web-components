@@ -24,6 +24,7 @@
  */
 import { adopt } from '../core/adopt.js';
 import { define } from '../core/define.js';
+import { SolElement } from '../core/sol-element.js';
 import { attachEditorSelfGear } from '../core/editor-self.js';
 import { CSS as TIME_CSS, sheet as TIME_SHEET } from './styles/sol-time-css.js';
 import { loadConfig } from './utils/rdf-config.js';
@@ -67,7 +68,7 @@ function pad2(n) { return n < 10 ? '0' + n : String(n); }
  * @class SolTime
  * @extends HTMLElement
  */
-class SolTime extends HTMLElement {
+class SolTime extends SolElement {
   static get observedAttributes() {
     return ['time-label', 'time-offset', 'source'];
   }
@@ -104,6 +105,7 @@ class SolTime extends HTMLElement {
     // Tick once a minute — the seconds are not shown so a finer tick
     // would be pure busywork.
     this._timer = setInterval(() => this._render(), 60_000);
+    this._cleanup(() => { clearInterval(this._timer); this._timer = null; });
 
     if (this.hasAttribute('editor-self')) attachEditorSelfGear(this);
   }
@@ -142,9 +144,8 @@ class SolTime extends HTMLElement {
     }
   }
 
-  disconnectedCallback() {
-    if (this._timer) { clearInterval(this._timer); this._timer = null; }
-  }
+  // Teardown (clearInterval) is registered via this._cleanup in connectedCallback;
+  // SolElement.disconnectedCallback runs it — no local disconnectedCallback needed.
 
   /**
    * Re-read `source` and re-render. Public hook used by external

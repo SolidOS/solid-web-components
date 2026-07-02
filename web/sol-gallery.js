@@ -25,10 +25,11 @@
  */
 import { adopt } from '../core/adopt.js';
 import { define } from '../core/define.js';
+import { SolElement } from '../core/sol-element.js';
 import { CSS as GALLERY_CSS, sheet as GALLERY_SHEET } from './styles/sol-gallery-css.js';
 import { readImageItems } from './utils/contract.js';
 
-class SolGallery extends HTMLElement {
+class SolGallery extends SolElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -57,8 +58,8 @@ class SolGallery extends HTMLElement {
   }
 
   disconnectedCallback() {
+    super.disconnectedCallback();   // removes the _on('keydown') listener
     if (this._io) { this._io.disconnect(); this._io = null; }
-    document.removeEventListener('keydown', this._onKey);
   }
 
   setStatus(msg, isError = false) {
@@ -226,7 +227,7 @@ class SolGallery extends HTMLElement {
       else if (e.key === 'ArrowLeft') this.stepLightbox(-1);
       else if (e.key === 'ArrowRight') this.stepLightbox(1);
     };
-    document.addEventListener('keydown', this._onKey);
+    this._on(document, 'keydown', this._onKey);   // auto-removed on disconnect
   }
 
   openLightbox(index) {

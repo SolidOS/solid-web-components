@@ -18,6 +18,7 @@
  * removing itself.
  */
 import { define } from '../core/define.js';
+import { SolElement } from '../core/sol-element.js';
 
 const CSS = `
   :host { position: fixed; z-index: 1000; }
@@ -33,7 +34,7 @@ const CSS = `
   .body { padding: var(--menu-popup-pad, 8px); }
 `;
 
-class SolDropdown extends HTMLElement {
+class SolDropdown extends SolElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
@@ -64,6 +65,7 @@ class SolDropdown extends HTMLElement {
     if (typeof ResizeObserver !== 'undefined') {
       this._ro = new ResizeObserver(() => this._place());
       this._ro.observe(panel);
+      this._cleanup(() => this._ro.disconnect());
     }
     this._onReflow = () => this._place();
     // Outside-click / Escape dismiss. The click that OPENED us is on the anchor,
@@ -73,21 +75,15 @@ class SolDropdown extends HTMLElement {
       if (!this.contains(t) && !(this._anchor && this._anchor.contains && this._anchor.contains(t))) this._close();
     };
     this._onKey = (e) => { if (e.key === 'Escape') this._close(); };
-    document.addEventListener('click', this._onDocClick);
-    document.addEventListener('keydown', this._onKey);
-    window.addEventListener('scroll', this._onReflow, true);
-    window.addEventListener('resize', this._onReflow);
+    // SolElement._on auto-removes these on disconnect (this element self-removes
+    // on close), so no hand-rolled disconnectedCallback teardown is needed.
+    this._on(document, 'click', this._onDocClick);
+    this._on(document, 'keydown', this._onKey);
+    this._on(window, 'scroll', this._onReflow, true);
+    this._on(window, 'resize', this._onReflow);
   }
 
-  disconnectedCallback() {
-    document.removeEventListener('click', this._onDocClick);
-    document.removeEventListener('keydown', this._onKey);
-    window.removeEventListener('scroll', this._onReflow, true);
-    window.removeEventListener('resize', this._onReflow);
-    if (this._ro) this._ro.disconnect();
-  }
-
-  _close() { this.remove(); }   // disconnectedCallback tears down the listeners
+  _close() { this.remove(); }   // SolElement tears down the listeners on disconnect
 
   // Anchor the panel fixed just under the launcher, left-aligned, flipping to
   // right-aligned only if a left drop would overflow the viewport — mirroring
