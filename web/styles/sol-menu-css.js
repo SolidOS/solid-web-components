@@ -140,6 +140,11 @@ export const CSS = `
     padding: var(--menu-content-padding, var(--space-xl, 16px) var(--space-xl, 16px));
     box-sizing: border-box;
   }
+
+  /* Touch devices: meet the 44px minimum tap target (desktop is unaffected). */
+  @media (hover: none) and (pointer: coarse) {
+    .sol-menu-nav button { min-height: 44px; }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

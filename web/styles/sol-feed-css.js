@@ -793,6 +793,12 @@ export const CSS = `
     }
   }
 
+
+  /* Touch devices: meet the 44px minimum tap target (desktop is unaffected). */
+  @media (hover: none) and (pointer: coarse) {
+    .feed-source-btn { min-height: 44px; }
+    .feed-items li a { min-height: 44px; display: flex; align-items: center; }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

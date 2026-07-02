@@ -102,6 +102,12 @@ export const BTN_CSS = `
     outline-offset: 1px;
     border-color: var(--accent, #3498db);
   }
+
+  /* Touch devices: meet the 44px minimum tap target (desktop is unaffected). */
+  @media (hover: none) and (pointer: coarse) {
+    .sol-btn { min-height: 44px; }
+    .sol-btn-icon { min-height: 44px; min-width: 44px; }
+  }
 `;
 
 export const sheet = sheetFrom(BTN_CSS);
