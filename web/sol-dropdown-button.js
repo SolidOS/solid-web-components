@@ -50,6 +50,7 @@ import { define } from '../core/define.js';
 import { adopt, sheetFrom } from '../core/adopt.js';
 import { CSS as MENU_CSS } from './styles/sol-menu-css.js';
 import { SolMenu } from './sol-menu.js';
+import { placeAnchored } from '../core/anchor-place.js';
 
 const DD_CSS = `
   :host {
@@ -272,22 +273,10 @@ class SolDropdownButton extends SolMenu {
   }
 
   _place() {
-    const r = this._trigger.getBoundingClientRect();
-    const pop = this._popup;
-    pop.style.position = 'fixed';
-    pop.style.top = `${Math.round(r.bottom + 4)}px`;
-    // Align the popup's LEFT edge under the trigger's left edge (a menu drops
-    // down from where you clicked), flipping to right-aligned only if that
-    // would overflow the viewport — so a far-right trigger (e.g. the ☰ menu)
-    // still opens leftward and stays on-screen.
-    const popW = pop.offsetWidth || 200;
-    if (Math.round(r.left) + popW <= window.innerWidth - 4) {
-      pop.style.left = `${Math.round(r.left)}px`;
-      pop.style.right = 'auto';
-    } else {
-      pop.style.right = `${Math.round(window.innerWidth - r.right)}px`;
-      pop.style.left = 'auto';
-    }
+    // Shared placement (see core/anchor-place.js): left-align the popup under the
+    // trigger, flipping right only if it would overflow. minWidth 200 so a menu
+    // that isn't laid out yet still flips sensibly on first paint.
+    placeAnchored(this._trigger, this._popup, this._popup, 200);
   }
 
   _close() {

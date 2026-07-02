@@ -19,6 +19,7 @@
  */
 import { define } from '../core/define.js';
 import { SolElement } from '../core/sol-element.js';
+import { placeAnchored } from '../core/anchor-place.js';
 
 const CSS = `
   :host { position: fixed; z-index: 1000; }
@@ -85,23 +86,11 @@ class SolDropdown extends SolElement {
 
   _close() { this.remove(); }   // SolElement tears down the listeners on disconnect
 
-  // Anchor the panel fixed just under the launcher, left-aligned, flipping to
-  // right-aligned only if a left drop would overflow the viewport — mirroring
-  // sol-dropdown-button._place so menu and dropdown surfaces line up the same.
+  // Anchor the panel under the launcher (shared placement with sol-dropdown-button,
+  // so menu and dropdown surfaces line up the same). Positions the host; measures
+  // the inner .panel for the overflow flip.
   _place() {
-    const a = this._anchor;
-    if (!a || !a.getBoundingClientRect) return;
-    const r = a.getBoundingClientRect();
-    const panel = this.shadowRoot.querySelector('.panel');
-    const w = (panel && panel.offsetWidth) || 0;
-    this.style.top = `${Math.round(r.bottom + 4)}px`;
-    if (Math.round(r.left) + w <= window.innerWidth - 4) {
-      this.style.left = `${Math.round(r.left)}px`;
-      this.style.right = 'auto';
-    } else {
-      this.style.right = `${Math.round(window.innerWidth - r.right)}px`;
-      this.style.left = 'auto';
-    }
+    placeAnchored(this._anchor, this, this.shadowRoot.querySelector('.panel'));
   }
 }
 
