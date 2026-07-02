@@ -49,9 +49,24 @@
 import { CSS, sheet as MODAL_SHEET } from './styles/sol-modal-css.js';
 import { adopt } from '../core/adopt.js';
 import { define } from '../core/define.js';
+import { escapeHtml } from '../core/utils.js';
 import './sol-include.js'; // source mode renders content through <sol-include>
 
 const OWN_ATTRS = new Set(['title', 'size', 'component', 'content', 'source', 'data-handler']);
+
+// ─── Focus management helpers (shared by the dialog focus trap) ────────────────
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), '
+  + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+function focusablesIn(root) {
+  return root ? Array.from(root.querySelectorAll(FOCUSABLE)) : [];
+}
+// The element that actually has focus, descending through open shadow roots — so
+// focus can be saved before a dialog opens and restored to it on close.
+function deepActiveElement() {
+  let el = document.activeElement;
+  while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
+  return el;
+}
 
 /**
  * Generic modal dialog web component.
@@ -88,6 +103,8 @@ class SolModal extends HTMLElement {
     this._triggerMode = false;
     this._handler = null;
     this._extraStyles = [];
+    this._lastFocus = null;   // element focused before open(), restored on close()
+    this._trapBound = false;  // Tab-trap listener attached to the (stable) shadow root
   }
 
   // Additional stylesheets (CSSStyleSheet instances or raw CSS strings) to
@@ -200,9 +217,33 @@ class SolModal extends HTMLElement {
   }
 
   open() {
+    this._lastFocus = deepActiveElement();   // remember focus to restore on close
     this._render();
     if (!this.parentNode) document.body.appendChild(this);
     this._invokeHandler();
+    this._focusFirst();
+  }
+
+  // Move focus into the dialog (first focusable, else the dialog itself), so
+  // keyboard/screen-reader users land inside it and the Tab trap can hold them.
+  _focusFirst() {
+    const modal = this.shadowRoot.querySelector('.modal');
+    if (!modal) return;
+    const f = focusablesIn(modal);
+    (f[0] || modal).focus();
+  }
+
+  // Tab / Shift+Tab cycles within the open dialog instead of escaping to the page.
+  _trapTab(e) {
+    if (e.key !== 'Tab') return;
+    const modal = this.shadowRoot.querySelector('.modal');
+    if (!modal) return;
+    const f = focusablesIn(modal);
+    if (!f.length) { e.preventDefault(); modal.focus(); return; }
+    const first = f[0], last = f[f.length - 1];
+    const active = this.shadowRoot.activeElement;
+    if (e.shiftKey && active === first) { last.focus(); e.preventDefault(); }
+    else if (!e.shiftKey && active === last) { first.focus(); e.preventDefault(); }
   }
 
   _invokeHandler() {
@@ -225,6 +266,8 @@ class SolModal extends HTMLElement {
       document.removeEventListener('keydown', this._escHandler);
       this._escHandler = null;
     }
+    const toRestore = this._lastFocus;
+    this._lastFocus = null;
     this.dispatchEvent(new CustomEvent('sol-close', { bubbles: true, composed: true }));
     if (this._onClose) this._onClose();
     if (this._triggerMode) {
@@ -233,15 +276,19 @@ class SolModal extends HTMLElement {
     } else {
       this.remove();
     }
+    // Return focus to whatever the user was on before the dialog opened.
+    if (toRestore && typeof toRestore.focus === 'function') {
+      try { toRestore.focus(); } catch { /* element may be gone */ }
+    }
   }
 
   _render() {
     const s = this.shadowRoot;
     s.innerHTML = `
       <div class="modal-overlay">
-        <div class="modal" role="dialog" aria-label="${this.modalTitle}">
+        <div class="modal" role="dialog" aria-modal="true" tabindex="-1" aria-label="${escapeHtml(this.modalTitle)}">
           <div class="modal-header">
-            <span class="modal-title">${this.modalTitle}</span>
+            <span class="modal-title">${escapeHtml(this.modalTitle)}</span>
             <div class="modal-header-actions"></div>
             <button class="modal-close">\u2715</button>
           </div>
@@ -259,6 +306,12 @@ class SolModal extends HTMLElement {
 
     this._escHandler = (e) => { if (e.key === 'Escape') this.close(); };
     document.addEventListener('keydown', this._escHandler);
+
+    // Bind the Tab focus-trap once — the shadow root is stable across re-renders.
+    if (!this._trapBound) {
+      s.addEventListener('keydown', (e) => this._trapTab(e));
+      this._trapBound = true;
+    }
   }
 
   disconnectedCallback() {

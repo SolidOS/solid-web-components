@@ -31,7 +31,7 @@ export const CSS = `
   .gallery-status {
     flex: 0 0 auto;
     padding: .2rem 1rem .6rem;
-    font-size: .78em;
+    font-size: max(16px, .78em);
     color: var(--text-muted, #7f8c8d);
   }
   .gallery-status[data-error] { color: var(--error, #e74c3c); }
@@ -78,7 +78,7 @@ export const CSS = `
     align-self: center;
     margin: .2rem auto 1rem;
     font: inherit;
-    font-size: .8em;
+    font-size: max(16px, .8em);
     padding: .35rem 1.1rem;
     border: 1px solid var(--border, #d0d0d0);
     border-radius: 999px;
@@ -138,7 +138,7 @@ export const CSS = `
     max-width: 60rem;
     text-align: center;
     color: #f0f0f0;
-    font-size: .8em;
+    font-size: max(16px, .8em);
     line-height: 1.4;
   }
   .gallery-lb-caption a { color: #9cd0ff; }

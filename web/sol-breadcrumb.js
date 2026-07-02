@@ -36,7 +36,7 @@ sol-breadcrumb {
   flex-wrap: wrap;
   gap: 0.35rem 0.55rem;
   font-family: var(--font-ui, system-ui, sans-serif);
-  font-size: 0.92rem;
+  font-size: max(16px, 0.92rem);
   line-height: 1.5;
 }
 sol-breadcrumb .sol-breadcrumb-segment {

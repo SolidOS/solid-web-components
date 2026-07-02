@@ -42,7 +42,7 @@ export const CSS = `
   .sol-form-body select,
   .sol-form-body textarea {
     font-family: inherit;
-    font-size: 0.95em;
+    font-size: max(16px, 0.95em);
     padding: 4px 6px;
     border: 1px solid var(--border, #ccc);
     border-radius: 3px;
@@ -68,7 +68,7 @@ export const CSS = `
   }
   .sf-label {
     font-weight: 500;
-    font-size: 0.9em;
+    font-size: max(16px, 0.9em);
     color: var(--text-muted, #374151);
   }
   .sf-multiple {
@@ -109,7 +109,7 @@ export const CSS = `
     border-radius: 3px;
     background: var(--bg, #fff);
     cursor: pointer;
-    font-size: 0.8em;
+    font-size: max(16px, 0.8em);
     font-family: inherit;
   }
   .sf-btn:hover { background: var(--bg-hover, #f3f4f6); }
@@ -118,7 +118,7 @@ export const CSS = `
     color: #fff;
     border-color: var(--accent, #3b82f6);
     padding: 3px 12px;
-    font-size: 0.85em;
+    font-size: max(16px, 0.85em);
   }
   .sf-btn-add:hover { background: var(--accent-hover, #2563eb); }
   .sf-btn-remove {
@@ -127,21 +127,21 @@ export const CSS = `
   }
   .sf-btn-remove:hover { background: #fef2f2; }
   .sf-btn-move {
-    font-size: 0.75em;
+    font-size: max(16px, 0.75em);
     padding: 2px 6px;
   }
   .sf-options { margin-top: 4px; }
   .sf-depth-cap {
     color: var(--text-muted, #6b7280);
     font-style: italic;
-    font-size: 0.85em;
+    font-size: max(16px, 0.85em);
     padding: 4px;
   }
 
   /* ── validation errors ── */
   .sol-form-field-error {
     color: #c00;
-    font-size: 0.85em;
+    font-size: max(16px, 0.85em);
     margin-top: 2px;
   }
   .sol-form-validation-summary {
@@ -151,7 +151,7 @@ export const CSS = `
     padding: 0.5em 0.75em;
     margin-bottom: 0.75em;
     color: #991b1b;
-    font-size: 0.9em;
+    font-size: max(16px, 0.9em);
   }
   .sol-form-validation-summary ul {
     margin: 0.25em 0 0 1.25em;
@@ -171,7 +171,7 @@ export const CSS = `
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 0.9em;
+    font-size: max(16px, 0.9em);
   }
   .sol-form-save-options label {
     display: flex;
@@ -187,7 +187,7 @@ export const CSS = `
   .sol-form-pod-url input {
     flex: 1;
     font-family: inherit;
-    font-size: 0.9em;
+    font-size: max(16px, 0.9em);
     padding: 4px 6px;
     border: 1px solid var(--border, #ccc);
     border-radius: 3px;
@@ -201,7 +201,7 @@ export const CSS = `
     padding: 6px 16px;
     border: none;
     border-radius: 4px;
-    font-size: 0.9em;
+    font-size: max(16px, 0.9em);
     cursor: pointer;
     font-family: inherit;
   }
@@ -217,7 +217,7 @@ export const CSS = `
     cursor: not-allowed;
   }
   .sol-form-save-status {
-    font-size: 0.85em;
+    font-size: max(16px, 0.85em);
     margin-left: 8px;
   }
   .sol-form-save-status.ok { color: #16a34a; }
@@ -257,7 +257,7 @@ export const CSS = `
     flex: 1 1 auto;
     min-width: 0;
     font: inherit;
-    font-size: 0.95em;
+    font-size: max(16px, 0.95em);
     padding: 0.45em 0.55em;
     border: 1px solid var(--border, #d0d0d0);
     border-radius: var(--radius-sm, 4px);
@@ -291,7 +291,7 @@ export const CSS = `
     grid-column: 2;
     align-self: start;
     font: inherit;
-    font-size: 0.85em;
+    font-size: max(16px, 0.85em);
     padding: 0.25em 0.6em;
     border: 1px solid var(--border, #d0d0d0);
     background: var(--surface, #fff);

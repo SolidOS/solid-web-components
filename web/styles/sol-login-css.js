@@ -32,7 +32,7 @@ export const CSS = BTN_CSS + `
   }
 
   .auth-status {
-    font-size: 0.7em;
+    font-size: max(16px, 0.7em);
     color: var(--text-muted, #666);
     white-space: nowrap;
     overflow: hidden;
@@ -79,7 +79,7 @@ export const CSS = BTN_CSS + `
      _showSwitchHint / _hideSwitchHint as part of the auth-needed
      auto-login flow. */
   .switch-hint {
-    font-size: 0.78em;
+    font-size: max(16px, 0.78em);
     color: var(--text-muted, #4d4d4d);
     padding: 2px 6px 6px 6px;
     border-bottom: 1px solid var(--border-soft, #e5e5e5);
@@ -95,7 +95,7 @@ export const CSS = BTN_CSS + `
   .issuer-item {
     text-align: left; background: none; border: none;
     padding: 5px 8px; border-radius: 4px;
-    cursor: pointer; font-size: 0.84em;
+    cursor: pointer; font-size: max(16px, 0.84em);
     color: var(--text, #212121);
     white-space: nowrap;
     font-family: inherit;
@@ -103,11 +103,11 @@ export const CSS = BTN_CSS + `
   .issuer-item:hover { background: var(--hover, #f0f0f0); color: var(--accent, #2196f3); }
 
   .custom-row { display: flex; gap: 4px; }
-  .custom-row .sol-btn { padding: 6px 8px; font-size: 0.82em; }
+  .custom-row .sol-btn { padding: 6px 8px; font-size: max(16px, 0.82em); }
   .custom-row .issuer-input {
     /* 44ch floor so a full issuer URL is visible; this also drives the
        dropdown's max-content width, so the panel grows to fit it. */
-    flex: 1; min-width: 44ch; font-size: 0.82em; padding: 6px 8px;
+    flex: 1; min-width: 44ch; font-size: max(16px, 0.82em); padding: 6px 8px;
     background: var(--bg, #f5f5f5);
   }
 `;

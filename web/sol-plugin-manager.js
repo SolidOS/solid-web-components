@@ -65,6 +65,7 @@ import { loadRdfStore } from '../core/rdf-utils.js';
 import { parseMenuItems, rdfVal, rdfComponent } from '../core/menu-rdf.js';
 import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
+import { sanitizeInlineSvg } from '../core/utils.js';
 import { PLUGIN_MIME } from './sol-menu-manager.js';
 
 // The catalog/menu docs are editable, so read them past the renderer's HTTP
@@ -466,6 +467,7 @@ class SolPluginManager extends HTMLElement {
         if (p.icon.startsWith('data:image/svg+xml')) {
           try {
             icon.innerHTML = decodeURIComponent(p.icon.replace('data:image/svg+xml,', ''));
+            sanitizeInlineSvg(icon);   // SVG icons can carry <script>/on*/js: URLs
             const svg = icon.querySelector('svg');
             if (svg) { svg.setAttribute('width', '1.2em'); svg.setAttribute('height', '1.2em'); }
           } catch { icon.textContent = p.icon; }

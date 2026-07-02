@@ -124,7 +124,7 @@ export const CSS = `
   }
   .engines {
     margin-top: .5rem;
-    font-size: .9em;
+    font-size: max(16px, .9em);
     flex: 1 1 auto;
     min-width: 0;
     display: flex;

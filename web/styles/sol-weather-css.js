@@ -30,12 +30,12 @@ export const CSS = `
   .temp  { font-variant-numeric: tabular-nums; }
   .stat  {
     color: var(--text-muted, #7f8c8d);
-    font-size: .85em;
+    font-size: max(16px, .85em);
     font-variant-numeric: tabular-nums;
   }
   .desc  {
     color: var(--text-muted, #7f8c8d);
-    font-size: .85em;
+    font-size: max(16px, .85em);
     max-width: 12rem;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -43,7 +43,7 @@ export const CSS = `
 
   .error {
     color: var(--error, #c00);
-    font-size: .85em;
+    font-size: max(16px, .85em);
     padding: .25rem .5rem;
     background: color-mix(in srgb, var(--error, #e74c3c) 10%, transparent);
     border-radius: var(--radius-sm, 4px);

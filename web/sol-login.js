@@ -556,6 +556,12 @@ class SolLogin extends HTMLElement {
   }
 
   _onPopupMessage(e) {
+    // The auth popup posts from our own origin. Reject a mismatched (present)
+    // origin so a foreign window can't forge a 'logged-in' message and inject a
+    // session. An empty origin (jsdom in tests) is allowed through.
+    const expected = (typeof window !== 'undefined' && window.location)
+      ? window.location.origin : null;
+    if (e.origin && expected && e.origin !== expected) return;
     const d = e.data;
     if (!d || d.source !== 'sol-popup-auth') return;
     if (d.side && d.side !== this._side) return;

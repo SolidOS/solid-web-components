@@ -31,7 +31,7 @@ export const CSS = `
     flex: 0 0 auto;
     padding: .5rem .75rem;
     color: var(--text-muted, #7f8c8d);
-    font-size: .85em;
+    font-size: max(16px, .85em);
   }
   .sol-calendar-status[data-error] { color: var(--error, #e74c3c); }
   .sol-calendar-empty {
@@ -53,7 +53,7 @@ export const CSS = `
   }
   .cal-title {
     font-weight: 600;
-    font-size: .95em;
+    font-size: max(16px, .95em);
     color: var(--text, #212121);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -61,7 +61,7 @@ export const CSS = `
   }
   .cal-provider {
     color: var(--text-muted, #7f8c8d);
-    font-size: .8em;
+    font-size: max(16px, .8em);
     text-transform: lowercase;
   }
 
@@ -99,7 +99,7 @@ export const CSS = `
     align-items: baseline;
     padding: .35rem .75rem;
     border-top: 1px solid color-mix(in srgb, var(--border, #d0d0d0) 50%, transparent);
-    font-size: .9em;
+    font-size: max(16px, .9em);
   }
   .cal-row:first-child { border-top: none; }
   /* When the row is "today", give a subtle accent stripe at the left so
@@ -119,7 +119,7 @@ export const CSS = `
   }
   /* The date repeats on every row. Don't visually emphasise it — the
      event title is the row's primary content. */
-  .cal-row-date { font-size: .9em; }
+  .cal-row-date { font-size: max(16px, .9em); }
   /* When a date is the same as the row above, the JS adds .repeat —
      keep the column reserved (no layout shift) but hide the text so a
      run of same-day events reads cleanly. */
@@ -133,7 +133,7 @@ export const CSS = `
   .cal-row-location {
     display: block;
     color: var(--text-muted, #7f8c8d);
-    font-size: .85em;
+    font-size: max(16px, .85em);
     margin-top: .1rem;
     overflow-wrap: anywhere;
   }

@@ -78,7 +78,7 @@ sol-tree-edit .sol-tree-edit-section {
   gap: 0.35rem;
 }
 sol-tree-edit .sol-tree-edit-section-label {
-  font-size: 0.75rem;
+  font-size: max(16px, 0.75rem);
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--text-muted, #4d4d4d);
@@ -97,7 +97,7 @@ sol-tree-edit .sol-tree-edit-open-btn {
   border-radius: 4px;
   padding: 0.2em 0.7em;
   font: inherit;
-  font-size: 0.85em;
+  font-size: max(16px, 0.85em);
   color: var(--accent, #1F618D);
   cursor: pointer;
 }
@@ -111,7 +111,7 @@ sol-tree-edit .sol-tree-edit-add {
   border-radius: 4px;
   padding: 0.35em 0.8em;
   font: inherit;
-  font-size: 0.85em;
+  font-size: max(16px, 0.85em);
   color: var(--text-muted, #4d4d4d);
   cursor: pointer;
 }
@@ -131,7 +131,7 @@ sol-tree-edit .sol-tree-edit-item-controls button {
   padding: 0; line-height: 1;
   color: var(--text-muted, #4d4d4d);
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: max(16px, 0.85em);
 }
 sol-tree-edit .sol-tree-edit-item-controls button:hover {
   border-color: var(--accent, #1F618D);
@@ -144,7 +144,7 @@ sol-tree-edit .sol-tree-edit-item-controls .sol-tree-edit-remove:hover {
 sol-tree-edit .sol-tree-edit-items-divider {
   margin: 0.6rem 0 0.2rem;
   padding: 0 0.3rem;
-  font-size: 0.72rem;
+  font-size: max(16px, 0.72rem);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted, #4d4d4d);

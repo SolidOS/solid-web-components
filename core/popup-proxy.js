@@ -172,6 +172,11 @@ export class PopupProxySession extends EventTarget {
   get popupClosed() { return !this._popup || this._popup.closed; }
 
   _handleMessage(e) {
+    // The popup runs the callback page on our own origin. Reject any message
+    // whose origin is present and does not match — a co-resident or foreign
+    // window must not be able to forge auth/fetch replies. (An empty origin,
+    // as under jsdom in tests, is left to pass.)
+    if (e.origin && this._origin !== '*' && e.origin !== this._origin) return;
     const d = e.data;
     if (!d || d.source !== POPUP_SRC) return;
     if (this._side && d.side && d.side !== this._side) return;

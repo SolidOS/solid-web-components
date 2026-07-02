@@ -26,6 +26,39 @@ export async function sanitizeHtml(html, opts = {}) {
   return doc.body.innerHTML;
 }
 
+// ─── HTML-escape for text interpolated into innerHTML ─────────────────────────
+// Use for plain-text values (pod filenames, RDF literals, error messages) that
+// are placed into an HTML template string. Escapes the characters that can break
+// out of text or a double-quoted attribute; not a substitute for sanitizeHtml on
+// markup. Synchronous, so it is safe in the middle of a render.
+export function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ─── Neutralize an inline-SVG subtree ─────────────────────────────────────────
+// data:image/svg+xml icons are inlined via innerHTML (so they inherit
+// currentColor for theming) — but SVG can carry <script>, on* handlers, and
+// javascript: URLs. Call this synchronously right after assigning innerHTML,
+// before any interaction, to strip the dangerous bits while keeping the markup.
+export function sanitizeInlineSvg(container) {
+  if (!container || typeof container.querySelectorAll !== 'function') return;
+  container.querySelectorAll('script, foreignObject').forEach(n => n.remove());
+  container.querySelectorAll('*').forEach(el => {
+    for (const attr of Array.from(el.attributes || [])) {
+      const name = attr.name.toLowerCase();
+      if (name.startsWith('on')) { el.removeAttribute(attr.name); continue; }
+      if ((name === 'href' || name === 'xlink:href') &&
+          /^\s*javascript:/i.test(attr.value)) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+}
+
 // W3C SPARQL Query Results JSON envelope.
 function w3c(vars, bindings) { return { head: { vars }, results: { bindings } }; }
 

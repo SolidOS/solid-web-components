@@ -79,7 +79,7 @@ export const CSS = BTN_CSS + `
   }
   .modal-footer:empty { display: none; }
 
-  .modal-zoom-pct { font-size: 0.8em; color: var(--text-muted, #4a525e); min-width: 3em; text-align: center; }
+  .modal-zoom-pct { font-size: max(16px, 0.8em); color: var(--text-muted, #4a525e); min-width: 3em; text-align: center; }
 
   .modal-input {
     /* Fit-width with a max-width cap; does NOT fill the row. */
@@ -110,17 +110,17 @@ export const CSS = BTN_CSS + `
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #0f4ea0) 22%, transparent);
   }
 
-  .modal-label { font-size: 0.9em; color: var(--text-muted, #4a525e); }
-  .modal-message { padding: 8px 0; color: var(--text-muted, #4a525e); font-size: 0.95em; }
+  .modal-label { font-size: max(16px, 0.9em); color: var(--text-muted, #4a525e); }
+  .modal-message { padding: 8px 0; color: var(--text-muted, #4a525e); font-size: max(16px, 0.95em); }
   .modal-message.error { color: var(--error, #b3261e); }
-  .modal-note { font-size: 0.8em; color: var(--text-faint, #7a8390); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-note { font-size: max(16px, 0.8em); color: var(--text-faint, #7a8390); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .modal-info-banner {
     background: var(--warning-bg, #fff4d4);
     border: 1px solid var(--warning-border, #e2b870);
     border-left: 3px solid var(--warning-border, #e2b870);
     border-radius: 6px; padding: 9px 13px;
-    font-size: 0.88em; color: var(--warning-text, #5d4037);
+    font-size: max(16px, 0.88em); color: var(--warning-text, #5d4037);
     flex-shrink: 0;
   }
 

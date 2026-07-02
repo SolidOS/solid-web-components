@@ -292,6 +292,28 @@ describe('PopupProxySession — message routing', () => {
     reply({ type: 'fetch-reply', id, side: 'left', status: 200, headers: [], body: '' });
     expect(s._pending.has(id)).toBe(false);  // matched
   });
+
+  test('rejects a reply from a foreign origin', async () => {
+    const popup = makePopup();
+    const s = mkSession(popup, { webId: 'w' });          // origin https://app.example
+    s.fetch('https://pod/doc');
+    await flush();
+    const id = popup.posted.at(-1).id;
+
+    // A window at a different origin forges the sentinel — must be ignored.
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://evil.example',
+      data: { source: POPUP_SRC, type: 'fetch-reply', id, status: 200, headers: [], body: '' },
+    }));
+    expect(s._pending.has(id)).toBe(true);   // still pending — wrong origin
+
+    // The same reply from the expected origin settles it.
+    window.dispatchEvent(new MessageEvent('message', {
+      origin: 'https://app.example',
+      data: { source: POPUP_SRC, type: 'fetch-reply', id, status: 200, headers: [], body: '' },
+    }));
+    expect(s._pending.has(id)).toBe(false);  // matched
+  });
 });
 
 describe('PopupProxySession — logout and teardown', () => {

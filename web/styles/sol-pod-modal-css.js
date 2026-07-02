@@ -9,14 +9,14 @@ import { CSS as WAC_CSS } from './sol-wac-css.js';
 export const CSS = BTN_CSS + WAC_CSS + `
   .modal-preview {
     font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace);
-    font-size: 0.85em; white-space: pre-wrap; word-break: break-all;
+    font-size: max(16px, 0.85em); white-space: pre-wrap; word-break: break-all;
     background: var(--surface-2, #f9f9f9);
     border: 1px solid var(--border, #e0e0e0);
     border-radius: 4px; padding: 12px; flex: 1;
   }
   .modal-editor {
     font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace);
-    font-size: 0.85em; flex: 1; min-height: 300px;
+    font-size: max(16px, 0.85em); flex: 1; min-height: 300px;
     border: 1px solid var(--border-soft, var(--border, #e0e0e0));
     border-radius: 6px; padding: 10px;
     resize: vertical;
@@ -37,14 +37,14 @@ export const CSS = BTN_CSS + WAC_CSS + `
   .modal-audio { width: 100%; margin-top: 12px; }
   .modal-pdf { width: 100%; height: 55vh; border: none; border-radius: 4px; flex: 1; }
 
-  .upload-progress { font-size: 0.88em; color: var(--text-muted, #666); min-height: 1.4em; padding: 4px 0; }
+  .upload-progress { font-size: max(16px, 0.88em); color: var(--text-muted, #666); min-height: 1.4em; padding: 4px 0; }
 
   .cm-editor-wrap {
     flex: 1; min-height: 0; overflow: hidden;
     border: 1px solid var(--border, #e0e0e0); border-radius: 4px;
     display: flex; flex-direction: column; position: relative;
   }
-  .cm-editor-wrap .cm-editor { flex: 1; height: 100%; font-size: 0.85em; }
+  .cm-editor-wrap .cm-editor { flex: 1; height: 100%; font-size: max(16px, 0.85em); }
   .cm-editor-wrap .cm-scroller { font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace); overflow: auto; }
 
   .graph-wrap {
@@ -53,17 +53,17 @@ export const CSS = BTN_CSS + WAC_CSS + `
     cursor: grab;
   }
   .graph-wrap:active { cursor: grabbing; }
-  .graph-legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 8px 4px 0; font-size: 0.8em; }
+  .graph-legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 8px 4px 0; font-size: max(16px, 0.8em); }
   .graph-legend-item { font-weight: 600; }
   .graph-legend-note { color: var(--text-muted, #666); margin-left: auto; }
 
-  .markdown-preview { padding: 16px 24px; line-height: 1.7; font-size: 0.95em; overflow-y: auto; flex: 1; }
+  .markdown-preview { padding: 16px 24px; line-height: 1.7; font-size: max(16px, 0.95em); overflow-y: auto; flex: 1; }
   .markdown-preview h1,.markdown-preview h2,.markdown-preview h3,.markdown-preview h4 {
     margin: 1em 0 0.4em; font-weight: 700; border-bottom: 1px solid var(--border, #e0e0e0); padding-bottom: 4px;
   }
   .markdown-preview p { margin: 0.6em 0; }
   .markdown-preview code {
-    font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace); font-size: 0.88em;
+    font-family: var(--font-mono, 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, ui-monospace, monospace); font-size: max(16px, 0.88em);
     background: var(--surface-2, #f9f9f9); border: 1px solid var(--border, #e0e0e0);
     border-radius: 3px; padding: 1px 5px;
   }
@@ -80,7 +80,7 @@ export const CSS = BTN_CSS + WAC_CSS + `
   .html-preview-pane { flex: 1; min-height: 0; border: 1px solid var(--border, #e0e0e0); border-radius: 6px 6px 0 0; overflow: hidden; }
   .html-preview-iframe { width: 100%; height: 100%; border: none; background: #fff; }
   .html-preview-divider {
-    flex-shrink: 0; padding: 4px 12px; font-size: 0.75em;
+    flex-shrink: 0; padding: 4px 12px; font-size: max(16px, 0.75em);
     color: var(--text-muted, #666); text-align: center;
     background: var(--surface-2, #f9f9f9);
     border-left: 1px solid var(--border, #e0e0e0);
@@ -93,7 +93,7 @@ export const CSS = BTN_CSS + WAC_CSS + `
   .html-editor-pane .cm-editor-wrap { flex: 1; border: none; border-radius: 0; }
 
   /* Triple table (raw-view) */
-  .triple-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+  .triple-table { width: 100%; border-collapse: collapse; font-size: max(16px, 0.85em); }
   .triple-table th {
     text-align: left; padding: 6px;
     border-bottom: 2px solid var(--border, #e0e0e0);

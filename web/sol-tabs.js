@@ -190,6 +190,15 @@ class SolTabs extends HTMLElement {
       <div class="sol-tabs-content"></div>`;
     this._rendered = true;
 
+    // The content region IS the tabpanel — one reused panel, relabelled as the
+    // active tab changes (correct whether or not keep-alive parks per-tab panes
+    // inside it). Every tab's aria-controls points here.
+    const contentEl = this.body;
+    contentEl.setAttribute('role', 'tabpanel');
+    contentEl.setAttribute('tabindex', '0');
+    if (!contentEl.id) contentEl.id = `sol-tabpanel-${++_solTabsUid}`;
+    this._panelId = contentEl.id;
+
     // Default actions slot sits between the bar and the content. Tabs
     // that want toolbar buttons (save / zoom / settings / help, etc.)
     // can append into actionsEl. Callers may still override via
@@ -589,10 +598,17 @@ class SolTabs extends HTMLElement {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.setAttribute('role', 'tab');
+      if (!tab._tabBtnId) tab._tabBtnId = `sol-tab-${++_solTabsUid}`;
+      btn.id = tab._tabBtnId;
+      btn.dataset.tabName = tab.name;           // reverse lookup for keyboard nav
+      btn.setAttribute('aria-selected', 'false');
+      btn.setAttribute('tabindex', '-1');       // roving: only the active tab is tabbable
+      if (this._panelId) btn.setAttribute('aria-controls', this._panelId);
       btn.textContent = tab.name;
       btn.title = tab.name;   // hover tooltip (and the full name when a tab label is truncated)
       if (tab.id) btn.dataset.tabId = tab.id;
       btn.onclick = () => this.switchTab(tab.name);
+      btn.addEventListener('keydown', (e) => this._onTabKey(e, btn));
       bar.appendChild(btn);
       this._btns[tab.name] = btn;
     });
@@ -603,6 +619,16 @@ class SolTabs extends HTMLElement {
       group.className = 'sol-tabs-launch';
       for (const el of launchers) group.appendChild(el);
       bar.appendChild(group);
+    }
+
+    // Re-assert the active tab's state onto the freshly-built buttons: a bar
+    // re-render creates new elements that would otherwise lose the .active class,
+    // aria-selected, and the roving tabindex=0 (switchTab isn't always re-called).
+    const ab = this._active && this._btns[this._active];
+    if (ab) {
+      ab.classList.add('active');
+      if (ab.getAttribute('role') === 'tab') { ab.setAttribute('aria-selected', 'true'); ab.setAttribute('tabindex', '0'); }
+      if (ab.id) this.body?.setAttribute('aria-labelledby', ab.id);
     }
 
     // Touch/coarse-pointer devices (phones): collapse the whole strip into a
@@ -771,10 +797,38 @@ class SolTabs extends HTMLElement {
     // showing where you are (a leaf's group; a direct room opens all-collapsed).
     const active = (this._navItems || []).find((i) => i.key === this._navKey);
     this._setOpenGroup(active?.groupKey || null);
+    this._sheetLastFocus = document.activeElement;   // restore to the trigger on close
     this._sheet.classList.add('open');
     this._navTrigger?.setAttribute('aria-expanded', 'true');
-    this._onSheetKey = (e) => { if (e.key === 'Escape') this._closeSheet(); };
+    // Move focus into the sheet so keyboard users land inside the dialog.
+    const firstItem = this._visibleSheetFocusables()[0];
+    (firstItem || this._sheet).focus?.();
+    this._onSheetKey = (e) => {
+      if (e.key === 'Escape') { this._closeSheet(); return; }
+      if (e.key === 'Tab') this._trapSheetTab(e);
+    };
     document.addEventListener('keydown', this._onSheetKey);
+  }
+
+  // Visible focusables in the open sheet (collapsed-group rows are display:none,
+  // so offsetParent filters them out) — the set the Tab trap cycles through.
+  _visibleSheetFocusables() {
+    if (!this._sheet) return [];
+    return Array.from(this._sheet.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), '
+      + 'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => el.offsetParent !== null);
+  }
+
+  // Tab / Shift+Tab cycles within the open sheet (a role="dialog" aria-modal).
+  _trapSheetTab(e) {
+    const f = this._visibleSheetFocusables();
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && active === first) { last.focus(); e.preventDefault(); }
+    else if (!e.shiftKey && active === last) { first.focus(); e.preventDefault(); }
+    else if (!this._sheet.contains(active)) { first.focus(); e.preventDefault(); }
   }
 
   _closeSheet() {
@@ -782,6 +836,10 @@ class SolTabs extends HTMLElement {
     this._sheet.classList.remove('open');   // CSS animates out, then visibility:hidden
     this._navTrigger?.setAttribute('aria-expanded', 'false');
     if (this._onSheetKey) { document.removeEventListener('keydown', this._onSheetKey); this._onSheetKey = null; }
+    // Return focus to whatever opened the sheet (usually the nav trigger).
+    const restore = this._sheetLastFocus || this._navTrigger;
+    this._sheetLastFocus = null;
+    if (restore && typeof restore.focus === 'function') { try { restore.focus(); } catch { /* gone */ } }
   }
 
   _removeSheet() {
@@ -869,13 +927,42 @@ class SolTabs extends HTMLElement {
     return pane;
   }
 
+  // Arrow-key navigation across the tablist (ARIA tab pattern, automatic
+  // activation): Left/Up ↔ Right/Down move to the adjacent tab, Home/End to the
+  // ends. Enter/Space activate natively (the tabs are real <button>s). Only plain
+  // role="tab" buttons participate; submenu dropdowns keep their own key handling.
+  _onTabKey(e, btn) {
+    const tabs = Array.from(btn.parentNode.querySelectorAll('[role="tab"]'));
+    const i = tabs.indexOf(btn);
+    if (i < 0) return;
+    let j;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') j = 0;
+    else if (e.key === 'End') j = tabs.length - 1;
+    else return;
+    e.preventDefault();
+    const next = tabs[j];
+    this.switchTab(next.dataset.tabName);   // select — updates aria-selected + roving tabindex
+    next.focus();
+  }
+
   switchTab(name, { silent = false } = {}) {
     const tab = this._tabs.find(t => t.name.toLowerCase() === name.toLowerCase());
     if (!tab) return;
     this._active = tab.name;
 
-    Object.values(this._btns).forEach(b => b.classList.remove('active'));
-    if (this._btns[tab.name]) this._btns[tab.name].classList.add('active');
+    Object.values(this._btns).forEach(b => {
+      b.classList.remove('active');
+      if (b.getAttribute('role') === 'tab') { b.setAttribute('aria-selected', 'false'); b.setAttribute('tabindex', '-1'); }
+    });
+    const activeBtn = this._btns[tab.name];
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+      if (activeBtn.getAttribute('role') === 'tab') { activeBtn.setAttribute('aria-selected', 'true'); activeBtn.setAttribute('tabindex', '0'); }
+    }
+    // Relabel the single content tabpanel to name the active tab.
+    if (activeBtn?.id) this.body?.setAttribute('aria-labelledby', activeBtn.id);
 
     if (this._keepAlive) {
       // No teardown: ensure this tab's pane exists, then park the others.

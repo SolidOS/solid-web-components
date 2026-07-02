@@ -21,6 +21,7 @@ import { BTN_CSS } from './styles/buttons-css.js';
 import { adopt, sheetFrom } from '../core/adopt.js';
 import { define } from '../core/define.js';
 import { siblingUrl } from '../core/here.js';
+import { sanitizeHtml, escapeHtml } from '../core/utils.js';
 import {
   extOf, contentTypeFor,
   fetchContainer, copyFolder, deleteFolder,
@@ -38,7 +39,7 @@ const HOST_CSS = BTN_CSS + `
     flex: 1; min-height: 0; overflow: auto; padding: 12px;
     display: flex; flex-direction: column;
   }
-  .pod-ops-footer { padding: 6px 12px; font-size: 0.85em; color: var(--text-muted, #666); }
+  .pod-ops-footer { padding: 6px 12px; font-size: max(16px, 0.85em); color: var(--text-muted, #666); }
 `;
 
 const hostSheet = sheetFrom(HOST_CSS);
@@ -301,7 +302,8 @@ class SolPodOps extends HTMLElement {
           const { marked } = await import('https://esm.sh/marked@9');
           const div = document.createElement('div');
           div.className = 'markdown-preview';
-          div.innerHTML = marked.parse(text);
+          // marked does not sanitize; the .md comes from the pod being browsed.
+          div.innerHTML = await sanitizeHtml(marked.parse(text));
           body.innerHTML = ''; body.appendChild(div);
         } catch {
           body.innerHTML = ''; const pre = document.createElement('pre');
@@ -321,7 +323,7 @@ class SolPodOps extends HTMLElement {
         body.innerHTML = ''; body.appendChild(pre);
       }
     } catch (e) {
-      body.innerHTML = `<div class="modal-message error">Failed to load: ${e.message}</div>`;
+      body.innerHTML = `<div class="modal-message error">Failed to load: ${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -353,7 +355,7 @@ class SolPodOps extends HTMLElement {
       };
       if (actions) actions.appendChild(saveBtn);
     } catch (e) {
-      body.innerHTML = `<div class="modal-message error">Failed to load: ${e.message}</div>`;
+      body.innerHTML = `<div class="modal-message error">Failed to load: ${escapeHtml(e.message)}</div>`;
     }
   }
 
@@ -387,7 +389,7 @@ class SolPodOps extends HTMLElement {
           const s = v.value || String(v);
           return s.length > 60 ? s.slice(0, 57) + '...' : s;
         };
-        tr.innerHTML = `<td>${short(t.subject)}</td><td>${short(t.predicate)}</td><td>${short(t.object)}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(short(t.subject))}</td><td>${escapeHtml(short(t.predicate))}</td><td>${escapeHtml(short(t.object))}</td>`;
         tbody.appendChild(tr);
       }
       table.appendChild(tbody);
@@ -395,7 +397,7 @@ class SolPodOps extends HTMLElement {
       body.appendChild(table);
       footer.innerHTML = `<span class="modal-note">${triples.length} triple(s)</span>`;
     } catch (e) {
-      body.innerHTML = `<div class="modal-message error">Parse error: ${e.message}</div>`;
+      body.innerHTML = `<div class="modal-message error">Parse error: ${escapeHtml(e.message)}</div>`;
     }
   }
 

@@ -28,7 +28,7 @@ export const CSS = `
     flex: 0 0 auto;
     padding: .5rem .75rem;
     color: var(--text-muted, #7f8c8d);
-    font-size: .85em;
+    font-size: max(16px, .85em);
   }
   .sol-feed-status[data-error] { color: var(--error, #e74c3c); }
   .sol-feed-empty {
@@ -98,7 +98,7 @@ export const CSS = `
   }
   .feed-link .feed-link-meta {
     display: block;
-    font-size: .72em;
+    font-size: max(16px, .72em);
     color: var(--text-muted, #7f8c8d);
     font-weight: 400;
   }
@@ -133,7 +133,7 @@ export const CSS = `
   .feed-topic-head {
     margin: 0;
     padding: .4rem .7rem;
-    font-size: .74em;
+    font-size: max(16px, .74em);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .04em;
@@ -181,7 +181,7 @@ export const CSS = `
   }
   .feed-source-btn {
     font: inherit;
-    font-size: .85em;
+    font-size: max(16px, .85em);
     padding: .3rem .9rem;
     border: 1px solid var(--border, #d0d0d0);
     border-radius: 999px;
@@ -293,12 +293,12 @@ export const CSS = `
   .feed-picker-instruct {
     margin: 0;
     color: var(--text-muted, #7f8c8d);
-    font-size: .9em;
+    font-size: max(16px, .9em);
   }
   .feed-picker-instruct strong { color: var(--text, #212121); }
   .feed-picker-note {
     margin: 0;
-    font-size: .75em;
+    font-size: max(16px, .75em);
     color: var(--text-muted, #7f8c8d);
   }
   .feed-picker-note[data-error] { color: var(--error, #e74c3c); }
@@ -318,7 +318,7 @@ export const CSS = `
     gap: .35rem;
   }
   .feed-add-form legend {
-    font-size: .74em;
+    font-size: max(16px, .74em);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .04em;
@@ -329,13 +329,13 @@ export const CSS = `
     display: flex;
     flex-direction: column;
     gap: .15rem;
-    font-size: .8em;
+    font-size: max(16px, .8em);
     color: var(--text, #212121);
   }
   .feed-add-form input,
   .feed-add-form select {
     font: inherit;
-    font-size: .9em;
+    font-size: max(16px, .9em);
     padding: .2rem .35rem;
     border: 1px solid var(--border, #d0d0d0);
     border-radius: 4px;
@@ -345,7 +345,7 @@ export const CSS = `
   .feed-add-form button[type="submit"] {
     align-self: flex-end;
     font: inherit;
-    font-size: .8em;
+    font-size: max(16px, .8em);
     padding: .25rem .8rem;
     border: 1px solid var(--accent, #3498db);
     border-radius: 6px;
@@ -376,13 +376,13 @@ export const CSS = `
     background: color-mix(in srgb, var(--accent, #3498db) 12%, var(--surface, #fff));
   }
   .feed-drop-hint {
-    font-size: .78em;
+    font-size: max(16px, .78em);
     line-height: 1.3;
     color: var(--text-muted, #7f8c8d);
   }
   .feed-drop-input {
     font: inherit;
-    font-size: .9em;
+    font-size: max(16px, .9em);
     width: 100%;
     padding: .3rem .45rem;
     border: 1px solid var(--border, #d0d0d0);
@@ -394,7 +394,7 @@ export const CSS = `
   .feed-drop-confirm[hidden] { display: none; }
   .feed-drop-captured {
     margin: 0;
-    font-size: .72em;
+    font-size: max(16px, .72em);
     color: var(--text-muted, #7f8c8d);
     word-break: break-all;
   }
@@ -402,13 +402,13 @@ export const CSS = `
     display: flex;
     flex-direction: column;
     gap: .15rem;
-    font-size: .8em;
+    font-size: max(16px, .8em);
     color: var(--text, #212121);
   }
   .feed-drop-confirm input,
   .feed-drop-confirm select {
     font: inherit;
-    font-size: .9em;
+    font-size: max(16px, .9em);
     padding: .2rem .35rem;
     border: 1px solid var(--border, #d0d0d0);
     border-radius: 4px;
@@ -423,7 +423,7 @@ export const CSS = `
   }
   .feed-drop-actions button {
     font: inherit;
-    font-size: .8em;
+    font-size: max(16px, .8em);
     padding: .25rem .8rem;
     border-radius: 6px;
     cursor: pointer;
@@ -458,7 +458,7 @@ export const CSS = `
     gap: .1rem 1.15rem;
   }
   .feed-topic legend {
-    font-size: .74em;
+    font-size: max(16px, .74em);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .04em;
@@ -469,7 +469,7 @@ export const CSS = `
   .feed-topic legend:has(.feed-topic-name) { display: inline-flex; align-items: center; gap: .25rem; }
   .feed-topic-name.editable { cursor: text; border-radius: 4px; padding: 0 .15rem; }
   .feed-topic-name.editable:hover { background: var(--hover, rgba(0,0,0,.06)); }
-  .feed-topic-del { font-size: .95em; line-height: 1; padding: 0 .15rem; }
+  .feed-topic-del { font-size: max(16px, .95em); line-height: 1; padding: 0 .15rem; }
   .feed-topic-del[disabled] { opacity: .35; cursor: not-allowed; }
   .feed-topic-del[disabled]:hover { color: var(--text-muted, #9aa0a6); }
   /* Each source is a draggable chip. A chip whose feed is shown on the bar is
@@ -477,7 +477,7 @@ export const CSS = `
      bring the chip back. */
   .feed-chip {
     font: inherit;
-    font-size: .82em;
+    font-size: max(16px, .82em);
     line-height: 1.2;
     padding: .2rem .6rem;
     border: 1px solid var(--border, #d0d0d0);
@@ -527,7 +527,7 @@ export const CSS = `
     border: 1px dashed var(--border, #c0c0c0);
     border-radius: 8px;
     text-align: center;
-    font-size: .82em;
+    font-size: max(16px, .82em);
     color: var(--text-muted, #7f8c8d);
     background: var(--surface, #fff);
   }
@@ -651,7 +651,7 @@ export const CSS = `
     margin: 0;
     padding: .55rem .7rem;
     font-family: var(--font-ui, system-ui, sans-serif);
-    font-size: .88em;
+    font-size: max(16px, .88em);
     font-weight: 400;
     line-height: 1.3;
     /* Article titles are link text — use the theme's link colour
@@ -680,7 +680,7 @@ export const CSS = `
   .feed-add-source {
     flex: 0 0 auto; width: 1.4em; height: 1.4em; line-height: 1; padding: 0;
     border: 1px solid var(--border, #d0d0d0); border-radius: 5px; cursor: pointer;
-    background: var(--surface, #fff); color: var(--text-muted, #7f8c8d); font-size: .9em;
+    background: var(--surface, #fff); color: var(--text-muted, #7f8c8d); font-size: max(16px, .9em);
   }
   .feed-add-source:hover { background: var(--accent, #3498db); color: #fff; border-color: transparent; }
   .feed-topic-rename {
@@ -690,12 +690,12 @@ export const CSS = `
   }
   .feed-add-form { display: flex; flex-direction: column; gap: .3rem; padding: .35rem .4rem; }
   .feed-add-input {
-    font: inherit; font-size: .82em; padding: .3rem .4rem; border: 1px solid var(--border, #c0c0c0);
+    font: inherit; font-size: max(16px, .82em); padding: .3rem .4rem; border: 1px solid var(--border, #c0c0c0);
     border-radius: 5px; background: var(--bg, #fff); color: var(--text, #111);
   }
   .feed-add-row { display: flex; gap: .3rem; }
   .feed-add-row button {
-    font: inherit; font-size: .8em; padding: .25rem .6rem; border-radius: 5px; cursor: pointer;
+    font: inherit; font-size: max(16px, .8em); padding: .25rem .6rem; border-radius: 5px; cursor: pointer;
     border: 1px solid var(--border, #c0c0c0); background: var(--surface, #fff); color: inherit;
   }
   .feed-add-row button.primary { background: var(--accent, #3498db); color: #fff; border-color: transparent; }
@@ -705,15 +705,15 @@ export const CSS = `
   .editable-row.dragging { opacity: .45; }
   .feed-del {
     flex: 0 0 auto; background: transparent; border: none; cursor: pointer; padding: 0 .25rem;
-    color: var(--text-muted, #9aa0a6); font-size: .85em; line-height: 1;
+    color: var(--text-muted, #9aa0a6); font-size: max(16px, .85em); line-height: 1;
   }
   .feed-del:hover { color: var(--error, #e74c3c); }
   .feed-topic-column.drop-target { outline: 2px dashed var(--accent, #3498db); outline-offset: -3px; border-radius: 6px; }
 
   /* delete confirm (inline, replaces the row) */
   .feed-del-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem; padding: .15rem 0; width: 100%; }
-  .feed-del-q { flex: 1 1 100%; font-size: .8em; }
-  .feed-del-confirm button { font: inherit; font-size: .76em; padding: .15rem .55rem; border-radius: 5px; cursor: pointer; border: 1px solid var(--border, #c0c0c0); background: var(--surface, #fff); color: inherit; }
+  .feed-del-q { flex: 1 1 100%; font-size: max(16px, .8em); }
+  .feed-del-confirm button { font: inherit; font-size: max(16px, .76em); padding: .15rem .55rem; border-radius: 5px; cursor: pointer; border: 1px solid var(--border, #c0c0c0); background: var(--surface, #fff); color: inherit; }
   .feed-del-yes { background: var(--error, #e74c3c) !important; color: #fff !important; border-color: transparent !important; }
 
   /* reorder insertion indicator (drop before/after a row) */
@@ -722,19 +722,19 @@ export const CSS = `
 
   /* deleted-bin view */
   .feed-bin-bar { display: flex; align-items: center; gap: .8rem; padding: .5rem .7rem; border-bottom: 1px solid var(--border, #d0d0d0); }
-  .feed-bin-back { font: inherit; font-size: .85em; cursor: pointer; background: none; border: none; color: var(--link, #2980b9); padding: 0; }
+  .feed-bin-back { font: inherit; font-size: max(16px, .85em); cursor: pointer; background: none; border: none; color: var(--link, #2980b9); padding: 0; }
   .feed-bin-title { font-weight: 700; }
   .feed-bin-list { padding: .5rem .7rem; }
   .feed-bin-row { display: flex; align-items: center; gap: .5rem; padding: .25rem 0; }
   .feed-bin-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .feed-bin-restore-to { font: inherit; font-size: .82em; }
+  .feed-bin-restore-to { font: inherit; font-size: max(16px, .82em); }
   .feed-bin-restore {
-    font: inherit; font-size: .8em; padding: .2rem .6rem; border-radius: 5px; cursor: pointer;
+    font: inherit; font-size: max(16px, .8em); padding: .2rem .6rem; border-radius: 5px; cursor: pointer;
     border: 1px solid var(--border, #c0c0c0); background: var(--surface, #fff); color: inherit;
   }
   .feed-bin-restore:hover { background: var(--accent, #3498db); color: #fff; border-color: transparent; }
   .feed-bin-purge {
-    font: inherit; font-size: .8em; padding: .2rem .6rem; border-radius: 5px; cursor: pointer;
+    font: inherit; font-size: max(16px, .8em); padding: .2rem .6rem; border-radius: 5px; cursor: pointer;
     border: 1px solid var(--error, #e74c3c); background: transparent; color: var(--error, #e74c3c);
   }
   .feed-bin-purge:hover { background: var(--error, #e74c3c); color: #fff; }

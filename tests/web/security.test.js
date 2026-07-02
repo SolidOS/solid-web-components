@@ -34,7 +34,7 @@ window.__SolSuppressDefineWarn = true;
 
 import { SolQuery } from '../../web/sol-query.js';
 import { assertSafeQuery, sanitizeVarValue } from '../../core/sparql-safety.js';
-import { sanitizeHtml, queryHtmlWithSelector as _queryHtmlWithSelector } from '../../core/utils.js';
+import { sanitizeHtml, escapeHtml, sanitizeInlineSvg, queryHtmlWithSelector as _queryHtmlWithSelector } from '../../core/utils.js';
 // queryHtmlWithSelector now returns the W3C envelope; flatten back to the
 // `{vars, results}` shape these tests were written against.
 const queryHtmlWithSelector = (...a) => {
@@ -290,6 +290,58 @@ describe('sanitizeHtml', () => {
   test('handles already-safe content', async () => {
     const html = '<p>Just text</p>';
     expect(await sanitizeHtml(html)).toContain('Just text');
+  });
+});
+
+describe('escapeHtml — text interpolated into innerHTML', () => {
+  test('escapes tag and attribute breakout characters', () => {
+    expect(escapeHtml('<script>alert(1)</script>'))
+      .toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(escapeHtml('" onload="alert(1)'))
+      .toBe('&quot; onload=&quot;alert(1)');
+    expect(escapeHtml('a & b')).toBe('a &amp; b');
+  });
+
+  test('a crafted pod filename cannot inject markup', () => {
+    const evil = '<img src=x onerror=alert(1)>';
+    const out = escapeHtml(evil);
+    expect(out).not.toContain('<img');
+    expect(out).toContain('&lt;img');
+  });
+
+  test('null/undefined become empty string', () => {
+    expect(escapeHtml(null)).toBe('');
+    expect(escapeHtml(undefined)).toBe('');
+  });
+});
+
+describe('sanitizeInlineSvg — inline SVG icon hardening', () => {
+  test('removes <script> inside an inlined SVG', () => {
+    const span = document.createElement('span');
+    span.innerHTML = '<svg><script>alert(1)</script><circle r="4"/></svg>';
+    sanitizeInlineSvg(span);
+    expect(span.querySelector('script')).toBeNull();
+    expect(span.querySelector('circle')).not.toBeNull(); // benign markup kept
+  });
+
+  test('strips on* event-handler attributes', () => {
+    const span = document.createElement('span');
+    span.innerHTML = '<svg onload="alert(1)"><rect onclick="alert(2)"/></svg>';
+    sanitizeInlineSvg(span);
+    expect(span.querySelector('svg').hasAttribute('onload')).toBe(false);
+    expect(span.querySelector('rect').hasAttribute('onclick')).toBe(false);
+  });
+
+  test('neutralizes javascript: hrefs', () => {
+    const span = document.createElement('span');
+    span.innerHTML = '<svg><a href="javascript:alert(1)"><text>x</text></a></svg>';
+    sanitizeInlineSvg(span);
+    expect(span.querySelector('a').hasAttribute('href')).toBe(false);
+  });
+
+  test('no-throw on empty/invalid container', () => {
+    expect(() => sanitizeInlineSvg(null)).not.toThrow();
+    expect(() => sanitizeInlineSvg({})).not.toThrow();
   });
 });
 

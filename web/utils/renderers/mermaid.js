@@ -47,7 +47,7 @@ export async function renderMermaid(content, outputEl) {
     // Mermaid leaves orphan elements on parse errors — clean up
     const orphan = document.getElementById('d' + id);
     if (orphan) orphan.remove();
-    outputEl.innerHTML = `<pre style="padding:1rem;color:#c0392b;white-space:pre-wrap;font-size:.85em">Diagram error: ${
+    outputEl.innerHTML = `<pre style="padding:1rem;color:#c0392b;white-space:pre-wrap;font-size:max(16px, .85em)">Diagram error: ${
       (e.message || String(e)).replace(/<[^>]*>/g, '')
     }</pre>`;
   }

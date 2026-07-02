@@ -84,7 +84,7 @@ header h1 { font-size: 1rem; font-weight: 600; margin: 0; flex: 1; }
 .sol-btn:hover { background: var(--hover); border-color: var(--accent); }
 .sol-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .sol-btn[disabled], .sol-btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.sol-btn-sm { padding: 3px 10px; font-size: 0.82em; }
+.sol-btn-sm { padding: 3px 10px; font-size: max(16px, 0.82em); }
 .sol-btn-primary {
   background: var(--accent); color: #fff; border-color: var(--accent);
 }
@@ -98,4 +98,4 @@ header h1 { font-size: 1rem; font-weight: 600; margin: 0; flex: 1; }
 
 sol-live-edit { flex: 1; overflow: hidden; min-height: 0; }
 
-.hdr-zoom { font-size: 0.82em; color: var(--text-muted); min-width: 3em; text-align: center; }
+.hdr-zoom { font-size: max(16px, 0.82em); color: var(--text-muted); min-width: 3em; text-align: center; }

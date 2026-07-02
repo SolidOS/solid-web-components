@@ -43,7 +43,7 @@ export const BTN_CSS = `
 
   .sol-btn-sm {
     padding: 3px 10px;
-    font-size: 0.82em;
+    font-size: max(16px, 0.82em);
     border-radius: 4px;
   }
 

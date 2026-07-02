@@ -19,7 +19,7 @@ export const CSS = `
   }
   .label {
     color: var(--text-muted, #7f8c8d);
-    font-size: .8em;
+    font-size: max(16px, .8em);
     text-transform: lowercase;
   }
   .value { font-variant-numeric: tabular-nums; }

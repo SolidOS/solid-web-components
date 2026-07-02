@@ -121,6 +121,57 @@ describe('SolModal — imperative usage', () => {
   });
 });
 
+// ── focus management (a11y) ─────────────────────────────────────────────────
+describe('SolModal — focus management', () => {
+  test('the dialog is marked aria-modal', () => {
+    const m = document.createElement('sol-modal');
+    m.handler = () => {};
+    m.open();
+    const dialog = m.shadowRoot.querySelector('.modal');
+    expect(dialog.getAttribute('role')).toBe('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+  });
+
+  test('open() moves focus into the dialog', () => {
+    const m = document.createElement('sol-modal');
+    m.handler = (body) => { const b = document.createElement('button'); b.textContent = 'X'; body.appendChild(b); };
+    m.open();
+    const active = m.shadowRoot.activeElement;
+    expect(active).not.toBeNull();
+    // first focusable is the header close button
+    expect(active).toBe(m.shadowRoot.querySelector('.modal-close'));
+  });
+
+  test('close() restores focus to the previously-focused element', () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    expect(document.activeElement).toBe(opener);
+
+    const m = document.createElement('sol-modal');
+    m.handler = () => {};
+    m.open();
+    m.close();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  test('Tab wraps from the last focusable back to the first (focus trap)', () => {
+    const m = document.createElement('sol-modal');
+    m.handler = (body) => {
+      const b = document.createElement('button'); b.textContent = 'only'; body.appendChild(b);
+    };
+    m.open();
+    const focusables = m.shadowRoot.querySelectorAll(
+      'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    const last = focusables[focusables.length - 1];
+    last.focus();
+    const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+    m.shadowRoot.dispatchEvent(ev);
+    expect(ev.defaultPrevented).toBe(true);              // wrapped rather than escaping
+    expect(m.shadowRoot.activeElement).toBe(focusables[0]);
+  });
+});
+
 // ── declarative trigger modes ───────────────────────────────────────────────
 
 describe('SolModal — declarative trigger', () => {

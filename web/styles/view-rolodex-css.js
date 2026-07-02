@@ -22,7 +22,7 @@ export const CSS = BTN_CSS + `
   }
   /* Rolodex nav buttons use .sol-btn .sol-btn-icon. */
   .rolodex-counter {
-    font-size: .85em;
+    font-size: max(16px, .85em);
     color: var(--text-muted, #666);
   }
   .rolodex-card {
@@ -75,10 +75,10 @@ export const CSS = BTN_CSS + `
     background: var(--focus-bg, #e3f2fd);
     color: var(--accent-dark, #1976d2);
     border-radius: var(--radius-sm, 4px);
-    font-size: .9em;
+    font-size: max(16px, .9em);
   }
   .rolodex-reorder-hint {
-    font-size: .8em;
+    font-size: max(16px, .8em);
     color: var(--text-muted, #888);
     font-style: italic;
     margin-right: .35rem;

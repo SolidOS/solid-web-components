@@ -60,6 +60,7 @@ import { attachEditorSelfGear } from '../core/editor-self.js';
 import { CSS as MENU_CSS, sheet as menuSheet } from './styles/sol-menu-css.js';
 import { registerMenuConsumer, deferUntilLoader } from '../core/menu-consumer.js';
 import { renderComponentItem, renderLinkItem, ensureHandler, isCommandName, paramsToObject, dispatchCommand } from '../core/rdf-render.js';
+import { sanitizeInlineSvg } from '../core/utils.js';
 
 /**
  * Sidebar navigation + content panel.
@@ -481,6 +482,7 @@ class SolMenu extends HTMLElement {
             try {
               const raw = decodeURIComponent(item.icon.replace('data:image/svg+xml,', ''));
               span.innerHTML = raw;
+              sanitizeInlineSvg(span);   // SVG icons can carry <script>/on*/js: URLs
               const svg = span.querySelector('svg');
               if (svg) { svg.setAttribute('width', '1.2em'); svg.setAttribute('height', '1.2em'); }
             } catch { span.textContent = ''; }

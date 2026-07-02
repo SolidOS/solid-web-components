@@ -38,7 +38,7 @@ export const CSS = BTN_CSS + `
        sidebar in narrow panels. */
     min-width: 0;
     border: 1px solid var(--border, #e0e0e0); border-radius: 4px;
-    font-size: 0.9em;
+    font-size: max(16px, 0.9em);
     background: var(--surface, #fff); color: var(--text, #212121);
     font-family: inherit;
   }
@@ -50,7 +50,7 @@ export const CSS = BTN_CSS + `
     background: var(--surface, #fff);
     border: 1px solid var(--border, #e0e0e0); border-radius: 4px;
     padding: 5px 9px; cursor: pointer;
-    color: var(--text-muted, #666); font-size: 0.95em;
+    color: var(--text-muted, #666); font-size: max(16px, 0.95em);
   }
   .pod-settings-btn:hover { background: var(--hover, #f0f0f0); }
 
@@ -61,7 +61,7 @@ export const CSS = BTN_CSS + `
     padding: 8px 10px;
     border: 1px solid var(--border, #e0e0e0); border-radius: 4px;
     background: var(--surface-2, #f9f9f9);
-    font-size: 0.85em;
+    font-size: max(16px, 0.85em);
   }
   .pod-settings label {
     display: flex; align-items: center; gap: 6px;
@@ -72,12 +72,12 @@ export const CSS = BTN_CSS + `
     padding: 10px 20px;
     background: var(--surface-2, #f9f9f9);
     border-bottom: 1px solid var(--border, #e0e0e0);
-    font-size: 0.9em; color: var(--text-muted, #666);
+    font-size: max(16px, 0.9em); color: var(--text-muted, #666);
     flex-shrink: 0;
     display: flex; align-items: center;
   }
   .breadcrumb button {
-    padding: 4px 8px; font-size: 0.9em; margin-right: 5px;
+    padding: 4px 8px; font-size: max(16px, 0.9em); margin-right: 5px;
     background: var(--surface-2, #f9f9f9); border: none;
     color: var(--text-muted, #666); cursor: pointer;
     border-radius: 4px; font-family: inherit;
@@ -99,7 +99,7 @@ export const CSS = BTN_CSS + `
     border-radius: 4px;
     background: var(--surface, #fff);
     color: var(--text, #212121);
-    font-family: inherit; font-size: 0.85em;
+    font-family: inherit; font-size: max(16px, 0.85em);
     box-sizing: border-box;
   }
   .pod-filter::placeholder { color: var(--text-faint, #999); }
@@ -164,7 +164,7 @@ export const CSS = BTN_CSS + `
     background: var(--surface, #fff);
     border: 1px solid var(--border, #e0e0e0);
     border-radius: 6px; padding: 8px 10px 8px 14px;
-    font-size: 0.85em;
+    font-size: max(16px, 0.85em);
     box-shadow: 0 3px 14px var(--shadow, rgba(0,0,0,0.1));
     max-width: 420px; min-width: 160px;
     transition: opacity 0.4s ease;

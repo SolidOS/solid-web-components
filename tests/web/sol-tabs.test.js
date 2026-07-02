@@ -829,3 +829,55 @@ describe('SolTabs — command items', () => {
     expect(host.contains(out)).toBe(true);
   });
 });
+
+// ── keyboard & ARIA (a11y) ──────────────────────────────────────────────────
+describe('SolTabs — keyboard & ARIA', () => {
+  beforeEach(() => { mockStore = buildStore(); });
+
+  async function load() {
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+    return el;
+  }
+  const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+
+  test('the active tab is aria-selected with roving tabindex', async () => {
+    const btns = tabBtns(await load());
+    expect(btns[0].getAttribute('aria-selected')).toBe('true');   // Home active
+    expect(btns[0].getAttribute('tabindex')).toBe('0');
+    for (const b of btns.slice(1)) {
+      expect(b.getAttribute('aria-selected')).toBe('false');
+      expect(b.getAttribute('tabindex')).toBe('-1');
+    }
+  });
+
+  test('tabs reference the content tabpanel, labelled by the active tab', async () => {
+    const el = await load();
+    const home = tabBtns(el)[0];
+    const panelId = home.getAttribute('aria-controls');
+    expect(panelId).toBeTruthy();
+    const panel = content(el);
+    expect(panel.id).toBe(panelId);                       // aria-controls → the content region
+    expect(panel.getAttribute('role')).toBe('tabpanel');
+    expect(panel.getAttribute('aria-labelledby')).toBe(home.id);   // named by the active tab
+  });
+
+  test('ArrowRight moves to and activates the next tab', async () => {
+    const el = await load();
+    const btns = tabBtns(el);
+    key(btns[0], 'ArrowRight');
+    expect(el.activeTab).toBe('Data Table');
+    expect(btns[1].getAttribute('aria-selected')).toBe('true');
+    expect(btns[0].getAttribute('aria-selected')).toBe('false');
+  });
+
+  test('Home / End jump to the first / last tab', async () => {
+    const el = await load();
+    const btns = tabBtns(el);
+    key(btns[0], 'End');
+    expect(el.activeTab).toBe('About');
+    key(btns[btns.length - 1], 'Home');
+    expect(el.activeTab).toBe('Home');
+  });
+});
