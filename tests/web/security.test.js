@@ -34,7 +34,7 @@ window.__SolSuppressDefineWarn = true;
 
 import { SolQuery } from '../../web/sol-query.js';
 import { assertSafeQuery, sanitizeVarValue } from '../../core/sparql-safety.js';
-import { sanitizeHtml, escapeHtml, sanitizeInlineSvg, queryHtmlWithSelector as _queryHtmlWithSelector } from '../../core/utils.js';
+import { sanitizeHtml, escapeHtml, sanitizeInlineSvg, renderIcon, queryHtmlWithSelector as _queryHtmlWithSelector } from '../../core/utils.js';
 // queryHtmlWithSelector now returns the W3C envelope; flatten back to the
 // `{vars, results}` shape these tests were written against.
 const queryHtmlWithSelector = (...a) => {
@@ -342,6 +342,25 @@ describe('sanitizeInlineSvg — inline SVG icon hardening', () => {
   test('no-throw on empty/invalid container', () => {
     expect(() => sanitizeInlineSvg(null)).not.toThrow();
     expect(() => sanitizeInlineSvg({})).not.toThrow();
+  });
+});
+
+describe('renderIcon — shared icon painter (menu + plugin-manager)', () => {
+  test('an inline SVG data: icon is sanitized', () => {
+    const svg = '<svg onload="alert(1)"><script>alert(2)<\/script><circle r="4"/></svg>';
+    const span = renderIcon('data:image/svg+xml,' + encodeURIComponent(svg), 'sol-menu-icon');
+    expect(span.className).toBe('sol-menu-icon');
+    expect(span.getAttribute('aria-hidden')).toBe('true');
+    expect(span.querySelector('script')).toBeNull();
+    expect(span.querySelector('svg').hasAttribute('onload')).toBe(false);
+    expect(span.querySelector('circle')).not.toBeNull();
+  });
+
+  test('a URL icon paints as an <img>, an emoji as text', () => {
+    expect(renderIcon('https://ex.com/favicon.ico', 'card-icon').querySelector('img')).not.toBeNull();
+    const emoji = renderIcon('📰', 'card-icon');
+    expect(emoji.querySelector('img')).toBeNull();
+    expect(emoji.textContent).toBe('📰');
   });
 });
 

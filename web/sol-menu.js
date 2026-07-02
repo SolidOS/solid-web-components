@@ -60,7 +60,7 @@ import { attachEditorSelfGear } from '../core/editor-self.js';
 import { CSS as MENU_CSS, sheet as menuSheet } from './styles/sol-menu-css.js';
 import { registerMenuConsumer, deferUntilLoader } from '../core/menu-consumer.js';
 import { renderComponentItem, renderLinkItem, ensureHandler, isCommandName, paramsToObject, dispatchCommand } from '../core/rdf-render.js';
-import { sanitizeInlineSvg } from '../core/utils.js';
+import { renderIcon } from '../core/utils.js';
 
 /**
  * Sidebar navigation + content panel.
@@ -472,29 +472,10 @@ class SolMenu extends HTMLElement {
         // emoji in the slot keeps icon-bearing rows aligned (an earlier version
         // dropped emoji to avoid the indent mismatch — the shared slot fixes it
         // instead). No icon → label only.
-        const imageIcon = item.icon && /^(?:https?:\/\/|data:|\.{0,2}\/)/.test(item.icon);
         if (item.icon) {
           btn.title = item.name;
-          const span = document.createElement('span');
-          span.className = 'sol-menu-icon';
-          span.setAttribute('aria-hidden', 'true');
-          if (imageIcon && item.icon.startsWith('data:image/svg+xml')) {
-            try {
-              const raw = decodeURIComponent(item.icon.replace('data:image/svg+xml,', ''));
-              span.innerHTML = raw;
-              sanitizeInlineSvg(span);   // SVG icons can carry <script>/on*/js: URLs
-              const svg = span.querySelector('svg');
-              if (svg) { svg.setAttribute('width', '1.2em'); svg.setAttribute('height', '1.2em'); }
-            } catch { span.textContent = ''; }
-          } else if (imageIcon) {
-            const img = document.createElement('img');
-            img.src = item.icon;
-            img.alt = '';
-            span.appendChild(img);
-          } else {
-            span.textContent = item.icon;   // emoji / text icon
-          }
-          btn.appendChild(span);
+          // Icon in a fixed slot before the label so rows align (image/svg/emoji).
+          btn.appendChild(renderIcon(item.icon, 'sol-menu-icon'));
           btn.appendChild(document.createTextNode(item.name));
         } else {
           btn.textContent = item.name;

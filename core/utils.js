@@ -59,6 +59,34 @@ export function sanitizeInlineSvg(container) {
   });
 }
 
+// ─── Icon rendering ───────────────────────────────────────────────────────────
+// Paint an icon value into an aria-hidden <span class=className> and return it:
+//   • data:image/svg+xml → inline (sanitized) SVG, sized to 1.2em
+//   • other http(s)/data:/path URL → <img>
+//   • anything else (an emoji or text) → text
+// Shared by sol-menu and sol-plugin-manager so the SVG-sanitizing path lives once.
+export function renderIcon(value, className) {
+  const span = document.createElement('span');
+  if (className) span.className = className;
+  span.setAttribute('aria-hidden', 'true');
+  const isImage = value && /^(?:https?:\/\/|data:|\.{0,2}\/)/.test(value);
+  if (isImage && value.startsWith('data:image/svg+xml')) {
+    try {
+      span.innerHTML = decodeURIComponent(value.replace('data:image/svg+xml,', ''));
+      sanitizeInlineSvg(span);   // SVG icons can carry <script>/on*/js: URLs
+      const svg = span.querySelector('svg');
+      if (svg) { svg.setAttribute('width', '1.2em'); svg.setAttribute('height', '1.2em'); }
+    } catch { span.textContent = ''; }
+  } else if (isImage) {
+    const img = document.createElement('img');
+    img.src = value; img.alt = '';
+    span.appendChild(img);
+  } else {
+    span.textContent = value;   // emoji / text icon
+  }
+  return span;
+}
+
 // W3C SPARQL Query Results JSON envelope.
 function w3c(vars, bindings) { return { head: { vars }, results: { bindings } }; }
 

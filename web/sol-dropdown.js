@@ -17,6 +17,8 @@
  * tracks scroll/resize while open, and dismisses on outside-click / Escape by
  * removing itself.
  */
+import { define } from '../core/define.js';
+
 const CSS = `
   :host { position: fixed; z-index: 1000; }
   .panel {
@@ -107,6 +109,6 @@ class SolDropdown extends HTMLElement {
   }
 }
 
-customElements.define('sol-dropdown', SolDropdown);
+define('sol-dropdown', SolDropdown);
 export { SolDropdown };
 export default SolDropdown;
