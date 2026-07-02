@@ -1,5 +1,6 @@
 import { mkLink } from '../views/_helpers.js';
 import { render as renderTable } from '../views/table.js';
+import { deepActiveElement, trapTab } from '../../core/focus-trap.js';
 
 // W3C SPARQL Query Results JSON envelope helper.
 function w3c(vars, bindings) { return { head: { vars }, results: { bindings } }; }
@@ -192,7 +193,7 @@ export class SparqlResultsRenderer {
     body.innerHTML = '';
     const sub = new SparqlResultsRenderer(body);
     sub.renderResults(data, renderTable, { hideHeader: true });
-    this._lastFocus = (this.container.getRootNode().activeElement) || document.activeElement;
+    this._lastFocus = deepActiveElement();
     modal.classList.add('active');
     const closeBtn = modal.querySelector('.bnode-modal-close');
     if (closeBtn) closeBtn.focus();
@@ -224,17 +225,7 @@ export class SparqlResultsRenderer {
     modal.addEventListener('click', e => { if (e.target === modal) this._closeModal(); });
     // Focus trap: Tab cycles within the dialog while it's open.
     modal.addEventListener('keydown', e => {
-      if (e.key !== 'Tab' || !modal.classList.contains('active')) return;
-      const focusables = modal.querySelectorAll(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"]), input, select, textarea'
-      );
-      if (!focusables.length) return;
-      const first = focusables[0];
-      const last  = focusables[focusables.length - 1];
-      const root  = modal.getRootNode();
-      const active = root.activeElement === modal ? document.activeElement : root.activeElement;
-      if (e.shiftKey && active === first) { last.focus(); e.preventDefault(); }
-      else if (!e.shiftKey && active === last) { first.focus(); e.preventDefault(); }
+      if (modal.classList.contains('active')) trapTab(e, modal);
     });
     (this.container.parentNode ?? this.container).appendChild(modal);
     this._modal = modal;

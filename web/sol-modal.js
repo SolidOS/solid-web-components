@@ -50,23 +50,10 @@ import { CSS, sheet as MODAL_SHEET } from './styles/sol-modal-css.js';
 import { adopt } from '../core/adopt.js';
 import { define } from '../core/define.js';
 import { escapeHtml } from '../core/utils.js';
+import { focusablesIn, deepActiveElement, trapTab } from '../core/focus-trap.js';
 import './sol-include.js'; // source mode renders content through <sol-include>
 
 const OWN_ATTRS = new Set(['title', 'size', 'component', 'content', 'source', 'data-handler']);
-
-// ─── Focus management helpers (shared by the dialog focus trap) ────────────────
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), '
-  + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-function focusablesIn(root) {
-  return root ? Array.from(root.querySelectorAll(FOCUSABLE)) : [];
-}
-// The element that actually has focus, descending through open shadow roots — so
-// focus can be saved before a dialog opens and restored to it on close.
-function deepActiveElement() {
-  let el = document.activeElement;
-  while (el && el.shadowRoot && el.shadowRoot.activeElement) el = el.shadowRoot.activeElement;
-  return el;
-}
 
 /**
  * Generic modal dialog web component.
@@ -235,15 +222,7 @@ class SolModal extends HTMLElement {
 
   // Tab / Shift+Tab cycles within the open dialog instead of escaping to the page.
   _trapTab(e) {
-    if (e.key !== 'Tab') return;
-    const modal = this.shadowRoot.querySelector('.modal');
-    if (!modal) return;
-    const f = focusablesIn(modal);
-    if (!f.length) { e.preventDefault(); modal.focus(); return; }
-    const first = f[0], last = f[f.length - 1];
-    const active = this.shadowRoot.activeElement;
-    if (e.shiftKey && active === first) { last.focus(); e.preventDefault(); }
-    else if (!e.shiftKey && active === last) { first.focus(); e.preventDefault(); }
+    trapTab(e, this.shadowRoot.querySelector('.modal'));
   }
 
   _invokeHandler() {
@@ -304,6 +283,9 @@ class SolModal extends HTMLElement {
       if (e.target === s.querySelector('.modal-overlay')) this.close();
     });
 
+    // Escape-to-close. Remove any prior handler first so repeated _render()s
+    // (a re-open before close) don't stack keydown listeners on document.
+    if (this._escHandler) document.removeEventListener('keydown', this._escHandler);
     this._escHandler = (e) => { if (e.key === 'Escape') this.close(); };
     document.addEventListener('keydown', this._escHandler);
 

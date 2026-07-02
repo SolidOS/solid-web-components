@@ -76,6 +76,7 @@ import { registerMenuConsumer, deferUntilLoader } from '../core/menu-consumer.js
 import { renderComponentItem, renderLinkItem, ensureHandler, isCommandName, dispatchCommand, paramsToObject } from '../core/rdf-render.js';
 import { emitTab } from '../core/menu-generate.js';
 import { extractTab, extractSubmenu } from '../core/menu-html.js';
+import { deepActiveElement, trapTab } from '../core/focus-trap.js';
 
 // For auto-wiring an inline action launcher to this tabs' content area we need
 // a stable selector; mint an id for any <sol-tabs> that lacks one.
@@ -797,7 +798,7 @@ class SolTabs extends HTMLElement {
     // showing where you are (a leaf's group; a direct room opens all-collapsed).
     const active = (this._navItems || []).find((i) => i.key === this._navKey);
     this._setOpenGroup(active?.groupKey || null);
-    this._sheetLastFocus = document.activeElement;   // restore to the trigger on close
+    this._sheetLastFocus = deepActiveElement();   // restore to the trigger on close
     this._sheet.classList.add('open');
     this._navTrigger?.setAttribute('aria-expanded', 'true');
     // Move focus into the sheet so keyboard users land inside the dialog.
@@ -820,15 +821,10 @@ class SolTabs extends HTMLElement {
       .filter((el) => el.offsetParent !== null);
   }
 
-  // Tab / Shift+Tab cycles within the open sheet (a role="dialog" aria-modal).
+  // Tab / Shift+Tab cycles within the open sheet (a role="dialog" aria-modal),
+  // over its VISIBLE rows (collapsed-group rows are display:none).
   _trapSheetTab(e) {
-    const f = this._visibleSheetFocusables();
-    if (!f.length) return;
-    const first = f[0], last = f[f.length - 1];
-    const active = document.activeElement;
-    if (e.shiftKey && active === first) { last.focus(); e.preventDefault(); }
-    else if (!e.shiftKey && active === last) { first.focus(); e.preventDefault(); }
-    else if (!this._sheet.contains(active)) { first.focus(); e.preventDefault(); }
+    trapTab(e, this._sheet, () => this._visibleSheetFocusables());
   }
 
   _closeSheet() {
