@@ -32,7 +32,19 @@ const CSS = `
     max-width: 92vw;
     max-height: calc(100vh - 16px);
   }
-  .body { padding: var(--menu-popup-pad, 8px); }
+  .body {
+    padding: var(--menu-popup-pad, 8px);
+    /* A dropdown is a COMPACT surface: cap the hosted content well short of
+       the viewport instead of letting it run to the page bottom. The flex
+       column + min-height:0 lets scroll-aware content (e.g. sol-calendar,
+       whose agenda list scrolls internally) shrink to the cap and scroll
+       ITSELF — the panel's own overflow above stays a backstop for content
+       that can't. */
+    display: flex;
+    flex-direction: column;
+    max-height: min(55vh, 34rem);
+  }
+  .body > * { min-height: 0; }
 `;
 
 class SolDropdown extends SolElement {
