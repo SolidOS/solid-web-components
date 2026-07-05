@@ -394,7 +394,10 @@ class SolPluginManager extends HTMLElement {
           .filter((sub) => sub.cards.length),
       }));
       groups.push({ label: 'Other', cards: [...plugins.filter((p) => !p.id || !inAny.has(p.id)), ...ghosts], subs: [] });
-      const tabs = groups.filter((g) => g.cards.length || g.subs.length);
+      // Every DECLARED topic keeps its tab even with no available cards (all
+      // its plugins may be in use — the topic still exists); only the
+      // synthetic "Other" bucket is elided when empty.
+      const tabs = groups.filter((g) => g.label !== 'Other' || g.cards.length || g.subs.length);
       if (!tabs.some((g) => g.label === this._topicTab)) this._topicTab = tabs[0]?.label;
 
       this._cards = document.createElement('div');
@@ -408,6 +411,12 @@ class SolPluginManager extends HTMLElement {
         head.textContent = sub.label;
         this._cards.appendChild(head);
         for (const p of sub.cards) this._cards.appendChild(this._card(p));
+      }
+      if (!this._cards.children.length) {
+        const empty = document.createElement('div');
+        empty.className = 'hint';
+        empty.textContent = 'empty — every plugin in this topic is already on a menu or bar';
+        this._cards.appendChild(empty);
       }
 
       if (tabs.length) {
