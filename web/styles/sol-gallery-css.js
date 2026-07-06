@@ -176,6 +176,35 @@ export const CSS = `
   .gallery-lb-close:hover { background: rgba(255,255,255,.22); }
   .gallery-lb-btn:focus-visible,
   .gallery-lb-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+  /* ── Phone (coarse pointer): two-column square-thumb grid; the lightbox
+     goes full-bleed — swipe steps images (wired in sol-gallery.js), so the
+     side buttons hide; the caption (title · author · license) pins to the
+     bottom and ✕ stays top-right. Desktop is untouched. ── */
+  @media (hover: none) and (pointer: coarse) {
+    .gallery-grid {
+      columns: auto;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 0 10px 10px;
+    }
+    .gallery-thumb { margin: 0; aspect-ratio: 1; }
+    .gallery-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+    .gallery-lightbox { padding: 0; touch-action: pan-y; }
+    .gallery-lightbox img { max-height: 100%; border-radius: 0; }
+    .gallery-lb-prev, .gallery-lb-next { display: none; }
+    .gallery-lb-caption {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      margin: 0;
+      max-width: none;
+      padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+      background: rgba(0,0,0,.55);
+    }
+    .gallery-lb-close { top: 10px; right: 10px; width: 44px; height: 44px; }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

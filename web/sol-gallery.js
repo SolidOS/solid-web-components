@@ -218,8 +218,33 @@ class SolGallery extends SolElement {
     // Click the image to toggle a full-bleed, actual-size (100%) view that pans
     // via scroll; click again (or page / Esc) to return to fit. Only offered
     // when the fit view shows fewer pixels than the image actually has.
-    img.addEventListener('click', (e) => { e.stopPropagation(); if (this._canZoom) this.setZoom(!this._lbZoom); });
+    img.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this._swipeJustEnded) return;   // a swipe's trailing click is not a zoom ask
+      if (this._canZoom) this.setZoom(!this._lbZoom);
+    });
     img.addEventListener('load', () => this._refreshZoomable());
+
+    // Coarse pointer: a horizontal swipe steps prev/next (the side buttons
+    // are hidden by the phone css block). Fit view only — the zoomed view
+    // owns its drags for panning.
+    if (typeof matchMedia === 'function'
+        && matchMedia('(hover: none) and (pointer: coarse)').matches) {
+      let sx = null, sy = null;
+      lb.addEventListener('pointerdown', (e) => { sx = e.clientX; sy = e.clientY; });
+      lb.addEventListener('pointerup', (e) => {
+        if (sx == null) return;
+        const dx = e.clientX - sx, dy = e.clientY - sy;
+        sx = sy = null;
+        if (this._lbZoom) return;
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          this._swipeJustEnded = true;
+          setTimeout(() => { this._swipeJustEnded = false; }, 350);
+          this.stepLightbox(dx < 0 ? 1 : -1);
+        }
+      });
+      lb.addEventListener('pointercancel', () => { sx = sy = null; });
+    }
 
     this._onKey = (e) => {
       if (this._lb.lb.hidden) return;
