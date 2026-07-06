@@ -203,11 +203,14 @@ export const CSS = `
     sol-tabs > .sol-tabs-bar > .sol-tabs-navtrigger {
       display: flex; align-items: center; gap: 10px;
       flex: 1 1 auto; width: 100%; max-width: 100%; box-sizing: border-box;
-      min-height: 48px; padding: 0 14px;
-      font: inherit; font-size: max(16px, 1.05em); font-weight: 600;
+      /* One shared chip across the phone (M4): 44px min, 0 16px pad,
+         stadium radius, 16px-floor type — the same metrics as the feed's
+         source chips and the players' Browse pills. */
+      min-height: 44px; padding: 0 16px;
+      font: inherit; font-size: max(16px, 1em); font-weight: 600;
       color: var(--text, #1a1a1a); text-align: left;
       background: var(--surface, #fff);
-      border: 1px solid var(--border, #c8c8c8); border-radius: 14px;
+      border: 1px solid var(--border, #c8c8c8); border-radius: 999px;
       cursor: pointer;
     }
     .sol-tabs-navtrigger-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

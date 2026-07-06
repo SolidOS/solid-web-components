@@ -764,8 +764,12 @@ export const CSS = `
     .feed-source-btn {
       flex: 0 0 auto;
       scroll-snap-align: start;
+      /* One shared chip across the phone (M4): 44px min, 0 16px pad —
+         the navigator trigger's and player Browse pills' metrics. */
+      display: inline-flex;
+      align-items: center;
       font-size: 1rem;            /* ≥16px, tracks the text-size setter */
-      padding: .5rem 1rem;
+      padding: 0 16px;
       min-height: 44px;
     }
     .feed-picker-toggle {
@@ -777,8 +781,9 @@ export const CSS = `
        (image left, title right) — the whole list scrolls, nothing else. */
     .feed-articles {
       grid-template-columns: 1fr;
-      gap: .55rem;
-      padding: .8rem .7rem;
+      /* A touch more breathing room around the 5.5rem cards (M4). */
+      gap: .7rem;
+      padding: .9rem .8rem;
     }
     .feed-card {
       width: auto;
