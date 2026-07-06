@@ -6,6 +6,18 @@
 
 const ESM = 'https://esm.sh';
 
+// The browser caches import() REJECTIONS per-URL for the page's lifetime, so
+// one transient CDN failure would poison every later attempt — fatal in the
+// long-lived Electron shell, where the page may never reload. Retrying with a
+// cache-busting query forces a fresh module-map entry and a real fetch.
+async function imp(url) {
+  try { return await import(url); }
+  catch (_) {
+    const sep = url.includes('?') ? '&' : '?';
+    return import(`${url}${sep}retry=${Date.now()}`);
+  }
+}
+
 const LANG_MAP = {
   ttl:    [`${ESM}/codemirror-lang-turtle`,        m => m.turtle],
   n3:     [`${ESM}/codemirror-lang-turtle`,        m => m.turtle],
@@ -31,20 +43,20 @@ const LANG_MAP = {
  */
 export async function buildEditor(parent, ext, root, onChange) {
   const { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection }
-    = await import(`${ESM}/@codemirror/view@6`);
+    = await imp(`${ESM}/@codemirror/view@6`);
   const { EditorState }
-    = await import(`${ESM}/@codemirror/state@6`);
+    = await imp(`${ESM}/@codemirror/state@6`);
   const { defaultKeymap, history, historyKeymap, indentWithTab }
-    = await import(`${ESM}/@codemirror/commands@6`);
+    = await imp(`${ESM}/@codemirror/commands@6`);
   const { syntaxHighlighting, defaultHighlightStyle }
-    = await import(`${ESM}/@codemirror/language@6`);
+    = await imp(`${ESM}/@codemirror/language@6`);
 
   let langExt = [];
   const langEntry = ext && LANG_MAP[ext];
   if (langEntry) {
     try {
       const [url, pick] = langEntry;
-      const m = await import(url);
+      const m = await imp(url);
       const fn = pick(m);
       if (fn) langExt = [fn()];
     } catch (_) { /* CDN miss — degrade silently */ }

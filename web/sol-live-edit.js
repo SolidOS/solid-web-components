@@ -270,12 +270,19 @@ class SolLiveEdit extends HTMLElement {
         return;
       }catch(_){/* fall through to built-in editor */}
     }
-    const view=await buildEditor(pane,extKey,this.shadowRoot,()=>this._change());
-    this._cm={
-      getValue:()=>view.state.doc.toString(),
-      setValue:(v)=>view.dispatch({changes:{from:0,to:view.state.doc.length,insert:v}}),
-      destroy:()=>view.destroy(),
-    };
+    // A failed editor build (CDN unreachable) must not kill _init — surface
+    // it in the error strip instead of leaving a silent blank pane.
+    try{
+      const view=await buildEditor(pane,extKey,this.shadowRoot,()=>this._change());
+      this._cm={
+        getValue:()=>view.state.doc.toString(),
+        setValue:(v)=>view.dispatch({changes:{from:0,to:view.state.doc.length,insert:v}}),
+        destroy:()=>view.destroy(),
+      };
+    }catch(e){
+      const er=this.shadowRoot.getElementById('er');
+      if(er){er.textContent=`Editor failed to load: ${e.message}`;er.classList.add('on');}
+    }
   }
 
   _change(){
@@ -294,11 +301,11 @@ class SolLiveEdit extends HTMLElement {
     const out=this.shadowRoot.getElementById('po');
     const er=this.shadowRoot.getElementById('er');
     if(!out)return;
-    if(!_rendererCache[this._fmt]&&RENDERERS[this._fmt])
-      _rendererCache[this._fmt]=await RENDERERS[this._fmt]();
-    const fn=_rendererCache[this._fmt];
-    if(!fn){out.innerHTML='<p style="padding:1rem">No preview.</p>';return;}
     try{
+      if(!_rendererCache[this._fmt]&&RENDERERS[this._fmt])
+        _rendererCache[this._fmt]=await RENDERERS[this._fmt]();
+      const fn=_rendererCache[this._fmt];
+      if(!fn){out.innerHTML='<p style="padding:1rem">No preview.</p>';return;}
       const r=await fn(this.content,out);
       if(typeof r==='function')this._sim=r;
       er.textContent='';er.classList.remove('on');
