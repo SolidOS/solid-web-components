@@ -80,6 +80,7 @@ const RDF  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 const RDFS = 'http://www.w3.org/2000/01/rdf-schema#';
 const SKOS = 'http://www.w3.org/2004/02/skos/core#';
 const DCT  = 'http://purl.org/dc/terms/';
+const SCHEMA = 'http://schema.org/';
 
 // A chip's identity among entries that share a component tag is its DATA SOURCE
 // (the `source` ui:attribute — the doc/library the chip opens). Every OTHER
@@ -313,6 +314,14 @@ class SolPluginManager extends HTMLElement {
     const tags = new Set();
     for (const st of store.statementsMatching(null, rdf.sym(UI + 'name'), null)) {
       if (st.object && st.object.value) tags.add(st.object.value);
+    }
+    // A data-handler attribute adopts its component too (e.g. the calendar
+    // is catalogued as a sol-button with data-handler="sol-calendar"), so
+    // its manifest ghost must not reappear beside the wrapper entry.
+    for (const st of store.statementsMatching(null, rdf.sym(SCHEMA + 'name'), null)) {
+      if (st.object?.value !== 'data-handler') continue;
+      const v = store.any(st.subject, rdf.sym(SCHEMA + 'value'));
+      if (v && v.value) tags.add(v.value);
     }
     return tags;
   }
