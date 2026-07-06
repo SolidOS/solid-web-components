@@ -37,9 +37,9 @@ export const CSS = BTN_CSS + `
        widest option, pushing the login + settings buttons out of the
        sidebar in narrow panels. */
     min-width: 0;
-    border: 1px solid var(--border, #e0e0e0); border-radius: 4px;
+    border: 1px solid var(--input-border, #9aa0a8); border-radius: 4px;
     font-size: max(16px, 0.9em);
-    background: var(--surface, #fff); color: var(--text, #212121);
+    background: var(--input-bg, #eef); color: var(--input-text, #1a1a1a);
     font-family: inherit;
   }
 
@@ -95,10 +95,10 @@ export const CSS = BTN_CSS + `
   .pod-filter {
     width: 100%;
     padding: 5px 8px;
-    border: 1px solid var(--border, #e0e0e0);
+    border: 1px solid var(--input-border, #9aa0a8);
     border-radius: 4px;
-    background: var(--surface, #fff);
-    color: var(--text, #212121);
+    background: var(--input-bg, #eef);
+    color: var(--input-text, #1a1a1a);
     font-family: inherit; font-size: max(16px, 0.85em);
     box-sizing: border-box;
   }

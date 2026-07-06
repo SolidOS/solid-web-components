@@ -14,8 +14,8 @@ export const CSS = `
   .acl-role-name { font-size: max(16px, 0.88em); font-weight: 600; color: var(--text, #212121); width: 68px; flex-shrink: 0; }
   .acl-grant-select {
     font-size: max(16px, 0.88em); padding: 4px 8px;
-    border: 1px solid var(--border, #e0e0e0); border-radius: 4px;
-    background: var(--surface, #fff); color: var(--text, #212121);
+    border: 1px solid var(--input-border, #9aa0a8); border-radius: 4px;
+    background: var(--input-bg, #eef); color: var(--input-text, #1a1a1a);
     cursor: pointer; font-family: inherit;
   }
   .acl-save-btn { margin-left: auto; flex-shrink: 0; }
@@ -35,9 +35,9 @@ export const CSS = `
   .acl-section-label { font-size: max(16px, 0.82em); font-weight: 600; color: var(--text-muted, #666); text-transform: uppercase; letter-spacing: 0.04em; }
   .acl-agents-input {
     font-family: 'Fira Mono', monospace; font-size: max(16px, 0.82em);
-    width: 100%; border: 1px solid var(--border, #e0e0e0);
+    width: 100%; border: 1px solid var(--input-border, #9aa0a8);
     border-radius: 4px; padding: 6px 8px; resize: vertical;
-    background: var(--surface, #fff); color: var(--text, #212121);
+    background: var(--input-bg, #eef); color: var(--input-text, #1a1a1a);
   }
   .acl-specific-panel {
     display: flex; flex-direction: column; gap: 6px;
@@ -57,9 +57,9 @@ export const CSS = `
     font-family: 'Fira Mono', 'Consolas', monospace;
     font-size: max(16px, 0.85em); flex: 1; min-height: 200px;
     width: 100%; resize: vertical;
-    border: 1px solid var(--border, #e0e0e0);
+    border: 1px solid var(--input-border, #9aa0a8);
     border-radius: 4px; padding: 10px;
-    background: var(--surface, #fff); color: var(--text, #212121);
+    background: var(--input-bg, #eef); color: var(--input-text, #1a1a1a);
   }
   .acl-rdf-editor:focus { outline: none; border-color: var(--accent, #2196f3); }
   .acl-error {

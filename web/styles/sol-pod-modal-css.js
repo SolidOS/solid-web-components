@@ -25,7 +25,7 @@ export const CSS = BTN_CSS + WAC_CSS + `
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-    background: var(--surface, #fff); color: var(--text, #212121);
+    background: var(--input-bg, #eef); color: var(--input-text, #1a1a1a);
   }
   .modal-editor:focus {
     outline: none;
@@ -125,12 +125,12 @@ export const CSS = BTN_CSS + WAC_CSS + `
     font: inherit;
     line-height: 1.2;
     padding: 0.4em 0.7em;
-    border: 1px solid var(--border-soft, var(--border, #d6dae2));
+    border: 1px solid var(--input-border, #9aa0a8);
     border-radius: 6px;
     /* Same explicit height as .modal-row > .sol-btn below. */
     height: calc(1.2em + 0.8em + 2px);
-    background: var(--surface, #fff);
-    color: var(--text, #0f1115);
+    background: var(--input-bg, #eef);
+    color: var(--input-text, #1a1a1a);
     transition: border-color 0.12s, box-shadow 0.12s;
   }
   .modal-input:focus {
