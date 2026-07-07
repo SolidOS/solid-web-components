@@ -51,8 +51,10 @@ const EXAMPLES = {
 };
 
 const ZOOM_FMTS = new Set(['turtle','jsonld','graphviz','markdown','mermaid']);
-// Zoom recenters only diagrams; document formats keep their scroll position.
-const CENTER_ZOOM_FMTS = new Set(['graphviz','mermaid']);
+// Diagram/graph formats center in the preview pane and recenter on zoom;
+// document formats (DOC_FMTS) pin to the top-left and keep their scroll.
+const CENTER_ZOOM_FMTS = new Set(['graphviz','mermaid','turtle','jsonld']);
+const DOC_FMTS = new Set(['markdown','html','csv']);
 
 const EXT = {ttl:'turtle',n3:'turtle',turtle:'turtle',jsonld:'jsonld',csv:'csv',tsv:'csv',
              md:'markdown',markdown:'markdown',mmd:'mermaid',mermaid:'mermaid',
@@ -248,6 +250,9 @@ class SolLiveEdit extends HTMLElement {
     this._zoom=1.0;
     const po=this.shadowRoot.getElementById('po');
     if(po){po.style.transform='';po.style.transformOrigin='';po.style.width='100%';po.style.height='';}
+    // Documents read from the top; diagrams/graphs stay centered.
+    const ppEl=this.shadowRoot.getElementById('pp');
+    if(ppEl)ppEl.classList.toggle('sle-doc',DOC_FMTS.has(this._fmt));
     const zc=this.shadowRoot.getElementById('zoomctl');
     if(zc)zc.hidden=!this.canZoom;
     const zp=this.shadowRoot.getElementById('zmPct');

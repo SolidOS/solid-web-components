@@ -330,3 +330,21 @@ describe('SolLiveEdit — preview scroll', () => {
     expect(pp.scrollTop).toBe(120);
   });
 });
+
+describe('SolLiveEdit — preview alignment', () => {
+  test('document formats pin the preview to the top (sle-doc class)', async () => {
+    const el = await mkEditor({ format: 'markdown' });
+    expect(el.shadowRoot.getElementById('pp').classList.contains('sle-doc')).toBe(true);
+  });
+
+  test('graph/diagram formats stay centered (no sle-doc class)', async () => {
+    const el = await mkEditor({ format: 'turtle' });
+    expect(el.shadowRoot.getElementById('pp').classList.contains('sle-doc')).toBe(false);
+  });
+
+  test('switching formats retargets the alignment', async () => {
+    const el = await mkEditor({ format: 'turtle' });
+    await el._setFmt('html');
+    expect(el.shadowRoot.getElementById('pp').classList.contains('sle-doc')).toBe(true);
+  });
+});

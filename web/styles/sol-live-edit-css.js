@@ -45,6 +45,9 @@ export const CSS = `
 .body{display:flex;flex:1;overflow:hidden}
 .ep{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .pp{flex:1;overflow:auto;position:relative;display:flex;justify-content:safe center;align-items:safe center}
+/* Document formats (markdown/html/csv) read from the TOP — centering is for
+   diagrams/graphs (mermaid, graphviz, turtle/jsonld force graphs). */
+.pp.sle-doc{justify-content:flex-start;align-items:flex-start}
 
 /* Resizer — draggable divider between the editor and preview panes. */
 .sle-resizer{flex:0 0 6px;align-self:stretch;cursor:col-resize;
