@@ -130,8 +130,14 @@ class SolSheet extends SolElement {
       if (this.hasAttribute('open')) this._hide({ fromPop: true });
     });
     // Tab stays inside the open sheet (same trap the modal uses; focusables
-    // are the slotted light-DOM children).
-    this._on(panel, 'keydown', (e) => trapTab(e, this));
+    // are the slotted light-DOM children). VISIBLE ones only — content may
+    // hold collapsed sections (e.g. sol-tabs' accordion groups) whose rows
+    // are 0-height but still match the focusable selector.
+    this._on(panel, 'keydown', (e) => trapTab(e, this, () => this._visibleFocusables()));
+  }
+
+  _visibleFocusables() {
+    return focusablesIn(this).filter((el) => el.offsetParent !== null);
   }
 
   show() {
@@ -139,7 +145,7 @@ class SolSheet extends SolElement {
     this._restoreFocus = deepActiveElement();
     this.setAttribute('open', '');
     try { history.pushState({ solSheet: true }, ''); this._pushed = true; } catch (_) { this._pushed = false; }
-    const f = focusablesIn(this)[0];
+    const f = this._visibleFocusables()[0];
     if (f) f.focus();
     this.dispatchEvent(new CustomEvent('sol-ready', { bubbles: true, composed: true }));
   }

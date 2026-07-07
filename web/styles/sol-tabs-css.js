@@ -221,29 +221,9 @@ export const CSS = `
       border-bottom: 6px solid currentColor; }   /* up-caret: the sheet rises */
   }
 
-  /* ── the sheet (mounted on <body>; only created on coarse pointers) ── */
-  .sol-tabs-sheet {
-    position: fixed; inset: 0; z-index: 1200;
-    display: flex; flex-direction: column; justify-content: flex-end;
-    visibility: hidden; transition: visibility 0s linear .30s;
-  }
-  .sol-tabs-sheet.open { visibility: visible; transition-delay: 0s; }
-  .sol-tabs-sheet-scrim { position: absolute; inset: 0; background: rgba(20,16,10,.46);
-    opacity: 0; transition: opacity .30s ease; }
-  .sol-tabs-sheet.open .sol-tabs-sheet-scrim { opacity: 1; }
-  .sol-tabs-sheet-panel {
-    position: relative; z-index: 1;
-    max-height: 84vh; display: flex; flex-direction: column;
-    background: var(--surface, #fff);
-    border-radius: 20px 20px 0 0;
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
-    box-shadow: 0 -10px 44px rgba(0,0,0,.34);
-    transform: translateY(101%);
-    transition: transform .32s cubic-bezier(.32,.72,0,1);
-  }
-  .sol-tabs-sheet.open .sol-tabs-sheet-panel { transform: translateY(0); }
-  .sol-tabs-sheet-grabber { flex: 0 0 auto; width: 38px; height: 5px; border-radius: 3px;
-    margin: 9px auto 4px; background: var(--border, #c8c8c8); opacity: .8; }
+  /* ── the sheet (a <sol-sheet> on <body>; only created on coarse pointers).
+     Scrim / panel / grip / open-close animation live in sol-sheet's shadow —
+     only the slotted LIST and its rows are styled here. ── */
   .sol-tabs-sheet-list { overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 10px; }
   /* Accordion group header (a submenu / Launch): reads like a section label but
      is a tappable row with a chevron that rotates when its leaves are expanded. */
@@ -290,7 +270,6 @@ export const CSS = `
   .sol-tabs-sheet-item.is-active .sol-tabs-sheet-bar { background: var(--row-accent, var(--accent, #999)); }
   .sol-tabs-sheet-item.is-active .sol-tabs-sheet-check { opacity: 1; }
   @media (prefers-reduced-motion: reduce) {
-    .sol-tabs-sheet, .sol-tabs-sheet-scrim, .sol-tabs-sheet-panel,
     .sol-tabs-sheet-group, .sol-tabs-sheet-groupchev { transition: none; }
   }
 `;

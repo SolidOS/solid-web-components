@@ -76,7 +76,7 @@ import { registerMenuConsumer, deferUntilLoader } from '../core/menu-consumer.js
 import { renderComponentItem, renderLinkItem, ensureHandler, isCommandName, dispatchCommand, paramsToObject } from '../core/rdf-render.js';
 import { emitTab } from '../core/menu-generate.js';
 import { extractTab, extractSubmenu } from '../core/menu-html.js';
-import { deepActiveElement, trapTab } from '../core/focus-trap.js';
+import './sol-sheet.js';   // the shared bottom-sheet surface the phone nav slots into
 
 // For auto-wiring an inline action launcher to this tabs' content area we need
 // a stable selector; mint an id for any <sol-tabs> that lacks one.
@@ -681,26 +681,18 @@ class SolTabs extends HTMLElement {
   }
 
   // (Re)build the bottom sheet from the current tab model, mounted on <body>.
+  // The surface (scrim, panel, grip, focus trap, Escape, back gesture) is the
+  // shared <sol-sheet> primitive; sol-tabs owns only the LIST it slots in.
   _buildSheet() {
     this._removeSheet();
-    const sheet = document.createElement('div');
+    const sheet = document.createElement('sol-sheet');
     sheet.className = 'sol-tabs-sheet';
-    sheet.setAttribute('role', 'dialog');
-    sheet.setAttribute('aria-modal', 'true');
-    sheet.setAttribute('aria-label', 'Go to');
+    sheet.setAttribute('label', 'Go to');
+    sheet.addEventListener('sol-close', () => this._navTrigger?.setAttribute('aria-expanded', 'false'));
 
-    const scrim = document.createElement('div');
-    scrim.className = 'sol-tabs-sheet-scrim';
-    scrim.addEventListener('click', () => this._closeSheet());
-
-    const panel = document.createElement('div');
-    panel.className = 'sol-tabs-sheet-panel';
-    const grab = document.createElement('div');
-    grab.className = 'sol-tabs-sheet-grabber';
-    panel.appendChild(grab);
     const list = document.createElement('div');
     list.className = 'sol-tabs-sheet-list';
-    panel.appendChild(list);
+    sheet.appendChild(list);
 
     this._navItems = [];   // { el, meta, key, groupKey } for active-state sync
     this._groups = [];     // { key, head, group } for accordion expand/collapse
@@ -772,8 +764,6 @@ class SolTabs extends HTMLElement {
         { kind: 'launch', el }, null, `l:${i}`, 'g:Launch'));
     }
 
-    sheet.appendChild(scrim);
-    sheet.appendChild(panel);
     document.body.appendChild(sheet);
     this._sheet = sheet;
   }
@@ -798,48 +788,15 @@ class SolTabs extends HTMLElement {
     // showing where you are (a leaf's group; a direct room opens all-collapsed).
     const active = (this._navItems || []).find((i) => i.key === this._navKey);
     this._setOpenGroup(active?.groupKey || null);
-    this._sheetLastFocus = deepActiveElement();   // restore to the trigger on close
-    this._sheet.classList.add('open');
+    // sol-sheet owns focus (trap + restore-to-opener), Escape, the scrim,
+    // and the back-gesture contract.
+    this._sheet.show();
     this._navTrigger?.setAttribute('aria-expanded', 'true');
-    // Move focus into the sheet so keyboard users land inside the dialog.
-    const firstItem = this._visibleSheetFocusables()[0];
-    (firstItem || this._sheet).focus?.();
-    this._onSheetKey = (e) => {
-      if (e.key === 'Escape') { this._closeSheet(); return; }
-      if (e.key === 'Tab') this._trapSheetTab(e);
-    };
-    document.addEventListener('keydown', this._onSheetKey);
   }
 
-  // Visible focusables in the open sheet (collapsed-group rows are display:none,
-  // so offsetParent filters them out) — the set the Tab trap cycles through.
-  _visibleSheetFocusables() {
-    if (!this._sheet) return [];
-    return Array.from(this._sheet.querySelectorAll(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), '
-      + 'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
-      .filter((el) => el.offsetParent !== null);
-  }
-
-  // Tab / Shift+Tab cycles within the open sheet (a role="dialog" aria-modal),
-  // over its VISIBLE rows (collapsed-group rows are display:none).
-  _trapSheetTab(e) {
-    trapTab(e, this._sheet, () => this._visibleSheetFocusables());
-  }
-
-  _closeSheet() {
-    if (!this._sheet) return;
-    this._sheet.classList.remove('open');   // CSS animates out, then visibility:hidden
-    this._navTrigger?.setAttribute('aria-expanded', 'false');
-    if (this._onSheetKey) { document.removeEventListener('keydown', this._onSheetKey); this._onSheetKey = null; }
-    // Return focus to whatever opened the sheet (usually the nav trigger).
-    const restore = this._sheetLastFocus || this._navTrigger;
-    this._sheetLastFocus = null;
-    if (restore && typeof restore.focus === 'function') { try { restore.focus(); } catch { /* gone */ } }
-  }
+  _closeSheet() { this._sheet?.hide(); }   // aria-expanded resets on sol-close
 
   _removeSheet() {
-    if (this._onSheetKey) { document.removeEventListener('keydown', this._onSheetKey); this._onSheetKey = null; }
     if (this._sheet) { this._sheet.remove(); this._sheet = null; }
   }
 
