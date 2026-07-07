@@ -364,3 +364,34 @@ describe('SolWac — attributeChangedCallback', () => {
     expect(el._aclUrl).toBe('https://pod.example/b.ttl.acl');
   });
 });
+
+// ── container-only "apply to contents" checkbox ─────────────────────────────
+
+describe('SolWac — folder-only acl:default checkbox', () => {
+  const CB = /Apply to folder contents/;
+
+  test('a file (no trailing slash) gets no checkbox', async () => {
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/file.ttl.acl': OWNER_ACL } });
+    const el = await mkWac('https://pod.example/file.ttl', fetchFn);
+    expect(el.innerHTML).not.toMatch(CB);
+  });
+
+  test('a folder gets the checkbox', async () => {
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/docs/.acl': CONTAINER_ACL } });
+    const el = await mkWac('https://pod.example/docs/', fetchFn);
+    expect(el.innerHTML).toMatch(CB);
+  });
+
+  test('an explicit isContainer=false beats a slash-terminated URL', async () => {
+    // The host (sol-pod-ops) knows the item; its word overrides URL shape.
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/docs/.acl': CONTAINER_ACL } });
+    const el = document.createElement('sol-wac');
+    el._fetchFn = fetchFn;
+    el.isContainer = false;                      // hint before connect
+    el.setAttribute('source', 'https://pod.example/docs/');
+    document.body.appendChild(el);
+    await flush();
+    expect(el.innerHTML).not.toMatch(CB);
+    expect(el._isContainer).toBe(false);
+  });
+});

@@ -216,6 +216,7 @@ class SolWac extends HTMLElement {
     this._turtle = '';
     this._model = null;
     this._isContainer = false;
+    this._isContainerHint = null;
     this._inherited = null;
     this._inheritedFrom = null;
     this._rendered = false;
@@ -224,6 +225,16 @@ class SolWac extends HTMLElement {
 
   get source() { return this.getAttribute('source') || ''; }
   set source(v) { if (v) this.setAttribute('source', v); else this.removeAttribute('source'); }
+
+  /** Explicit container-ness from the host (e.g. sol-pod-ops knows the
+   *  item). When set, it overrides the URL-shape heuristic — the
+   *  folder-only "apply to contents" checkbox must never appear on a
+   *  file whatever its URL looks like. */
+  get isContainer() { return this._isContainer; }
+  set isContainer(v) {
+    this._isContainerHint = (v === null || v === undefined) ? null : !!v;
+    if (this._rendered && this.source) this.load();
+  }
 
   get fetchFn() { return this._fetchFn || (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : null); }
   set fetchFn(fn) { this._fetchFn = fn; if (this._rendered) this.load(); }
@@ -242,7 +253,7 @@ class SolWac extends HTMLElement {
   async load() {
     const url = this.source;
     if (!url) return;
-    this._isContainer = url.endsWith('/');
+    this._isContainer = this._isContainerHint ?? url.endsWith('/');
     this.innerHTML = '<div class="acl-banner">Loading permissions…</div>';
 
     let perms;

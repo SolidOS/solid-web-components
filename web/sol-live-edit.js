@@ -51,6 +51,8 @@ const EXAMPLES = {
 };
 
 const ZOOM_FMTS = new Set(['turtle','jsonld','graphviz','markdown','mermaid']);
+// Zoom recenters only diagrams; document formats keep their scroll position.
+const CENTER_ZOOM_FMTS = new Set(['graphviz','mermaid']);
 
 const EXT = {ttl:'turtle',n3:'turtle',turtle:'turtle',jsonld:'jsonld',csv:'csv',tsv:'csv',
              md:'markdown',markdown:'markdown',mmd:'mermaid',mermaid:'mermaid',
@@ -294,6 +296,12 @@ class SolLiveEdit extends HTMLElement {
     if(!this._cm)return;
     this._cm.setValue(text);
     await this._render();
+    // A freshly loaded document always previews from the TOP — the preview
+    // pane may retain an old scroll position (or a zoom recenter) from
+    // whatever it showed before. Typing re-renders (_change → _render) do
+    // NOT come through here, so the reading position survives edits.
+    const pp=this.shadowRoot.getElementById('pp');
+    if(pp){pp.scrollTop=0;pp.scrollLeft=0;}
   }
 
   async _render(){
@@ -410,7 +418,10 @@ class SolLiveEdit extends HTMLElement {
       po.style.width=`${100*this._zoom}%`;
       po.style.height=`${100*this._zoom}%`;
     }
-    if(pp&&this._zoom>1){
+    // Zooming a DIAGRAM recenters (you zoom toward the middle of a graph);
+    // zooming a DOCUMENT (markdown/turtle/jsonld) must keep the reading
+    // position — recentering threw the preview to the middle of the page.
+    if(pp&&this._zoom>1&&CENTER_ZOOM_FMTS.has(this._fmt)){
       requestAnimationFrame(()=>{
         pp.scrollLeft=(pp.scrollWidth-pp.clientWidth)/2;
         pp.scrollTop=(pp.scrollHeight-pp.clientHeight)/2;

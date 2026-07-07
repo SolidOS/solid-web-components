@@ -308,3 +308,25 @@ describe('SolLiveEdit — toggleHelp', () => {
     expect(modal.classList.contains('on')).toBe(false);
   });
 });
+
+// ── preview scroll ──────────────────────────────────────────────────────────
+
+describe('SolLiveEdit — preview scroll', () => {
+  test('_setContent (a fresh load) starts the preview at the top', async () => {
+    const el = await mkEditor({ format: 'markdown' });
+    const pp = el.shadowRoot.getElementById('pp');
+    pp.scrollTop = 333; pp.scrollLeft = 44;      // stale position from a previous doc
+    await el._setContent('# fresh doc');
+    expect(pp.scrollTop).toBe(0);
+    expect(pp.scrollLeft).toBe(0);
+  });
+
+  test('zooming a document format keeps the scroll position (no recenter)', async () => {
+    const el = await mkEditor({ format: 'markdown' });
+    const pp = el.shadowRoot.getElementById('pp');
+    pp.scrollTop = 120;
+    el.zoomIn();                                  // markdown zooms but must NOT recenter
+    await new Promise((r) => setTimeout(r, 30));  // let any scheduled rAF fire
+    expect(pp.scrollTop).toBe(120);
+  });
+});

@@ -658,6 +658,7 @@ class SolPodOps extends HTMLElement {
     await import('./sol-wac.js');
     const wac = document.createElement('sol-wac');
     wac.fetchFn = this._fetchFor(item.url);
+    wac.isContainer = !!item.isContainer;   // authoritative — not the URL shape
     wac.setAttribute('source', item.url);
     wac.addEventListener('sol-status', (e) => this._emitStatus(e.detail.message, e.detail.type));
     body.appendChild(wac);
