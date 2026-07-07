@@ -13,7 +13,10 @@ shape <#MenuShape> -> ui:Menu {
 }
 shape <#MenuPartsCollectionShape> {
     rdf:rest* hasValue=rdf:nil .
-    rdf:first ui:Link|ui:Component|ui:Menu .
+    rdf:rest*/rdf:first ui:Link|ui:Component|ui:Menu @<#MenuItemShape> .
+}
+shape <#MenuItemShape> {
+    ui:label xsd:string [1..1] message="Every menu item (ui:Link, ui:Component, nested ui:Menu) must have a ui:label" % sh:name "label" ; sh:description "Display label — required for every item reachable from a ui:Menu" % .
 }
 shape <#LinkShape> -> ui:Link ;
     sh:xone ([
@@ -29,21 +32,35 @@ shape <#LinkShape> -> ui:Link ;
     ]) {
     message="A ui:Link must have either ui:href or ui:contents" .
     ui:label xsd:string [1..1] % sh:name "label" ; sh:description "The display label for the link" % .
-    ui:href xsd:anyURI [0..1] % sh:name "href" ; sh:description "URL to load (via handler component if present)" % .
+    ui:href [0..1] IRI|xsd:string % sh:name "href" ; sh:description "URL to load (via handler component if present) — an IRI or a URL string" % .
     ui:contents rdf:HTML [0..1] % sh:name "contents" ; sh:description "Literal HTML rendered inline (sanitized by default)" % .
-    ui:icon xsd:anyURI [0..1] % sh:name "icon" ; sh:description "Icon URL" % .
+    ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
     rdfs:comment xsd:string [0..1] % sh:description "Description of the Link" % .
-    dcterms:subject skos:Concept % sh:description "Categories associated with the Link" % .
+    dcterms:subject xsd:string|skos:Concept % sh:description "Categories associated with the Link — plain string topics or skos:Concept nodes" % .
     acl:mode IRI in=[acl:Read acl:Write acl:Append acl:Control] % sh:name "access mode" ; sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." % .
+    ui:region IRI [0..1] % sh:name "region" ; sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" % .
+    ui:hoverTitle xsd:string [0..1] % sh:name "hover title" ; sh:description "Hover / advisory text (HTML title semantics)" % .
+    schema:description xsd:string [0..1] % sh:name "description" ; sh:description "One-sentence user-facing description" % .
+    dcterms:creator xsd:string [0..1] % sh:name "creator" ; sh:description "Who made the linked resource" % .
+    dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the linked resource" % .
 }
 shape <#ComponentShape> -> ui:Component {
-    ui:label xsd:string [1..1] % sh:name "label" ; sh:description "Display name shown in the menu" % .
+    ui:label xsd:string [0..1] % sh:name "label" ; sh:description "Display name shown in the menu / palette. Optional here (manifest entries may omit it); items reachable from a ui:Menu must have one (see :MenuItemShape)" % .
     ui:name xsd:string [1..1] % sh:name "name" ; sh:description "Custom element tag name (hyphenated, e.g. 'sol-query'), OR a hyphen-free command key (e.g. 'installPod') dispatched as a sol-command event for the host app to handle" % .
     ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "Attributes passed to the element (or args for a command) as schema:PropertyValue pairs" % .
-    ui:icon xsd:anyURI [0..1] % sh:name "icon" ; sh:description "Icon URL" % .
+    ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
     acl:mode IRI in=[acl:Read acl:Write acl:Append acl:Control] % sh:name "access mode" ; sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." % .
+    ui:hoverTitle xsd:string [0..1] % sh:name "hover title" ; sh:description "Hover / advisory text (HTML title semantics)" % .
+    ui:region IRI [0..1] % sh:name "region" ; sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" % .
+    rdfs:comment xsd:string % sh:description "Documentary note (round-tripped by generators)" % .
+    schema:description xsd:string [0..1] % sh:name "description" ; sh:description "One-sentence user-facing description" % .
+    dcterms:conformsTo IRI [0..1] % sh:name "shape" ; sh:description "SHACL shape the component's data conforms to" % .
+    dcterms:references IRI % sh:name "data" ; sh:description "The data document(s) it reads/writes" % .
+    schema:softwareHelp IRI [0..1] % sh:name "help" ; sh:description "USER online help (not developer docs)" % .
+    dcterms:creator xsd:string [0..1] % sh:name "creator" ; sh:description "Who made the component" % .
+    dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the component" % .
 }
 shape <#PropertyValueShape> {
     schema:name xsd:string [1..1] % sh:name "name" ; sh:description "Attribute name" % .
-    schema:value [1..1] % sh:name "value" ; sh:description "Attribute value" % .
+    schema:value [1..1] % sh:name "value" ; sh:description "Attribute value (datatype-free; JSON-LD manifests always emit strings)" % .
 }

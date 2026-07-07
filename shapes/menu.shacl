@@ -50,12 +50,29 @@
     sh:hasValue rdf:nil ;
   ] ;
   sh:property [
-    sh:path rdf:first ;
+    sh:path ( [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
     sh:or (
       [ sh:class ui:Link ]
       [ sh:class ui:Component ]
       [ sh:class ui:Menu ]
     ) ;
+    sh:node :MenuItemShape ;
+  ] .
+
+# Menu-context strictness: bound only via the parts path above (no
+# targetClass), so it applies to every member REACHABLE from a ui:Menu but
+# never to free-standing ui:Component/ui:Link nodes (e.g. manifest entries,
+# where ui:label is optional — see :ComponentShape).
+:MenuItemShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path ui:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "label" ;
+    sh:description "Display label — required for every item reachable from a ui:Menu" ;
+    sh:message "Every menu item (ui:Link, ui:Component, nested ui:Menu) must have a ui:label" ;
   ] .
 
 :LinkShape
@@ -72,9 +89,9 @@
   sh:property [
     sh:path ui:href ;
     sh:maxCount 1 ;
-    sh:datatype xsd:anyURI ;
+    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
     sh:name "href" ;
-    sh:description "URL to load (via handler component if present)" ;
+    sh:description "URL to load (via handler component if present) — an IRI or a URL string" ;
   ] ;
   sh:property [
     sh:path ui:contents ;
@@ -86,9 +103,9 @@
   sh:property [
     sh:path ui:icon ;
     sh:maxCount 1 ;
-    sh:datatype xsd:anyURI ;
+    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
     sh:name "icon" ;
-    sh:description "Icon URL" ;
+    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
   ] ;
   sh:property [
     sh:path rdfs:comment ;
@@ -98,8 +115,8 @@
   ] ;
   sh:property [
     sh:path dcterms:subject ;
-    sh:class skos:Concept ;
-    sh:description "Categories associated with the Link" ;
+    sh:or ( [ sh:datatype xsd:string ] [ sh:class skos:Concept ] ) ;
+    sh:description "Categories associated with the Link — plain string topics or skos:Concept nodes" ;
   ] ;
   sh:property [
     sh:path acl:mode ;
@@ -108,22 +125,60 @@
     sh:name "access mode" ;
     sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." ;
   ] ;
+  sh:property [
+    sh:path ui:region ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:name "region" ;
+    sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" ;
+  ] ;
+  sh:property [
+    sh:path ui:hoverTitle ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "hover title" ;
+    sh:description "Hover / advisory text (HTML title semantics)" ;
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "description" ;
+    sh:description "One-sentence user-facing description" ;
+  ] ;
+  sh:property [
+    sh:path dcterms:creator ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "creator" ;
+    sh:description "Who made the linked resource" ;
+  ] ;
+  sh:property [
+    sh:path dcterms:publisher ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "publisher" ;
+    sh:description "Who publishes the linked resource" ;
+  ] ;
   sh:xone (
     [ sh:property [ sh:path ui:href ; sh:minCount 1 ] ]
     [ sh:property [ sh:path ui:contents ; sh:minCount 1 ] ]
   ) ;
   sh:message "A ui:Link must have either ui:href or ui:contents" .
 
+# THE shared ui:Component shape: a menu/tab item, a palette card source, and
+# a component-interop manifest entry are all this one shape. Manifest-only
+# plumbing (ci:module) stays in component-interop's manifest shape; validators
+# compose the two files into one shapes graph (binding via sh:targetClass).
 :ComponentShape
   a sh:NodeShape ;
   sh:targetClass ui:Component ;
   sh:property [
     sh:path ui:label ;
-    sh:minCount 1 ;
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "label" ;
-    sh:description "Display name shown in the menu" ;
+    sh:description "Display name shown in the menu / palette. Optional here (manifest entries may omit it); items reachable from a ui:Menu must have one (see :MenuItemShape)" ;
   ] ;
   sh:property [
     sh:path ui:name ;
@@ -142,9 +197,9 @@
   sh:property [
     sh:path ui:icon ;
     sh:maxCount 1 ;
-    sh:datatype xsd:anyURI ;
+    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
     sh:name "icon" ;
-    sh:description "Icon URL" ;
+    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
   ] ;
   sh:property [
     sh:path acl:mode ;
@@ -152,6 +207,68 @@
     sh:in ( acl:Read acl:Write acl:Append acl:Control ) ;
     sh:name "access mode" ;
     sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." ;
+  ] ;
+  # Optional descriptive metadata (shared with manifest entries). Kept last:
+  # property order here IS the edit-form field order.
+  sh:property [
+    sh:path ui:hoverTitle ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "hover title" ;
+    sh:description "Hover / advisory text (HTML title semantics)" ;
+  ] ;
+  sh:property [
+    sh:path ui:region ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:name "region" ;
+    sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" ;
+  ] ;
+  sh:property [
+    sh:path rdfs:comment ;
+    sh:datatype xsd:string ;
+    sh:description "Documentary note (round-tripped by generators)" ;
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "description" ;
+    sh:description "One-sentence user-facing description" ;
+  ] ;
+  sh:property [
+    sh:path dcterms:conformsTo ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:name "shape" ;
+    sh:description "SHACL shape the component's data conforms to" ;
+  ] ;
+  sh:property [
+    sh:path dcterms:references ;
+    sh:nodeKind sh:IRI ;
+    sh:name "data" ;
+    sh:description "The data document(s) it reads/writes" ;
+  ] ;
+  sh:property [
+    sh:path schema:softwareHelp ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:name "help" ;
+    sh:description "USER online help (not developer docs)" ;
+  ] ;
+  sh:property [
+    sh:path dcterms:creator ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "creator" ;
+    sh:description "Who made the component" ;
+  ] ;
+  sh:property [
+    sh:path dcterms:publisher ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "publisher" ;
+    sh:description "Who publishes the component" ;
   ] .
 
 :PropertyValueShape
@@ -169,5 +286,5 @@
     sh:minCount 1 ;
     sh:maxCount 1 ;
     sh:name "value" ;
-    sh:description "Attribute value" ;
+    sh:description "Attribute value (datatype-free; JSON-LD manifests always emit strings)" ;
   ] .

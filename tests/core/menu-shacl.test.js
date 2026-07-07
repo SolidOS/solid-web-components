@@ -1,0 +1,82 @@
+/**
+ * shapes/menu.shacl validation contract.
+ *
+ * These are the shared item shapes (ui:Menu / ui:Link / ui:Component) that
+ * menus, palette cards, and component-interop manifest entries all validate
+ * against. Uses the same engine component-interop's manifest tests use:
+ * n3 + rdf-validate-shacl.
+ *
+ * Covered here:
+ *   - the real-world menu fixture conforms
+ *   - a menu member without ui:label fails (:MenuItemShape via the parts path)
+ *   - a free-standing ui:Component without ui:label conforms (labels are only
+ *     required in menu context)
+ *   - a ui:Link with neither ui:href nor ui:contents fails (the sh:xone)
+ */
+
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Parser, Store } from 'n3';
+import SHACLValidator from 'rdf-validate-shacl';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, '..', '..');
+
+const PREFIXES = `
+@prefix ui:     <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+@prefix acl:    <http://www.w3.org/ns/auth/acl#> .
+`;
+
+function parse(text, base = 'http://menu-shacl.test/doc') {
+  return new Store(new Parser({ baseIRI: base }).parse(text));
+}
+
+const shapes = parse(
+  readFileSync(join(root, 'shapes', 'menu.shacl'), 'utf8'),
+  'http://menu-shacl.test/shapes',
+);
+
+async function validate(dataText) {
+  return await new SHACLValidator(shapes).validate(parse(PREFIXES + dataText));
+}
+
+test('the menu fixture conforms', async () => {
+  const data = parse(
+    readFileSync(join(here, '..', 'fixtures', 'menu-pantry.ttl'), 'utf8'),
+  );
+  const report = await new SHACLValidator(shapes).validate(data);
+  const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
+  expect(messages).toEqual([]);
+  expect(report.conforms).toBe(true);
+});
+
+test('a menu member without ui:label fails', async () => {
+  const report = await validate(`
+<#Menu> a ui:Menu ; ui:label "m" ; ui:parts ( <#NoLabel> ) .
+<#NoLabel> a ui:Component ; ui:name "sol-thing" .
+`);
+  expect(report.conforms).toBe(false);
+  // The engine surfaces the outer sh:node violation (the parts collection);
+  // the nested label sh:message stays inside the shape. Paired with the
+  // free-standing-conforms test below, this proves labels bind via menus only.
+  const text = report.results.flatMap((r) => r.message.map((m) => m.value)).join('\n');
+  expect(text).toMatch(/MenuPartsCollectionShape/);
+});
+
+test('a free-standing ui:Component without ui:label conforms', async () => {
+  // The manifest-entry case: labels are optional outside menu context.
+  const report = await validate(`
+<#Card> a ui:Component ; ui:name "sol-feed" ; ui:icon "📰" .
+`);
+  expect(report.conforms).toBe(true);
+});
+
+test('a ui:Link with neither ui:href nor ui:contents fails the xone', async () => {
+  const report = await validate(`
+<#Menu> a ui:Menu ; ui:label "m" ; ui:parts ( <#Bad> ) .
+<#Bad> a ui:Link ; ui:label "dangling" .
+`);
+  expect(report.conforms).toBe(false);
+});

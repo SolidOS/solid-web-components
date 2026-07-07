@@ -111,7 +111,11 @@
       <tr><td><code>ui:icon</code></td><td>link / component</td><td>Icon URL.</td></tr>
     </tbody>
   </table>
-  <p>The canonical shape lives in <code>shapes/menu.shacl</code>. A command's
+  <p>The canonical shape lives in <code>shapes/menu.shacl</code>. Its
+  <code>ui:Link</code> / <code>ui:Component</code> shapes are shared: a menu item, a
+  palette card, and a component-interop manifest entry are all the same shape
+  (component-interop's manifest shape adds only the envelope and
+  <code>ci:module</code>). A command's
   <code>ui:name</code> is just a key — no code is named in the RDF; your app maps the key
   to a handler when it receives the <code>sol-command</code> event.</p>
 
