@@ -5,10 +5,10 @@
  *   - getAclUrl: Link-header discovery and the .acl fallback
  *   - getPermissions: own ACL, inherited ACL from a parent, nothing found
  *   - SolWac component: source/fetchFn accessors, load(), save(),
- *     rendering (role form + RDF subtabs), and the sol-wac-* events
+ *     rendering (matrix form + RDF subtabs), and the sol-wac-* events
  *
- * The ACL pure functions (parseAcl / authsToRoleModel / roleModelToTurtle
- * / adaptInheritedAcl) are exercised separately in security.test.js.
+ * The ACL pure functions (parseAcl / authsToMatrix / matrixToTurtle)
+ * are exercised separately in security.test.js.
  */
 
 import rdflib from '../__mocks__/rdflib-esm.js';
@@ -16,6 +16,7 @@ window.$rdf = rdflib;
 window.__SolSuppressDefineWarn = true;
 
 import { SolWac, getAclUrl, getPermissions } from '../../web/sol-wac.js';
+import { rdf } from '../../core/rdf.js';
 
 const ACL  = 'http://www.w3.org/ns/auth/acl#';
 const RDF  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
@@ -32,6 +33,21 @@ const OWNER_ACL =
   `<https://pod.example/file.ttl.acl#owner> <${ACL}mode> <${ACL}Read> .\n` +
   `<https://pod.example/file.ttl.acl#owner> <${ACL}mode> <${ACL}Control> .\n` +
   `<https://pod.example/file.ttl.acl#owner> <${ACL}agentClass> <${FOAF}Agent> .\n`;
+
+// A container ACL whose owner block carries acl:default — the part
+// children inherit — plus a public block that does NOT (accessTo only).
+const CONTAINER_ACL =
+  `<https://pod.example/docs/.acl#owner> <${RDF}type> <${ACL}Authorization> .\n` +
+  `<https://pod.example/docs/.acl#owner> <${ACL}mode> <${ACL}Read> .\n` +
+  `<https://pod.example/docs/.acl#owner> <${ACL}mode> <${ACL}Write> .\n` +
+  `<https://pod.example/docs/.acl#owner> <${ACL}mode> <${ACL}Control> .\n` +
+  `<https://pod.example/docs/.acl#owner> <${ACL}agent> <https://alice.example/card#me> .\n` +
+  `<https://pod.example/docs/.acl#owner> <${ACL}accessTo> <https://pod.example/docs/> .\n` +
+  `<https://pod.example/docs/.acl#owner> <${ACL}default> <https://pod.example/docs/> .\n` +
+  `<https://pod.example/docs/.acl#public> <${RDF}type> <${ACL}Authorization> .\n` +
+  `<https://pod.example/docs/.acl#public> <${ACL}mode> <${ACL}Read> .\n` +
+  `<https://pod.example/docs/.acl#public> <${ACL}agentClass> <${FOAF}Agent> .\n` +
+  `<https://pod.example/docs/.acl#public> <${ACL}accessTo> <https://pod.example/docs/> .\n`;
 
 // Fake authenticated fetch: HEAD advertises no acl Link (forcing the .acl
 // fallback), GET serves any ACL in `acls`, PUT is recorded.
@@ -152,10 +168,12 @@ describe('SolWac — load', () => {
     expect(tabNames).toEqual(expect.arrayContaining(['Form', 'RDF']));
   });
 
-  test('parses the ACL into a role model (owner is public here)', async () => {
+  test('parses the ACL into a matrix model (public Read + Control here)', async () => {
     const fetchFn = mkFetch({ acls: { 'https://pod.example/file.ttl.acl': OWNER_ACL } });
     const el = await mkWac('https://pod.example/file.ttl', fetchFn);
-    expect(el._model.owner.grant).toBe('public');
+    expect(el._model.public.read).toBe(true);
+    expect(el._model.public.control).toBe(true);
+    expect(el._model.public.write).toBe(false);
   });
 
   test('a load failure renders an error and fires sol-wac-error', async () => {
@@ -176,17 +194,53 @@ describe('SolWac — load', () => {
     const fetchFn = mkFetch({ acls: { 'https://pod.example/docs/.acl': OWNER_ACL } });
     const el = await mkWac('https://pod.example/docs/file.ttl', fetchFn);
     const banner = el.querySelector('.acl-banner');
-    expect(banner.textContent).toMatch(/Inheriting permissions from https:\/\/pod\.example\/docs\//);
+    expect(banner.textContent).toMatch(/inherited from https:\/\/pod\.example\/docs\//);
+    expect(banner.textContent).toMatch(/specific to this resource/);
+  });
+
+  test('loads the parent\'s acl:default blocks into the form when inherited', async () => {
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/docs/.acl': CONTAINER_ACL } });
+    const el = await mkWac('https://pod.example/docs/file.ttl', fetchFn);
+    // the owner block (with acl:default) is inherited …
+    expect(el._model.agents[0]).toMatchObject({
+      id: 'https://alice.example/card#me', kind: 'agent',
+      modes: { read: true, append: false, write: true, control: true },
+    });
+    // … the public block (accessTo only, no acl:default) is not
+    expect(el._model.public).toEqual({ read: false, append: false, write: false, control: false });
+    // and the inherited perms are pre-checked in the rendered matrix
+    const agentRow = [...el.querySelectorAll('.acl-matrix tbody tr')][2];
+    expect([...agentRow.querySelectorAll('input[type="checkbox"]')].map(cb => cb.checked))
+      .toEqual([true, false, true, true]);
+    expect(el.querySelector('.acl-webid-input').value).toBe('https://alice.example/card#me');
+  });
+
+  test('an inherited parent ACL with no acl:default yields an empty form', async () => {
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/docs/.acl': OWNER_ACL } });
+    const el = await mkWac('https://pod.example/docs/file.ttl', fetchFn);
+    expect(el._model.public).toEqual({ read: false, append: false, write: false, control: false });
+    expect(el._model.agents.filter(a => a.id)).toEqual([]);
   });
 });
 
 // ── rendering ───────────────────────────────────────────────────────────────
 
 describe('SolWac — rendering', () => {
-  test('the Form tab renders one row per role', async () => {
+  test('the Form tab renders the who × mode matrix', async () => {
     const fetchFn = mkFetch({ acls: { 'https://pod.example/file.ttl.acl': OWNER_ACL } });
     const el = await mkWac('https://pod.example/file.ttl', fetchFn);
-    expect(el.querySelectorAll('.acl-role-row')).toHaveLength(4);   // viewer/poster/editor/owner
+    // Anyone + Any logged-in user + one empty specific-agent row
+    expect(el.querySelectorAll('.acl-matrix tbody tr')).toHaveLength(3);
+    // one checkbox per mode column in each row
+    expect(el.querySelectorAll('.acl-matrix tbody tr:first-child input[type="checkbox"]')).toHaveLength(4);
+    const whoLabels = [...el.querySelectorAll('.acl-matrix td.acl-who')].map(td => td.textContent);
+    expect(whoLabels.slice(0, 2)).toEqual(['Anyone', 'Any logged-in user']);
+    // the ACL is public Read+Control → those checkboxes are pre-checked
+    const anyoneBoxes = [...el.querySelectorAll('.acl-matrix tbody tr:first-child input[type="checkbox"]')];
+    expect(anyoneBoxes.map(cb => cb.checked)).toEqual([true, false, false, true]);
+    // nothing listed yet → the add button is hidden
+    const addBtn = el.querySelector('.acl-add-agent');
+    expect(addBtn.style.display).toBe('none');
   });
 
   test('the RDF tab shows the raw Turtle in a textarea', async () => {
@@ -229,6 +283,51 @@ describe('SolWac — save', () => {
     el.addEventListener('sol-wac-save', () => { fired = true; });
     await el.save();
     expect(fired).toBe(false);
+  });
+
+  test('invalid RDF in the RDF subtab blocks the save', async () => {
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/file.ttl.acl': OWNER_ACL } });
+    const el = await mkWac('https://pod.example/file.ttl', fetchFn);
+
+    el.querySelector('sol-tabs').switchTab('RDF');
+    const ta = el.querySelector('textarea.acl-rdf-editor');
+    // the mock parser is lenient, so make the singleton's parse strict here
+    const origParse = rdf.parse;
+    rdf.parse = () => { throw new Error('Bad syntax: expected "." after subject'); };
+    try {
+      ta.value = 'this is <not turtle';
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+
+      let phase = null, status = null;
+      el.addEventListener('sol-wac-error', (e) => { phase = e.detail.phase; });
+      el.addEventListener('sol-status', (e) => { status = e.detail; });
+      await el.save();
+
+      expect(fetchFn.puts).toHaveLength(0);          // nothing written
+      expect(phase).toBe('validate');
+      expect(status.type).toBe('error');
+      expect(status.message).toMatch(/invalid RDF/);
+    } finally {
+      rdf.parse = origParse;
+    }
+  });
+
+  test('valid raw RDF edited in the RDF subtab is saved verbatim', async () => {
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/file.ttl.acl': OWNER_ACL } });
+    const el = await mkWac('https://pod.example/file.ttl', fetchFn);
+
+    el.querySelector('sol-tabs').switchTab('RDF');
+    const ta = el.querySelector('textarea.acl-rdf-editor');
+    const edited =
+      '@prefix acl: <http://www.w3.org/ns/auth/acl#>.\n@prefix foaf: <http://xmlns.com/foaf/0.1/>.\n\n' +
+      '<#public>\n    a acl:Authorization;\n    acl:accessTo <https://pod.example/file.ttl>;\n' +
+      '    acl:mode acl:Read;\n    acl:agentClass foaf:Agent.\n';
+    ta.value = edited;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+
+    await el.save();
+    expect(fetchFn.puts).toHaveLength(1);
+    expect(fetchFn.puts[0].body).toBe(edited);       // raw text, not re-serialized
   });
 
   test('a failed PUT fires sol-wac-error and an error status', async () => {

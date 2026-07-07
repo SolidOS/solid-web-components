@@ -8,9 +8,9 @@
  *   - re-export the SolPodOps and SolWac classes on the module's API.
  *
  * We also exercise meaningful, deterministic behaviour reachable through the
- * combiner: sol-wac's exported pure ACL helpers (parse → role model → turtle,
- * plus ACL-URL discovery) and sol-pod-ops's observable DOM/event behaviour
- * (default-item derivation, status/navigate events, rendered output).
+ * combiner: sol-wac's exported pure ACL helpers (parse → matrix model →
+ * turtle, plus ACL-URL discovery) and sol-pod-ops's observable DOM/event
+ * behaviour (default-item derivation, status/navigate events, rendered output).
  */
 
 window.__SolSuppressDefineWarn = true;
@@ -18,8 +18,8 @@ window.__SolSuppressDefineWarn = true;
 import { SolPodOps, SolWac } from '../../web/sol-pod-extras.js';
 import * as Extras from '../../web/sol-pod-extras.js';
 import {
-  ROLES, GRANT_OPTIONS,
-  getAclUrl, parseAcl, authsToRoleModel, roleModelToTurtle, adaptInheritedAcl,
+  MODES, AGENT_KINDS,
+  getAclUrl, parseAcl, authsToMatrix, matrixToTurtle,
 } from '../../web/sol-wac.js';
 
 async function settle() { await new Promise(r => setTimeout(r, 20)); }
@@ -51,16 +51,18 @@ describe('sol-pod-extras — combiner', () => {
 // ── sol-wac: exported pure ACL helpers ───────────────────────────────────────
 
 describe('sol-wac vocab tables', () => {
-  test('ROLES escalate viewer → poster → editor → owner', () => {
-    expect(ROLES.map(r => r.key)).toEqual(['viewer', 'poster', 'editor', 'owner']);
-    // each higher role is a superset of the one below it
-    expect(ROLES[3].modes).toEqual(expect.arrayContaining(ROLES[0].modes));
-    expect(ROLES[3].modes).toContain('http://www.w3.org/ns/auth/acl#Control');
+  test('MODES cover read / append / write / control in matrix-column order', () => {
+    expect(MODES.map(m => m.key)).toEqual(['read', 'append', 'write', 'control']);
+    expect(MODES.map(m => m.uri)).toEqual([
+      'http://www.w3.org/ns/auth/acl#Read',
+      'http://www.w3.org/ns/auth/acl#Append',
+      'http://www.w3.org/ns/auth/acl#Write',
+      'http://www.w3.org/ns/auth/acl#Control',
+    ]);
   });
 
-  test('GRANT_OPTIONS offer nobody / specific / authenticated / public', () => {
-    expect(GRANT_OPTIONS.map(o => o.value))
-      .toEqual(['nobody', 'specific', 'authenticated', 'public']);
+  test('AGENT_KINDS offer user (acl:agent) and group (acl:agentGroup)', () => {
+    expect(AGENT_KINDS.map(k => k.value)).toEqual(['agent', 'group']);
   });
 });
 
@@ -92,7 +94,7 @@ describe('getAclUrl', () => {
   });
 });
 
-describe('parseAcl → authsToRoleModel', () => {
+describe('parseAcl → authsToMatrix', () => {
   const RES = 'https://pod.example/doc.ttl';
 
   test('parses Authorization blocks into mode/agent/agentClass lists', () => {
@@ -121,117 +123,118 @@ describe('parseAcl → authsToRoleModel', () => {
     expect(parseAcl(ttl, RES)).toEqual([]);
   });
 
-  test('public Read maps the viewer role to grant=public', () => {
+  test('public Read checks only the Anyone row\'s read box', () => {
     const ttl = `
 @prefix acl: <http://www.w3.org/ns/auth/acl#>.
 @prefix foaf: <http://xmlns.com/foaf/0.1/>.
 <#a> a acl:Authorization;
     acl:mode acl:Read;
     acl:agentClass foaf:Agent.`;
-    const model = authsToRoleModel(parseAcl(ttl, RES));
-    expect(model.viewer.grant).toBe('public');
-    expect(model.owner.grant).toBe('nobody');
+    const model = authsToMatrix(parseAcl(ttl, RES));
+    expect(model.public).toEqual({ read: true, append: false, write: false, control: false });
+    expect(model.authenticated).toEqual({ read: false, append: false, write: false, control: false });
+    expect(model.agents).toEqual([]);
   });
 
-  test('Control with a specific agent maps to the owner role', () => {
+  test('a specific agent with Control gets its own fully-checked row', () => {
     const ttl = `
 @prefix acl: <http://www.w3.org/ns/auth/acl#>.
 <#a> a acl:Authorization;
     acl:mode acl:Read, acl:Write, acl:Append, acl:Control;
     acl:agent <https://alice.example/card#me>.`;
-    const model = authsToRoleModel(parseAcl(ttl, RES));
-    expect(model.owner.grant).toBe('specific');
-    expect(model.owner.webids).toEqual(['https://alice.example/card#me']);
+    const model = authsToMatrix(parseAcl(ttl, RES));
+    expect(model.agents).toEqual([{
+      id: 'https://alice.example/card#me', kind: 'agent',
+      modes: { read: true, append: true, write: true, control: true },
+    }]);
   });
 
   test('an unparseable document yields no auths (and an empty model)', () => {
     const auths = parseAcl('this is not turtle', RES);
-    const model = authsToRoleModel(auths);
-    expect(ROLES.every(r => model[r.key].grant === 'nobody')).toBe(true);
+    const model = authsToMatrix(auths);
+    expect(model.public).toEqual({ read: false, append: false, write: false, control: false });
+    expect(model.authenticated).toEqual({ read: false, append: false, write: false, control: false });
+    expect(model.agents).toEqual([]);
   });
 });
 
-describe('roleModelToTurtle', () => {
+describe('matrixToTurtle', () => {
   const RES = 'https://pod.example/doc.ttl';
   const CONTAINER = 'https://pod.example/folder/';
 
-  function emptyModel() {
-    const m = {};
-    ROLES.forEach(r => { m[r.key] = { grant: 'nobody', webids: [], groups: [], applyToContents: false }; });
-    return m;
-  }
-
-  test('emits one Authorization per non-nobody role with accessTo', () => {
-    const m = emptyModel();
-    m.viewer.grant = 'public';
-    const ttl = roleModelToTurtle(m, RES);
+  test('emits one Authorization per row with checked modes, with accessTo', () => {
+    const m = authsToMatrix([]);
+    m.public.read = true;
+    const ttl = matrixToTurtle(m, RES);
     expect(ttl).toContain('a acl:Authorization');
     expect(ttl).toContain(`acl:accessTo <${RES}>`);
     expect(ttl).toContain('acl:agentClass foaf:Agent.');
   });
 
-  test('skips roles left at grant=nobody', () => {
-    const ttl = roleModelToTurtle(emptyModel(), RES);
+  test('skips rows with nothing checked', () => {
+    const ttl = matrixToTurtle(authsToMatrix([]), RES);
     expect(ttl).not.toContain('acl:Authorization');
   });
 
-  test('authenticated grant uses acl:AuthenticatedAgent', () => {
-    const m = emptyModel();
-    m.poster.grant = 'authenticated';
-    expect(roleModelToTurtle(m, RES)).toContain('acl:agentClass acl:AuthenticatedAgent.');
+  test('the logged-in row uses acl:AuthenticatedAgent', () => {
+    const m = authsToMatrix([]);
+    m.authenticated.read = true;
+    m.authenticated.append = true;
+    expect(matrixToTurtle(m, RES)).toContain('acl:agentClass acl:AuthenticatedAgent.');
   });
 
-  test('specific grant writes acl:agent / acl:agentGroup lines', () => {
-    const m = emptyModel();
-    m.editor.grant = 'specific';
-    m.editor.webids = ['https://bob.example/card#me'];
-    m.editor.groups = ['https://pod.example/contacts/Group/team#this'];
-    const ttl = roleModelToTurtle(m, RES);
+  test('specific rows write acl:agent / acl:agentGroup lines by kind', () => {
+    const m = authsToMatrix([]);
+    m.agents.push(
+      { id: 'https://bob.example/card#me', kind: 'agent',
+        modes: { read: true, append: false, write: true, control: false } },
+      { id: 'https://pod.example/contacts/Group/team#this', kind: 'group',
+        modes: { read: true, append: false, write: false, control: false } },
+    );
+    const ttl = matrixToTurtle(m, RES);
     expect(ttl).toContain('acl:agent <https://bob.example/card#me>');
     expect(ttl).toContain('acl:agentGroup <https://pod.example/contacts/Group/team#this>');
   });
 
   test('acl:default is only emitted for a container with applyToContents', () => {
-    const m = emptyModel();
-    m.viewer.grant = 'public';
-    m.viewer.applyToContents = true;
+    const m = authsToMatrix([]);
+    m.public.read = true;
+    m.applyToContents = true;
     // a file URL never gets acl:default even with the flag set
-    expect(roleModelToTurtle(m, RES)).not.toContain('acl:default');
+    expect(matrixToTurtle(m, RES)).not.toContain('acl:default');
     // a container does
-    expect(roleModelToTurtle(m, CONTAINER)).toContain(`acl:default <${CONTAINER}>`);
+    expect(matrixToTurtle(m, CONTAINER)).toContain(`acl:default <${CONTAINER}>`);
   });
 
-  test('round-trips: turtle → model → turtle preserves the public viewer grant', () => {
-    const m = emptyModel();
-    m.viewer.grant = 'public';
-    const round = authsToRoleModel(parseAcl(roleModelToTurtle(m, RES), RES));
-    expect(round.viewer.grant).toBe('public');
+  test('round-trips: turtle → model → turtle preserves the public read box', () => {
+    const m = authsToMatrix([]);
+    m.public.read = true;
+    const round = authsToMatrix(parseAcl(matrixToTurtle(m, RES), RES));
+    expect(round.public).toEqual({ read: true, append: false, write: false, control: false });
   });
 });
 
-describe('adaptInheritedAcl', () => {
-  test('keeps only acl:default blocks and rebases the parent URL onto the child', () => {
+describe('inherited ACLs (parse + acl:default filter)', () => {
+  test('only the parent\'s acl:default blocks reach the child\'s model', () => {
     const parent = 'https://pod.example/folder/';
-    const child = 'https://pod.example/folder/doc.ttl';
     const inherited = `@prefix acl: <http://www.w3.org/ns/auth/acl#>.
 
 <#a> a acl:Authorization;
+    acl:agent <https://alice.example/card#me>;
     acl:accessTo <${parent}>;
     acl:default <${parent}>;
     acl:mode acl:Read.
 
 <#b> a acl:Authorization;
+    acl:agent <https://bob.example/card#me>;
     acl:accessTo <${parent}>;
     acl:mode acl:Write.`;
-    const out = adaptInheritedAcl(inherited, parent, child);
-    // the @prefix line and the acl:default block survive; the no-default block drops
-    expect(out).toContain('@prefix acl:');
-    expect(out).toContain('acl:default');
-    expect(out).toContain('<#a>');
-    expect(out).not.toContain('<#b>');
-    // parent IRIs are rewritten to the child
-    expect(out).toContain(`<${child}>`);
-    expect(out).not.toContain(`<${parent}>`);
+    const model = authsToMatrix(parseAcl(inherited, parent).filter(a => a.default.length > 0));
+    // the acl:default block (alice) is inherited; the accessTo-only block (bob) is not
+    expect(model.agents).toEqual([{
+      id: 'https://alice.example/card#me', kind: 'agent',
+      modes: { read: true, append: false, write: false, control: false },
+    }]);
   });
 });
 

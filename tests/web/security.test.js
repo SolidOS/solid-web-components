@@ -43,9 +43,8 @@ const queryHtmlWithSelector = (...a) => {
 };
 import {
   parseAcl,
-  authsToRoleModel,
-  roleModelToTurtle,
-  adaptInheritedAcl,
+  authsToMatrix,
+  matrixToTurtle,
 } from '../../web/sol-wac.js';
 
 const ACL = 'http://www.w3.org/ns/auth/acl#';
@@ -410,24 +409,26 @@ describe('queryHtmlWithSelector — safety', () => {
 // ╚═══════════════════════════════════════════════════════════════════════════╝
 
 describe('WAC — round-trip integrity', () => {
-  test('parse → model → turtle → parse preserves public viewer', () => {
+  test('parse → model → turtle → parse preserves public Read', () => {
     const turtle1 = `
-      <http://ex/.acl#viewer> <${RDF_TYPE}> <${ACL}Authorization> .
-      <http://ex/.acl#viewer> <${ACL}mode> <${ACL}Read> .
-      <http://ex/.acl#viewer> <${ACL}agentClass> <${FOAF}Agent> .
-      <http://ex/.acl#viewer> <${ACL}accessTo> <http://ex/file.ttl> .
+      <http://ex/.acl#pub> <${RDF_TYPE}> <${ACL}Authorization> .
+      <http://ex/.acl#pub> <${ACL}mode> <${ACL}Read> .
+      <http://ex/.acl#pub> <${ACL}agentClass> <${FOAF}Agent> .
+      <http://ex/.acl#pub> <${ACL}accessTo> <http://ex/file.ttl> .
     `;
     const auths1 = parseAcl(turtle1, 'http://ex/.acl');
-    const model1 = authsToRoleModel(auths1);
-    expect(model1.viewer.grant).toBe('public');
+    const model1 = authsToMatrix(auths1);
+    expect(model1.public.read).toBe(true);
+    expect(model1.public.write).toBe(false);
 
-    const turtle2 = roleModelToTurtle(model1, 'http://ex/file.ttl');
+    const turtle2 = matrixToTurtle(model1, 'http://ex/file.ttl');
     const auths2 = parseAcl(turtle2, 'http://ex/.acl');
-    const model2 = authsToRoleModel(auths2);
-    expect(model2.viewer.grant).toBe('public');
+    const model2 = authsToMatrix(auths2);
+    expect(model2.public.read).toBe(true);
+    expect(model2.public.write).toBe(false);
   });
 
-  test('parse → model → turtle → parse preserves specific owner', () => {
+  test('parse → model → turtle → parse preserves a specific agent with Control', () => {
     const turtle1 = `
       <http://ex/.acl#owner> <${RDF_TYPE}> <${ACL}Authorization> .
       <http://ex/.acl#owner> <${ACL}mode> <${ACL}Read> .
@@ -437,18 +438,23 @@ describe('WAC — round-trip integrity', () => {
       <http://ex/.acl#owner> <${ACL}accessTo> <http://ex/file.ttl> .
     `;
     const auths1 = parseAcl(turtle1, 'http://ex/.acl');
-    const model1 = authsToRoleModel(auths1);
-    expect(model1.owner.grant).toBe('specific');
-    expect(model1.owner.webids).toContain('http://alice.example.com/card#me');
+    const model1 = authsToMatrix(auths1);
+    expect(model1.agents).toHaveLength(1);
+    expect(model1.agents[0]).toMatchObject({
+      id: 'http://alice.example.com/card#me', kind: 'agent',
+      modes: { read: true, append: false, write: true, control: true },
+    });
 
-    const turtle2 = roleModelToTurtle(model1, 'http://ex/file.ttl');
+    const turtle2 = matrixToTurtle(model1, 'http://ex/file.ttl');
     const auths2 = parseAcl(turtle2, 'http://ex/.acl');
-    const model2 = authsToRoleModel(auths2);
-    expect(model2.owner.grant).toBe('specific');
-    expect(model2.owner.webids).toContain('http://alice.example.com/card#me');
+    const model2 = authsToMatrix(auths2);
+    expect(model2.agents[0]).toMatchObject({
+      id: 'http://alice.example.com/card#me', kind: 'agent',
+      modes: { read: true, append: false, write: true, control: true },
+    });
   });
 
-  test('parse → model → turtle → parse preserves authenticated editor', () => {
+  test('parse → model → turtle → parse preserves authenticated Read+Write', () => {
     const turtle1 = `
       <http://ex/.acl#ed> <${RDF_TYPE}> <${ACL}Authorization> .
       <http://ex/.acl#ed> <${ACL}mode> <${ACL}Read> .
@@ -457,119 +463,128 @@ describe('WAC — round-trip integrity', () => {
       <http://ex/.acl#ed> <${ACL}accessTo> <http://ex/file.ttl> .
     `;
     const auths1 = parseAcl(turtle1, 'http://ex/.acl');
-    const model1 = authsToRoleModel(auths1);
-    expect(model1.editor.grant).toBe('authenticated');
+    const model1 = authsToMatrix(auths1);
+    expect(model1.authenticated).toEqual({ read: true, append: false, write: true, control: false });
 
-    const turtle2 = roleModelToTurtle(model1, 'http://ex/file.ttl');
+    const turtle2 = matrixToTurtle(model1, 'http://ex/file.ttl');
     const auths2 = parseAcl(turtle2, 'http://ex/.acl');
-    const model2 = authsToRoleModel(auths2);
-    expect(model2.editor.grant).toBe('authenticated');
+    const model2 = authsToMatrix(auths2);
+    expect(model2.authenticated).toEqual({ read: true, append: false, write: true, control: false });
   });
 });
 
 describe('WAC — permission escalation prevention', () => {
-  test('read-only auth does not grant write', () => {
+  test('read-only auth does not grant write or control', () => {
     const turtle = `
       <http://ex/.acl#r> <${RDF_TYPE}> <${ACL}Authorization> .
       <http://ex/.acl#r> <${ACL}mode> <${ACL}Read> .
       <http://ex/.acl#r> <${ACL}agentClass> <${FOAF}Agent> .
     `;
-    const model = authsToRoleModel(parseAcl(turtle, 'http://ex/.acl'));
-    expect(model.viewer.grant).toBe('public');
-    expect(model.editor.grant).toBe('nobody');
-    expect(model.owner.grant).toBe('nobody');
+    const model = authsToMatrix(parseAcl(turtle, 'http://ex/.acl'));
+    expect(model.public).toEqual({ read: true, append: false, write: false, control: false });
   });
 
-  test('write auth does not grant control', () => {
+  test('an agent auth does not leak modes onto the class rows', () => {
     const turtle = `
       <http://ex/.acl#rw> <${RDF_TYPE}> <${ACL}Authorization> .
       <http://ex/.acl#rw> <${ACL}mode> <${ACL}Read> .
       <http://ex/.acl#rw> <${ACL}mode> <${ACL}Write> .
       <http://ex/.acl#rw> <${ACL}agent> <http://bob.example.com/card#me> .
     `;
-    const model = authsToRoleModel(parseAcl(turtle, 'http://ex/.acl'));
-    expect(model.editor.grant).toBe('specific');
-    expect(model.owner.grant).toBe('nobody');
+    const model = authsToMatrix(parseAcl(turtle, 'http://ex/.acl'));
+    expect(model.agents[0].modes).toEqual({ read: true, append: false, write: true, control: false });
+    expect(model.public).toEqual({ read: false, append: false, write: false, control: false });
+    expect(model.authenticated).toEqual({ read: false, append: false, write: false, control: false });
   });
 
-  test('generated turtle for editor does not include Control mode', () => {
-    const model = authsToRoleModel([]);
-    model.editor.grant = 'public';
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
+  test('unchecked Control never appears in the generated turtle', () => {
+    const model = authsToMatrix([]);
+    model.public.read = true;
+    model.public.write = true;
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
+    expect(turtle).toContain('acl:Read');
     expect(turtle).toContain('acl:Write');
     expect(turtle).not.toContain('acl:Control');
   });
 
-  test('generated turtle for viewer does not include Write or Control', () => {
-    const model = authsToRoleModel([]);
-    model.viewer.grant = 'public';
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
+  test('a read-only row serializes only acl:Read', () => {
+    const model = authsToMatrix([]);
+    model.public.read = true;
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
     expect(turtle).toContain('acl:Read');
+    expect(turtle).not.toContain('acl:Append');
     expect(turtle).not.toContain('acl:Write');
     expect(turtle).not.toContain('acl:Control');
   });
 
-  test('generated turtle for poster includes Append but not Write or Control', () => {
-    const model = authsToRoleModel([]);
-    model.poster.grant = 'authenticated';
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
-    expect(turtle).toContain('acl:Append');
-    expect(turtle).toContain('acl:Read');
-    expect(turtle).not.toContain('acl:Control');
+  test('rows with no checked modes emit no Authorization block', () => {
+    const model = authsToMatrix([]);
+    model.agents.push({ id: 'http://alice.example.com/card#me', kind: 'agent',
+      modes: { read: false, append: false, write: false, control: false } });
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
+    expect(turtle).not.toContain('acl:Authorization');
+    expect(turtle).not.toContain('acl:agent');
   });
 
-  test('owner role includes Read, Write, Append, and Control', () => {
-    const model = authsToRoleModel([]);
-    model.owner.grant = 'specific';
-    model.owner.webids = ['http://alice.example.com/card#me'];
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
+  test('checked modes serialize exactly for a specific agent', () => {
+    const model = authsToMatrix([]);
+    model.agents.push({ id: 'http://alice.example.com/card#me', kind: 'agent',
+      modes: { read: true, append: false, write: true, control: true } });
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
     expect(turtle).toContain('acl:Read');
     expect(turtle).toContain('acl:Write');
     expect(turtle).toContain('acl:Control');
+    expect(turtle).not.toContain('acl:Append');
   });
 });
 
 describe('WAC — WebID URL safety in generated Turtle', () => {
-  test('WebID with angle brackets is quoted correctly', () => {
-    const model = authsToRoleModel([]);
-    model.viewer.grant = 'specific';
-    model.viewer.webids = ['http://alice.example.com/card#me'];
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
+  test('WebID is quoted in an acl:agent line', () => {
+    const model = authsToMatrix([]);
+    model.agents.push({ id: 'http://alice.example.com/card#me', kind: 'agent',
+      modes: { read: true, append: false, write: false, control: false } });
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
     expect(turtle).toContain('acl:agent <http://alice.example.com/card#me>');
   });
 
-  test('multiple WebIDs each get their own agent line', () => {
-    const model = authsToRoleModel([]);
-    model.viewer.grant = 'specific';
-    model.viewer.webids = [
-      'http://alice.example.com/card#me',
-      'http://bob.example.com/card#me',
-    ];
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
+  test('multiple WebIDs each get their own Authorization block', () => {
+    const model = authsToMatrix([]);
+    model.agents.push(
+      { id: 'http://alice.example.com/card#me', kind: 'agent',
+        modes: { read: true, append: false, write: false, control: false } },
+      { id: 'http://bob.example.com/card#me', kind: 'agent',
+        modes: { read: true, append: false, write: true, control: false } },
+    );
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
     expect(turtle).toContain('acl:agent <http://alice.example.com/card#me>');
     expect(turtle).toContain('acl:agent <http://bob.example.com/card#me>');
   });
 
-  test('empty webids list with specific grant produces no agent lines', () => {
-    const model = authsToRoleModel([]);
-    model.viewer.grant = 'specific';
-    model.viewer.webids = [];
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
-    // Should still produce the auth block but with no acl:agent
+  test('an empty WebID row produces no agent lines', () => {
+    const model = authsToMatrix([]);
+    model.agents.push({ id: '  ', kind: 'agent',
+      modes: { read: true, append: false, write: false, control: false } });
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
     expect(turtle).not.toContain('acl:agent');
   });
 
-  test('group URL is quoted in agentGroup', () => {
-    const model = authsToRoleModel([]);
-    model.editor.grant = 'specific';
-    model.editor.groups = ['http://example.com/groups/editors'];
-    const turtle = roleModelToTurtle(model, 'http://ex/file.ttl');
+  test('a group row is quoted in an acl:agentGroup line', () => {
+    const model = authsToMatrix([]);
+    model.agents.push({ id: 'http://example.com/groups/editors', kind: 'group',
+      modes: { read: true, append: false, write: true, control: false } });
+    const turtle = matrixToTurtle(model, 'http://ex/file.ttl');
     expect(turtle).toContain('acl:agentGroup <http://example.com/groups/editors>');
+    expect(turtle).not.toContain('acl:agent <http://example.com/groups/editors>');
   });
 });
 
-describe('WAC — adaptInheritedAcl safety', () => {
-  test('does not introduce extra permissions when adapting', () => {
+describe('WAC — inherited acl:default filtering', () => {
+  // What <sol-wac> does for a resource with no own ACL: parse the parent's
+  // ACL and keep only the Authorizations children inherit (acl:default).
+  const inheritedModel = (turtle, parentUrl) =>
+    authsToMatrix(parseAcl(turtle, parentUrl).filter(a => a.default.length > 0));
+
+  test('a parent block with acl:default is inherited, without extra modes', () => {
     const inherited = `@prefix acl: <http://www.w3.org/ns/auth/acl#>.
 @prefix foaf: <http://xmlns.com/foaf/0.1/>.
 
@@ -580,22 +595,42 @@ describe('WAC — adaptInheritedAcl safety', () => {
     acl:mode acl:Read;
     acl:agentClass foaf:Agent.`;
 
-    const result = adaptInheritedAcl(inherited, 'http://ex/parent/', 'http://ex/parent/child.ttl');
-    expect(result).toContain('acl:Read');
-    expect(result).not.toContain('acl:Write');
-    expect(result).not.toContain('acl:Control');
+    const model = inheritedModel(inherited, 'http://ex/parent/');
+    expect(model.public).toEqual({ read: true, append: false, write: false, control: false });
   });
 
-  test('replaces acl:default with acl:accessTo for file resources', () => {
+  test('parent blocks without acl:default are not inherited', () => {
     const inherited = `@prefix acl: <http://www.w3.org/ns/auth/acl#>.
+@prefix foaf: <http://xmlns.com/foaf/0.1/>.
 
-<#auth1>
+<#public>
     a acl:Authorization;
-    acl:default <http://ex/parent/>;
-    acl:mode acl:Read.`;
+    acl:accessTo <http://ex/parent/>;
+    acl:mode acl:Read, acl:Write, acl:Control;
+    acl:agentClass foaf:Agent.`;
 
-    const result = adaptInheritedAcl(inherited, 'http://ex/parent/', 'http://ex/parent/child.ttl');
-    expect(result).toContain('<http://ex/parent/child.ttl>');
+    const model = inheritedModel(inherited, 'http://ex/parent/');
+    expect(model.public).toEqual({ read: false, append: false, write: false, control: false });
+    expect(model.agents).toEqual([]);
+  });
+
+  test('a comment line before @prefix does not break inheritance parsing', () => {
+    const inherited = `# Root ACL resource for the agent account
+@prefix acl: <http://www.w3.org/ns/auth/acl#>.
+
+<#owner>
+    a acl:Authorization;
+    acl:agent <http://ex/profile/card#me>;
+    acl:accessTo <./>;
+    acl:default <./>;
+    acl:mode acl:Read, acl:Write, acl:Control.`;
+
+    const model = inheritedModel(inherited, 'http://ex/parent/');
+    expect(model.agents).toHaveLength(1);
+    expect(model.agents[0]).toMatchObject({
+      id: 'http://ex/profile/card#me', kind: 'agent',
+      modes: { read: true, append: false, write: true, control: true },
+    });
   });
 });
 

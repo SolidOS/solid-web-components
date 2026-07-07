@@ -2,10 +2,12 @@
  * <sol-wac> — Web Access Control (WAC) editor.
  *
  * Displays and edits the ACL for a Solid resource. Renders two subtabs:
- *   - Form: one row per role (viewer/poster/editor/owner) with a grant
- *     select (nobody / specific / authenticated / public) and an inline
- *     WebID+group panel for the "specific" case. A container-only checkbox
- *     toggles acl:default (apply to contents).
+ *   - Form: a permissions matrix — one row per "who" (Anyone / Any
+ *     logged-in user / one row per specific user-or-group WebID) and one
+ *     checkbox column per mode (Read / Append / Write-Delete / Control).
+ *     Specific rows carry a WebID input plus a user/group selector; an
+ *     "Add user or group WebID" button appends further rows. A
+ *     container-only checkbox toggles acl:default (apply to contents).
  *   - RDF: raw Turtle in a textarea.
  *
  * Attributes:
@@ -17,11 +19,12 @@
  *
  * Methods:
  *   load()       — (re)load the ACL from the server
- *   save()       — PUT the current Turtle to the resolved ACL URL
+ *   save()       — validate the current Turtle as RDF, then PUT it to the
+ *                  resolved ACL URL; invalid RDF is never saved
  *
  * Events (bubbling, composed):
  *   sol-wac-save   — ACL saved successfully ({ aclUrl })
- *   sol-wac-error  — load or save failed ({ phase, error })
+ *   sol-wac-error  — load, validate or save failed ({ phase, error })
  *   sol-status     — human-readable status ({ message, type })
  */
 
@@ -37,19 +40,20 @@ const ACL = 'http://www.w3.org/ns/auth/acl#';
 const FOAF = 'http://xmlns.com/foaf/0.1/';
 const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
 
-export const ROLES = [
-  { key: 'viewer',  label: 'Viewer',  modes: [ACL+'Read'] },
-  { key: 'poster',  label: 'Poster',  modes: [ACL+'Read', ACL+'Append'] },
-  { key: 'editor',  label: 'Editor',  modes: [ACL+'Read', ACL+'Write', ACL+'Append'] },
-  { key: 'owner',   label: 'Owner',   modes: [ACL+'Read', ACL+'Write', ACL+'Append', ACL+'Control'] },
+export const MODES = [
+  { key: 'read',    label: 'Read',           uri: ACL + 'Read' },
+  { key: 'append',  label: 'Append',         uri: ACL + 'Append' },
+  { key: 'write',   label: 'Write/Delete',   uri: ACL + 'Write' },
+  { key: 'control', label: 'Control Access', uri: ACL + 'Control' },
 ];
 
-export const GRANT_OPTIONS = [
-  { value: 'nobody',        label: 'Nobody' },
-  { value: 'specific',      label: 'Specific people/groups' },
-  { value: 'authenticated', label: 'Anyone logged in' },
-  { value: 'public',        label: 'Everyone (public)' },
+export const AGENT_KINDS = [
+  { value: 'agent', label: 'User' },
+  { value: 'group', label: 'Group' },
 ];
+
+const emptyModes = () => ({ read: false, append: false, write: false, control: false });
+const hasModes = (modes) => MODES.some(m => modes[m.key]);
 
 // ── ACL discovery ─────────────────────────────────────────────────────
 
@@ -117,77 +121,73 @@ export function parseAcl(turtleText, baseUrl) {
   return auths;
 }
 
-function _bestRoleForModes(modes) {
-  const has = m => modes.includes(ACL + m);
-  if (has('Control')) return 'owner';
-  if (has('Write'))   return 'editor';
-  if (has('Append'))  return 'poster';
-  if (has('Read'))    return 'viewer';
-  return null;
-}
-
-export function authsToRoleModel(auths) {
-  const model = {};
-  ROLES.forEach(r => {
-    model[r.key] = { grant: 'nobody', webids: [], groups: [], applyToContents: false };
-  });
+export function authsToMatrix(auths) {
+  const model = {
+    public: emptyModes(),          // acl:agentClass foaf:Agent
+    authenticated: emptyModes(),   // acl:agentClass acl:AuthenticatedAgent
+    agents: [],                    // { id, kind: 'agent'|'group', modes }
+    applyToContents: false,
+  };
+  const byKey = new Map();
+  const mark = (target, uris) => {
+    MODES.forEach(m => { if (uris.includes(m.uri)) target[m.key] = true; });
+  };
+  const agentEntry = (id, kind) => {
+    const key = kind + ' ' + id;
+    if (!byKey.has(key)) {
+      const entry = { id, kind, modes: emptyModes() };
+      byKey.set(key, entry);
+      model.agents.push(entry);
+    }
+    return byKey.get(key);
+  };
 
   for (const auth of auths) {
-    const roleKey = _bestRoleForModes(auth.modes);
-    if (!roleKey) continue;
-    const rm = model[roleKey];
-    if (auth.agentClasses.includes(FOAF+'Agent')) rm.grant = 'public';
-    else if (auth.agentClasses.includes(ACL+'AuthenticatedAgent')) {
-      if (rm.grant !== 'public') rm.grant = 'authenticated';
-    }
-    else if (auth.agents.length > 0 || auth.agentGroups.length > 0) {
-      if (rm.grant === 'nobody') rm.grant = 'specific';
-      rm.webids = [...new Set([...rm.webids, ...auth.agents])];
-      rm.groups = [...new Set([...rm.groups, ...auth.agentGroups])];
-    }
-    if (auth.default.length > 0) rm.applyToContents = true;
+    if (auth.agentClasses.includes(FOAF + 'Agent')) mark(model.public, auth.modes);
+    if (auth.agentClasses.includes(ACL + 'AuthenticatedAgent')) mark(model.authenticated, auth.modes);
+    auth.agents.forEach(id => mark(agentEntry(id, 'agent').modes, auth.modes));
+    auth.agentGroups.forEach(id => mark(agentEntry(id, 'group').modes, auth.modes));
+    if (auth.default.length > 0) model.applyToContents = true;
   }
   return model;
 }
 
-export function roleModelToTurtle(model, resourceUrl) {
-  let turtle = '@prefix acl: <http://www.w3.org/ns/auth/acl#>.\n@prefix foaf: <http://xmlns.com/foaf/0.1/>.\n\n';
-  let idx = 0;
-  const isContainer = resourceUrl.endsWith('/');
-
-  for (const role of ROLES) {
-    const rm = model[role.key];
-    if (rm.grant === 'nobody') continue;
-    idx++;
-    turtle += `<#auth${idx}>\n    a acl:Authorization;\n`;
-    turtle += `    acl:accessTo <${resourceUrl}>;\n`;
-    if (isContainer && rm.applyToContents) turtle += `    acl:default <${resourceUrl}>;\n`;
-    turtle += `    acl:mode ${role.modes.map(m => 'acl:' + m.split('#')[1]).join(', ')};\n`;
-
-    if (rm.grant === 'public') turtle += '    acl:agentClass foaf:Agent.\n\n';
-    else if (rm.grant === 'authenticated') turtle += '    acl:agentClass acl:AuthenticatedAgent.\n\n';
-    else {
-      const parts = [];
-      rm.webids.forEach(w => parts.push(`acl:agent <${w}>`));
-      rm.groups.forEach(g => parts.push(`acl:agentGroup <${g}>`));
-      turtle += '    ' + parts.join(';\n    ') + '.\n\n';
-    }
+// Strict parse of `turtleText` as Turtle — { ok, error }. Unlike parseAcl
+// (which swallows parse errors and returns []), this reports WHY it failed,
+// so save() can refuse to write a broken ACL.
+export function validateTurtle(turtleText, baseUrl) {
+  try {
+    rdf.parse(turtleText || '', rdf.graph(), baseUrl, 'text/turtle');
+    return { ok: true, error: null };
+  } catch (e) {
+    return { ok: false, error: (e && e.message) || String(e) };
   }
-  return turtle;
 }
 
-export function adaptInheritedAcl(inheritedTurtle, parentUrl, resourceUrl) {
-  const blocks = inheritedTurtle.split(/\n\s*\n/);
-  const kept = blocks.filter(b => {
-    const t = b.trim();
-    if (!t) return false;
-    if (/^@(prefix|base)\b/.test(t)) return true;
-    return /\bacl:default\b/.test(b);
-  });
-  let out = kept.join('\n\n');
-  const escaped = parentUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  out = out.replace(new RegExp(`<${escaped}>`, 'g'), `<${resourceUrl}>`);
-  return out;
+export function matrixToTurtle(model, resourceUrl) {
+  let turtle = '@prefix acl: <http://www.w3.org/ns/auth/acl#>.\n@prefix foaf: <http://xmlns.com/foaf/0.1/>.\n\n';
+  const isContainer = resourceUrl.endsWith('/');
+
+  const block = (frag, modes, agentLine) => {
+    turtle += `<#${frag}>\n    a acl:Authorization;\n`;
+    turtle += `    acl:accessTo <${resourceUrl}>;\n`;
+    if (isContainer && model.applyToContents) turtle += `    acl:default <${resourceUrl}>;\n`;
+    turtle += `    acl:mode ${MODES.filter(m => modes[m.key]).map(m => 'acl:' + m.uri.split('#')[1]).join(', ')};\n`;
+    turtle += `    ${agentLine}.\n\n`;
+  };
+
+  if (hasModes(model.public)) block('public', model.public, 'acl:agentClass foaf:Agent');
+  if (hasModes(model.authenticated)) block('authenticated', model.authenticated, 'acl:agentClass acl:AuthenticatedAgent');
+
+  let idx = 0;
+  for (const entry of model.agents) {
+    const id = (entry.id || '').trim();
+    if (!id || !hasModes(entry.modes)) continue;
+    idx++;
+    block(`agent${idx}`, entry.modes,
+      entry.kind === 'group' ? `acl:agentGroup <${id}>` : `acl:agent <${id}>`);
+  }
+  return turtle;
 }
 
 // ── Component ─────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ export function adaptInheritedAcl(inheritedTurtle, parentUrl, resourceUrl) {
  * Web Access Control (WAC) editor.
  *
  * Displays and edits the ACL for a Solid resource. Renders a form
- * subtab (role-based) and an RDF subtab (raw Turtle).
+ * subtab (a who × mode checkbox matrix) and an RDF subtab (raw Turtle).
  *
  * @class SolWac
  * @extends HTMLElement
@@ -219,6 +219,7 @@ class SolWac extends HTMLElement {
     this._inherited = null;
     this._inheritedFrom = null;
     this._rendered = false;
+    this._rdfDirty = false;   // true when the RDF subtab's raw text is the authority
   }
 
   get source() { return this.getAttribute('source') || ''; }
@@ -256,22 +257,35 @@ class SolWac extends HTMLElement {
     this._aclUrl = perms.aclUrl;
     this._inherited = perms.inherited || null;
     this._inheritedFrom = perms.inheritedFrom || null;
+    this._rdfDirty = false;
 
     if (perms.own) {
       this._turtle = perms.own;
+      this._model = authsToMatrix(parseAcl(perms.own, url));
     } else if (perms.inherited) {
-      this._turtle = adaptInheritedAcl(perms.inherited, perms.inheritedFrom, url) || perms.inherited;
+      // Children inherit only the parent's acl:default Authorizations.
+      const inheritedAuths = parseAcl(perms.inherited, perms.inheritedFrom)
+        .filter(a => a.default.length > 0);
+      this._model = authsToMatrix(inheritedAuths);
+      this._turtle = matrixToTurtle(this._model, url);
     } else {
       this._turtle = '';
+      this._model = authsToMatrix([]);
     }
-
-    this._model = authsToRoleModel(this._turtle ? parseAcl(this._turtle, url) : []);
     this._render();
   }
 
   async save() {
     if (!this._aclUrl) return;
-    if (this._model) this._turtle = roleModelToTurtle(this._model, this.source);
+    // The form's model regenerates the Turtle — unless the RDF subtab's raw
+    // text was hand-edited last, in which case that text is what gets saved.
+    if (!this._rdfDirty && this._model) this._turtle = matrixToTurtle(this._model, this.source);
+    const valid = validateTurtle(this._turtle, this._aclUrl);
+    if (!valid.ok) {
+      this._emit('sol-wac-error', { phase: 'validate', error: new Error(valid.error) });
+      this._emit('sol-status', { message: `ACL not saved — invalid RDF: ${valid.error}`, type: 'error' });
+      return;
+    }
     try {
       const resp = await this.fetchFn(this._aclUrl, {
         method: 'PUT',
@@ -281,6 +295,7 @@ class SolWac extends HTMLElement {
       if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
       this._emit('sol-wac-save', { aclUrl: this._aclUrl });
       this._emit('sol-status', { message: 'ACL saved.', type: 'success' });
+      this._rdfDirty = false;
       this._inherited = null;
       this._inheritedFrom = null;
       this._renderBanner();
@@ -327,7 +342,7 @@ class SolWac extends HTMLElement {
     if (this._inherited && this._inheritedFrom) {
       this._bannerEl.className = 'acl-banner';
       this._bannerEl.textContent =
-        `Inheriting permissions from ${this._inheritedFrom}. Save to create a resource-specific ACL.`;
+        `Showing permissions inherited from ${this._inheritedFrom}. Save to apply permissions specific to this resource.`;
       this._bannerEl.style.display = '';
     } else {
       this._bannerEl.textContent = '';
@@ -337,8 +352,9 @@ class SolWac extends HTMLElement {
 
   _renderForm(body) {
     body.innerHTML = '';
-    body.appendChild(this._buildRoleForm(this._model, this._isContainer, () => {
-      this._turtle = roleModelToTurtle(this._model, this.source);
+    body.appendChild(this._buildMatrixForm(this._model, this._isContainer, () => {
+      this._turtle = matrixToTurtle(this._model, this.source);
+      this._rdfDirty = false;
     }));
   }
 
@@ -348,71 +364,135 @@ class SolWac extends HTMLElement {
     ta.className = 'acl-rdf-editor';
     ta.spellcheck = false;
     ta.value = this._turtle;
+    // Grow to fit the content — the surrounding pane scrolls, not the textarea.
+    const autosize = () => {
+      ta.style.height = 'auto';
+      ta.style.height = (ta.scrollHeight + 4) + 'px';
+    };
     ta.addEventListener('input', () => {
       this._turtle = ta.value;
+      this._rdfDirty = true;
+      autosize();
       // Re-parse so the form view reflects manual edits on next switch.
       try {
-        this._model = authsToRoleModel(parseAcl(ta.value, this.source));
+        this._model = authsToMatrix(parseAcl(ta.value, this.source));
       } catch (_) { /* leave model as-is on parse error */ }
     });
     body.appendChild(ta);
+    queueMicrotask(autosize);
   }
 
-  _buildRoleForm(model, isContainer, onChange) {
+  _buildMatrixForm(model, isContainer, onChange) {
     const wrap = document.createElement('div');
-    wrap.className = 'acl-role-form';
+    wrap.className = 'acl-matrix-form';
 
-    ROLES.forEach(role => {
-      const rm = model[role.key];
-      const row = document.createElement('div');
-      row.className = 'acl-role-row';
+    const table = document.createElement('table');
+    table.className = 'acl-matrix';
 
-      const nameEl = document.createElement('span');
-      nameEl.className = 'acl-role-name';
-      nameEl.textContent = role.label;
-
-      const select = document.createElement('select');
-      select.className = 'acl-grant-select';
-      GRANT_OPTIONS.forEach(opt => {
-        const o = document.createElement('option');
-        o.value = opt.value; o.textContent = opt.label;
-        select.appendChild(o);
-      });
-      select.value = rm.grant;
-
-      const countBadge = document.createElement('span');
-      countBadge.className = 'acl-specific-count';
-      const updateCount = () => {
-        const c = rm.webids.length + rm.groups.length;
-        countBadge.textContent = c;
-        countBadge.style.display = c > 0 ? '' : 'none';
-      };
-      updateCount();
-
-      const panel = this._buildSpecificPanel(rm, onChange, updateCount);
-      const showPanel = () => { panel.style.display = ''; };
-      const hidePanel = () => { panel.style.display = 'none'; };
-      if (rm.grant === 'specific') showPanel(); else hidePanel();
-
-      select.addEventListener('change', () => {
-        rm.grant = select.value;
-        if (select.value === 'specific') showPanel(); else hidePanel();
-        onChange();
-      });
-
-      row.append(nameEl, select, countBadge);
-      wrap.appendChild(row);
-      wrap.appendChild(panel);
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headRow.appendChild(document.createElement('th'));
+    MODES.forEach(m => {
+      const th = document.createElement('th');
+      th.textContent = m.label;
+      headRow.appendChild(th);
     });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    const modeCells = (tr, modes) => {
+      MODES.forEach(m => {
+        const td = document.createElement('td');
+        td.className = 'acl-mode-cell';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = !!modes[m.key];
+        cb.addEventListener('change', () => { modes[m.key] = cb.checked; onChange(); });
+        td.appendChild(cb);
+        tr.appendChild(td);
+      });
+    };
+
+    const classRow = (label, modes) => {
+      const tr = document.createElement('tr');
+      const who = document.createElement('td');
+      who.className = 'acl-who';
+      who.textContent = label;
+      tr.appendChild(who);
+      modeCells(tr, modes);
+      tbody.appendChild(tr);
+    };
+    classRow('Anyone', model.public);
+    classRow('Any logged-in user', model.authenticated);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'sol-btn sol-btn-sm acl-add-agent';
+    addBtn.textContent = '＋ Add user or group WebID';
+    const updateAddBtn = () => {
+      addBtn.style.display = model.agents.some(a => (a.id || '').trim()) ? '' : 'none';
+    };
+
+    const agentRow = (entry) => {
+      const tr = document.createElement('tr');
+      const who = document.createElement('td');
+      who.className = 'acl-who';
+      const cell = document.createElement('div');
+      cell.className = 'acl-agent-cell';
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'acl-webid-input';
+      input.placeholder = 'https://example.solidcommunity.net/profile/card#me';
+      input.value = entry.id || '';
+      input.addEventListener('input', () => {
+        entry.id = input.value.trim();
+        onChange();
+        updateAddBtn();
+      });
+
+      const kind = document.createElement('select');
+      kind.className = 'acl-kind-select';
+      AGENT_KINDS.forEach(k => {
+        const o = document.createElement('option');
+        o.value = k.value; o.textContent = k.label;
+        kind.appendChild(o);
+      });
+      kind.value = entry.kind;
+      kind.addEventListener('change', () => { entry.kind = kind.value; onChange(); });
+
+      cell.append(input, kind);
+      who.appendChild(cell);
+      tr.appendChild(who);
+      modeCells(tr, entry.modes);
+      tbody.appendChild(tr);
+    };
+
+    if (model.agents.length === 0) {
+      model.agents.push({ id: '', kind: 'agent', modes: emptyModes() });
+    }
+    model.agents.forEach(agentRow);
+
+    addBtn.addEventListener('click', () => {
+      const entry = { id: '', kind: 'agent', modes: emptyModes() };
+      model.agents.push(entry);
+      agentRow(entry);
+    });
+    updateAddBtn();
+
+    wrap.appendChild(table);
+    wrap.appendChild(addBtn);
 
     if (isContainer) {
       const cbWrap = document.createElement('label');
       cbWrap.className = 'acl-default-wrap acl-default-global';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = ROLES.some(r => model[r.key].applyToContents);
+      cb.checked = model.applyToContents;
       cb.onchange = () => {
-        ROLES.forEach(r => { model[r.key].applyToContents = cb.checked; });
+        model.applyToContents = cb.checked;
         onChange();
       };
       cbWrap.appendChild(cb);
@@ -420,30 +500,6 @@ class SolWac extends HTMLElement {
       wrap.appendChild(cbWrap);
     }
     return wrap;
-  }
-
-  _buildSpecificPanel(rm, onChange, onUpdate) {
-    const panel = document.createElement('div');
-    panel.className = 'acl-specific-panel';
-    panel.innerHTML = `
-      <div class="acl-section-label">WebIDs (one per line):</div>
-      <textarea class="acl-agents-input" rows="3" placeholder="https://example.solidcommunity.net/profile/card#me"></textarea>
-      <div class="acl-section-label">vCard group URLs (one per line):</div>
-      <textarea class="acl-agents-input" rows="2" placeholder="https://example.solidcommunity.net/contacts/Group/friends#this"></textarea>`;
-
-    const [webidTA, groupTA] = panel.querySelectorAll('textarea');
-    webidTA.value = rm.webids.join('\n');
-    groupTA.value = rm.groups.join('\n');
-
-    const sync = () => {
-      rm.webids = webidTA.value.split('\n').map(s => s.trim()).filter(Boolean);
-      rm.groups = groupTA.value.split('\n').map(s => s.trim()).filter(Boolean);
-      onChange();
-      if (onUpdate) onUpdate();
-    };
-    webidTA.addEventListener('input', sync);
-    groupTA.addEventListener('input', sync);
-    return panel;
   }
 
   _emit(type, detail) {
