@@ -133,5 +133,40 @@ li.item { margin: .15rem 0; }
              background: #d9d9d9; color: #1a1a1a; }
 .url-input::placeholder { color: #555; }
 .url-input:focus { border-color: var(--accent, #3498db); outline: none; }
+
+/* the phone chip ✕ (rendered only on a coarse pointer — see the media block
+   below for its touch sizing) */
+.chip-del { border: 0; background: transparent; color: inherit; font: inherit;
+            font-size: max(16px, 1em); line-height: 1; padding: 0 .2rem;
+            margin-left: .15rem; cursor: pointer; }
+
+/* ---- Phone (coarse pointer, no hover): tap-first skin — full-width cards,
+   a scrolling topic chip strip, 44px rows/buttons/inputs, no drag grip.
+   Desktop is untouched by construction. ---- */
+@media (hover: none) and (pointer: coarse) {
+  .card { width: 100%; min-height: 44px; cursor: default; }
+  .cards { gap: .5rem; }
+  .topic-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+                scroll-snap-type: x proximity; padding-bottom: .45rem; }
+  .topic-tabs::-webkit-scrollbar { display: none; }
+  .topic-tab { flex: 0 0 auto; scroll-snap-align: start; min-height: 44px;
+               padding: 0 16px; white-space: nowrap; }
+  .grip { display: none; }
+  .row { flex-wrap: wrap; align-items: center; min-height: 44px; }
+  .row-btn { min-width: 44px; min-height: 44px; }
+  .label { flex: 1 1 8ch; min-width: 6rem; padding: .45rem .4rem; }
+  .chip { min-height: 44px; display: inline-flex; align-items: center;
+          padding: 0 .1rem 0 16px; }
+  .chip:not(:has(.chip-del)) { padding-right: 16px; }
+  .chip-del { min-width: 44px; min-height: 44px; }
+  .adders, .url-row { flex-wrap: wrap; }
+  .add-input, .url-input, .add-btn { min-height: 44px; }
+  /* The manifest-URL import row is a power-user path; measured on-device it
+     cost 94px of a ~175px catalog box and collapsed the card list to 21px —
+     phone drops it (desktop keeps it). The card list keeps at least two
+     row-heights so there is always something to tap; it scrolls for more. */
+  .url-row { display: none; }
+  .cards { min-height: 96px; }
+}
 `;
 export default CSS;

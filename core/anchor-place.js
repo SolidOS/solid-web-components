@@ -16,7 +16,18 @@ export function placeAnchored(anchor, panel, widthEl = panel, minWidth = 0) {
   const r = anchor.getBoundingClientRect();
   const w = (widthEl && widthEl.offsetWidth) || minWidth;
   panel.style.position = 'fixed';
-  panel.style.top = `${Math.round(r.bottom + 4)}px`;
+  // Drop below the anchor; if that would overflow the bottom AND there is
+  // more room above (a trigger in a fixed bottom dock — the phone chrome),
+  // open upward instead. Height reads 0 before first layout; callers re-run
+  // placement on rAF/ResizeObserver, so the flip self-corrects once measured.
+  const h = (widthEl && widthEl.offsetHeight) || 0;
+  const roomBelow = window.innerHeight - r.bottom - 8;
+  const roomAbove = r.top - 8;
+  if (h && h > roomBelow && roomAbove > roomBelow) {
+    panel.style.top = `${Math.max(4, Math.round(r.top - 4 - h))}px`;
+  } else {
+    panel.style.top = `${Math.round(r.bottom + 4)}px`;
+  }
   if (Math.round(r.left) + w <= window.innerWidth - 4) {
     panel.style.left = `${Math.round(r.left)}px`;
     panel.style.right = 'auto';

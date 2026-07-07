@@ -482,6 +482,54 @@ export const CSS = `
     color: var(--text-muted, #4d4d4d);
     font-style: italic;
   }
+
+  /* ---- Phone (coarse pointer, no hover): labels stack above inputs,
+     one-column shape grid, 44px touch targets. Desktop layout is
+     untouched by construction. ---- */
+  @media (hover: none) and (pointer: coarse) {
+    .sol-form-shape-fields {
+      grid-template-columns: 1fr;
+      row-gap: 0.35rem;
+    }
+    .sol-form-shape-fields .formFieldName,
+    .sol-form-shape-fields .choiceBox-label,
+    .sol-form-shape-multi-label {
+      grid-column: 1;
+      justify-self: start;
+      text-align: left;
+      padding-top: 0.6em;
+    }
+    .sol-form-shape-fields .formFieldValue,
+    .sol-form-shape-fields .choiceBox-selectBox,
+    .sol-form-shape-multi-value,
+    .sol-form-shape-add,
+    .sol-form-shape-remove {
+      grid-column: 1;
+    }
+    .sol-form-shape-input,
+    .sol-form-shape-fields .formFieldValue > input,
+    .sol-form-shape-fields .formFieldValue > select,
+    .sol-form-shape-fields .formFieldValue > textarea,
+    .sol-form-shape-fields .choiceBox-selectBox select,
+    .sol-form-shape-multi-item > input {
+      min-height: 44px;
+    }
+    .sol-form-shape-input[type="checkbox"] {
+      min-height: 0;
+      width: 1.75em;
+      height: 1.75em;
+    }
+    .sf-btn,
+    .sol-form-btn,
+    .sol-form-shape-add,
+    .sol-form-shape-remove,
+    .sol-form-shape-multi-del,
+    .sol-form-shape-multi-add {
+      min-height: 44px;
+      min-width: 44px;
+      font-size: max(16px, 1em);
+    }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

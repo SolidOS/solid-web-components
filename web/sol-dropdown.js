@@ -45,6 +45,11 @@ const CSS = `
     max-height: min(55vh, 34rem);
   }
   .body > * { min-height: 0; }
+  /* Phone (coarse pointer): edge-to-edge-ish cap so a wide guest (e.g. the
+     calendar) never runs past the viewport. Desktop keeps 92vw. */
+  @media (hover: none) and (pointer: coarse) {
+    .panel { max-width: calc(100vw - 16px); }
+  }
 `;
 
 class SolDropdown extends SolElement {

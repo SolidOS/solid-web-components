@@ -41,6 +41,13 @@
  *     Save button): the WHOLE Turtle document is rewritten via
  *     core/menu-serialize (pantry subjects preserved) and PUT with solFetch
  *
+ * Phone (coarse pointer — drag & drop is unreachable): rows grow ▲▼ tap
+ * reorder buttons and submenu chips a trailing ✕; the grip hides. Adding is
+ * tap-driven from <sol-plugin-manager> ("Add to…" sheet) via the public API:
+ *   addPlugin(payload, {submenuId})  — place a card payload here / in a submenu
+ *   placeTargets                     — {label, flat, submenus:[{id,name}]}
+ * Both drive the same item factory + auto-save path a drop takes.
+ *
  * Events: `sol-menu-built` (detail {source}) after a successful save.
  * Reads/writes the existing ui:Menu vocabulary only — no new RDF terms.
  */
@@ -60,6 +67,13 @@ const freshFetch = (url, opts) => solFetch(url, { ...(opts || {}), cache: 'no-st
 
 const SHEET = sheetFrom(CSS);
 const PLUGIN_MIME = 'application/x-sol-plugin';
+
+// The phone media (same query sol-tabs gates its navigator on). Tap
+// affordances — the ▲▼ reorder buttons and the chip ✕ — render only on a
+// coarse pointer, so the desktop DOM stays byte-identical.
+const COARSE_MQL = (typeof matchMedia === 'function')
+  ? matchMedia('(hover: none) and (pointer: coarse)') : null;
+const isCoarse = () => !!(COARSE_MQL && COARSE_MQL.matches);
 
 class SolMenuManager extends HTMLElement {
   // Bar variant (sol-button-bar-manager) flips this: depth-1, no submenus.
@@ -118,6 +132,10 @@ class SolMenuManager extends HTMLElement {
       };
     }
     document.addEventListener('sol-shell-synced', this._onShellSynced);
+    // Pointer type flipped (e.g. DevTools device emulation) — re-render so
+    // the tap affordances appear/disappear with the media query.
+    if (!this._onPointerFlip) this._onPointerFlip = () => this._render();
+    COARSE_MQL?.addEventListener?.('change', this._onPointerFlip);
     if (this._built) return;
     this._built = true;
     this._root = document.createElement('div');
@@ -130,6 +148,42 @@ class SolMenuManager extends HTMLElement {
     if (this._onMenuBuilt) document.removeEventListener('sol-menu-built', this._onMenuBuilt);
     if (this._onAccordionOpen) document.removeEventListener('sol-accordion-open', this._onAccordionOpen);
     if (this._onShellSynced) document.removeEventListener('sol-shell-synced', this._onShellSynced);
+    if (this._onPointerFlip) COARSE_MQL?.removeEventListener?.('change', this._onPointerFlip);
+  }
+
+  // ---- tap-to-add (phone) public surface ----------------------------------
+  // <sol-plugin-manager>'s "Add to…" sheet drives these instead of drag/drop.
+
+  // Place a plugin payload (the drag-payload shape the catalog cards carry:
+  // {label, tag|href, params, icon, manifest, region}) into this menu — at
+  // the top level, or inside the submenu whose fragment id is `submenuId`.
+  // Same item factory + normalize + auto-save path a drop takes.
+  addPlugin(payload, { submenuId = null } = {}) {
+    if (!payload || (!payload.tag && !payload.href)) return;
+    let siblings = this._items;
+    if (submenuId && !this.constructor.flat) {
+      const sub = this._items.find((it) => it.type === 'submenu' && it.id === submenuId);
+      if (sub) {
+        if (!sub.children) sub.children = [];
+        siblings = sub.children;
+      }
+    }
+    siblings.push(this._itemFromPlugin(payload));
+    this._touch();
+  }
+
+  // What an "Add to…" picker needs to offer this manager as a destination:
+  // its display label and its submenus (menus only — the flat bar has none).
+  // Only saved submenus (with a minted fragment id) are addressable.
+  get placeTargets() {
+    return {
+      label: this.getAttribute('heading')
+        || `${this.constructor.title}: ${this._meta.label || ''}`,
+      flat: this.constructor.flat,
+      submenus: this.constructor.flat ? [] : this._items
+        .filter((it) => it.type === 'submenu' && it.id)
+        .map(({ id, name }) => ({ id, name })),
+    };
   }
 
   get source() { return this.getAttribute('source') || ''; }
@@ -358,6 +412,22 @@ class SolMenuManager extends HTMLElement {
           this._dragItem = null;   // consumed internally — not a move-out
           this._touch();
         });
+        // Phone: chip drag-off is unreachable, so the chip carries its own ✕
+        // (remove this plugin from the item; _normalize collapses a submenu
+        // reduced to one plugin back into a direct item).
+        if (isCoarse()) {
+          const x = document.createElement('button');
+          x.type = 'button';
+          x.className = 'chip-del';
+          x.textContent = '✕';
+          x.setAttribute('aria-label', `Remove ${text} from ${item.name || 'this item'}`);
+          x.addEventListener('click', (e) => {
+            e.stopPropagation();
+            item.children.splice(item.children.indexOf(child), 1);
+            this._touch();
+          });
+          chip.appendChild(x);
+        }
         chips.push(chip);
       }
       if (!chips.length) {
@@ -410,7 +480,29 @@ class SolMenuManager extends HTMLElement {
     const chipCol = document.createElement('span');
     chipCol.className = 'chips';
     chipCol.append(...chips);
-    row.append(grip, label, chipCol, del);
+    // Phone: the grip is hidden (drag is unreachable), so rows reorder with
+    // ▲▼ taps — the same sibling splice an internal drag performs.
+    const tail = [del];
+    if (isCoarse()) {
+      const move = (delta, arrow, verb) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'row-btn';
+        btn.textContent = arrow;
+        btn.setAttribute('aria-label', `Move ${item.name || 'item'} ${verb}`);
+        btn.addEventListener('click', () => {
+          const at = siblings.indexOf(item);
+          const to = at + delta;
+          if (to < 0 || to >= siblings.length) return;
+          siblings.splice(at, 1);
+          siblings.splice(to, 0, item);
+          this._touch();
+        });
+        return btn;
+      };
+      tail.unshift(move(-1, '▲', 'up'), move(1, '▼', 'down'));
+    }
+    row.append(grip, label, chipCol, ...tail);
     li.appendChild(row);
 
     this._wireRowDnd(row, item, siblings);
@@ -705,5 +797,5 @@ class SolMenuManager extends HTMLElement {
 }
 
 define('sol-menu-manager', SolMenuManager);
-export { SolMenuManager, PLUGIN_MIME };
+export { SolMenuManager, PLUGIN_MIME, isCoarse, COARSE_MQL };
 export default SolMenuManager;

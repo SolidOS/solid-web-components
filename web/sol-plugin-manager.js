@@ -55,10 +55,17 @@
  * Events: `sol-menu-built` (detail {source}) after each auto-save. Instances
  * watching the same document re-load on it, so the sibling box refreshes
  * after a move.
+ *
+ * Phone (coarse pointer): tapping a card opens a body-mounted
+ * <sol-sheet class="sol-plugin-sheet"> ("Add to…") listing each paired
+ * manager and its submenus as rows; a pick calls the manager's addPlugin —
+ * the same machinery a drop drives. The manifest-URL row is hidden on phone
+ * (it starved the card list on real devices); the sheet is removed when the
+ * pointer flips back to fine or the box disconnects.
  */
 
 import { define } from '../core/define.js';
-import { adopt, sheetFrom } from '../core/adopt.js';
+import { adopt, sheetFrom, ensureDocStyle } from '../core/adopt.js';
 import { CSS } from './styles/sol-builders-css.js';
 import { rdf } from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
@@ -66,7 +73,8 @@ import { parseMenuItems, rdfVal, rdfComponent } from '../core/menu-rdf.js';
 import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
 import { renderIcon } from '../core/utils.js';
-import { PLUGIN_MIME } from './sol-menu-manager.js';
+import { PLUGIN_MIME, isCoarse, COARSE_MQL } from './sol-menu-manager.js';
+import './sol-sheet.js';   // the "Add to…" surface the phone tap flow opens
 
 // The catalog/menu docs are editable, so read them past the renderer's HTTP
 // cache (no-store) — the same reason feed-fetch reads its source list fresh.
@@ -74,6 +82,28 @@ import { PLUGIN_MIME } from './sol-menu-manager.js';
 const freshFetch = (url, opts) => solFetch(url, { ...(opts || {}), cache: 'no-store' });
 
 const SHEET = sheetFrom(CSS);
+
+// Light-DOM styles for the phone "Add to…" sheet rows (the sheet is
+// body-mounted, so these are document-level — same recipe as sol-tabs' nav
+// sheet). The host app themes the surface via sol-sheet's --menu-bg.
+const PLACE_SHEET_CSS = `
+  sol-sheet.sol-plugin-sheet .sol-plugin-sheet-list {
+    display: flex; flex-direction: column; gap: 4px; padding: 4px 10px;
+  }
+  sol-sheet.sol-plugin-sheet .sol-plugin-sheet-title {
+    font-weight: 700; font-size: max(16px, 1em); padding: 8px 6px 4px;
+  }
+  sol-sheet.sol-plugin-sheet .sol-plugin-sheet-item {
+    display: flex; align-items: center; min-height: 44px; padding: 0 16px;
+    border: 0; border-radius: 10px; background: transparent; color: inherit;
+    font: inherit; font-size: max(16px, 1em); text-align: left; cursor: pointer;
+  }
+  sol-sheet.sol-plugin-sheet .sol-plugin-sheet-item:active {
+    background: var(--hover, rgba(0, 0, 0, 0.08));
+  }
+  /* a submenu destination, indented under its menu */
+  sol-sheet.sol-plugin-sheet .sol-plugin-sheet-item.sub { margin-left: 20px; }
+`;
 
 const UI   = 'http://www.w3.org/ns/ui#';
 const RDF  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
@@ -116,6 +146,15 @@ class SolPluginManager extends HTMLElement {
 
   connectedCallback() {
     document.addEventListener('sol-menu-built', this._onMenuBuilt);
+    // Pointer type flipped back to fine (e.g. emulation off): drop the
+    // body-mounted "Add to…" sheet — same cleanup sol-tabs does with its
+    // nav sheet.
+    if (!this._onPointerFlip) {
+      this._onPointerFlip = () => {
+        if (!isCoarse() && this._sheet) { this._sheet.remove(); this._sheet = null; }
+      };
+    }
+    COARSE_MQL?.addEventListener?.('change', this._onPointerFlip);
     if (this._built) return;
     this._built = true;
     this._root = document.createElement('div');
@@ -127,6 +166,10 @@ class SolPluginManager extends HTMLElement {
 
   disconnectedCallback() {
     document.removeEventListener('sol-menu-built', this._onMenuBuilt);
+    if (this._onPointerFlip) COARSE_MQL?.removeEventListener?.('change', this._onPointerFlip);
+    // The "Add to…" sheet is body-mounted so it overlays everything; it goes
+    // when its owner goes.
+    if (this._sheet) { this._sheet.remove(); this._sheet = null; }
   }
 
   get source() { return this.getAttribute('source') || ''; }
@@ -532,12 +575,7 @@ class SolPluginManager extends HTMLElement {
     }
     card.addEventListener('dragstart', (e) => {
       card.classList.add('dragging');
-      const payload = p.type === 'link'
-        ? { label: p.name || p.href, href: p.href, region: p.region || '', icon: p.icon || '' }
-        : { label: p.name || p.tag, tag: p.tag, params: p.params || [], icon: p.icon || '' };
-      // Carry the chip's manifest identity (dct:source) so the dropped menu item
-      // records which plugin it is — see sol-menu-manager `_itemFromPlugin`.
-      if (p.manifest) payload.manifest = p.manifest;
+      const payload = this._payloadFor(p);
       if (!p.ghost && p.id) {
         payload.subject = `${this._docUrl()}#${p.id}`;
         payload.list = this._menuIri();
@@ -549,7 +587,79 @@ class SolPluginManager extends HTMLElement {
       e.dataTransfer.setData('text/plain', p.tag || p.href || p.name || '');
     });
     card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    // Phone: dragging a card is unreachable — tapping it opens the "Add to…"
+    // sheet listing the paired managers (and their submenus) as destinations.
+    card.addEventListener('click', (e) => {
+      if (!isCoarse()) return;
+      if (e.target.closest('.card-del')) return;
+      this._openPlaceSheet(p);
+    });
     return card;
+  }
+
+  // The drag-payload shape a card carries (shared by dragstart and the phone
+  // tap flow) — exactly what sol-menu-manager's _itemFromPlugin consumes.
+  _payloadFor(p) {
+    const payload = p.type === 'link'
+      ? { label: p.name || p.href, href: p.href, region: p.region || '', icon: p.icon || '' }
+      : { label: p.name || p.tag, tag: p.tag, params: p.params || [], icon: p.icon || '' };
+    // Carry the chip's manifest identity (dct:source) so the dropped/added
+    // menu item records which plugin it is.
+    if (p.manifest) payload.manifest = p.manifest;
+    return payload;
+  }
+
+  // The paired managers that can take a tap-add (their `addPlugin` API).
+  _pairedManagers() {
+    const sel = this.getAttribute('for');
+    if (!sel) return [];
+    try {
+      return [...document.querySelectorAll(sel)]
+        .filter((el) => typeof el.addPlugin === 'function' && el.placeTargets);
+    } catch { return []; }
+  }
+
+  // Phone tap-to-add: a body-mounted <sol-sheet> ("Add to…") listing each
+  // paired manager and its submenus as 44px rows. Picking one calls the
+  // manager's addPlugin — the same machinery a drop drives — and the
+  // manager's save + sol-menu-built event refresh this box (the card leaves
+  // the catalog via the usual in-use subtraction).
+  _openPlaceSheet(p) {
+    const managers = this._pairedManagers();
+    if (!managers.length) return;
+    ensureDocStyle(document, 'sol-plugin-sheet-styles', PLACE_SHEET_CSS);
+    if (!this._sheet) {
+      this._sheet = document.createElement('sol-sheet');
+      this._sheet.className = 'sol-plugin-sheet';
+      document.body.appendChild(this._sheet);
+    }
+    const name = p.name || p.tag || p.href || 'plugin';
+    this._sheet.setAttribute('label', `Add ${name} to…`);
+    const payload = this._payloadFor(p);
+    const list = document.createElement('div');
+    list.className = 'sol-plugin-sheet-list';
+    const title = document.createElement('div');
+    title.className = 'sol-plugin-sheet-title';
+    title.textContent = `Add “${name}” to…`;
+    list.appendChild(title);
+    const rowBtn = (label, cls, fn) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = cls;
+      b.textContent = label;
+      b.addEventListener('click', () => { this._sheet.hide(); fn(); });
+      list.appendChild(b);
+    };
+    for (const m of managers) {
+      const t = m.placeTargets;
+      rowBtn(t.label, 'sol-plugin-sheet-item', () => m.addPlugin(payload));
+      for (const sub of t.submenus) {
+        rowBtn(sub.name, 'sol-plugin-sheet-item sub',
+          () => m.addPlugin(payload, { submenuId: sub.id }));
+      }
+    }
+    this._sheet.replaceChildren(list);
+    this._sheet.show();
   }
 
   _urlRow() {
