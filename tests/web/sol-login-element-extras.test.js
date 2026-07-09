@@ -111,6 +111,46 @@ describe('SolLogin — click flow', () => {
   });
 });
 
+// ── side-scoped click basis (dk synthetic owner session) ───────────────────
+// dk registers a synthetic local-owner session under 'default' (logged in,
+// covers only the local pod, no login/logout OIDC methods). A side-tagged
+// redirect-mode login button must NOT read that as "I'm logged in" — that
+// turned the phone's Log in tap into a silent logout().
+
+describe('SolLogin — redirect click flow with a foreign default session', () => {
+  const owner = () => ({
+    info: { isLoggedIn: true, webId: 'http://localhost/dk-pod/profile/card#me', issuer: 'http://localhost/' },
+    fetch: (i, init) => globalThis.fetch(i, init),
+    logout: async () => {},
+  });
+
+  afterEach(() => { clearSessions(); document.body.innerHTML = ''; });
+
+  test('a side-tagged button still opens the dropdown', () => {
+    const el = mkLogin('left');
+    el.auth.sessions.set('default', owner());
+    el.shadowRoot.querySelector('.auth-btn').click();
+    expect(el.shadowRoot.querySelector('.dropdown').classList.contains('open')).toBe(true);
+  });
+
+  test('a side-tagged login registers its session under the side tag', async () => {
+    const el = mkLogin('left');
+    el.auth.sessions.set('default', owner());
+    await el.login('https://idp.example/');
+    const side = el.auth.sessions.get('left');
+    expect(side?._loginCalls?.length).toBe(1);
+    expect(el.auth.sessions.get('default').info.webId)
+      .toBe('http://localhost/dk-pod/profile/card#me');   // owner untouched
+  });
+
+  test('a default-side button still reflects the shared logged-in session', async () => {
+    const el = mkLogin();
+    el.auth.sessions.set('default', owner());
+    await el.initialize();
+    expect(el.shadowRoot.querySelector('.auth-btn').textContent).toBe('Log out');
+  });
+});
+
 // ── issuer-quickpick dropdown rendering ─────────────────────────────────────
 
 describe('SolLogin — issuer quickpick rendering', () => {

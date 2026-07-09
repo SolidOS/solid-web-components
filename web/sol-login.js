@@ -146,7 +146,11 @@ class AuthManager {
       this.sessionFor(pendingTag);
     }
 
+    // The map can hold session-SHAPED objects that are not OIDC sessions —
+    // dk's synthetic local-owner session, popup proxies — which have no
+    // handleIncomingRedirect. Skip them instead of crashing initialize().
     for (const [, session] of this.sessions) {
+      if (typeof session.handleIncomingRedirect !== 'function') continue;
       await session.handleIncomingRedirect(window.location.href);
     }
   }
@@ -155,11 +159,23 @@ class AuthManager {
     if (this.isNoAuth(url)) return true;
     const origin = this.originOf(url);
     this.setSideOrigin(tag, url);
-    const session = this.sessionFor(tag, origin);
-    if (session.info.isLoggedIn) return true;
+    let session = this.sessionFor(tag, origin);
+    // Already signed in only counts when the session COVERS the requested
+    // origin. dk's synthetic local-owner session holds 'default' with
+    // isLoggedIn=true but covers just the local pod — it must not swallow a
+    // login to a remote issuer (the tap would silently do nothing).
+    if (session.info.isLoggedIn && sessionCoversOrigin(session, origin)) return true;
 
     for (const [, s] of this.sessions) {
       if (sessionCoversOrigin(s, origin)) return true;
+    }
+
+    // The tag may be held by a session-shaped object that cannot run an OIDC
+    // login (synthetic owner session, popup proxy). Mint a real session for
+    // this origin in its place before starting the flow.
+    if (typeof session.login !== 'function') {
+      session = this._makeSession(this._sessionId(tag, origin));
+      this.sessions.set(tag, session);
     }
 
     try { localStorage.setItem('solLoginPendingTag', tag); } catch (e) {}
@@ -173,6 +189,21 @@ class AuthManager {
 // podz's per-side login elements register into a single session Map.
 // Single-login pages are unaffected (one consumer of the singleton).
 const sharedAuth = new AuthManager();
+
+// Environments with no multi-window support — Android System WebView (the
+// engine under Flutter/Cordova app shells; "; wv)" UA token) — cannot run
+// popup-mode login at all: window.open() there is swallowed or becomes a
+// same-frame navigation, so the popup ↔ opener postMessage contract never
+// completes, and by the time window.open returns the shell may already be
+// navigating away — too late to react. So detect up front and coerce popup
+// mode back to the classic full-page redirect. Such shells already route the
+// redirect round-trip: the IdP lands back on this page, where initialize()'s
+// handleIncomingRedirect completes the session. Electron (which turns login
+// popups into real windows) and desktop browsers carry no "wv" token and are
+// unaffected.
+function popupsUnavailable() {
+  try { return /;\s*wv\)/.test(navigator.userAgent); } catch (e) { return false; }
+}
 
 // Publish auth to the ecosystem: expose AuthManager on the global (consumers in
 // core/auth-fetch.js + web/sol-include.js already READ window.SolidWebComponents
@@ -201,6 +232,9 @@ try {
  *     Session; the parent talks to it via a PopupProxySession. Lets
  *     multiple <sol-login side="..."> elements hold independent sessions
  *     in one tab. See core/popup-proxy.js and popup-auth-callback.html.
+ *     In environments that cannot open popup windows at all (Android
+ *     System WebView under app shells — see popupsUnavailable()), popup
+ *     mode is coerced back to "redirect" automatically.
  *
  * @class SolLogin
  * @extends HTMLElement
@@ -299,6 +333,7 @@ class SolLogin extends HTMLElement {
     if (!this._initialized) {
       this._initialized = true;
       this._mode = (this.getAttribute('mode') || 'redirect').toLowerCase();
+      if (this._mode === 'popup' && popupsUnavailable()) this._mode = 'redirect';
       this._side = this.getAttribute('side') || 'default';
       const cb = this.getAttribute('popup-callback');
       if (cb) this._popupCallback = cb;
@@ -486,6 +521,7 @@ class SolLogin extends HTMLElement {
       this._renderIssuers();
     } else if (name === 'mode' && this._initialized) {
       this._mode = (newV || 'redirect').toLowerCase();
+      if (this._mode === 'popup' && popupsUnavailable()) this._mode = 'redirect';
     } else if (name === 'side' && this._initialized) {
       this._side = newV || 'default';
       this._updateUI();
@@ -494,10 +530,14 @@ class SolLogin extends HTMLElement {
     }
   }
 
-  async login(issuerUrl, tag = 'default') {
+  async login(issuerUrl, tag = this._side) {
     if (this._mode === 'popup') {
       return this._popupLogin(issuerUrl);
     }
+    // Default the session tag to this element's side (usually 'default'): a
+    // side-tagged element (podz left/right) coerced to redirect mode must not
+    // fight over the 'default' tag — on dk that slot holds the synthetic
+    // local-owner session.
     await this._auth.ensureAuthenticated(issuerUrl, tag);
   }
 
@@ -741,14 +781,25 @@ _integrateWithRdflib() {
     // true whenever the host reports a "kitchen"/owner session. Using the
     // getter made a popup-mode button that still shows "Log in" wrongly call
     // logout() on click: no dropdown opened, so it looked like nothing happened.
-    const session = this._mode === 'popup'
-      ? this._sideSession()
-      : this._auth.getFirstLoggedIn();
+    // Redirect mode is side-scoped for the same reason: on dk, 'default' holds
+    // the synthetic local-owner session, and a first-logged-in basis turned a
+    // side-tagged Log in button into a silent logout().
+    const session = this._displaySession();
     if (session && session.info && session.info.isLoggedIn) {
       this.logout();
     } else {
       this._toggleDropdown();
     }
+  }
+
+  /** The session this element's button/label reflects: its own side's session,
+   *  falling back (redirect mode only) to any logged-in session when this
+   *  element's side has none and the side IS the shared 'default' tag. */
+  _displaySession() {
+    if (this._mode === 'popup') return this._sideSession();
+    const own = this._sideSession();
+    if (own?.info?.isLoggedIn) return own;
+    return this._side === 'default' ? this._auth.getFirstLoggedIn() : own;
   }
 
   _toggleDropdown() {
@@ -849,9 +900,7 @@ _updateUI() {
   const btn = this.shadowRoot.querySelector('.auth-btn');
   if (!status || !btn) return;
 
-  const session = this._mode === 'popup'
-    ? this._sideSession()
-    : this._auth.getFirstLoggedIn();
+  const session = this._displaySession();
   // The WebID is surfaced only as the button's hover title, never as
   // visible page text.
   status.textContent = '';

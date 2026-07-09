@@ -370,6 +370,20 @@ describe('handleIncomingRedirect', () => {
     expect(mgr.sessions.has('restore-me')).toBe(true);
     expect(localStorage.getItem('solLoginPendingTag')).toBeNull();
   });
+
+  test('skips session-shaped objects without handleIncomingRedirect (dk owner session)', async () => {
+    const mgr = new AuthManager();
+    // dk-owner-session shape: info + fetch + logout, no OIDC methods.
+    mgr.sessions.set('default', {
+      info: { isLoggedIn: true, webId: 'http://localhost/dk-pod/profile/card#me' },
+      fetch: (i, init) => globalThis.fetch(i, init),
+      logout: async () => {},
+    });
+    const real = mgr.sessionFor('side', 'https://a.com');
+    real.handleIncomingRedirect = jest.fn(async () => {});
+    await expect(mgr.handleIncomingRedirect()).resolves.toBeUndefined();
+    expect(real.handleIncomingRedirect).toHaveBeenCalled();
+  });
 });
 
 // ── ensureAuthenticated ─────────────────────────────────────────────────
@@ -395,6 +409,37 @@ describe('ensureAuthenticated', () => {
     const session = mgr.sessions.get('default');
     expect(session._loginCalls.length).toBe(1);
     expect(session._loginCalls[0].oidcIssuer).toBe('https://example.com');
+  });
+
+  // dk's synthetic local-owner session: logged in, covers ONLY the local pod,
+  // has no login/handleIncomingRedirect. It must neither swallow a remote
+  // login as "already authenticated" nor crash the flow.
+  test('a logged-in session that does not cover the origin does not block login', async () => {
+    const mgr = new AuthManager();
+    const owner = {
+      info: { isLoggedIn: true, webId: 'http://localhost/dk-pod/profile/card#me', issuer: 'http://localhost/' },
+      fetch: (i, init) => globalThis.fetch(i, init),
+      logout: async () => {},
+    };
+    mgr.sessions.set('default', owner);
+    mgr._sideOrigins.default = 'https://idp.example';   // persisted from a prior dead tap
+    const result = await mgr.ensureAuthenticated('https://idp.example/', 'default');
+    expect(result).toBe(false);
+    const session = mgr.sessions.get('default');
+    expect(session).not.toBe(owner);                    // replaced by a real session
+    expect(session._loginCalls.length).toBe(1);
+    expect(session._loginCalls[0].oidcIssuer).toBe('https://idp.example');
+  });
+
+  test('a logged-in session that covers the origin still short-circuits', async () => {
+    const mgr = new AuthManager();
+    mgr.sessions.set('default', {
+      info: { isLoggedIn: true, webId: 'http://localhost/dk-pod/profile/card#me', issuer: 'http://localhost/' },
+      fetch: (i, init) => globalThis.fetch(i, init),
+      logout: async () => {},
+    });
+    const result = await mgr.ensureAuthenticated('http://localhost/', 'default');
+    expect(result).toBe(true);
   });
 
   test('stores pending tag in localStorage before login', async () => {

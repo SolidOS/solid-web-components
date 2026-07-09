@@ -11,6 +11,7 @@
  *   - disconnectedCallback unhooks the message listener
  */
 
+import { jest } from '@jest/globals';
 import { SolLogin } from '../../web/sol-login.js';
 
 class MockSession {
@@ -18,9 +19,10 @@ class MockSession {
     this.id = id;
     this.info = { isLoggedIn: false, webId: null, issuer: null };
     this.fetch = (i, init) => globalThis.fetch(i, init);
+    this._loginCalls = [];
   }
   async handleIncomingRedirect() {}
-  async login() {}
+  async login(opts) { this._loginCalls.push(opts); }
   async logout() { this.info.isLoggedIn = false; }
 }
 
@@ -91,6 +93,48 @@ describe('SolLogin popup — attributes', () => {
     el.setAttribute('popup-callback', '/my-callback.html');
     document.body.appendChild(el);
     expect(el._popupCallback).toBe('/my-callback.html');
+  });
+});
+
+// ── no-popup WebView fallback ───────────────────────────────────────────────
+// Android System WebView ("; wv)" UA token) cannot open popup windows —
+// window.open there swallows the call or hijacks the shell frame — so popup
+// mode must coerce itself back to the classic redirect flow up front.
+
+describe('SolLogin popup — Android WebView redirect fallback', () => {
+  const WV_UA = 'Mozilla/5.0 (Linux; Android 14; SM-S911B; wv) '
+    + 'AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 '
+    + 'Chrome/126.0.0.0 Mobile Safari/537.36';
+  let uaSpy;
+
+  beforeEach(() => {
+    uaSpy = jest.spyOn(window.navigator, 'userAgent', 'get')
+      .mockReturnValue(WV_UA);
+  });
+  afterEach(() => uaSpy.mockRestore());
+
+  test('mode="popup" is coerced to redirect at connect time', () => {
+    expect(mkPopupLogin()._mode).toBe('redirect');
+  });
+
+  test('mode set by attribute after connect (the sol-pod path) is also coerced', () => {
+    const el = document.createElement('sol-login');
+    el._manualInit = true;
+    document.body.appendChild(el);      // connects in default redirect mode
+    el.setAttribute('mode', 'popup');   // sol-pod forwards login-mode this way
+    expect(el._mode).toBe('redirect');
+  });
+
+  test('login() runs the redirect flow instead of opening a popup', async () => {
+    const el = mkPopupLogin('left');
+    let opened = false;
+    window.open = () => { opened = true; return (lastPopup = fakePopup()); };
+    await el.login('https://idp.example');
+    expect(opened).toBe(false);
+    // Redirect login is tagged with the element's own side.
+    const session = el.auth.sessions.get('left');
+    expect(session._loginCalls.length).toBe(1);
+    expect(session._loginCalls[0].oidcIssuer).toBe('https://idp.example');
   });
 });
 
