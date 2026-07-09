@@ -20,7 +20,7 @@ import { define } from '../core/define.js';
 import {
   fileIcon,
   fetchContainer,
-  discoverOwnerWebIds, getStoragesFromWebIds,
+  discoverOwnerWebIds, getStoragesFromWebIds, staleProviderRoots,
 } from '../core/pod-ops.js';
 import { getRegistry } from '../core/pod-registry.js';
 import './sol-modal.js';   // modal shell is part of sol-pod's own UX
@@ -263,8 +263,10 @@ class SolPod extends HTMLElement {
         if (iss) embeddedLogin.setAttribute('issuers', iss);
         const reload = () => { if (this._currentPath) this.loadContainer(this._currentPath); };
         // A login can reveal pods the logged-out session could not see —
-        // re-discover, then reload the current container.
-        this._loginEl.addEventListener('sol-login', () => {
+        // adopt the user's OWN storages from their WebID profile, re-discover,
+        // then reload the current container.
+        this._loginEl.addEventListener('sol-login', (e) => {
+          this._adoptLoginStorages(e?.detail).catch(() => {});
           this.discover().catch(() => {});
           reload();
         });
@@ -387,6 +389,28 @@ class SolPod extends HTMLElement {
     }
     this._registry?.addAll(found);
     return this.storages;
+  }
+
+  /**
+   * After a login, the user's PODS come from their WebID profile
+   * (pim:storage; getStoragesFromWebIds also follows owl:sameAs), never
+   * from the OIDC issuer — the IdP origin is a login service, not a pod
+   * location. Add the profile's storages to the group registry (non-silent,
+   * so the host persists them via sol-pod-pods-changed) and drop any stale
+   * provider-root entry an older version recorded as if it were a pod.
+   */
+  async _adoptLoginStorages(detail = {}) {
+    const webId = detail?.webId;
+    if (!webId) return;
+    let storages = [];
+    try { storages = await getStoragesFromWebIds([webId]); } catch (e) { return; }
+    if (!storages.length) return;
+    this._registry?.addAll(storages);
+    const stale = staleProviderRoots(storages, this._registry?.list() || []);
+    if (stale.length) {
+      console.info('[sol-pod] dropping stale provider-root pod entries:', stale);
+      this._registry.removeAll(stale);
+    }
   }
 
   _fetchFor(url) {

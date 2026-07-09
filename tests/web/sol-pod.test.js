@@ -16,11 +16,13 @@ import { jest } from '@jest/globals';
 let mockFetchContainer = async () => [];
 let mockWebIds        = async () => [];
 let mockStorages      = async () => [];
+let mockStaleRoots    = () => [];
 jest.unstable_mockModule('../../core/pod-ops.js', () => ({
   fileIcon: () => 'I',
   fetchContainer:        (...a) => mockFetchContainer(...a),
   discoverOwnerWebIds:   (...a) => mockWebIds(...a),
   getStoragesFromWebIds: (...a) => mockStorages(...a),
+  staleProviderRoots:    (...a) => mockStaleRoots(...a),
 }));
 
 // _loadSettings() reads the host's data-subject doc via loadConfig; mock it so
@@ -859,5 +861,28 @@ describe('SolPod — pod selector', () => {
     sel.value = 'https://b.pod/';
     sel.dispatchEvent(new Event('change'));
     expect(el.loadContainer).toHaveBeenCalledWith('https://b.pod/');
+  });
+});
+
+// ── login-storage adoption (pods come from the profile, NOT the IdP) ─────────
+
+describe('SolPod — _adoptLoginStorages', () => {
+  test('adds profile storages and removes stale provider roots', async () => {
+    const el = mkPod();
+    el._registry.addAll(['https://solidcommunity.net/'], { silent: true });
+    mockStorages   = async (ids) => ids[0] === 'https://x/profile/card#me'
+      ? ['https://jeff.solidcommunity.net/'] : [];
+    mockStaleRoots = (storages, known) => known.filter(u => u === 'https://solidcommunity.net/');
+    await el._adoptLoginStorages({ webId: 'https://x/profile/card#me' });
+    expect(el.storages).toEqual(['https://jeff.solidcommunity.net/']);
+  });
+
+  test('no webId or no storages → registry untouched', async () => {
+    const el = mkPod();
+    el._registry.addAll(['https://keep.example/'], { silent: true });
+    mockStorages = async () => [];
+    await el._adoptLoginStorages({});
+    await el._adoptLoginStorages({ webId: 'https://x/profile/card#me' });
+    expect(el.storages).toEqual(['https://keep.example/']);
   });
 });

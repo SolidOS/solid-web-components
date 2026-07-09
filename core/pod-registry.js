@@ -38,6 +38,24 @@ class PodRegistry {
   /** Add one URL. See addAll. */
   add(url, opts) { return this.addAll([url], opts); }
 
+  /** Remove one URL. See removeAll. */
+  remove(url, opts) { return this.removeAll([url], opts); }
+
+  /**
+   * Remove URLs from the registry. Returns true if anything was removed.
+   * Subscribers are notified exactly as for addAll, so a host that persists
+   * the snapshot on change persists removals too.
+   */
+  removeAll(urls, { silent = false } = {}) {
+    let changed = false;
+    for (const raw of urls || []) {
+      const u = normalize(raw);
+      if (u && this._pods.delete(u)) changed = true;
+    }
+    if (changed) this._notify(silent);
+    return changed;
+  }
+
   /**
    * Add URLs to the registry. Returns true if anything new was added.
    * Subscribers are notified on a change and passed (snapshot, silent);

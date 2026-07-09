@@ -304,6 +304,38 @@ export async function getStoragesFromWebIds(webIds) {
   return [...storages].sort();
 }
 
+/**
+ * Given a user's real storages (from their WebID profile) and the currently
+ * known pod list, return the known entries that are stale PROVIDER ROOTS:
+ * origin-root URLs on the same base domain as one of the storages that are
+ * not themselves storages — i.e. the OIDC issuer recorded as if it were a
+ * pod (older hosts did that on login; an issuer is a login service, not a
+ * pod location). Localhost entries are never stale — the local pod IS served
+ * at its origin root.
+ */
+export function staleProviderRoots(storages, known) {
+  const norm = (u) => (u.endsWith('/') ? u : u + '/');
+  const baseOf = (h) => {
+    const p = h.split('.');
+    return p.length >= 2 ? p.slice(-2).join('.') : h;
+  };
+  const storageSet = new Set((storages || []).map(norm));
+  const domains = new Set();
+  for (const s of storageSet) {
+    try { domains.add(baseOf(new URL(s).hostname)); } catch { /* skip */ }
+  }
+  return (known || []).filter((u) => {
+    try {
+      const url = new URL(u);
+      if (url.pathname !== '/') return false;
+      if (storageSet.has(norm(u))) return false;
+      const h = url.hostname;
+      if (h === 'localhost' || h === '127.0.0.1' || h.endsWith('.localhost')) return false;
+      return domains.has(baseOf(h));
+    } catch { return false; }
+  });
+}
+
 // ── File-type classification ─────────────────────────────────────────
 
 const TEXT_VIEWABLE = ['txt','md','csv','json','jsonld','ttl','n3','html','xml','svg','js','css'];
