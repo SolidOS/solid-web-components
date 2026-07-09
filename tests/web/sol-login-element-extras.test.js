@@ -279,3 +279,52 @@ describe('SolQuery._authFetch — login selector', () => {
     q.remove();
   });
 });
+
+// ── initialize(): single-flight + resilient paint + side-scoped event ────────
+// Boot paths overlap: the embedding component's mount AND the host's own
+// redirect handler both call initialize(). Two concurrent runs raced the OIDC
+// code exchange and could leave "Log in" painted on a logged-in session.
+
+describe('SolLogin — initialize()', () => {
+  afterEach(() => { clearSessions(); document.body.innerHTML = ''; });
+
+  test('is single-flight: concurrent callers share one redirect pass', async () => {
+    const el = mkLogin();
+    let calls = 0;
+    let release;
+    el.auth.handleIncomingRedirect = () => { calls++; return new Promise(r => { release = r; }); };
+    const a = el.initialize();
+    const b = el.initialize();
+    expect(a).toBe(b);
+    release();
+    await Promise.all([a, b]);
+    expect(calls).toBe(1);
+  });
+
+  test('paints the button even when redirect processing throws', async () => {
+    const el = mkLogin();
+    const s = el.auth.sessionFor('default', 'https://ex.com');
+    s.info = { isLoggedIn: true, webId: 'https://ex.com/me', issuer: 'https://ex.com' };
+    el.auth.handleIncomingRedirect = async () => { throw new Error('code already consumed'); };
+    await el.initialize();
+    expect(el.shadowRoot.querySelector('.auth-btn').textContent).toBe('Log out');
+  });
+
+  test('announces the SIDE session, not a synthetic first-logged-in default', async () => {
+    const el = mkLogin('left');
+    // dk-style synthetic owner on 'default' — always logged in.
+    el.auth.sessions.set('default', {
+      info: { isLoggedIn: true, webId: 'http://localhost/dk-pod/profile/card#me', issuer: 'http://localhost/' },
+      fetch: (i, init) => globalThis.fetch(i, init),
+      logout: async () => {},
+    });
+    const left = el.auth.sessionFor('left', 'https://idp.example');
+    left.info = { isLoggedIn: true, webId: 'https://me.idp.example/card#me', issuer: 'https://idp.example' };
+    const seen = [];
+    el.addEventListener('sol-login', (e) => seen.push(e.detail));
+    await el.initialize();
+    expect(seen.length).toBe(1);
+    expect(seen[0].webId).toBe('https://me.idp.example/card#me');
+    expect(seen[0].side).toBe('left');
+  });
+});

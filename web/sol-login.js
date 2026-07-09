@@ -284,6 +284,7 @@ class SolLogin extends HTMLElement {
     this._popupCallback = new URL('./popup-auth-callback.html', import.meta.url).href;
     this._popupWindow = null;
     this._popupMsgHandler = null;
+    this._initPromise = null;
   }
 
   get auth() { return this._auth; }
@@ -634,7 +635,19 @@ class SolLogin extends HTMLElement {
     }
   }
 
-async initialize(tags = ['default']) {
+initialize(tags = ['default']) {
+  // Single-flight: the embedding component's mount (sol-pod) and the host's
+  // own boot path (podz handleRedirect) BOTH call initialize(). Two
+  // concurrent runs raced the OIDC code exchange — one consumed the ?code,
+  // the other errored or no-oped and could paint the button from a
+  // not-yet-logged-in snapshot, leaving "Log in" on a logged-in session.
+  // Concurrent callers now share one run.
+  if (this._initPromise) return this._initPromise;
+  this._initPromise = this._doInitialize(tags);
+  return this._initPromise;
+}
+
+async _doInitialize(tags = ['default']) {
   if (this._mode === 'popup') {
     // PR 1: no cross-reload persistence — nothing to restore on boot.
     this._updateUI();
@@ -644,17 +657,29 @@ async initialize(tags = ['default']) {
   for (const tag of tags) {
     this._auth.sessionFor(tag);
   }
-  await this._auth.handleIncomingRedirect();
+  // The button must ALWAYS end up painted from the real session state, even
+  // when redirect processing throws (e.g. an already-consumed code).
+  try {
+    await this._auth.handleIncomingRedirect();
+  } catch (e) {
+    console.warn('[sol-login] incoming-redirect processing failed:', e?.message || e);
+  }
   this._updateUI();
   this._integrateWithRdflib();
 
-  const firstSession = this._auth.getFirstLoggedIn();
-  if (firstSession) {
+  // Announce the session THIS element displays (its own side first) — on a
+  // host with a synthetic always-on session under 'default' (dk's local
+  // owner), getFirstLoggedIn() would announce the owner instead of the user
+  // who just completed the redirect, and listeners like sol-pod's
+  // storage adoption would walk the wrong profile.
+  const session = this._displaySession() || this._auth.getFirstLoggedIn();
+  if (session?.info?.isLoggedIn) {
     this.dispatchEvent(new CustomEvent('sol-login', {
       bubbles: true, composed: true,
       detail: {
-        webId: firstSession.info.webId,
-        issuer: firstSession.info.issuer
+        webId: session.info.webId,
+        issuer: session.info.issuer,
+        side: this._side,
       }
     }));
   }
