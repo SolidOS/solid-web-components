@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/utils/feed-edit.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/utils/feed-edit.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * feed-edit.js — sol-feed's editing operations over a SKOS/DCAT feeds doc.
+ *
+ * Each operation is a *pure builder* returning `{ deletes, inserts }` arrays of
+ * Turtle triple strings; `patchDoc` turns one into a `application/sparql-update`
+ * body and PATCHes it to the feeds file (same-origin; no proxy — the CORS proxy
+ * is only for cross-origin RSS reads). Splitting build from send keeps the body
+ * construction unit-testable without a network.
+ *
+ * Model (matches libraries/news/feeds.ttl): topics are `skos:Concept`
+ * (`skos:prefLabel`, `skos:topConceptOf` the scheme); sources are
+ * `dcat:Dataset, rss:channel` with `dct:title` + `dcat:accessURL` +
+ * `dcat:theme` → a topic; the `dcat:Catalog` lists every source via
+ * `dcat:dataset`. Deleted sources are re-themed to a reserved `#Deleted`
+ * concept (NOT `topConceptOf` the scheme, so it never shows as a normal topic).
+ */
+
+export const NS = {
+  rdf:    'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+  dct:    'http://purl.org/dc/terms/',
+  dcat:   'http://www.w3.org/ns/dcat#',
+  skos:   'http://www.w3.org/2004/02/skos/core#',
+  rss:    'http://purl.org/rss/1.0/',
+  schema: 'http://schema.org/',
+};
+
+const DEFAULT_PREFIXES = {
+  rdf: NS.rdf, dct: NS.dct, dcat: NS.dcat, skos: NS.skos, rss: NS.rss, schema: NS.schema,
+};
+
+/** The reserved deleted-bin concept fragment. */
+export const BIN_FRAG = 'Deleted';
+export const binUriFor = (fileUri) => `${fileUri}#${BIN_FRAG}`;
+
+/** A Turtle string literal (handles quotes / backslashes / newlines). */
+export const lit = (s) => JSON.stringify(String(s));
+
+/* ── pure builders → { deletes, inserts } ───────────────────────────────── */
+
+export function renameTopicEdit(topicUri, oldLabel, newLabel) {
+  return {
+    deletes: [`&lt;${topicUri}> skos:prefLabel ${lit(oldLabel)} .`],
+    inserts: [`&lt;${topicUri}> skos:prefLabel ${lit(newLabel)} .`],
+  };
+}
+
+export function recategorizeEdit(feedUri, fromTopicUri, toTopicUri) {
+  if (fromTopicUri === toTopicUri) return { deletes: [], inserts: [] };
+  return {
+    deletes: [`&lt;${feedUri}> dcat:theme &lt;${fromTopicUri}> .`],
+    inserts: [`&lt;${feedUri}> dcat:theme &lt;${toTopicUri}> .`],
+  };
+}
+
+export function addFeedEdit(feedUri, { title, url, topicUri, catalogUri }) {
+  const inserts = [
+    `&lt;${feedUri}> a dcat:Dataset, rss:channel ; ` +
+      `dct:title ${lit(title)} ; dcat:accessURL &lt;${url}> ; dcat:theme &lt;${topicUri}> .`,
+  ];
+  if (catalogUri) inserts.push(`&lt;${catalogUri}> dcat:dataset &lt;${feedUri}> .`);
+  return { deletes: [], inserts };
+}
+
+/** Move a source to the bin (re-theme to #Deleted), creating the bin concept
+ *  on first use. `binLabel` only matters when the concept is minted. */
+export function deleteToBinEdit(feedUri, fromTopicUri, binUri, { ensureBin = true, binLabel = 'Deleted' } = {}) {
+  const inserts = [`&lt;${feedUri}> dcat:theme &lt;${binUri}> .`];
+  if (ensureBin) inserts.push(`&lt;${binUri}> a skos:Concept ; skos:prefLabel ${lit(binLabel)} .`);
+  return { deletes: [`&lt;${feedUri}> dcat:theme &lt;${fromTopicUri}> .`], inserts };
+}
+
+/** Restore from the bin = re-categorize out of #Deleted to a chosen topic. */
+export function restoreEdit(feedUri, binUri, toTopicUri) {
+  return recategorizeEdit(feedUri, binUri, toTopicUri);
+}
+
+/** Set/replace a single subject's ordering position. */
+export function reorderEdit(subjectUri, oldPos, newPos) {
+  const deletes = oldPos == null ? [] : [`&lt;${subjectUri}> schema:position ${Number(oldPos)} .`];
+  return { deletes, inserts: [`&lt;${subjectUri}> schema:position ${Number(newPos)} .`] };
+}
+
+/**
+ * Re-number a whole ordered list (a topic's sources). Writes `schema:position`
+ * 0..n-1 in the new order; only emits triples for items whose position changed.
+ * @param {string[]} orderedUris   subjects in their new order
+ * @param {Object&lt;string,number>} [oldPos]  uri → its current position (if any)
+ */
+export function setPositionsEdit(orderedUris, oldPos = {}) {
+  const deletes = [], inserts = [];
+  orderedUris.forEach((uri, i) => {
+    const had = oldPos[uri];
+    if (had === i) return;                                  // already correct
+    if (had != null) deletes.push(`&lt;${uri}> schema:position ${Number(had)} .`);
+    inserts.push(`&lt;${uri}> schema:position ${i} .`);
+  });
+  return { deletes, inserts };
+}
+
+/* ── slug / mint ─────────────────────────────────────────────────────────── */
+
+/** Mint a unique `&lt;fileUri>#feed-&lt;slug>` not colliding with `existingUris`. */
+export function mintFeedUri(fileUri, title, existingUris = []) {
+  const taken = new Set(existingUris);
+  const base = 'feed-' + String(title).trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'feed';
+  let frag = base, n = 2;
+  while (taken.has(`${fileUri}#${frag}`)) frag = `${base}-${n++}`;
+  return `${fileUri}#${frag}`;
+}
+
+/** Mint a unique `&lt;fileUri>#&lt;Frag>` topic IRI from a label (alnum + _.-),
+ *  not colliding with `existingUris`. */
+export function mintTopicUri(fileUri, label, existingUris = []) {
+  const taken = new Set(existingUris);
+  const base = String(label).trim().replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_.-]/g, '') || 'Topic';
+  let frag = base, n = 2;
+  while (taken.has(`${fileUri}#${frag}`)) frag = `${base}_${n++}`;
+  return `${fileUri}#${frag}`;
+}
+
+/** Add a new topic as a `skos:Concept` that is a top concept of the scheme
+ *  (`skos:topConceptOf &lt;schemeUri>`), matching the SKOS shape the reader and
+ *  the other editing ops use. `schemeUri` is the focus concept scheme. */
+export function addTopicEdit(topicUri, label, schemeUri) {
+  const tail = schemeUri ? ` ; skos:topConceptOf &lt;${schemeUri}>` : '';
+  return {
+    deletes: [],
+    inserts: [`&lt;${topicUri}> a skos:Concept ; skos:prefLabel ${lit(label)}${tail} .`],
+  };
+}
+
+/* ── serialise + send ────────────────────────────────────────────────────── */
+
+export function patchBody({ deletes = [], inserts = [] }, prefixes = DEFAULT_PREFIXES) {
+  const pfx = Object.entries(prefixes).map(([k, v]) => `PREFIX ${k}: &lt;${v}>`).join('\n');
+  const block = (kw, triples) => `${kw} {\n${triples.map((t) => '  ' + t).join('\n')}\n}`;
+  const parts = [];
+  if (deletes.length) parts.push(block('DELETE DATA', deletes));
+  if (inserts.length) parts.push(block('INSERT DATA', inserts));
+  return `${pfx}\n${parts.join(' ;\n')}\n`;
+}
+
+/**
+ * PATCH the feeds file with one edit. Same-origin, no proxy.
+ * @param {string} fileUri
+ * @param {{deletes?:string[],inserts?:string[]}} edit
+ * @param {{prefixes?:object, fetchImpl?:Function}} [opts]
+ */
+export async function patchDoc(fileUri, edit, { prefixes = DEFAULT_PREFIXES, fetchImpl } = {}) {
+  if (!edit || (!edit.deletes?.length &amp;&amp; !edit.inserts?.length)) return;
+  const f = fetchImpl || fetch;
+  const resp = await f(fileUri, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/sparql-update' },
+    body: patchBody(edit, prefixes),
+  });
+  if (!resp.ok) throw new Error(`Save failed (HTTP ${resp.status}) — the feeds file must be writable.`);
+}
+
+/**
+ * Permanent delete: remove ALL of a source's triples (DELETE … WHERE, so it
+ * works whatever predicates it has — title, accessURL, theme, position, …)
+ * plus its `dcat:dataset` catalog membership. Used to purge from the bin.
+ */
+export function purgeBody(feedUri, catalogUri, prefixes = DEFAULT_PREFIXES) {
+  const pfx = Object.entries(prefixes).map(([k, v]) => `PREFIX ${k}: &lt;${v}>`).join('\n');
+  const cat = catalogUri ? `\n  &lt;${catalogUri}> dcat:dataset &lt;${feedUri}> .` : '';
+  return `${pfx}\nDELETE {\n  &lt;${feedUri}> ?p ?o .${cat}\n} WHERE {\n  &lt;${feedUri}> ?p ?o .\n}\n`;
+}
+
+export async function purgeFeed(fileUri, feedUri, { catalogUri, prefixes, fetchImpl } = {}) {
+  const f = fetchImpl || fetch;
+  const resp = await f(fileUri, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/sparql-update' },
+    body: purgeBody(feedUri, catalogUri, prefixes),
+  });
+  if (!resp.ok) throw new Error(`Permanent delete failed (HTTP ${resp.status}).`);
+}
+
+/**
+ * Robust re-file: drop whatever `dcat:theme` the feed currently has (via
+ * DELETE … WHERE, so it never fails on a stale or absent from-theme — unlike
+ * `recategorizeEdit`'s DELETE DATA of one specific triple) and set the chosen
+ * topic. The two statements run as one `application/sparql-update`.
+ */
+export function recategorizeBody(feedUri, toTopicUri, prefixes = DEFAULT_PREFIXES) {
+  const pfx = Object.entries(prefixes).map(([k, v]) => `PREFIX ${k}: &lt;${v}>`).join('\n');
+  return `${pfx}\n` +
+    `DELETE { &lt;${feedUri}> dcat:theme ?t . } WHERE { &lt;${feedUri}> dcat:theme ?t . } ;\n` +
+    `INSERT DATA { &lt;${feedUri}> dcat:theme &lt;${toTopicUri}> . }\n`;
+}
+
+export async function recategorizeFeed(fileUri, feedUri, toTopicUri, { prefixes, fetchImpl } = {}) {
+  const f = fetchImpl || fetch;
+  const resp = await f(fileUri, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/sparql-update' },
+    body: recategorizeBody(feedUri, toTopicUri, prefixes),
+  });
+  if (!resp.ok) throw new Error(`Save failed (HTTP ${resp.status}) — the feeds file must be writable.`);
+}
+
+/**
+ * Remove a topic concept entirely: DELETE … WHERE every triple where the topic
+ * is the subject (its type, prefLabel, topConceptOf, …), so it works whatever
+ * predicates the concept carries — unlike DELETE DATA of a guessed triple set.
+ * Only safe for an EMPTY topic: a topic with feeds is still referenced by their
+ * `dcat:theme`, which this does not touch (the caller must block that case).
+ */
+export function removeTopicBody(topicUri, prefixes = DEFAULT_PREFIXES) {
+  const pfx = Object.entries(prefixes).map(([k, v]) => `PREFIX ${k}: &lt;${v}>`).join('\n');
+  return `${pfx}\nDELETE {\n  &lt;${topicUri}> ?p ?o .\n} WHERE {\n  &lt;${topicUri}> ?p ?o .\n}\n`;
+}
+
+export async function removeTopic(fileUri, topicUri, { prefixes, fetchImpl } = {}) {
+  const f = fetchImpl || fetch;
+  const resp = await f(fileUri, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/sparql-update' },
+    body: removeTopicBody(topicUri, prefixes),
+  });
+  if (!resp.ok) throw new Error(`Delete topic failed (HTTP ${resp.status}).`);
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

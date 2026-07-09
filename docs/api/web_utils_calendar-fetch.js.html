@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/utils/calendar-fetch.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/utils/calendar-fetch.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * calendar-fetch.js — fetch + parse iCalendar (RFC 5545) into plain JS
+ * event objects. Thin translation layer over ical.js; nothing in the
+ * render layer should ever import ical.js directly.
+ *
+ * The library handles the parts of RFC 5545 that are genuinely subtle —
+ * embedded VTIMEZONE blocks, recurrence (`RRULE` + `EXDATE` +
+ * `RECURRENCE-ID` overrides), date-vs-datetime distinction, line
+ * unfolding, escape sequences — so this module is mostly bookkeeping:
+ * given an URL or a text blob, hand back `Event[]` with recurrences
+ * already expanded into a `[start, start + windowDays)` window.
+ *
+ * Companion to `feed-fetch.js` (RSS/Atom) and `rdf-config.js` (TTL
+ * PropertyValue config). Same CORS-then-proxy fetch pattern as
+ * `feed-fetch.js` — most provider ICS endpoints (Google, Apple,
+ * Outlook, Proton) don't send `Access-Control-Allow-Origin`, so the
+ * `proxy` option does real work in practice.
+ */
+
+import ICAL from 'ical.js';
+
+/**
+ * Plain JS event shape returned to callers. ical.js's `Time`,
+ * `Duration`, etc. are converted to native `Date` here so the render
+ * layer doesn't need to know about them.
+ *
+ * @typedef {Object} CalendarEvent
+ * @property {string}  uid                   stable identity; recurring instances share the master UID
+ * @property {string}  summary               event title (may be empty for malformed ICS)
+ * @property {string=} description
+ * @property {string=} location
+ * @property {string=} url
+ * @property {Date}    start                 in the JS engine's local timezone
+ * @property {Date}    end
+ * @property {boolean} allDay                DTSTART was a DATE (no time component)
+ * @property {boolean} isRecurringInstance   true if produced by RRULE expansion
+ * @property {string=} calendar              human label for multi-calendar merges (v2)
+ */
+
+/**
+ * Build a publicly-fetchable ICS URL from a provider + calendar id.
+ * Only `google` actually composes a URL today — the rest of the
+ * known providers expect the user to paste the share link directly,
+ * but they still drive the header label and (later) any provider-
+ * specific quirks in the fetch path.
+ *
+ * @param {string} provider     "google" | "apple" | "outlook" | "proton" | "ics"
+ * @param {string} calendarId   provider-specific; for Google, the calendar email/id
+ * @returns {string|null}       URL when we can build one, null when the caller should
+ *                              fall back to its own explicit URL
+ */
+export function buildProviderUrl(provider, calendarId) {
+  if (!calendarId) return null;
+  switch ((provider || '').toLowerCase()) {
+    case 'google':
+      return `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
+    default:
+      // apple / outlook / proton / ics — pass-through, caller has the URL.
+      return null;
+  }
+}
+
+/**
+ * Apply a proxy pattern to a URL. Mirrors `feed-fetch.js`: if the
+ * pattern contains the literal token `{url}`, the encoded target
+ * replaces it; otherwise the encoded target is appended to the end
+ * of the pattern.
+ *
+ * @param {string} proxy    pattern (empty / null → no proxy)
+ * @param {string} target   absolute URL to fetch
+ * @returns {string}        the URL to actually request
+ */
+export function applyProxy(proxy, target) {
+  if (!proxy) return target;
+  if (proxy.includes('{url}')) return proxy.replace('{url}', encodeURIComponent(target));
+  return proxy + encodeURIComponent(target);
+}
+
+/** Resolve a (possibly relative) URL against the current document. */
+function resolveUrl(url) {
+  try { return new URL(url, document.baseURI).href; } catch { return url; }
+}
+
+/** True when `absUrl` points at a different origin than the page. */
+function isCrossOrigin(absUrl) {
+  try { return new URL(absUrl).origin !== location.origin; }
+  catch { return false; }
+}
+
+/**
+ * Fetch an ICS document. Mirrors feed-fetch's routing: a cross-origin feed
+ * goes through the CORS proxy FIRST. Most provider ICS endpoints (Google,
+ * Apple, Outlook) block cross-origin reads, and a doomed bare fetch logs a
+ * CORS error to the console even when it's caught — so we don't probe direct.
+ * A same-origin ICS (a pod's own export) is fetched directly, so the proxy is
+ * never asked to relay it. If the proxied attempt fails, a bare fetch is the
+ * last-resort fallback (covers a down proxy / a CORS-friendly cross host).
+ *
+ * @param {string} url
+ * @param {{proxy?: string, signal?: AbortSignal}} opts
+ */
+async function fetchICSText(url, { proxy = '', signal } = {}) {
+  const abs = resolveUrl(url);
+  const useProxy = proxy &amp;&amp; isCrossOrigin(abs);
+  // Proxy-first for cross-origin; bare direct as the same-origin path and the
+  // last-resort fallback. No proxy configured → direct only.
+  const attempts = useProxy ? [applyProxy(proxy, abs), abs] : [abs];
+
+  let lastErr;
+  for (const target of attempts) {
+    try {
+      const resp = await fetch(target, { signal });
+      if (resp.ok) {
+        const text = await resp.text();
+        // Sniff: some servers respond 200 to misrouted requests with HTML.
+        if (text.includes('BEGIN:VCALENDAR')) return text;
+        lastErr = new Error('Fetched a non-ICS body');
+      } else {
+        lastErr = new Error(`HTTP ${resp.status} fetching calendar`);
+      }
+    } catch (e) {
+      if (signal?.aborted) throw e;   // honour cancellation; don't retry
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error(`Couldn't fetch calendar — try setting proxy=`);
+}
+
+/** Convert an ical.js Time to a native JS Date in the local TZ. */
+function timeToDate(t) {
+  // `toJSDate()` on a date-only Time still returns a Date pinned to
+  // 00:00 local; the caller flags it via `allDay` rather than dropping
+  // the time component.
+  return t.toJSDate();
+}
+
+/** Known video-meeting host substrings, in preference order. The
+ *  first match in the DESCRIPTION wins over arbitrary other URLs
+ *  (so a "see gitter.im/x for chat" line never beats the actual
+ *  meet.jit.si link). */
+const MEETING_HOSTS = [
+  'meet.jit.si',
+  'zoom.us',
+  'meet.google.com',
+  'teams.microsoft.com',
+  'whereby.com',
+  'us02web.zoom.us', 'us04web.zoom.us', 'us05web.zoom.us', 'us06web.zoom.us',
+];
+
+/** Match any `http(s)://…` URL up to whitespace / quote / angle-bracket
+ *  / common ICS line-ending punctuation. Tuned to be greedy enough for
+ *  query strings but not so greedy that trailing punctuation (".", ",",
+ *  ")") becomes part of the URL. */
+const URL_RE = /https?:\/\/[^\s&lt;>"'\\]+/g;
+
+/** Trim trailing punctuation that's commonly stuck to a URL when it
+ *  sits at the end of a sentence in DESCRIPTION text. */
+function trimUrlTail(u) {
+  return u.replace(/[.,;:!?\])]+$/, '');
+}
+
+/**
+ * Pick the best "click target" URL for an event, in priority order:
+ *
+ *   1. The standard `URL` iCal property.
+ *   2. LOCATION if the whole field is a URL (frequent for Jitsi-only
+ *      calendars like the Solid CG one).
+ *   3. The first URL in DESCRIPTION that matches a known meeting host.
+ *   4. The first URL in DESCRIPTION of any host (so the W3C
+ *      events-page link still becomes a click target on calendars
+ *      that don't carry the join URL inline).
+ *
+ * Also reports whether LOCATION was consumed as the URL — the caller
+ * suppresses the location text-row in that case so the URL doesn't
+ * render twice (once as the summary's href, once below as plain text).
+ *
+ * @param {ICAL.Event} event
+ * @returns {{ url: string|undefined, locationIsUrl: boolean }}
+ */
+function pickMeetingUrl(event) {
+  const explicitUrl = event.component.getFirstPropertyValue('url');
+  if (explicitUrl) return { url: String(explicitUrl), locationIsUrl: false };
+
+  const loc = event.location || '';
+  if (/^https?:\/\/\S+$/i.test(loc.trim())) {
+    return { url: trimUrlTail(loc.trim()), locationIsUrl: true };
+  }
+
+  const desc = event.description || '';
+  const urls = (desc.match(URL_RE) || []).map(trimUrlTail);
+  if (!urls.length) return { url: undefined, locationIsUrl: false };
+
+  for (const u of urls) {
+    try {
+      const host = new URL(u).hostname.toLowerCase();
+      if (MEETING_HOSTS.some(h => host === h || host.endsWith('.' + h) || host.endsWith(h))) {
+        return { url: u, locationIsUrl: false };
+      }
+    } catch { /* skip malformed */ }
+  }
+  return { url: urls[0], locationIsUrl: false };
+}
+
+/**
+ * Translate one ical.js Event (master + an optional recurrence-instance
+ * detail) into the flat shape we expose. `details` is what
+ * `event.iterator()` hands back when expanding recurrences; for a
+ * non-recurring event it's just `{ startDate, endDate }` synthesised
+ * from the master.
+ */
+function toCalendarEvent(event, details, { calendar } = {}) {
+  const startTime = details ? details.startDate : event.startDate;
+  const endTime   = details ? details.endDate   : event.endDate;
+  const { url, locationIsUrl } = pickMeetingUrl(event);
+  return {
+    uid:                  event.uid || '',
+    summary:              event.summary || '',
+    description:          event.description || undefined,
+    // Drop the location text when it WAS the meeting URL — otherwise
+    // the same link renders twice (once as the summary's href, once
+    // as plain text below).
+    location:             locationIsUrl ? undefined : (event.location || undefined),
+    url,
+    start:                timeToDate(startTime),
+    end:                  endTime ? timeToDate(endTime) : timeToDate(startTime),
+    allDay:               !!startTime.isDate,
+    // True for every occurrence produced via recurrence expansion —
+    // including RECURRENCE-ID overrides, which are themselves single
+    // events (so `event.isRecurring()` is false on them) but only
+    // exist as part of a recurring series.
+    isRecurringInstance:  !!details,
+    calendar,
+  };
+}
+
+/**
+ * Parse an ICS text blob and expand recurrences inside the given
+ * window. The window is `[start, start + windowDays)`, half-open at
+ * the end so an event whose start equals `start + windowDays` is
+ * excluded.
+ *
+ * @param {string} text
+ * @param {{start?: Date, windowDays?: number, maxEvents?: number, calendar?: string}} [opts]
+ * @returns {CalendarEvent[]} sorted ascending by start
+ */
+export function parseICS(text, opts = {}) {
+  const start      = opts.start instanceof Date ? opts.start : new Date();
+  const windowDays = Number.isFinite(opts.windowDays) ? opts.windowDays : 30;
+  const maxEvents  = Number.isFinite(opts.maxEvents)  ? opts.maxEvents  : 1000;
+  const calendar   = opts.calendar;
+
+  const winStart = start;
+  const winEnd   = new Date(start.getTime() + windowDays * 86_400_000);
+
+  const jcal = ICAL.parse(text);
+  const root = new ICAL.Component(jcal);
+
+  // Embedded VTIMEZONE blocks need to be registered so any DTSTART
+  // with a matching TZID resolves correctly.
+  for (const vt of root.getAllSubcomponents('vtimezone')) {
+    const tz = new ICAL.Timezone(vt);
+    if (!ICAL.TimezoneService.has(tz.tzid)) ICAL.TimezoneService.register(tz.tzid, tz);
+  }
+
+  const events = [];
+  const vevents = root.getAllSubcomponents('vevent');
+
+  // Two passes for recurring events: first collect any RECURRENCE-ID
+  // override instances (they shadow specific occurrences of the master),
+  // then iterate the master and substitute overrides as they come up.
+  const overridesByUid = new Map();   // uid → Map&lt;recurrence-id ISO, event>
+  const masters = [];
+  for (const ve of vevents) {
+    const ev = new ICAL.Event(ve);
+    if (ev.isRecurrenceException()) {
+      const key = ev.uid;
+      let bucket = overridesByUid.get(key);
+      if (!bucket) overridesByUid.set(key, bucket = new Map());
+      bucket.set(ev.recurrenceId.toString(), ev);
+    } else {
+      masters.push(ev);
+    }
+  }
+
+  // Cap on iterations per master — guards against pathological RRULEs
+  // (e.g. `FREQ=SECONDLY` someone might paste in) producing millions of
+  // instances before the window check trims them.
+  const ITER_CAP = 5000;
+
+  for (const ev of masters) {
+    if (events.length >= maxEvents) break;
+
+    if (ev.isRecurring()) {
+      const overrides = overridesByUid.get(ev.uid);
+      const iter = ev.iterator();
+      let next;
+      let n = 0;
+      while ((next = iter.next()) &amp;&amp; n++ &lt; ITER_CAP) {
+        const occStartDate = next.toJSDate();
+        if (occStartDate >= winEnd) break;
+        // Find the duration on either the master or the per-occurrence
+        // override; getOccurrenceDetails on the master returns the right
+        // end-date and substitutes the override summary/location etc.
+        const details = ev.getOccurrenceDetails(next);
+        if (details.endDate.toJSDate() &lt; winStart) continue;
+        const useEv = overrides &amp;&amp; overrides.get(next.toString())
+          ? overrides.get(next.toString())
+          : ev;
+        events.push(toCalendarEvent(useEv, details, { calendar }));
+        if (events.length >= maxEvents) break;
+      }
+    } else {
+      const evStart = timeToDate(ev.startDate);
+      const evEnd   = ev.endDate ? timeToDate(ev.endDate) : evStart;
+      if (evEnd &lt; winStart || evStart >= winEnd) continue;
+      events.push(toCalendarEvent(ev, null, { calendar }));
+    }
+  }
+
+  events.sort((a, b) => a.start - b.start);
+  return events;
+}
+
+/**
+ * Top-level helper: resolve the URL (provider URL builder or pass-
+ * through), fetch the ICS text (with proxy fallback), and parse it
+ * into the windowed `CalendarEvent[]`.
+ *
+ * @param {string} url
+ * @param {{provider?: string, calendarId?: string, proxy?: string,
+ *          start?: Date, windowDays?: number, maxEvents?: number,
+ *          calendar?: string, signal?: AbortSignal}} [opts]
+ */
+export async function getCalendarEvents(url, opts = {}) {
+  const built = buildProviderUrl(opts.provider, opts.calendarId);
+  const target = built || url;
+  if (!target) throw new Error('No calendar URL — supply source= or calendar-id=');
+  const text = await fetchICSText(target, { proxy: opts.proxy, signal: opts.signal });
+  return parseICS(text, opts);
+}
+
+/**
+ * Multi-source helper: fetch every URL in parallel and merge the
+ * resulting events into one sorted-by-start list. A flaky single feed
+ * doesn't blank the whole result — its error is reported in `errors`
+ * and the surviving feeds still render.
+ *
+ * Each merged event carries a `calendar` label derived from the URL
+ * (host + first path segment), so the render layer can show the
+ * origin if it wants to.
+ *
+ * @param {string[]} urls
+ * @param {{provider?: string, proxy?: string, start?: Date,
+ *          windowDays?: number, maxEvents?: number,
+ *          signal?: AbortSignal}} [opts]
+ * @returns {Promise&lt;{events: CalendarEvent[], errors: {url: string, message: string}[]}>}
+ */
+export async function getMergedCalendarEvents(urls, opts = {}) {
+  if (!urls || !urls.length) {
+    throw new Error('No calendar URLs — supply at least one source');
+  }
+
+  const settled = await Promise.allSettled(
+    urls.map(async (u) => {
+      const text = await fetchICSText(u, { proxy: opts.proxy, signal: opts.signal });
+      return parseICS(text, { ...opts, calendar: shortLabelFromUrl(u) });
+    }),
+  );
+
+  const events = [];
+  const errors = [];
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled') events.push(...r.value);
+    else errors.push({ url: urls[i], message: r.reason?.message || String(r.reason) });
+  });
+
+  events.sort((a, b) => a.start - b.start);
+  // The per-feed maxEvents already clipped each one; cap the merged
+  // total separately so a couple of big calendars don't blow the cap.
+  const cap = Number.isFinite(opts.maxEvents) ? opts.maxEvents : 1000;
+  if (events.length > cap) events.length = cap;
+  return { events, errors };
+}
+
+/** Short, human-ish label for an ICS URL — host + first path segment
+ *  trimmed, used as the per-event `calendar` field when merging.
+ *  "https://www.w3.org/groups/cg/solid/calendar/export/" → "w3.org/solid"
+ *  "https://calendar.google.com/.../basic.ics"            → "google" */
+function shortLabelFromUrl(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+    if (host === 'calendar.google.com' || host.endsWith('.google.com')) return 'google';
+    // Pick a useful path token: prefer something that isn't generic
+    // ("groups", "calendar", "export", etc.). Falls back to the host.
+    const skip = new Set(['groups', 'calendar', 'export', 'public', 'ical', 'cg', 'wg']);
+    const tok = u.pathname.split('/').find(s => s &amp;&amp; !skip.has(s.toLowerCase()));
+    return tok ? `${host.split('.').slice(-2, -1)[0] || host}/${tok}` : host;
+  } catch {
+    return url;
+  }
+}
+
+export default getCalendarEvents;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

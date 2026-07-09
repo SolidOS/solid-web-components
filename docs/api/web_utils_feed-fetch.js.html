@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/utils/feed-fetch.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/utils/feed-fetch.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * feed-fetch.js — RSS / Atom fetching and parsing for &lt;sol-feed>.
+ *
+ * Zero-dependency in the common path: `DOMParser` handles both the feed
+ * XML and the image / plain-text extraction from item descriptions. Feed
+ * content is never returned as live HTML — callers get plain strings only,
+ * so there is no sanitization burden on the component.
+ *
+ * RDF source lists (see `parseSourceList`) are the one exception: they
+ * lazily `import()` the project's rdflib wrapper, which the standalone
+ * UMD build keeps external.
+ */
+
+const domParser = new DOMParser();
+
+/**
+ * Prepend a CORS proxy to a URL. The pattern may contain a literal
+ * `{url}` placeholder (replaced with the encoded URL); otherwise the
+ * encoded URL is appended, matching the legacy `proxy + encodeURI(...)`
+ * behaviour.
+ *
+ * @param {string} url   the target URL
+ * @param {string} proxy the proxy pattern, or falsy for a direct fetch
+ * @returns {string}
+ */
+export function applyProxy(url, proxy) {
+  if (!proxy) return url;
+  if (proxy.includes('{url}')) return proxy.replace('{url}', encodeURIComponent(url));
+  return proxy + encodeURI(url);
+}
+
+/** Resolve a (possibly relative) URL against the current document. */
+function resolveUrl(url) {
+  try { return new URL(url, document.baseURI).href; } catch { return url; }
+}
+
+/** True when `absUrl` points at a different origin than the page. */
+function isCrossOrigin(absUrl) {
+  try { return new URL(absUrl).origin !== location.origin; }
+  catch { return false; }
+}
+
+/**
+ * Fetch a feed / source-list URL, routing it through the CORS proxy only
+ * when it is cross-origin. A same-origin resource (e.g. your own bookmark
+ * file) is fetched directly so the proxy is never asked to relay it.
+ * `init` is passed through to `fetch` (e.g. `{ cache: 'no-store' }` so an
+ * edited source list isn't re-read from the stale browser cache).
+ */
+function feedFetch(url, proxy, init) {
+  const abs = resolveUrl(url);
+  return fetch(isCrossOrigin(abs) ? applyProxy(abs, proxy) : abs, init);
+}
+
+/** Strip a wrapping `&lt;![CDATA[ ... ]]>` and trim. */
+function stripCdata(s) {
+  return (s || '')
+    .replace(/^\s*&lt;!\[CDATA\[/, '')
+    .replace(/\]\]>\s*$/, '')
+    .trim();
+}
+
+/** First descendant element with one of the given (qualified) tag names. */
+function firstTag(el, ...tags) {
+  for (const tag of tags) {
+    const found = el.getElementsByTagName(tag)[0];
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Text content of the first matching child tag. */
+function tagText(el, ...tags) {
+  const found = firstTag(el, ...tags);
+  return found ? found.textContent || '' : '';
+}
+
+/** Collapse an HTML (or CDATA-wrapped HTML) fragment to plain text. */
+function htmlToText(html) {
+  if (!html) return '';
+  const doc = domParser.parseFromString(stripCdata(html), 'text/html');
+  return (doc.body.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+/** First `&lt;img src>` found inside an HTML fragment, or null. */
+function firstImageIn(html) {
+  if (!html) return null;
+  const doc = domParser.parseFromString(stripCdata(html), 'text/html');
+  const img = doc.querySelector('img[src]');
+  return img ? img.getAttribute('src') : null;
+}
+
+const IMG_EXT = /\.(jpe?g|png|gif|webp|avif)(\?|#|$)/i;
+
+/** Pick a representative image URL for an item, trying the richest
+ *  feed extensions first and falling back to the description HTML. */
+function pickImage(el, descHtml) {
+  for (const tag of ['media:thumbnail', 'media:content']) {
+    const m = el.getElementsByTagName(tag)[0];
+    const u = m &amp;&amp; m.getAttribute('url');
+    if (u &amp;&amp; (!m.getAttribute('type') || /^image\//.test(m.getAttribute('type')))) return u;
+  }
+  for (const enc of el.getElementsByTagName('enclosure')) {
+    const type = enc.getAttribute('type') || '';
+    const u = enc.getAttribute('url');
+    if (u &amp;&amp; (/^image\//.test(type) || IMG_EXT.test(u))) return u;
+  }
+  const itunes = el.getElementsByTagName('itunes:image')[0];
+  if (itunes &amp;&amp; itunes.getAttribute('href')) return itunes.getAttribute('href');
+  return firstImageIn(descHtml);
+}
+
+/** Resolve an item link, keeping the legacy workarounds for feeds that
+ *  bury the link inside CDATA / content markup. */
+function pickLink(el) {
+  let link = '';
+  const linkEl = el.getElementsByTagName('link')[0];
+  if (linkEl) {
+    link = (linkEl.textContent || '').trim();
+    if (!link || /\s/.test(link)) link = linkEl.getAttribute('href') || link;
+  }
+  // Atom entries often carry no &lt;link> — the canonical URL is the &lt;id>. Prefer
+  // it over scraping the body (which may yield an unrelated inline href).
+  if (!link || /\s/.test(link)) {
+    const id = tagText(el, 'id').trim();
+    if (/^https?:\/\//i.test(id)) link = id;
+  }
+  if (!link || /\s/.test(link)) {
+    const content = tagText(el, 'content:encoded', 'content', 'description');
+    const m = content &amp;&amp; content.match(/href=["']([^"']+)["']/i);
+    if (m) link = m[1];
+  }
+  link = stripCdata(link);
+  return link ? link.replace(/^http:/, 'https:') : '';
+}
+
+/** Parse one `&lt;item>` / `&lt;entry>` element into a feed-item record. */
+function parseItem(el, source) {
+  const rawDesc = tagText(el, 'content:encoded', 'description', 'summary', 'content');
+  return {
+    title:   htmlToText(tagText(el, 'title')) || '(untitled)',
+    link:    pickLink(el),
+    summary: htmlToText(rawDesc),
+    image:   pickImage(el, rawDesc),
+    pubDate: (tagText(el, 'pubDate', 'published', 'updated', 'dc:date')).trim(),
+    source,
+  };
+}
+
+/**
+ * Fetch and parse a single RSS or Atom feed.
+ *
+ * @param {string} feedUri              the feed URL
+ * @param {{proxy?: string}} [options]  CORS proxy pattern
+ * @returns {Promise&lt;Array&lt;object>>}    feed-item records
+ */
+export async function getFeedItems(feedUri, options = {}) {
+  const resp = await feedFetch(feedUri, options.proxy);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching feed`);
+  const dom = domParser.parseFromString(await resp.text(), 'text/xml');
+  if (dom.getElementsByTagName('parsererror').length) {
+    throw new Error('Feed is not well-formed XML');
+  }
+
+  const source = htmlToText(
+    tagText(dom.documentElement, 'title')
+  ) || feedUri;
+
+  let items = Array.from(dom.getElementsByTagName('item'));
+  if (!items.length) items = Array.from(dom.getElementsByTagName('entry'));
+
+  return items
+    .map(el => parseItem(el, source))
+    .filter(it => it.link || it.title !== '(untitled)');
+}
+
+/* ── source lists ─────────────────────────────────────────────────────── */
+
+/* Vocabularies the source list may use — the parser accepts both the W3C
+ * bookmark ontology (bk:/ui:) and SKOS (skos:/dct:) and treats them as
+ * interchangeable. */
+const NS = {
+  rdf:  'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+  ui:   'http://www.w3.org/ns/ui#',
+  bk:   'http://www.w3.org/2002/01/bookmark#',
+  skos: 'http://www.w3.org/2004/02/skos/core#',
+  dct:  'http://purl.org/dc/terms/',
+  dcat: 'http://www.w3.org/ns/dcat#',
+};
+
+/** Last path / fragment segment of a URI — a readable fallback label. */
+const lastSegment = uri => uri.replace(/[#/]+$/, '').replace(/^.*[#/]/, '') || uri;
+
+/** Drop feeds that repeat a URL, keeping first-seen order. */
+function dedupeFeeds(feeds) {
+  const seen = new Set();
+  return feeds.filter(f => f.url &amp;&amp; !seen.has(f.url) &amp;&amp; seen.add(f.url));
+}
+
+/**
+ * Parse a Turtle document and return the feed list scoped to the focus
+ * topic's subtree. Accepts BOTH the W3C bookmark ontology and SKOS, in
+ * either direction (broader/narrower, topConceptOf/hasTopConcept).
+ *
+ *   # Bookmark form
+ *   &lt;#Feeds> a bk:Topic ; ui:label "Feeds" .
+ *   &lt;#News>  a bk:Topic ; ui:label "News" ; bk:subTopicOf &lt;#Feeds> .
+ *   :00012   a ui:Link  ; ui:label "NY Times" ;
+ *            bk:recalls &lt;https://…/World.xml> ; bk:hasTopic &lt;#News> .
+ *
+ *   # SKOS / DCAT form (feed IRI is the URL)
+ *   &lt;#Feeds> a skos:ConceptScheme ; skos:prefLabel "Feeds" .
+ *   &lt;#News>  a skos:Concept ; skos:prefLabel "News" ; skos:topConceptOf &lt;#Feeds> .
+ *   &lt;https://…/World.xml> dct:title "NY Times" ; dct:subject &lt;#News> .
+ *
+ *   # SKOS / DCAT form (local node — the feed URL is an editable property)
+ *   &lt;#nyt> a dcat:Dataset, rss:channel ; dct:title "NY Times" ;
+ *          dcat:accessURL &lt;https://…/World.xml> ; dcat:theme &lt;#News> .
+ *
+ * Feeds whose topic falls outside the focus subtree (or isn't a defined
+ * topic) are dropped. Requires rdflib on the page.
+ */
+async function feedsFromRdf(fileUri, focusUri, text) {
+  let rdf;
+  try { ({ rdf } = await import('../../core/rdf.js')); }
+  catch { throw new Error('RDF source lists need rdflib on the page'); }
+  if (!rdf.isReady()) throw new Error('rdflib is not available');
+
+  const store = rdf.graph();
+  rdf.parse(text, store, fileUri, 'text/turtle');
+
+  const sym = u => rdf.sym(u);
+  const valueOf = (subj, pred) => {
+    const o = store.any(subj, sym(pred), null);
+    return o ? o.value : '';
+  };
+  /** Yield every URI-valued child of `t` across all hierarchy predicates
+   *  in both ontologies, in both directions. */
+  const childrenOf = function* (t) {
+    const tNode = sym(t);
+    // &lt;child> rel &lt;t>  — forward
+    for (const pred of [NS.bk + 'subTopicOf', NS.skos + 'broader', NS.skos + 'topConceptOf']) {
+      for (const st of store.statementsMatching(null, sym(pred), tNode)) {
+        if (st.subject.termType === 'NamedNode') yield st.subject.value;
+      }
+    }
+    // &lt;t> rel &lt;child>  — inverse
+    for (const pred of [NS.skos + 'narrower', NS.skos + 'hasTopConcept']) {
+      for (const st of store.statementsMatching(tNode, sym(pred), null)) {
+        if (st.object.termType === 'NamedNode') yield st.object.value;
+      }
+    }
+  };
+
+  // Topic label table — any defined Topic / Concept / ConceptScheme.
+  const topicLabel = new Map();
+  const topicTypes = [NS.bk + 'Topic', NS.skos + 'Concept', NS.skos + 'ConceptScheme'];
+  const labelPreds = [NS.ui + 'label', NS.skos + 'prefLabel'];
+  for (const t of topicTypes) {
+    for (const st of store.statementsMatching(null, sym(NS.rdf + 'type'), sym(t))) {
+      if (topicLabel.has(st.subject.value)) continue;
+      let label = '';
+      for (const p of labelPreds) {
+        label = valueOf(st.subject, p);
+        if (label) break;
+      }
+      topicLabel.set(st.subject.value, label || lastSegment(st.subject.value));
+    }
+  }
+
+  // Focus subtree: focus + transitive children across both vocabularies.
+  const subtree = new Set([focusUri]);
+  const queue = [focusUri];
+  while (queue.length) {
+    const t = queue.shift();
+    for (const child of childrenOf(t)) {
+      if (!subtree.has(child)) { subtree.add(child); queue.push(child); }
+    }
+  }
+
+  const feeds = [];
+
+  // Bookmark feeds: ui:Link with bk:recalls / bk:hasTopic / ui:label.
+  for (const st of store.statementsMatching(null, sym(NS.rdf + 'type'), sym(NS.ui + 'Link'))) {
+    const subj = st.subject;
+    const url = valueOf(subj, NS.bk + 'recalls');
+    if (!url) continue;
+    const topicUri = (store.any(subj, sym(NS.bk + 'hasTopic'), null) || {}).value || '';
+    if (!topicUri || !subtree.has(topicUri)) continue;
+    feeds.push({
+      uri: subj.value,                 // the feed's RDF subject (for editing)
+      label: valueOf(subj, NS.ui + 'label') || lastSegment(url),
+      url,
+      topic: topicLabel.get(topicUri) || lastSegment(topicUri),
+      topicUri,
+    });
+  }
+
+  // SKOS / DCAT feeds: any subject categorised into the subtree via
+  // dcat:theme or dct:subject. The fetch URL is dcat:accessURL (the feed
+  // endpoint) or dcat:landingPage, falling back to the subject's own IRI
+  // for the legacy "feed IRI is the URL" form. Label is dct:title.
+  const seenFeed = new Set();
+  for (const pred of [NS.dcat + 'theme', NS.dct + 'subject']) {
+    for (const st of store.statementsMatching(null, sym(pred), null)) {
+      const subj = st.subject;
+      if (subj.termType !== 'NamedNode' || seenFeed.has(subj.value)) continue;
+      const topicUri = st.object.value;
+      if (!subtree.has(topicUri)) continue;
+      const url = valueOf(subj, NS.dcat + 'accessURL')
+        || valueOf(subj, NS.dcat + 'landingPage')
+        || (/^https?:/.test(subj.value) ? subj.value : '');
+      if (!url) continue;
+      seenFeed.add(subj.value);
+      const posStr = valueOf(subj, 'http://schema.org/position');
+      feeds.push({
+        uri: subj.value,               // the feed's RDF subject (for editing)
+        label: valueOf(subj, NS.dct + 'title')
+          || valueOf(subj, 'http://www.w3.org/2000/01/rdf-schema#label')
+          || lastSegment(url),
+        url,
+        topic: topicLabel.get(topicUri) || lastSegment(topicUri),
+        topicUri,
+        position: posStr === '' ? undefined : Number(posStr),   // schema:position (for reorder)
+      });
+    }
+  }
+
+  // Topics in the focus subtree, in BFS order, with their labels — used by
+  // the "add source / add topic" forms in the all view to populate select
+  // dropdowns. Detect which ontology family is in use so writers can mint
+  // new triples in the same shape.
+  const topics = [...subtree].map(uri => ({
+    uri,
+    label: topicLabel.get(uri) || lastSegment(uri),
+  }));
+  const hasBookmark = store
+    .statementsMatching(null, sym(NS.rdf + 'type'), sym(NS.bk + 'Topic')).length > 0;
+
+  const catalogSt = store.statementsMatching(
+    null, sym(NS.rdf + 'type'), sym(NS.dcat + 'Catalog'))[0];
+
+  const out = dedupeFeeds(feeds);
+  Object.assign(out, {
+    topics,
+    fileUri,
+    focusUri,
+    catalogUri: catalogSt ? catalogSt.subject.value : '',
+    ontology: hasBookmark ? 'bookmark' : 'skos',
+  });
+  return out;
+}
+
+/**
+ * Resolve a `source` of the form `&lt;rdfFile>#&lt;Topic>` into the feed list
+ * scoped to that topic's `bk:subTopicOf` subtree. The fragment is required
+ * — without it the function throws.
+ *
+ * @param {string} sourceUri            `&lt;rdfFile>#&lt;TopicName>`
+ * @param {{proxy?: string}} [options]  CORS proxy pattern (only applied
+ *                                      when the file is cross-origin)
+ * @returns {Promise&lt;Array&lt;{label:string,url:string,topic:string}>>}
+ */
+export async function parseSourceList(sourceUri, { proxy } = {}) {
+  const abs = resolveUrl(sourceUri || '');
+  const hashIdx = abs.indexOf('#');
+  if (hashIdx === -1) {
+    throw new Error(
+      'A topic IRI is required for view="topic" / "all" — e.g. source="feeds.ttl#News"',
+    );
+  }
+  const fileUri = abs.slice(0, hashIdx);
+  // no-store: the source list is editable, so a re-read right after a PATCH
+  // must see the new file, not a stale cached copy.
+  const resp = await feedFetch(fileUri, proxy, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching source list`);
+  return feedsFromRdf(fileUri, abs, await resp.text());
+}
+
+/**
+ * Like {@link parseSourceList}, but returns the **nested** topic tree rooted
+ * at the focus topic rather than a flat source list. `parseSourceList`
+ * collapses every leaf onto its immediate topic, which loses the upper
+ * grouping tiers; &lt;sol-gallery> needs the full hierarchy (e.g. the
+ * Art / Life groups above each image sub-topic).
+ *
+ * Each node is `{ uri, label, topics: TreeNode[], collections: {label,url,uri}[] }`.
+ * Leaves are `a ui:Link` with `bk:recalls` (the URL), `bk:hasTopic` (their
+ * topic), and `ui:label`. Subtree membership follows `bk:subTopicOf`
+ * (and the SKOS equivalents, for parity with parseSourceList).
+ *
+ * @param {string} sourceUri            `&lt;rdfFile>#&lt;TopicName>`
+ * @param {{proxy?: string}} [options]
+ * @returns {Promise&lt;{uri:string,label:string,topics:Array,collections:Array}>}
+ */
+export async function parseBookmarkTree(sourceUri, { proxy } = {}) {
+  const abs = resolveUrl(sourceUri || '');
+  const hashIdx = abs.indexOf('#');
+  if (hashIdx === -1) {
+    throw new Error('A topic IRI is required — e.g. source="images.ttl#Images"');
+  }
+  const fileUri = abs.slice(0, hashIdx);
+  const resp = await feedFetch(fileUri, proxy, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching source list`);
+
+  let rdf;
+  try { ({ rdf } = await import('../../core/rdf.js')); }
+  catch { throw new Error('RDF source lists need rdflib on the page'); }
+  if (!rdf.isReady()) throw new Error('rdflib is not available');
+
+  const store = rdf.graph();
+  rdf.parse(await resp.text(), store, fileUri, 'text/turtle');
+  const sym = u => rdf.sym(u);
+  const valueOf = (subj, pred) => {
+    const o = store.any(subj, sym(pred), null);
+    return o ? o.value : '';
+  };
+
+  // Topic labels (bk:Topic / skos), preferring ui:label then skos:prefLabel.
+  const topicLabel = new Map();
+  for (const t of [NS.bk + 'Topic', NS.skos + 'Concept', NS.skos + 'ConceptScheme']) {
+    for (const st of store.statementsMatching(null, sym(NS.rdf + 'type'), sym(t))) {
+      if (topicLabel.has(st.subject.value)) continue;
+      const label = valueOf(st.subject, NS.ui + 'label')
+        || valueOf(st.subject, NS.skos + 'prefLabel')
+        || lastSegment(st.subject.value);
+      topicLabel.set(st.subject.value, label);
+    }
+  }
+
+  // Direct child topics of a topic URI (subTopicOf + SKOS, both directions).
+  const childTopics = (uri) => {
+    const node = sym(uri);
+    const out = [];
+    for (const pred of [NS.bk + 'subTopicOf', NS.skos + 'broader', NS.skos + 'topConceptOf']) {
+      for (const st of store.statementsMatching(null, sym(pred), node)) {
+        if (st.subject.termType === 'NamedNode' &amp;&amp; topicLabel.has(st.subject.value)) {
+          out.push(st.subject.value);
+        }
+      }
+    }
+    for (const pred of [NS.skos + 'narrower', NS.skos + 'hasTopConcept']) {
+      for (const st of store.statementsMatching(node, sym(pred), null)) {
+        if (st.object.termType === 'NamedNode' &amp;&amp; topicLabel.has(st.object.value)) {
+          out.push(st.object.value);
+        }
+      }
+    }
+    return out;
+  };
+
+  // Collection leaves grouped by topic, in file order. Accepts the bookmark
+  // form (ui:Link + bk:recalls + bk:hasTopic + ui:label) and the SKOS/DCAT
+  // form (dcat:theme|dct:subject → topic, dcat:landingPage|dcat:accessURL →
+  // the page URL, dct:title → label).
+  const byTopic = new Map();
+  const seenColl = new Set();
+  const pushColl = (subjValue, topicUri, coll) => {
+    if (!topicUri || !coll.url || seenColl.has(subjValue)) return;
+    seenColl.add(subjValue);
+    if (!byTopic.has(topicUri)) byTopic.set(topicUri, []);
+    byTopic.get(topicUri).push(coll);
+  };
+  // Bookmark leaves.
+  for (const st of store.statementsMatching(null, sym(NS.rdf + 'type'), sym(NS.ui + 'Link'))) {
+    const subj = st.subject;
+    const url = valueOf(subj, NS.bk + 'recalls');
+    const topicUri = (store.any(subj, sym(NS.bk + 'hasTopic'), null) || {}).value || '';
+    pushColl(subj.value, topicUri, { uri: subj.value, label: valueOf(subj, NS.ui + 'label') || lastSegment(url), url });
+  }
+  // SKOS / DCAT leaves.
+  for (const pred of [NS.dcat + 'theme', NS.dct + 'subject']) {
+    for (const st of store.statementsMatching(null, sym(pred), null)) {
+      const subj = st.subject;
+      if (subj.termType !== 'NamedNode') continue;
+      const url = valueOf(subj, NS.dcat + 'landingPage')
+        || valueOf(subj, NS.dcat + 'accessURL')
+        || (/^https?:/.test(subj.value) ? subj.value : '');
+      pushColl(subj.value, st.object.value, {
+        uri: subj.value,
+        label: valueOf(subj, NS.dct + 'title') || valueOf(subj, NS.ui + 'label') || lastSegment(url),
+        url,
+      });
+    }
+  }
+
+  // Build the tree depth-first, guarding against cycles.
+  const seen = new Set();
+  const build = (uri) => {
+    seen.add(uri);
+    return {
+      uri,
+      label: topicLabel.get(uri) || lastSegment(uri),
+      collections: byTopic.get(uri) || [],
+      topics: childTopics(uri).filter(c => !seen.has(c)).map(build),
+    };
+  };
+  return build(abs);
+}
+
+/* ── schema:ItemList readers ──────────────────────────────────────────── */
+
+const SCHEMA = 'http://schema.org/';
+const HYDRA  = 'http://www.w3.org/ns/hydra/core#';
+
+/**
+ * Parse a Turtle document and return the engines in `&lt;listUri>`'s
+ * `schema:itemListElement` set, sorted by `schema:position` (items
+ * without a position fall to the end, ties resolved by first-seen
+ * triple order).
+ *
+ *   &lt;#SearchEngines> a schema:ItemList ;
+ *     schema:itemListElement :ddg , :google .
+ *   :ddg a hydra:IriTemplate ;
+ *     dct:title "DuckDuckGo" ; schema:position 1 ;
+ *     hydra:template "https://duckduckgo.com/?q={query}" .
+ *
+ * Each returned record is `{ id, label, template, position }`. `id`
+ * is the IRI's fragment (or last path segment); `label` falls back
+ * through `dct:title` → `schema:name` → `rdfs:label` → fragment.
+ */
+async function enginesFromRdf(fileUri, listUri, text) {
+  let rdf;
+  try { ({ rdf } = await import('../../core/rdf.js')); }
+  catch { throw new Error('RDF source lists need rdflib on the page'); }
+  if (!rdf.isReady()) throw new Error('rdflib is not available');
+
+  const store = rdf.graph();
+  rdf.parse(text, store, fileUri, 'text/turtle');
+
+  const sym = u => rdf.sym(u);
+  const valueOf = (subj, pred) => {
+    const o = store.any(subj, sym(pred), null);
+    return o ? o.value : '';
+  };
+
+  const list = sym(listUri);
+  const engines = [];
+  let seq = 0;
+  for (const st of store.statementsMatching(list, sym(SCHEMA + 'itemListElement'), null)) {
+    const subj = st.object;
+    if (subj.termType !== 'NamedNode') continue;
+    const template = valueOf(subj, HYDRA + 'template');
+    if (!template) continue;
+    const posStr = valueOf(subj, SCHEMA + 'position');
+    const position = posStr ? Number(posStr) : Number.POSITIVE_INFINITY;
+    engines.push({
+      id: lastSegment(subj.value),
+      label:
+        valueOf(subj, 'http://purl.org/dc/terms/title')
+        || valueOf(subj, SCHEMA + 'name')
+        || valueOf(subj, 'http://www.w3.org/2000/01/rdf-schema#label')
+        || lastSegment(subj.value),
+      template,
+      position,
+      _seq: seq++,
+    });
+  }
+  engines.sort((a, b) => (a.position - b.position) || (a._seq - b._seq));
+  return engines.map(({ _seq, ...rest }) => rest);
+}
+
+/**
+ * Resolve a `source` of the form `&lt;rdfFile>#&lt;ListName>` into a
+ * position-sorted array of `{ id, label, template, position }` engine
+ * records. The fragment is required.
+ *
+ * @param {string} sourceUri            `&lt;rdfFile>#&lt;ListName>`
+ * @param {{proxy?: string}} [options]  CORS proxy pattern
+ */
+export async function parseEngineList(sourceUri, { proxy } = {}) {
+  const abs = resolveUrl(sourceUri || '');
+  const hashIdx = abs.indexOf('#');
+  if (hashIdx === -1) {
+    throw new Error(
+      'An ItemList IRI is required — e.g. source="search-engines.ttl#SearchEngines"',
+    );
+  }
+  const fileUri = abs.slice(0, hashIdx);
+  const resp = await feedFetch(fileUri, proxy);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} fetching engine list`);
+  return enginesFromRdf(fileUri, abs, await resp.text());
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

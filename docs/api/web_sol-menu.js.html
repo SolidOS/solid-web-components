@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/sol-menu.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/sol-menu.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * &lt;sol-menu> — Sidebar navigation + content panel.
+ *
+ * Shadow-DOM element with the same declarative API as &lt;sol-tabs>: fill
+ * with &lt;a href="…">Label&lt;/a> children, each anchor becomes a menu entry;
+ * clicking loads its URL into the content panel.
+ *
+ * Imperative usage:
+ *   const m = document.createElement('sol-menu');
+ *   m.items = [
+ *     { name: 'Overview', render(body) { ... } },
+ *     { name: 'Details',  render(body) { ... } },
+ *   ];
+ *   parent.appendChild(m);
+ *   m.select('Overview');
+ *
+ * Declarative usage: like &lt;sol-tabs>. Handler lookup per anchor, falling
+ * back to &lt;sol-menu>'s `data-handler` attribute, then to &lt;sol-include>. The
+ * href is forwarded as both `source` and `endpoint`, and other anchor
+ * attributes pass through.
+ *
+ *   &lt;sol-menu>
+ *     &lt;a href="intro.md">Intro&lt;/a>
+ *     &lt;a href="data.ttl" data-handler="sol-query" pattern="?s ?p ?o">Triples&lt;/a>
+ *   &lt;/sol-menu>
+ *
+ * Submenus: nest &lt;submenu> elements to create collapsible groups. The
+ * &lt;label> text is the group heading; anchors (or further &lt;submenu>s) inside
+ * become the group's items. Any depth is supported.
+ *
+ *   &lt;sol-menu>
+ *     &lt;a href="home.md">Home&lt;/a>
+ *     &lt;submenu>
+ *       &lt;label>Docs&lt;/label>
+ *       &lt;a href="quickstart.md">Quickstart&lt;/a>
+ *       &lt;submenu>
+ *         &lt;label>API&lt;/label>
+ *         &lt;a href="api/query.md">Query&lt;/a>
+ *         &lt;a href="api/modal.md">Modal&lt;/a>
+ *       &lt;/submenu>
+ *     &lt;/submenu>
+ *   &lt;/sol-menu>
+ *
+ * Attributes:
+ *   orientation="horizontal"  — lay the nav bar on top instead of the side
+ *   data-handler="sol-*"      — default component for rendering each item
+ *   from-rdf="menu.ttl#Name"  — build the menu from a ui:Menu RDF document
+ *                               instead of light-DOM children. OPT-IN: inert
+ *                               until `web/menu-from-rdf.js` is imported (the
+ *                               lone rdflib pull); the declarative path above
+ *                               needs no rdflib.
+ *
+ * Events (bubbling, composed):
+ *   sol-menu-change — detail: { name }
+ */
+
+import { define } from '../core/define.js';
+import { adopt } from '../core/adopt.js';
+import { attachEditorSelfGear } from '../core/editor-self.js';
+import { CSS as MENU_CSS, sheet as menuSheet } from './styles/sol-menu-css.js';
+import { registerMenuConsumer, deferUntilLoader } from '../core/menu-consumer.js';
+import { renderComponentItem, renderLinkItem, ensureHandler, isCommandName, paramsToObject, dispatchCommand } from '../core/rdf-render.js';
+import { renderIcon } from '../core/utils.js';
+
+/**
+ * Sidebar navigation + content panel.
+ *
+ * Shadow-DOM element. Same declarative API as sol-tabs: fill with anchor
+ * children, each becomes a menu entry.
+ *
+ * @class SolMenu
+ * @extends HTMLElement
+ * @attr {string} orientation - "horizontal" to lay nav on top (default: sidebar)
+ * @attr {string} data-handler - default sol-* component tag for anchors
+ * @fires sol-menu-change - detail: { name }
+ *
+ * CSS Shadow Parts (outside theming hooks):
+ *   - `nav`     — the .sol-menu-nav strip (the buttons row / column).
+ *
+ * Content area: the `.sol-menu-content` body where a selection mounts is a
+ * LIGHT-DOM child of &lt;sol-menu> (projected through the shadow slot), so
+ * results are reachable by page CSS / document queries. It is NOT a shadow
+ * part — style it directly, e.g. `sol-menu > .sol-menu-content { overflow: auto }`.
+ * Default is `overflow: hidden` (app chrome doesn't scroll; components
+ * inside scroll on their own). Authors may supply their own
+ * `.sol-menu-content` child; otherwise one is created.
+ *
+ * Horizontal-orientation nav now wraps (`flex-wrap: wrap`) instead of
+ * showing a horizontal scrollbar — items overflow to a second row when
+ * they don't fit the chrome width (e.g. large font).
+ */
+class SolMenu extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._items = [];
+    this._btns = {};
+    this._active = null;
+    this._cleanup = null;
+    this._rendered = false;
+  }
+
+  static get observedAttributes() { return ['from-rdf']; }
+
+  // `from-rdf` rendering is an opt-in capability: importing `web/menu-from-rdf.js`
+  // installs the rdflib-backed loader here (inherited by SolMenu subclasses such
+  // as sol-dropdown-button). Null → declarative-only, no rdflib (see
+  // core/menu-consumer.js).
+  static fromRdfLoader = null;
+
+  /** Editor declaration consumed by core/editor.js. Menus are edited
+   *  with sol-tree-edit (head fields + per-item shapes + drill into
+   *  nested ui:Menu submenus), so `&lt;sol-form>` is not the right tool. */
+  static get editor() {
+    return {
+      tag: 'sol-tree-edit',
+      subjectAttr: 'root',
+      attrs: {
+        'head-shape':      new URL('../shapes/menu.shacl', import.meta.url).href,
+        'item-shape':      new URL('../shapes/menu.shacl', import.meta.url).href,
+        'drill-when-type': 'http://www.w3.org/ns/ui#Menu',
+        'head-label':      'Menu Heading',
+        'items-label':     'menu items',
+      },
+    };
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (name === 'from-rdf' &amp;&amp; oldValue !== newValue &amp;&amp; this._rendered) {
+      this._loadFromRdf(newValue);
+    }
+  }
+
+  async connectedCallback() {
+    if (this._rendered) return;
+
+    const fromRdf = this.getAttribute('from-rdf');
+    if (fromRdf) {
+      this._initShell();
+      this._loadFromRdf(fromRdf);
+    } else {
+      const declared = this._items.length === 0 ? this._harvestItems(this) : null;
+      this._initShell();
+      if (declared?.length) this._items = declared;
+      this._renderNav();
+      this._autoSelectFirst();
+    }
+
+    if (this.hasAttribute('editor-self')) attachEditorSelfGear(this);
+  }
+
+  // Select the first leaf so the content panel isn't empty on load. Overridable
+  // — e.g. &lt;sol-dropdown-button> has no panel and shouldn't pre-fire anything.
+  _autoSelectFirst() {
+    const firstLeaf = this._firstLeaf(this._items);
+    if (firstLeaf) this.select(firstLeaf.name);
+  }
+
+  _initShell() {
+    const orient = this.getAttribute('orientation') === 'horizontal' ? 'horizontal' : 'vertical';
+    const root = this.shadowRoot;
+    root.innerHTML = `
+      &lt;div class="sol-menu-nav" part="nav" role="menubar" aria-orientation="${orient}">&lt;/div>
+      &lt;slot>&lt;/slot>`;
+    adopt(root, { sheet: menuSheet, css: MENU_CSS });
+    // Content area lives in LIGHT DOM (projected through the slot) so
+    // menu-click results are reachable by page CSS / document queries. The
+    // author may supply their own `.sol-menu-content` child; else create one.
+    if (!this.querySelector(':scope > .sol-menu-content')) {
+      const content = document.createElement('div');
+      content.className = 'sol-menu-content';
+      content.setAttribute('role', 'region');
+      this.appendChild(content);
+    }
+    this._rendered = true;
+    this._onDocClick = (e) => {
+      if (!this.contains(e.target) &amp;&amp; !root.contains(e.target)) this._closeAllPopups();
+    };
+    document.addEventListener('click', this._onDocClick);
+    this._onKeyDown = (e) => this._handleKeyDown(e);
+    root.addEventListener('keydown', this._onKeyDown);
+
+    // Sync active-state visuals when something else (e.g. &lt;sol-button>)
+    // mounts a non-menu tab into our linkTarget. The mount layer
+    // dispatches sol-tab-activate; if the name isn't one of our items,
+    // we clear every active button so the chrome doesn't pretend the
+    // user is still "on" a menu page.
+    this._onTabActivate = (e) => {
+      const name = e.detail?.name;
+      const isOurs = name &amp;&amp; this._flatLeaves(this._items).some(i => i.name === name);
+      if (isOurs) {
+        if (this._active !== name) {
+          this._active = name;
+          this._setActiveButton(name);
+        }
+      } else {
+        this._active = null;
+        this._setActiveButton(null);
+      }
+    };
+    document.addEventListener('sol-tab-activate', this._onTabActivate);
+  }
+
+  _handleKeyDown(e) {
+    const root = this.shadowRoot;
+    const nav = root.querySelector('.sol-menu-nav');
+    if (!nav) return;
+    const horizontal = this.getAttribute('orientation') === 'horizontal';
+
+    // Escape closes any open popup
+    if (e.key === 'Escape') {
+      const openGroup = root.querySelector('.sol-menu-group.open');
+      if (openGroup) {
+        this._closeAllPopups();
+        const groupBtn = openGroup.querySelector(':scope > .sol-menu-group-btn');
+        if (groupBtn) groupBtn.focus();
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Arrow / Home / End navigation among focusable buttons in the nav
+    const nextKey = horizontal ? 'ArrowRight' : 'ArrowDown';
+    const prevKey = horizontal ? 'ArrowLeft' : 'ArrowUp';
+    if (![nextKey, prevKey, 'Home', 'End'].includes(e.key)) return;
+    if (!nav.contains(e.target) || e.target.tagName !== 'BUTTON') return;
+
+    // Collect focusable buttons visible at the current level
+    const focusable = this._focusableButtons(nav, e.target);
+    if (!focusable.length) return;
+    const idx = focusable.indexOf(e.target);
+    let next;
+    if (e.key === nextKey)  next = focusable[(idx + 1) % focusable.length];
+    if (e.key === prevKey)  next = focusable[(idx - 1 + focusable.length) % focusable.length];
+    if (e.key === 'Home')   next = focusable[0];
+    if (e.key === 'End')    next = focusable[focusable.length - 1];
+    if (next &amp;&amp; next !== e.target) {
+      this._setRovingFocus(next);
+      e.preventDefault();
+    }
+  }
+
+  _focusableButtons(container, target) {
+    // If target is inside an open popup, scope to that popup; otherwise top-level nav
+    const popup = target.closest('.sol-menu-popup');
+    const scope = popup || container;
+    return Array.from(scope.querySelectorAll(':scope > button, :scope > .sol-menu-group > .sol-menu-group-btn'));
+  }
+
+  _setRovingFocus(btn) {
+    const nav = this.shadowRoot.querySelector('.sol-menu-nav');
+    if (!nav) return;
+    nav.querySelectorAll('button').forEach(b => b.setAttribute('tabindex', '-1'));
+    btn.setAttribute('tabindex', '0');
+    btn.focus();
+  }
+
+  async _loadFromRdf(uri) {
+    const load = this.constructor.fromRdfLoader;
+    if (!load) { deferUntilLoader(this); return; }   // wait for the menu-from-rdf add-on
+    try {
+      const result = await load(uri, document.baseURI);
+      if (!result) return;
+      if (!this.hasAttribute('orientation')) this.setAttribute('orientation', result.orientation);
+      this._items = this._wrapRdfItems(result.items);
+      this._renderNav();
+      this._autoSelectFirst();
+    } catch (err) {
+      console.error('&lt;sol-menu> from-rdf load failed:', err);
+      this.dispatchEvent(new CustomEvent('sol-error', {
+        bubbles: true, composed: true,
+        detail: { source: 'sol-menu', kind: 'rdf-load', uri, message: err.message },
+      }));
+    }
+  }
+
+  // Wrap pure item descriptions from core/menu-rdf.js with the DOM-side
+  // render closures the rest of the component expects. The leaf closures
+  // are built by core/rdf-render.js, shared with &lt;sol-tabs>.
+  _wrapRdfItems(descriptions) {
+    const ctx = {
+      host: this, baseUrl: import.meta.url,
+      sourceName: 'sol-menu', embedClass: 'sol-menu-embed',
+    };
+    return descriptions.map(desc => {
+      const rw = desc.requiresWrite;   // surfaced as part="requires-write"; app decides policy
+      if (desc.type === 'submenu') {
+        return { name: desc.name, requiresWrite: rw, children: this._wrapRdfItems(desc.children) };
+      }
+      if (desc.type === 'component') {
+        // A ui:Component whose ui:name isn't a custom-element tag is a command:
+        // clicking dispatches sol-command (no content mounted, not selectable).
+        if (isCommandName(desc.tag)) {
+          return { name: desc.name, icon: desc.icon, requiresWrite: rw, command: desc.tag, params: paramsToObject(desc.params) };
+        }
+        return { name: desc.name, icon: desc.icon, requiresWrite: rw, render: renderComponentItem(desc, ctx) };
+      }
+      return { name: desc.name, icon: desc.icon, requiresWrite: rw, render: renderLinkItem(desc, ctx) };
+    });
+  }
+
+  _harvestItems(root) {
+    const parentHandler = (this.getAttribute('data-handler') || '').trim();
+    const SKIP = new Set(['href', 'data-handler', 'params', 'requires-write', 'if-logged-in', 'icon',
+                          'target', 'rel', 'download', 'hreflang', 'type', 'referrerpolicy']);
+    // A menu item is owner-gated by `requires-write` (≙ acl:mode acl:Write) or
+    // the friendlier `if-logged-in` boolean — same meaning, surfaced as
+    // part="requires-write" for the host to hide. (Whole-button gating is the
+    // `if-logged-in` attribute on the launcher itself, handled by host CSS.)
+    const isGated = (n) => n.hasAttribute('requires-write') || n.hasAttribute('if-logged-in');
+    const out = [];
+    let i = 0;
+    // A &lt;menu> child is the canonical items container (a dropdown almost always
+    // has one); without it we fall back to harvesting loose children. &lt;li>
+    // wrappers (the strictly-valid form) are unwrapped to the item element.
+    const container = root.querySelector(':scope > menu') || root;
+    const nodes = Array.from(container.children)
+      .flatMap(n => n.tagName === 'LI' ? Array.from(n.children) : [n]);
+    for (const node of nodes) {
+      const handler = node.getAttribute('data-handler');
+      if (handler &amp;&amp; isCommandName(handler)) {
+        // An action item: `data-handler` is a bare name (not a custom element), so it
+        // dispatches sol-command (no content mounted), gated by requires-write
+        // (→ part="requires-write") just like the RDF form.
+        const label = (node.textContent || '').trim() || `Item ${++i}`;
+        const raw = node.getAttribute('params');
+        let params;
+        if (raw != null) { try { params = JSON.parse(raw); } catch { params = raw; } }
+        out.push({
+          name: label,
+          command: handler,
+          params,
+          requiresWrite: isGated(node),
+          icon: node.getAttribute('icon') || undefined,
+        });
+      } else if (node.tagName === 'A' &amp;&amp; node.hasAttribute('href')) {
+        const label = (node.textContent || '').trim() || `Item ${++i}`;
+        const url = node.getAttribute('href');
+        const handlerTag = (node.getAttribute('data-handler') || parentHandler || 'sol-include').trim();
+        out.push({
+          name: label,
+          requiresWrite: isGated(node),
+          render: (body) => {
+            ensureHandler(handlerTag, this, import.meta.url, 'sol-menu');
+            const el = document.createElement(handlerTag);
+            el.setAttribute('source', url);
+            el.setAttribute('endpoint', url);
+            for (const attr of node.attributes) {
+              if (SKIP.has(attr.name)) continue;
+              el.setAttribute(attr.name, attr.value);
+            }
+            el.classList.add('sol-menu-embed');
+            body.appendChild(el);
+          },
+        });
+      } else if (node.tagName === 'SUBMENU') {
+        const labelEl = node.querySelector(':scope > label');
+        const label = (labelEl?.textContent || '').trim() || `Group ${++i}`;
+        const inner = document.createElement('div');
+        for (const c of Array.from(node.children)) {
+          if (c.tagName === 'LABEL') continue;
+          inner.appendChild(c);
+        }
+        const children = this._harvestItems(inner);
+        out.push({ name: label, open: node.hasAttribute('open'), children });
+      }
+    }
+    return out;
+  }
+
+  _firstLeaf(items) {
+    for (const it of items) {
+      if (it.children) {
+        const leaf = this._firstLeaf(it.children);
+        if (leaf) return leaf;
+      } else if (typeof it.render === 'function') {
+        return it;
+      }
+    }
+    return null;
+  }
+
+  _flatLeaves(items, acc = []) {
+    for (const it of items) {
+      if (it.children) this._flatLeaves(it.children, acc);
+      else if (typeof it.render === 'function') acc.push(it);
+    }
+    return acc;
+  }
+
+  // Command items (no render closure — they dispatch sol-command on click).
+  _flatCommands(items, acc = []) {
+    for (const it of items) {
+      if (it.children) this._flatCommands(it.children, acc);
+      else if (it.command) acc.push(it);
+    }
+    return acc;
+  }
+
+  get items() { return this._items; }
+  set items(arr) {
+    this._items = arr || [];
+    if (this._rendered) this._renderNav();
+  }
+
+  get activeItem() { return this._active; }
+  get body() { return this.querySelector(':scope > .sol-menu-content'); }
+
+  _renderNav() {
+    const root = this.shadowRoot;
+    const nav = root.querySelector('.sol-menu-nav');
+    if (!nav) return;
+    nav.innerHTML = '';
+    this._btns = {};
+    const orient = this.getAttribute('orientation') === 'horizontal' ? 'horizontal' : 'vertical';
+    nav.setAttribute('aria-orientation', orient);
+    const leafCount = this._flatLeaves(this._items).length + this._flatCommands(this._items).length;
+    if (leafCount &lt;= 1 &amp;&amp; !this._items.some(i => i.children)) {
+      nav.style.display = 'none';
+      return;
+    }
+    nav.style.display = '';
+    this._renderNavLevel(nav, this._items, 0);
+    // Roving tabindex: only the first focusable button is in tab order
+    const allBtns = nav.querySelectorAll('button');
+    allBtns.forEach((b, i) => b.setAttribute('tabindex', i === 0 ? '0' : '-1'));
+  }
+
+  _renderNavLevel(parent, items, depth) {
+    items.forEach(item => {
+      if (item.children) {
+        const wrap = document.createElement('div');
+        wrap.className = 'sol-menu-group';
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'sol-menu-group-btn';
+        btn.textContent = item.name;
+        btn.setAttribute('role', 'menuitem');
+        btn.setAttribute('aria-haspopup', 'menu');
+        btn.setAttribute('aria-expanded', 'false');
+        if (item.requiresWrite) btn.setAttribute('part', 'item requires-write');
+        const popup = document.createElement('div');
+        popup.className = 'sol-menu-popup';
+        popup.setAttribute('role', 'menu');
+        popup.setAttribute('aria-label', item.name);
+        this._renderNavLevel(popup, item.children, depth + 1);
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const wasOpen = wrap.classList.contains('open');
+          this._closeSiblingPopups(wrap);
+          wrap.classList.toggle('open', !wasOpen);
+          btn.setAttribute('aria-expanded', String(!wasOpen));
+          if (!wasOpen) {
+            this._positionPopup(btn, popup, depth);
+            const first = popup.querySelector('button');
+            if (first) { first.setAttribute('tabindex', '0'); first.focus(); }
+          }
+        };
+        wrap.appendChild(btn);
+        wrap.appendChild(popup);
+        parent.appendChild(wrap);
+      } else {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('role', 'menuitem');
+        // Surface the declared access requirement for the app to act on; the
+        // menu itself takes no policy (no hide / disable here).
+        if (item.requiresWrite) btn.setAttribute('part', 'item requires-write');
+        // An icon renders before the label in a fixed icon slot so rows align:
+        // an image (favicon URL / path / inline svg) paints as &lt;img>/&lt;svg>; an
+        // emoji or other text "icon" paints as text in that same slot. Putting
+        // emoji in the slot keeps icon-bearing rows aligned (an earlier version
+        // dropped emoji to avoid the indent mismatch — the shared slot fixes it
+        // instead). No icon → label only.
+        if (item.icon) {
+          btn.title = item.name;
+          // Icon in a fixed slot before the label so rows align (image/svg/emoji).
+          btn.appendChild(renderIcon(item.icon, 'sol-menu-icon'));
+          btn.appendChild(document.createTextNode(item.name));
+        } else {
+          btn.textContent = item.name;
+        }
+        if (item.command) {
+          btn.onclick = () => { dispatchCommand(this, item.command, item.params, { id: item.id || null }); this._closeAllPopups(); };
+        } else {
+          btn.onclick = () => { this.select(item.name); this._closeAllPopups(); };
+        }
+        parent.appendChild(btn);
+        this._btns[item.name] = btn;
+      }
+    });
+  }
+
+  _positionPopup(btn, popup, depth) {
+    const r = btn.getBoundingClientRect();
+    const horizontal = this.getAttribute('orientation') === 'horizontal';
+    const flyBelow = horizontal &amp;&amp; depth === 0;
+    popup.style.top  = (flyBelow ? r.bottom + 2 : r.top) + 'px';
+    popup.style.left = (flyBelow ? r.left : r.right + 2) + 'px';
+  }
+
+  _closeSiblingPopups(keep) {
+    const parent = keep.parentElement;
+    if (!parent) return;
+    parent.querySelectorAll(':scope > .sol-menu-group.open').forEach(g => {
+      if (g !== keep) {
+        g.classList.remove('open');
+        const b = g.querySelector(':scope > .sol-menu-group-btn');
+        if (b) b.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  _closeAllPopups() {
+    this.shadowRoot.querySelectorAll('.sol-menu-group.open').forEach(g => {
+      g.classList.remove('open');
+      const b = g.querySelector(':scope > .sol-menu-group-btn');
+      if (b) b.setAttribute('aria-expanded', 'false');
+    });
+  }
+
+  select(name) {
+    const item = this._flatLeaves(this._items).find(t => t.name.toLowerCase() === name.toLowerCase());
+    if (!item) return;
+    this._active = item.name;
+
+    if (typeof this._cleanup === 'function') { this._cleanup(); this._cleanup = null; }
+    this._setActiveButton(item.name);
+
+    const body = this.body;
+    body.innerHTML = '';
+    body.style.padding = ''; body.style.overflow = ''; body.style.height = '';
+    body.setAttribute('aria-label', `Content: ${item.name}`);
+
+    const cleanup = item.render(body);
+    if (typeof cleanup === 'function') this._cleanup = cleanup;
+
+    this.dispatchEvent(new CustomEvent('sol-menu-change', {
+      bubbles: true, composed: true, detail: { name: item.name },
+    }));
+  }
+
+  /**
+   * Update the visual active state on the nav buttons. Passing a name
+   * that isn't one of this menu's leaves clears every button — the
+   * menu owns no active item (e.g. a sol-button mounted something
+   * other than a menu target into the linkTarget).
+   */
+  _setActiveButton(name) {
+    Object.values(this._btns).forEach(b => {
+      b.classList.remove('active');
+      b.removeAttribute('aria-current');
+      b.setAttribute('tabindex', '-1');
+    });
+    if (!name) return;
+    const btn = this._btns[name];
+    if (!btn) return;
+    btn.classList.add('active');
+    btn.setAttribute('aria-current', 'page');
+    btn.setAttribute('tabindex', '0');
+  }
+
+  /**
+   * Re-read `from-rdf` and rebuild the menu nav. Public hook used by
+   * external editors (e.g. dk-settings) after the menu TTL changes.
+   * A menu built from declared light-DOM anchors has no source to
+   * re-read; reload is a no-op in that case.
+   */
+  async reload() {
+    const uri = this.getAttribute('from-rdf');
+    if (uri) await this._loadFromRdf(uri);
+  }
+
+  disconnectedCallback() {
+    if (typeof this._cleanup === 'function') { this._cleanup(); this._cleanup = null; }
+    if (this._onDocClick) { document.removeEventListener('click', this._onDocClick); this._onDocClick = null; }
+    if (this._onKeyDown) { this.shadowRoot.removeEventListener('keydown', this._onKeyDown); this._onKeyDown = null; }
+    if (this._onTabActivate) { document.removeEventListener('sol-tab-activate', this._onTabActivate); this._onTabActivate = null; }
+  }
+}
+
+define('sol-menu', SolMenu);
+registerMenuConsumer(SolMenu);
+export { SolMenu };
+export default SolMenu;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

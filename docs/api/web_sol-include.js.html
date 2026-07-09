@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/sol-include.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/sol-include.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * &lt;sol-include> — Fetch and display remote content inline.
+ *
+ * Supports HTML, Markdown, and plain text. Content is sanitized with
+ * DOMPurify by default. An optional CSS selector filters to a section
+ * of the fetched document.
+ *
+ * @element sol-include
+ * @attr {string} source - URL of the resource to fetch (required)
+ * @attr {string} if-logged-in - alternate source used when a user is logged in
+ *                 (a live Solid session OR the window.SolidKitchen dev flag,
+ *                 treated identically); falls back to `source` otherwise.
+ *                 Re-evaluates on sol-login / sol-logout.
+ * @attr {string} selector - CSS selector — show only matching elements
+ * @attr {boolean} raw - show source text verbatim without rendering
+ * @attr {boolean} trusted - skip DOMPurify sanitization
+ *
+ * @example
+ * &lt;sol-include source="https://example.org/readme.md">&lt;/sol-include>
+ * &lt;sol-include source="page.html" selector="article">&lt;/sol-include>
+ * &lt;sol-include source="guest.html" if-logged-in="owner.html">&lt;/sol-include>
+ */
+import { sanitizeHtml } from '../core/utils.js';
+import { define } from '../core/define.js';
+import { adopt } from '../core/adopt.js';
+import { fetchIncludeContent, filterWithSelector } from '../core/include-core.js';
+import { getAuthFetch } from '../core/auth-fetch.js';
+import { kitchenLoggedIn } from '../core/auth-core.js';
+import { CSS as INCLUDE_CSS, sheet as includeSheet } from './styles/sol-include-css.js';
+
+function browserContainer(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  return div;
+}
+
+/**
+ * Is there an authenticated user? True for a live Solid session (a logged-in
+ * &lt;sol-login>, or any logged-in session in the shared AuthManager), and for the
+ * dev "kitchen" flag — declared as `solid-kitchen` on &lt;sol-default> (or the
+ * legacy `window.SolidKitchen` global) — treated as exactly equivalent to being
+ * logged in. Used by the `if-logged-in` source switch.
+ */
+function isLoggedIn() {
+  // SolidKitchen desktop shell (window.SolidKitchen / &lt;sol-default solid-kitchen>)
+  // counts as logged in — shared with every other gate via kitchenLoggedIn().
+  if (kitchenLoggedIn()) return true;
+  if (typeof document === 'undefined') return false;
+  const login = document.querySelector('sol-login');
+  if (login &amp;&amp; login.isLoggedIn) return true;
+  try {
+    const am = window.SolidWebComponents?.AuthManager?.shared;
+    if (am &amp;&amp; [...am.sessions.values()].some((s) => s.info?.isLoggedIn)) return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+/**
+ * Fetch and display remote content inline.
+ *
+ * Supports HTML, Markdown, and plain text. Content is sanitized with
+ * DOMPurify by default.
+ *
+ * @class SolInclude
+ * @extends HTMLElement
+ * @attr {string} source - URL to fetch (required)
+ * @attr {string} selector - CSS selector — show only matching elements
+ * @attr {boolean} raw - show source text verbatim
+ * @attr {boolean} trusted - skip DOMPurify sanitization, render into LIGHT
+ *                 DOM (via a shadow &lt;slot>) so host CSS reaches the content
+ *
+ * Layout: `:host` is a flex column with `flex: 1 1 auto; min-height: 0` and
+ * the `.si-content` wrapper gets the same treatment (matched in both the
+ * shadow and trusted-slotted modes), so a definite parent height propagates
+ * down to components placed inside (sol-pod, sol-menu, etc.). They can then
+ * fill and scroll on their own — sol-include itself never scrolls.
+ */
+class SolInclude extends HTMLElement {
+  static get observedAttributes() {
+    return ['source', 'if-logged-in', 'selector', 'raw', 'trusted'];
+  }
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._abortCtl = null;
+    this._authListener = null;
+  }
+
+  connectedCallback() {
+    if (!this.isConnected) return;
+    // Only watch auth state when an `if-logged-in` alternate is declared, so the
+    // displayed source follows login / logout.
+    if (this.hasAttribute('if-logged-in') &amp;&amp; !this._authListener) {
+      this._authListener = () => { if (this.isConnected) this._load(); };
+      document.addEventListener('sol-login', this._authListener);
+      document.addEventListener('sol-logout', this._authListener);
+    }
+    this._load();
+  }
+  attributeChangedCallback(n, oldV, newV)     { if (oldV !== newV &amp;&amp; this.isConnected) this._load(); }
+  disconnectedCallback() {
+    this._abortCtl?.abort(); this._abortCtl = null;
+    if (this._authListener) {
+      document.removeEventListener('sol-login', this._authListener);
+      document.removeEventListener('sol-logout', this._authListener);
+      this._authListener = null;
+    }
+  }
+
+  /** The source to show now: the `if-logged-in` alternate when authenticated,
+   *  otherwise the plain `source`. */
+  _effectiveSource() {
+    const alt = this.getAttribute('if-logged-in');
+    if (alt &amp;&amp; isLoggedIn()) return alt;
+    return this.getAttribute('source');
+  }
+
+  // ── Main load ─────────────────────────────────────────────────────────────────
+  async _load() {
+    const source   = this._effectiveSource();
+    const selector = this.getAttribute('selector') || '';
+    const raw      = this.hasAttribute('raw');
+    const trusted  = this.hasAttribute('trusted');
+
+    if (!source) { this._show('error', 'No source provided'); return; }
+
+    // Cancel any in-flight load triggered by an earlier attribute change.
+    this._abortCtl?.abort();
+    const ctl = new AbortController();
+    this._abortCtl = ctl;
+
+    this._show('loading', 'Loading…');
+
+    // `login` attribute (CSS selector for a sol-login) overrides auto-discovery.
+    const loginSel = this.getAttribute('login');
+    const loginEl  = loginSel ? document.querySelector(loginSel) : null;
+    const fetchFn  = getAuthFetch(source, { element: loginEl || undefined });
+
+    try {
+      // When a selector is present, defer sanitization so the selector can
+      // match attributes (e.g. RDFa typeof/rel) that DOMPurify would strip.
+      const { type, content } = await fetchIncludeContent(source, {
+        raw,
+        trusted: trusted || !!selector,
+        sanitize: sanitizeHtml,
+        signal: ctl.signal,
+        fetchFn,
+      });
+
+      if (ctl.signal.aborted) return;
+
+      if (type === 'raw') {
+        this._showRaw(content);
+        return;
+      }
+
+      if (selector) {
+        const filtered = filterWithSelector(content, selector, browserContainer);
+        if (ctl.signal.aborted) return;
+        if (filtered === null) {
+          this._show('empty', 'No elements matched selector');
+          return;
+        }
+        this._showHtml(trusted ? filtered : await sanitizeHtml(filtered));
+      } else {
+        this._showHtml(content);
+      }
+    } catch (err) {
+      if (err.name === 'AbortError' || ctl.signal.aborted) return;
+      this._show('error', err.message);
+      this._fireError('load', err.message);
+    }
+  }
+
+  _fireError(kind, message) {
+    this.dispatchEvent(new CustomEvent('sol-error', {
+      bubbles: true, composed: true,
+      detail: { source: 'sol-include', kind, message },
+    }));
+  }
+
+  // ── Display helpers ───────────────────────────────────────────────────────────
+  _showHtml(html) {
+    this._initShadow();
+    const div = document.createElement('div');
+    div.className = 'si-content';
+    div.innerHTML = html;
+    // When the consumer marked the source as `trusted`, render into
+    // LIGHT DOM rather than shadow DOM. Trusted content is, by
+    // definition, page-authored — it should inherit the host's
+    // stylesheets so .my-class rules apply, custom-element CSS lands,
+    // etc. The shadow root contains a &lt;slot> in trusted mode so the
+    // light-DOM child still gets projected into the host's box.
+    // Untrusted content stays in shadow for isolation.
+    if (this.hasAttribute('trusted')) {
+      this.appendChild(div);
+    } else {
+      this.shadowRoot.appendChild(div);
+    }
+  }
+
+  // Remove any prior trusted-mode light-DOM render so reload swaps
+  // cleanly without piling stale content next to the new. Called from
+  // _initShadow on every state transition; the trusted append path
+  // can assume it starts clean.
+  _clearLightContent() {
+    for (const child of Array.from(this.children)) {
+      if (child.classList?.contains('si-content')) child.remove();
+    }
+  }
+
+  _showRaw(text) {
+    this._initShadow();
+    const pre = document.createElement('pre');
+    pre.className = 'si-raw';
+    pre.textContent = text;
+    this.shadowRoot.appendChild(pre);
+  }
+
+  _show(type, message) {
+    this._initShadow();
+    const div = document.createElement('div');
+    div.className = `si-${type}`;
+    if (type === 'error') div.setAttribute('role', 'alert');
+    else if (type === 'loading' || type === 'empty') {
+      div.setAttribute('role', 'status');
+      div.setAttribute('aria-live', 'polite');
+    }
+    div.textContent = message;
+    this.shadowRoot.appendChild(div);
+  }
+
+  // Reset for a fresh render. Drops any prior light-DOM content so
+  // reload doesn't double-stack, then resets the shadow root. In
+  // `trusted` mode the shadow holds a single &lt;slot> so a subsequent
+  // light-DOM append shows through; in untrusted mode there's no
+  // slot, so any light children stay hidden as before.
+  _initShadow() {
+    this._clearLightContent();
+    this.shadowRoot.innerHTML = this.hasAttribute('trusted') ? '&lt;slot>&lt;/slot>' : '';
+    this.shadowRoot.adoptedStyleSheets = [];
+    adopt(this.shadowRoot, { sheet: includeSheet, css: INCLUDE_CSS });
+  }
+}
+
+define('sol-include', SolInclude);
+export { SolInclude };
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

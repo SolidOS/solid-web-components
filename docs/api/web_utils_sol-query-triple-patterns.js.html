@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/utils/sol-query-triple-patterns.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/utils/sol-query-triple-patterns.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * Triple-pattern parser and SPARQL converter.
+ * Converts a strict 3-part triple pattern (subject predicate object) to SPARQL.
+ *
+ * Grammar (strict — matches the W3C triple-pattern spec):
+ *   subject:   named-var (?x) | &lt;uri> | prefix:local
+ *   predicate: named-var | &lt;uri> | prefix:local
+ *   object:    named-var | &lt;uri> | prefix:local | "literal"[@lang|^^&lt;datatype>]
+ *
+ * Rejected: bare `?` (all variables must be named), bare words, unquoted
+ * literals, numeric literals without quotes.
+ */
+
+const NAMED_VAR_RE = /^\?[A-Za-z_][A-Za-z0-9_]*$/;
+
+export class TriplePatternParser {
+  constructor(endpoint) {
+    this.endpoint = endpoint;
+  }
+
+  /**
+   * Parse a triple-pattern string into a SPARQL SELECT query.
+   * @param {string} pattern - "subject predicate object"
+   * @returns {string} A valid SPARQL SELECT query
+   * @throws {Error} If the pattern is invalid
+   */
+  parse(pattern) {
+    const tokens = _tokenizeTriplePattern(pattern);
+    if (tokens.length !== 3) {
+      throw new Error(`Triple pattern must have exactly 3 parts: subject predicate object (got ${tokens.length})`);
+    }
+    const [s, p, o] = tokens.map(t => this.expandTerm(t));
+    return `SELECT * WHERE { ${s} ${p} ${o} }`;
+  }
+
+  expandTerm(term) {
+    if (term === '?') {
+      throw new Error('Bare "?" is not allowed — use a named variable like "?x"');
+    }
+    if (term.startsWith('?')) {
+      if (!NAMED_VAR_RE.test(term)) {
+        throw new Error(`Invalid variable "${term}" — must match ?[A-Za-z_][A-Za-z0-9_]*`);
+      }
+      return term;
+    }
+    if (term.startsWith('&lt;') &amp;&amp; term.endsWith('>')) return term;
+    if (term.startsWith('"')) {
+      if (!/^"([^"\\]|\\.)*"(@[A-Za-z-]+|\^\^&lt;[^>]+>)?$/.test(term)) {
+        throw new Error(`Malformed literal "${term}" — must be "value" with optional @lang or ^^&lt;datatype>`);
+      }
+      return term;
+    }
+    if (_isCurie(term)) return term;
+    throw new Error(
+      `Unrecognized term "${term}" — must be a named variable (?x), &lt;uri>, prefix:local, or quoted "literal"`
+    );
+  }
+}
+
+/** Validator for triple-pattern syntax. */
+export class TriplePatternValidator {
+  static validate(input) {
+    if (!input || typeof input !== 'string') {
+      return { valid: false, error: 'Input must be a non-empty string' };
+    }
+    let tokens;
+    try { tokens = _tokenizeTriplePattern(input); }
+    catch (e) { return { valid: false, error: e.message }; }
+
+    if (tokens.length !== 3) {
+      return { valid: false, error: `Triple pattern needs exactly 3 parts — got ${tokens.length}` };
+    }
+    const p = new TriplePatternParser('');
+    try {
+      p.expandTerm(tokens[0]);
+      p.expandTerm(tokens[1]);
+      p.expandTerm(tokens[2]);
+    } catch (e) {
+      return { valid: false, error: e.message };
+    }
+    return { valid: true };
+  }
+
+  static getHelpMessage() {
+    return `
+Triple-pattern format: subject predicate object
+
+Examples:
+  ?person foaf:name "Alice"         — People named Alice
+  &lt;http://example.org/me> ?p ?o     — All properties of a subject
+  ?s ?p ?o                          — All triples
+  ex:alice ex:knows ?friend         — Alice's friends
+
+Term types:
+  ?name          — Named variable (bare "?" is NOT allowed)
+  &lt;uri>          — Full URI
+  prefix:local   — Prefixed URI (CURIE)
+  "literal"      — String literal (bare words and numbers are NOT accepted)
+  "x"@en         — Literal with language tag
+  "1"^^&lt;http://www.w3.org/2001/XMLSchema#integer>  — Typed literal
+    `.trim();
+  }
+}
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+function _isCurie(term) {
+  const m = term.match(/^([A-Za-z_][A-Za-z0-9_-]*):([^\s]*)$/);
+  if (!m) return false;
+  if (/^(https?|ftp|file|urn|mailto|data|tel|news|gopher|ldap|about):/i.test(term)) return false;
+  return true;
+}
+
+function _tokenizeTriplePattern(input) {
+  const out = [];
+  const s = String(input).trim();
+  let i = 0;
+  while (i &lt; s.length) {
+    while (i &lt; s.length &amp;&amp; /\s/.test(s[i])) i++;
+    if (i >= s.length) break;
+    if (s[i] === '"') {
+      let j = i + 1;
+      while (j &lt; s.length &amp;&amp; s[j] !== '"') {
+        if (s[j] === '\\' &amp;&amp; j + 1 &lt; s.length) j += 2;
+        else j++;
+      }
+      if (j >= s.length) throw new Error(`Unterminated literal starting at position ${i}`);
+      j++;
+      if (s[j] === '@') {
+        j++;
+        while (j &lt; s.length &amp;&amp; /[A-Za-z-]/.test(s[j])) j++;
+      } else if (s[j] === '^' &amp;&amp; s[j + 1] === '^' &amp;&amp; s[j + 2] === '&lt;') {
+        j += 3;
+        while (j &lt; s.length &amp;&amp; s[j] !== '>') j++;
+        if (j >= s.length) throw new Error('Unterminated datatype IRI');
+        j++;
+      }
+      out.push(s.slice(i, j));
+      i = j;
+    } else {
+      let j = i;
+      while (j &lt; s.length &amp;&amp; !/\s/.test(s[j])) j++;
+      out.push(s.slice(i, j));
+      i = j;
+    }
+  }
+  return out;
+}
+
+// Back-compat aliases (deprecated — prefer the new names).
+export const MiniQueryParser = TriplePatternParser;
+export const MiniQueryValidator = TriplePatternValidator;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

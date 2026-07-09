@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/sol-live-edit.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/sol-live-edit.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * &lt;sol-live-edit> — live split-pane editor web component.
+ * Attributes: source="URL"  format="turtle|csv|markdown|html|mermaid|jsonld|graphviz"
+ *             readonly  (boolean — disables save button)
+ * Properties: fetchFn (Function) — authenticated fetch; content (string get/set)
+ * Events: sol-change({content}), sol-save({content,url}), sol-load({content,url})
+ */
+
+import { buildEditor } from './utils/code-mirror-editor.js';
+import { CSS, sheet as LIVE_EDIT_SHEET } from './styles/sol-live-edit-css.js';
+import { adopt } from '../core/adopt.js';
+import { define } from '../core/define.js';
+import { kitchenLoggedIn } from '../core/auth-core.js';
+
+// Pre-loaded module registry — kept as an optional escape hatch for
+// hosts that want to inject custom renderers/help/examples. Standard
+// hosts no longer need it: the dynamic import()s below use static
+// string literals, so bundlers (rollup with inlineDynamicImports, esbuild
+// in IIFE) inline the modules at build time and runtime import() returns
+// the bundled module Promise without a network fetch.
+const _preloaded = { renderers: {}, help: {}, examples: {} };
+
+const RENDERERS = {
+  turtle:   () => _preloaded.renderers.turtle   || import('./utils/renderers/turtle.js').then(m => m.renderTurtle),
+  jsonld:   () => _preloaded.renderers.jsonld   || import('./utils/renderers/jsonld.js').then(m => m.renderJsonLd),
+  csv:      () => _preloaded.renderers.csv      || import('./utils/renderers/csv.js').then(m => m.renderCSV),
+  markdown: () => _preloaded.renderers.markdown || import('./utils/renderers/markdown.js').then(m => m.renderMarkdown),
+  mermaid:  () => _preloaded.renderers.mermaid  || import('./utils/renderers/mermaid.js').then(m => m.renderMermaid),
+  html:     () => _preloaded.renderers.html     || import('./utils/renderers/html.js').then(m => m.renderHtml),
+  graphviz: () => _preloaded.renderers.graphviz || import('./utils/renderers/graphviz.js').then(m => m.renderGraphviz),
+};
+const _rendererCache = {};
+
+const HELP = {
+  turtle:   () => _preloaded.help.turtle   || import('./utils/live-edit-help/turtle.js').then(m => m.turtleHelp),
+  jsonld:   () => _preloaded.help.jsonld   || import('./utils/live-edit-help/jsonld.js').then(m => m.jsonldHelp),
+  csv:      () => _preloaded.help.csv      || import('./utils/live-edit-help/csv.js').then(m => m.csvHelp),
+  markdown: () => _preloaded.help.markdown || import('./utils/live-edit-help/markdown.js').then(m => m.markdownHelp),
+  mermaid:  () => _preloaded.help.mermaid  || import('./utils/live-edit-help/mermaid.js').then(m => m.mermaidHelp),
+  graphviz: () => _preloaded.help.graphviz || import('./utils/live-edit-help/graphviz.js').then(m => m.graphvizHelp),
+};
+
+const EXAMPLES = {
+  turtle:   () => _preloaded.examples.turtle   || import('../data/live-edit/turtle.js').then(m => m.example),
+  jsonld:   () => _preloaded.examples.jsonld   || import('../data/live-edit/jsonld.js').then(m => m.example),
+  csv:      () => _preloaded.examples.csv      || import('../data/live-edit/csv.js').then(m => m.example),
+  markdown: () => _preloaded.examples.markdown || import('../data/live-edit/markdown.js').then(m => m.example),
+  mermaid:  () => _preloaded.examples.mermaid  || import('../data/live-edit/mermaid.js').then(m => m.example),
+  html:     () => _preloaded.examples.html     || import('../data/live-edit/html.js').then(m => m.example),
+  graphviz: () => _preloaded.examples.graphviz || import('../data/live-edit/graphviz.js').then(m => m.example),
+};
+
+const ZOOM_FMTS = new Set(['turtle','jsonld','graphviz','markdown','mermaid']);
+// Diagram/graph formats center in the preview pane and recenter on zoom;
+// document formats (DOC_FMTS) pin to the top-left and keep their scroll.
+const CENTER_ZOOM_FMTS = new Set(['graphviz','mermaid','turtle','jsonld']);
+const DOC_FMTS = new Set(['markdown','html','csv']);
+
+const EXT = {ttl:'turtle',n3:'turtle',turtle:'turtle',jsonld:'jsonld',csv:'csv',tsv:'csv',
+             md:'markdown',markdown:'markdown',mmd:'mermaid',mermaid:'mermaid',
+             html:'html',htm:'html',dot:'graphviz',gv:'graphviz'};
+
+const MIME = {'text/turtle':'turtle','text/n3':'turtle','application/ld+json':'jsonld',
+              'text/csv':'csv','text/tab-separated-values':'csv','text/markdown':'markdown',
+              'text/x-markdown':'markdown','text/html':'html','text/x-mermaid':'mermaid',
+              'text/vnd.graphviz':'graphviz','text/x-dot':'graphviz'};
+
+const FMIME = {turtle:'text/turtle',jsonld:'application/ld+json',csv:'text/csv',
+               markdown:'text/markdown',html:'text/html',mermaid:'text/x-mermaid',
+               graphviz:'text/vnd.graphviz'};
+
+const CM_EXT = {turtle:'ttl',jsonld:'jsonld',markdown:'md',html:'html'};
+
+/**
+ * Live split-pane editor web component.
+ *
+ * CodeMirror syntax highlighting, preview rendering, and format-specific help.
+ *
+ * @class SolLiveEdit
+ * @extends HTMLElement
+ * @attr {string} source - URL to load
+ * @attr {string} format - turtle|csv|markdown|html|mermaid|jsonld|graphviz
+ * @attr {boolean} readonly - disables save button
+ * @property {Function} fetchFn - authenticated fetch function
+ * @property {string} content - editor content (get/set)
+ * @fires sol-change - detail: { content }
+ * @fires sol-save - detail: { content, url }
+ * @fires sol-load - detail: { content, url }
+ * @fires sol-zoom - detail: { zoom, pct }
+ * @fires sol-format - detail: { format, canZoom, canStats }
+ */
+class SolLiveEdit extends HTMLElement {
+  static get observedAttributes() { return ['source','format','readonly','keys']; }
+  static registerModules({ renderers, help, examples } = {}) {
+    if (renderers) Object.assign(_preloaded.renderers, renderers);
+    if (help) Object.assign(_preloaded.help, help);
+    if (examples) Object.assign(_preloaded.examples, examples);
+  }
+  constructor() {
+    super();
+    this._fn=null;this._cm=null;this._db=null;this._sim=null;this._fmt=null;this._statsOn=false;
+    this._cfg={view:'both',keys:'default'};this._zoom=1.0;
+    this.attachShadow({mode:'open'});
+  }
+  get fetchFn(){return this._fn;} set fetchFn(f){this._fn=f;}
+  get content(){return this._cm?this._cm.getValue():'';}
+  set content(t){this._setContent(t);}
+  get format(){return this._fmt;}
+
+  async connectedCallback(){await this._init();}
+  attributeChangedCallback(n,_,v){
+    if(!this.shadowRoot.firstChild)return;
+    if(n==='source')this._loadSrc(v);
+    if(n==='format')this._setFmt(v);
+    if(n==='keys'){this._cfg.keys=v||'default';const p=this.content;this._buildEditor().then(()=>this._setContent(p));}
+  }
+
+  // ── Public API for host page buttons ────────────────────────────────────────
+  // `readonly` hides Save — but SolidKitchen desktop users are treated as
+  // logged in and fully editable, so the flag is ignored there (a plain web
+  // build keeps it). Mirrors the shared kitchenLoggedIn() gate.
+  _readonly()    { return this.hasAttribute('readonly') &amp;&amp; !kitchenLoggedIn(); }
+  get canZoom()  { return ZOOM_FMTS.has(this._fmt); }
+  get canStats() { return this._fmt === 'csv'; }
+  get zoom()     { return Math.round(this._zoom * 100); }
+  zoomIn()       { this._setZoom(this._zoom + 0.1); }
+  zoomOut()      { this._setZoom(this._zoom - 0.1); }
+  save()         { this._save(); }
+  toggleSettings(){ this._toggleCfg(); }
+  toggleHelp()   { this._toggleHelp(); }
+  toggleStats()  { this._toggleStats(); }
+
+  async _init(){
+    const s=this.shadowRoot;
+    s.innerHTML=`
+&lt;div class="sle-toolbar" id="toolbar">
+  &lt;button type="button" class="sle-btn" id="statsBtn" hidden>Statistics&lt;/button>
+  &lt;div class="sle-zoom" id="zoomctl" hidden>
+    &lt;button type="button" id="zmOut" title="Zoom out" aria-label="Zoom out">−&lt;/button>
+    &lt;span id="zmPct">100%&lt;/span>
+    &lt;button type="button" id="zmIn" title="Zoom in" aria-label="Zoom in">+&lt;/button>
+  &lt;/div>
+  &lt;button type="button" class="sle-btn sle-btn-primary" id="svBtn">Save&lt;/button>
+  &lt;button type="button" class="sle-btn" id="cfgBtn" title="Settings" aria-label="Settings">⚙&lt;/button>
+  &lt;button type="button" class="sle-btn" id="hlpBtn" title="Help" aria-label="Help">?&lt;/button>
+&lt;/div>
+&lt;div class="er" id="er">&lt;/div>
+&lt;div class="cf" id="cf">
+  &lt;div class="cg">
+    &lt;b>View&lt;/b>
+    &lt;label>&lt;input type="radio" name="sle-view" value="both"> Both&lt;/label>
+    &lt;label>&lt;input type="radio" name="sle-view" value="editor"> Editor only&lt;/label>
+    &lt;label>&lt;input type="radio" name="sle-view" value="preview"> Preview only&lt;/label>
+  &lt;/div>
+  &lt;div class="cg">
+    &lt;b>Key bindings&lt;/b>
+    &lt;label>&lt;input type="radio" name="sle-keys" value="default"> Default&lt;/label>
+    &lt;label>&lt;input type="radio" name="sle-keys" value="emacs"> Emacs&lt;/label>
+    &lt;label>&lt;input type="radio" name="sle-keys" value="vim"> Vim&lt;/label>
+  &lt;/div>
+&lt;/div>
+&lt;div class="modal-backdrop" id="modal">
+  &lt;div class="modal-box" id="modalBox">
+    &lt;button class="modal-close" id="modalClose">\u00d7&lt;/button>
+    &lt;div id="modalBody">&lt;/div>
+  &lt;/div>
+&lt;/div>
+&lt;div class="body">
+  &lt;div class="ep" id="ep">&lt;/div>
+  &lt;div class="sle-resizer" id="resizer" title="Drag to resize">&lt;/div>
+  &lt;div class="pp" id="pp">
+    &lt;div id="po" style="width:100%;height:100%;position:relative">&lt;/div>
+  &lt;/div>
+&lt;/div>`;
+    s.adoptedStyleSheets = [];
+    adopt(s, { sheet: LIVE_EDIT_SHEET, css: CSS });
+
+    // Settings dropdown change handler
+    s.getElementById('cf').addEventListener('change',e=>{
+      const nm=e.target.name;if(!nm?.startsWith('sle-'))return;
+      const k=nm.slice(4);this._cfg[k]=e.target.value;this._saveCfg();
+      if(k==='view')this._applyView();
+      else{
+        // Editor keybindings are owned by the host (sol-pod, via its settings
+        // doc) — rebuild locally AND report the change so it gets persisted.
+        this.dispatchEvent(new CustomEvent('sol-editor-keys-change',
+          {detail:{keys:this._cfg.keys},bubbles:true,composed:true}));
+        const p=this.content;this._buildEditor().then(()=>this._setContent(p));
+      }
+    });
+
+    // Close modal on backdrop click or close button
+    s.getElementById('modal').addEventListener('click',e=>{
+      if(e.target===s.getElementById('modal'))this._closeModal();
+    });
+    s.getElementById('modalClose').addEventListener('click',()=>this._closeModal());
+
+    // Toolbar — Save / Settings / Help / Zoom / Statistics. Zoom and
+    // Statistics are shown per-format (see _setFmt); Save is hidden
+    // when the component is readonly.
+    s.getElementById('zmOut').addEventListener('click',()=>this.zoomOut());
+    s.getElementById('zmIn').addEventListener('click',()=>this.zoomIn());
+    s.getElementById('statsBtn').addEventListener('click',()=>this.toggleStats());
+    s.getElementById('svBtn').addEventListener('click',()=>this.save());
+    s.getElementById('cfgBtn').addEventListener('click',e=>{e.stopPropagation();this.toggleSettings();});
+    s.getElementById('hlpBtn').addEventListener('click',()=>this.toggleHelp());
+    if(this._readonly())s.getElementById('svBtn').style.display='none';
+
+    // Close settings dropdown when clicking outside
+    s.addEventListener('click',e=>{
+      const cf=s.getElementById('cf');
+      if(cf.classList.contains('on')&amp;&amp;!cf.contains(e.target))cf.classList.remove('on');
+    });
+
+    // Resizer — drag the bar between editor and preview panes.
+    const rz=s.getElementById('resizer');
+    rz.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      const body=s.querySelector('.body'),ep=s.getElementById('ep');
+      rz.setPointerCapture(e.pointerId);
+      rz.classList.add('dragging');
+      const move=ev=>{
+        const r=body.getBoundingClientRect(),min=120;
+        const w=Math.max(min,Math.min(ev.clientX-r.left,r.width-min));
+        ep.style.flex='0 0 '+w+'px';
+      };
+      const up=()=>{
+        rz.classList.remove('dragging');
+        rz.removeEventListener('pointermove',move);
+        rz.removeEventListener('pointerup',up);
+      };
+      rz.addEventListener('pointermove',move);
+      rz.addEventListener('pointerup',up);
+    });
+
+    this._loadCfg();
+    // The host (sol-pod) supplies editor keybindings via the `keys` attribute,
+    // sourced from its settings doc; it overrides any local cache.
+    const ka=this.getAttribute('keys');if(ka)this._cfg.keys=ka;
+    const src=this.getAttribute('source');
+    const fmt=this.getAttribute('format')||EXT[src?.split('.').pop()?.toLowerCase()]||'markdown';
+    await this._setFmt(fmt);
+    this._applyView();
+    if(src){await this._loadSrc(src);}
+    else{const ex=await(EXAMPLES[fmt]||EXAMPLES.markdown)().catch(()=>'');await this._setContent(ex);}
+  }
+
+  async _setFmt(fmt){
+    this._fmt=fmt||'markdown';
+    this._zoom=1.0;
+    const po=this.shadowRoot.getElementById('po');
+    if(po){po.style.transform='';po.style.transformOrigin='';po.style.width='100%';po.style.height='';}
+    // Documents read from the top; diagrams/graphs stay centered.
+    const ppEl=this.shadowRoot.getElementById('pp');
+    if(ppEl)ppEl.classList.toggle('sle-doc',DOC_FMTS.has(this._fmt));
+    const zc=this.shadowRoot.getElementById('zoomctl');
+    if(zc)zc.hidden=!this.canZoom;
+    const zp=this.shadowRoot.getElementById('zmPct');
+    if(zp)zp.textContent='100%';
+    const sb=this.shadowRoot.getElementById('statsBtn');
+    if(sb)sb.hidden=!this.canStats;
+    this.dispatchEvent(new CustomEvent('sol-format',{detail:{format:this._fmt,canZoom:this.canZoom,canStats:this.canStats},bubbles:true,composed:true}));
+    await this._buildEditor();
+  }
+
+  async _buildEditor(){
+    const pane=this.shadowRoot.getElementById('ep');
+    if(!pane)return;
+    if(this._cm){this._cm.destroy();this._cm=null;}
+    const extKey=CM_EXT[this._fmt]||null;
+    const editorMod=this.constructor.editorModule;
+    if(editorMod){
+      try{
+        const {createEditor}=await import(editorMod);
+        this._cm=await createEditor(pane,'',extKey?`f.${extKey}`:'f.txt',
+          {dark:false,keyBindings:this._cfg.keys,onChange:()=>this._change()});
+        return;
+      }catch(_){/* fall through to built-in editor */}
+    }
+    // A failed editor build (CDN unreachable) must not kill _init — surface
+    // it in the error strip instead of leaving a silent blank pane.
+    try{
+      const view=await buildEditor(pane,extKey,this.shadowRoot,()=>this._change());
+      this._cm={
+        getValue:()=>view.state.doc.toString(),
+        setValue:(v)=>view.dispatch({changes:{from:0,to:view.state.doc.length,insert:v}}),
+        destroy:()=>view.destroy(),
+      };
+    }catch(e){
+      const er=this.shadowRoot.getElementById('er');
+      if(er){er.textContent=`Editor failed to load: ${e.message}`;er.classList.add('on');}
+    }
+  }
+
+  _change(){
+    clearTimeout(this._db);this._db=setTimeout(()=>this._render(),400);
+    this.dispatchEvent(new CustomEvent('sol-change',{detail:{content:this.content},bubbles:true,composed:true}));
+  }
+
+  async _setContent(text){
+    if(!this._cm)return;
+    this._cm.setValue(text);
+    await this._render();
+    // A freshly loaded document always previews from the TOP — the preview
+    // pane may retain an old scroll position (or a zoom recenter) from
+    // whatever it showed before. Typing re-renders (_change → _render) do
+    // NOT come through here, so the reading position survives edits.
+    const pp=this.shadowRoot.getElementById('pp');
+    if(pp){pp.scrollTop=0;pp.scrollLeft=0;}
+  }
+
+  async _render(){
+    if(this._sim){this._sim();this._sim=null;}
+    const out=this.shadowRoot.getElementById('po');
+    const er=this.shadowRoot.getElementById('er');
+    if(!out)return;
+    try{
+      if(!_rendererCache[this._fmt]&amp;&amp;RENDERERS[this._fmt])
+        _rendererCache[this._fmt]=await RENDERERS[this._fmt]();
+      const fn=_rendererCache[this._fmt];
+      if(!fn){out.innerHTML='&lt;p style="padding:1rem">No preview.&lt;/p>';return;}
+      const r=await fn(this.content,out);
+      if(typeof r==='function')this._sim=r;
+      er.textContent='';er.classList.remove('on');
+    }catch(e){er.textContent=e.message;er.classList.add('on');}
+  }
+
+  async _loadSrc(url){
+    if(!url)return;
+    const fmt=EXT[url.split('?')[0].split('.').pop()?.toLowerCase()]||this._fmt||'markdown';
+    if(fmt!==this._fmt)await this._setFmt(fmt);
+    try{
+      const fn=this._fn||fetch;
+      const resp=await fn(url,{cache:'no-store'});
+      if(!resp.ok)throw new Error(`HTTP ${resp.status}`);
+      const text=await resp.text();
+      const mf=MIME[(resp.headers.get('content-type')||'').split(';')[0].trim()];
+      if(mf&amp;&amp;mf!==this._fmt)await this._setFmt(mf);
+      await this._setContent(text);
+      if(!this._readonly()){
+        const sb=this.shadowRoot.getElementById('svBtn');if(sb)sb.style.display='';
+      }
+      this.dispatchEvent(new CustomEvent('sol-load',{detail:{content:text,url},bubbles:true,composed:true}));
+    }catch(e){
+      const er=this.shadowRoot.getElementById('er');
+      if(er){er.textContent=`Load failed: ${e.message}`;er.classList.add('on');}
+    }
+  }
+
+  async _save(){
+    const url=this.getAttribute('source');const text=this.content;
+    this.dispatchEvent(new CustomEvent('sol-save',{detail:{content:text,url},bubbles:true,composed:true}));
+    if(!url)return;
+    try{
+      const fn=this._fn||fetch;
+      const r=await fn(url,{method:'PUT',headers:{'Content-Type':FMIME[this._fmt]||'text/plain'},body:text});
+      if(!r.ok)throw new Error(`HTTP ${r.status}`);
+    }catch(e){
+      const er=this.shadowRoot.getElementById('er');
+      if(er){er.textContent=`Save failed: ${e.message}`;er.classList.add('on');}
+    }
+  }
+
+  // ── Modal helpers ───────────────────────────────────────────────────────────
+  _openModal(html,wide){
+    const s=this.shadowRoot;
+    const box=s.getElementById('modalBox');
+    s.getElementById('modalBody').innerHTML=html;
+    box.classList.toggle('wide',!!wide);
+    s.getElementById('modal').classList.add('on');
+  }
+  _closeModal(){
+    this.shadowRoot.getElementById('modal').classList.remove('on');
+  }
+
+  // ── Help → modal ───────────────────────────────────────────────────────────
+  async _toggleHelp(){
+    const modal=this.shadowRoot.getElementById('modal');
+    if(modal.classList.contains('on')){this._closeModal();return;}
+    const ldr=HELP[this._fmt];
+    const html=ldr?_helpHtml(await ldr()):'&lt;p>No help available for this format.&lt;/p>';
+    this._openModal(html);
+  }
+
+  // ── Settings → dropdown ────────────────────────────────────────────────────
+  _toggleCfg(){
+    const cf=this.shadowRoot.getElementById('cf');
+    if(!cf)return;
+    const opening=!cf.classList.contains('on');
+    cf.classList.toggle('on');
+    if(opening){
+      this.shadowRoot.querySelectorAll('[name^="sle-"]').forEach(r=>{
+        r.checked=r.value===this._cfg[r.name.slice(4)];
+      });
+    }
+  }
+
+  // ── Statistics → modal ─────────────────────────────────────────────────────
+  async _toggleStats(){
+    const modal=this.shadowRoot.getElementById('modal');
+    if(modal.classList.contains('on')){this._closeModal();return;}
+    try{
+      const csvMod = _preloaded.renderers._csvModule || await import('./utils/renderers/csv.js');
+      const {parseCSV,calcStats,renderStats}=csvMod;
+      const container=document.createElement('div');
+      renderStats(calcStats(parseCSV(this.content)),container);
+      this._openModal(container.innerHTML,true);
+    }catch(e){
+      this._openModal(`&lt;p style="color:#c0392b">${_esc(e.message)}&lt;/p>`);
+    }
+  }
+
+  _loadCfg(){try{Object.assign(this._cfg,JSON.parse(localStorage.getItem('sle-cfg')||'{}'));}catch(_){}this._cfg.view='both';}
+  _saveCfg(){try{localStorage.setItem('sle-cfg',JSON.stringify(this._cfg));}catch(_){}}
+  _setZoom(z){
+    this._zoom=Math.max(0.2,Math.min(5.0,Math.round(z*10)/10));
+    const pct=Math.round(this._zoom*100);
+    const zp=this.shadowRoot.getElementById('zmPct');
+    if(zp)zp.textContent=pct+'%';
+    const po=this.shadowRoot.getElementById('po');
+    const pp=this.shadowRoot.getElementById('pp');
+    if(po){
+      po.style.width=`${100*this._zoom}%`;
+      po.style.height=`${100*this._zoom}%`;
+    }
+    // Zooming a DIAGRAM recenters (you zoom toward the middle of a graph);
+    // zooming a DOCUMENT (markdown/turtle/jsonld) must keep the reading
+    // position — recentering threw the preview to the middle of the page.
+    if(pp&amp;&amp;this._zoom>1&amp;&amp;CENTER_ZOOM_FMTS.has(this._fmt)){
+      requestAnimationFrame(()=>{
+        pp.scrollLeft=(pp.scrollWidth-pp.clientWidth)/2;
+        pp.scrollTop=(pp.scrollHeight-pp.clientHeight)/2;
+      });
+    }
+    this.dispatchEvent(new CustomEvent('sol-zoom',{detail:{zoom:this._zoom,pct},bubbles:true,composed:true}));
+  }
+  _applyView(){const v=this._cfg.view,sr=this.shadowRoot,ep=sr.getElementById('ep'),pp=sr.getElementById('pp'),rz=sr.getElementById('resizer');if(ep)ep.style.display=v==='preview'?'none':'';if(pp)pp.style.display=v==='editor'?'none':'';if(rz)rz.style.display=v==='both'?'':'none';}
+}
+
+function _helpHtml(h){
+  if(!h)return'';
+  let s=`&lt;h2>${h.title}&lt;/h2>`;
+  for(const sec of h.sections){
+    s+=`&lt;h3>${sec.heading}&lt;/h3>`;
+    for(const item of sec.items)s+=`&lt;h4>${item.title}&lt;/h4>&lt;p>${item.description}&lt;/p>&lt;code>${_esc(item.code)}&lt;/code>`;
+  }
+  return s;
+}
+function _esc(s){return s.replace(/&amp;/g,'&amp;amp;').replace(/&lt;/g,'&amp;lt;').replace(/>/g,'&amp;gt;');}
+
+define('sol-live-edit',SolLiveEdit);
+export { SolLiveEdit };
+export default SolLiveEdit;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

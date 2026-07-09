@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/menu-html.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/menu-html.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// menu-html — harvest a declarative &lt;sol-tabs> shell back into the menu model
+// (the inverse of core/menu-generate.js). Used by the in-app tabs sync to fold a
+// hand-edited html-first.html into the RDF: parse the file's &lt;sol-tabs>, extract
+// the #Tabs and #Bar items, then merge them into data/tabs.ttl with
+// updateMenuInStore (which preserves pantry items + metadata).
+//
+// NOTE this reads the SOURCE markup (e.g. DOMParser'd file text), not the live
+// rendered &lt;sol-tabs> — sol-tabs harvests its anchors and resets its innerHTML on
+// render, so the live element no longer holds the original children.
+//
+// Round-trip fidelity:
+//   - Tabs are lossless: id, label (text), tag (data-handler), region, and every
+//     attribute survive (source←href, id←id, data-*→param, plain attrs captured).
+//   - Bar items are best-effort: emitBarItem does not write a non-button item's
+//     label or its RDF fragment to HTML, so the label is recovered from `title`
+//     and the fragment is re-minted from the label by updateMenuInStore. Editing
+//     a non-button bar label by hand (diverging from its title) won't round-trip;
+//     edit bar labels via the builder instead.
+
+// `target` is the HTML spelling of a subset of ui:region (see display-target.js).
+// Normalize the two that map cleanly; richer regions are written as region= and
+// harvested by the `region` branch below.
+function targetToRegion(v) {
+  const t = (v || '').toLowerCase();
+  if (t === '_blank') return 'tab';
+  if (t === '_self') return 'inline';
+  return null;
+}
+
+// Anchor attributes consumed structurally, not captured as a ui:attribute param.
+const TAB_SKIP = new Set(['href', 'id', 'data-handler', 'region', 'target', 'data-tab-id']);
+
+// Exported singly (besides extractShell) so sol-tabs can normalize a live
+// anchor / &lt;submenu> child into the same item shape the RDF parse produces —
+// the basis of applyTabs' change detection.
+export function extractTab(a) {
+  // A LINK tab (ui:Link): emitTab's no-data-handler anchor — target (or a
+  // region= for richer placements) marks it; href IS the link, not a
+  // source to include. ui:icon has no HTML spelling, so it survives only
+  // in the RDF (a hand-edited link imports without one).
+  if (!a.getAttribute('data-handler') &amp;&amp; (a.hasAttribute('target') || a.hasAttribute('region'))) {
+    const region = a.hasAttribute('target')
+      ? targetToRegion(a.getAttribute('target'))
+      : ((a.getAttribute('region') || '').toLowerCase() || null);
+    return {
+      type: 'link',
+      id: a.getAttribute('id') || undefined,
+      name: (a.textContent || '').trim(),
+      region,
+      href: a.getAttribute('href'),
+    };
+  }
+  const params = [];
+  let tag = null;
+  let region = null;
+  for (const attr of a.attributes) {
+    const n = attr.name;
+    const v = attr.value;
+    if (n === 'href') { params.push(['source', v]); continue; }
+    if (n === 'id') { params.push(['id', v]); continue; }
+    if (n === 'data-handler') { tag = v; continue; }
+    if (n === 'region') { region = v.toLowerCase(); continue; }
+    if (n === 'target') { const r = targetToRegion(v); if (r) region = r; continue; }
+    if (TAB_SKIP.has(n)) continue;
+    if (n.startsWith('data-')) { params.push([n.slice(5), v]); continue; }
+    params.push([n, v]);                       // plain attr (rel, download, …) captured as-is
+  }
+  return {
+    type: 'component',
+    id: a.getAttribute('id') || undefined,
+    name: (a.textContent || '').trim(),
+    tag,
+    region,
+    params,
+  };
+}
+
+// A &lt;submenu> block (emitted by menu-generate for a multi-plugin menu item):
+// &lt;label> = the item's name, child anchors = its plugins.
+export function extractSubmenu(el) {
+  const label = el.querySelector(':scope > label');
+  const children = Array.from(el.querySelectorAll(':scope > a[href]')).map(extractTab);
+  return {
+    type: 'submenu',
+    id: el.getAttribute('id') || undefined,
+    name: (label ? label.textContent : '').trim(),
+    children,
+  };
+}
+
+function extractBarItem(el) {
+  const params = [];
+  let region = null;
+  for (const attr of el.attributes) {
+    const n = attr.name;
+    const v = attr.value;
+    if (n === 'region') { region = v.toLowerCase(); continue; }
+    params.push([n, v]);                       // bar attrs are emitted/harvested verbatim
+  }
+  // emitBarItem only writes a sol-button's label as text; recover others from title.
+  const name = (el.textContent || '').trim() || el.getAttribute('title') || '';
+  return {
+    type: 'component',
+    id: undefined,                             // no id in bar HTML → updateMenuInStore mints one
+    name,
+    tag: el.tagName.toLowerCase(),
+    region,
+    params,
+  };
+}
+
+/**
+ * Harvest a &lt;sol-tabs> element into `{ tabs, bar }` model arrays. Walks the
+ * element's children up to the `&lt;!-- chrome:begin -->` comment: `&lt;a href>`
+ * children (not slot="actions") are tabs, other elements before the chrome
+ * marker are bar items. The chrome block and anything after it is left to the
+ * generator to preserve verbatim.
+ *
+ * @param {Element} tabsEl a &lt;sol-tabs> element (from parsed source markup)
+ * @returns {{ tabs: object[], bar: object[] }}
+ */
+export function extractShell(tabsEl) {
+  const tabs = [];
+  const bar = [];
+  if (!tabsEl) return { tabs, bar };
+  let pendingComment = null;   // a leading comment documents the element after it
+  for (const node of tabsEl.childNodes) {
+    if (node.nodeType === 8) {                                  // comment node
+      const text = (node.textContent || '').trim();
+      if (/chrome:begin/.test(text)) break;                     // chrome block handled separately
+      pendingComment = pendingComment ? `${pendingComment}\n${text}` : text;
+      continue;
+    }
+    if (node.nodeType !== 1) continue;                          // element only
+    const el = /** @type {Element} */ (node);
+    let item = null;
+    if (el.tagName.toLowerCase() === 'a' &amp;&amp; el.hasAttribute('href')
+        &amp;&amp; el.getAttribute('slot') !== 'actions') {
+      item = extractTab(el); tabs.push(item);
+    } else if (el.tagName.toLowerCase() === 'submenu') {
+      item = extractSubmenu(el); tabs.push(item);
+    } else if (el.tagName.toLowerCase() !== 'a') {
+      item = extractBarItem(el); bar.push(item);
+    }
+    if (item &amp;&amp; pendingComment) item.comment = pendingComment;
+    pendingComment = null;
+  }
+  return { tabs, bar };
+}
+
+/**
+ * Convenience: parse an html-first.html string and harvest its &lt;sol-tabs>.
+ * Browser/jsdom only (uses DOMParser). Returns `{ tabs, bar }` (empty if no
+ * &lt;sol-tabs> is found).
+ *
+ * @param {string} html
+ * @returns {{ tabs: object[], bar: object[] }}
+ */
+export function extractFromHtml(html) {
+  const doc = new DOMParser().parseFromString(`&lt;div>${html}&lt;/div>`, 'text/html');
+  const tabsEl = doc.querySelector('sol-tabs');
+  return extractShell(tabsEl);
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/menu-serialize.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/menu-serialize.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// menu-serialize — the write half of core/menu-rdf.js: turn an edited tree of
+// plain item descriptions back into a complete Turtle document.
+//
+// Contract (mirrors parseMenuItems exactly):
+//   { type: 'submenu',   id, name, children: [...] }
+//   { type: 'component', id, name, icon, region, requiresWrite, tag, params }
+//   { type: 'link',      id, name, icon, region, requiresWrite, href, contents }
+// `region` is the lowercase ui:Region token (e.g. "modal"), written as
+// ui:region ui:Modal — the one display property stored in the RDF.
+//
+// The WHOLE document is rewritten on save (rdf:Lists are miserable to PATCH
+// in place), with one preservation rule: every subject in the original store
+// that is NOT part of the rebuilt menu tree is re-emitted untouched. That
+// keeps "pantry" items — subjects defined in the doc but not referenced from
+// any ui:parts list — across edits, and means removing an item from a menu
+// parks it in the pantry rather than destroying it (callers wanting a hard
+// delete remove the subject's statements themselves before serializing).
+
+import { rdf } from './rdf.js';
+
+const UI     = 'http://www.w3.org/ns/ui#';
+const RDF    = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+const RDFS   = 'http://www.w3.org/2000/01/rdf-schema#';
+const SCHEMA = 'http://schema.org/';
+const ACL    = 'http://www.w3.org/ns/auth/acl#';
+const DCT    = 'http://purl.org/dc/terms/';
+
+const ui   = (l) => rdf.sym(UI + l);
+const rdfs = (l) => rdf.sym(RDFS + l);
+const acl  = (l) => rdf.sym(ACL + l);
+const sch  = (l) => rdf.sym(SCHEMA + l);
+const a   = rdf.sym(RDF + 'type');
+
+/** Fragment → full IRI node in `docUrl`. */
+function fragNode(docUrl, fragment) {
+  return rdf.sym(docUrl.split('#')[0] + '#' + fragment);
+}
+
+/** Slugify a label into a fragment id; `taken` is a Set of used fragments. */
+export function mintFragment(label, taken) {
+  const base = String(label || 'item')
+    .replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'item';
+  let frag = base, n = 2;
+  while (taken.has(frag)) frag = `${base}-${n++}`;
+  taken.add(frag);
+  return frag;
+}
+
+/** Every fragment already used as a subject in the doc. */
+function usedFragments(store, docUrl) {
+  const doc = docUrl.split('#')[0];
+  const taken = new Set();
+  for (const st of store.statementsMatching(null, null, null)) {
+    for (const t of [st.subject, st.object]) {
+      const v = t &amp;&amp; t.value;
+      if (typeof v === 'string' &amp;&amp; v.startsWith(doc + '#')) taken.add(v.slice(doc.length + 1));
+    }
+  }
+  return taken;
+}
+
+/** Remove every statement whose subject is `node`, plus its attribute blanks.
+ *  (removeMatches, not remove(st)-in-a-loop — rdflib's remove() skips entries
+ *  when several statements share a subject.) */
+function removeSubject(store, node) {
+  const blanks = store.each(node, ui('attribute'), null);
+  for (const blank of blanks) store.removeMatches(blank, null, null);
+  store.removeMatches(node, null, null);
+}
+
+/** Remove a menu node's own triples incl. its parts list cells (both
+ *  Collection-valued and rdf:first/rest-chained forms). */
+function removeMenuNode(store, menuNode) {
+  const partsNode = store.any(menuNode, ui('parts'));
+  if (partsNode &amp;&amp; !partsNode.elements) {
+    // first/rest chain — collect the cells, then drop them
+    const nil = RDF + 'nil';
+    const cells = [];
+    let cur = partsNode;
+    while (cur &amp;&amp; cur.value !== nil) {
+      cells.push(cur);
+      cur = store.any(cur, rdf.sym(RDF + 'rest'));
+    }
+    for (const cell of cells) store.removeMatches(cell, null, null);
+  }
+  removeSubject(store, menuNode);
+}
+
+/** Collect the item nodes a tree references (recursively), so their old
+ *  statements can be cleared before re-emit. */
+function treeNodes(store, docUrl, items, out = []) {
+  for (const item of items || []) {
+    if (item.id) out.push(fragNode(docUrl, item.id));
+    if (item.type === 'submenu') treeNodes(store, docUrl, item.children, out);
+  }
+  return out;
+}
+
+function emitItem(store, docUrl, doc, item, taken) {
+  if (!item.id) item.id = mintFragment(item.name, taken);
+  const node = fragNode(docUrl, item.id);
+
+  if (item.type === 'submenu') {
+    emitMenu(store, docUrl, doc, node, {
+      label: item.name, items: item.children, requiresWrite: item.requiresWrite, comment: item.comment,
+    }, taken);
+    return node;
+  }
+
+  if (item.name != null) store.add(node, ui('label'), rdf.literal(String(item.name)), doc);
+  if (item.comment) store.add(node, rdfs('comment'), rdf.literal(String(item.comment)), doc);
+  if (item.creator) store.add(node, rdf.sym(DCT + 'creator'), rdf.literal(String(item.creator)), doc);
+  if (item.publisher) store.add(node, rdf.sym(DCT + 'publisher'), rdf.literal(String(item.publisher)), doc);
+  // dct:source = the chip's MANIFEST IRI (its stable identity), emitted as a
+  // RESOURCE so a mounted item links back to its catalog plugin. This is what
+  // lets the pantry know a chip is in use without guessing from tag+params.
+  if (item.manifest) store.add(node, rdf.sym(DCT + 'source'), rdf.sym(String(item.manifest)), doc);
+  if (item.icon) store.add(node, ui('icon'), rdf.literal(String(item.icon)), doc);
+  if (item.region) {
+    const local = item.region[0].toUpperCase() + item.region.slice(1).toLowerCase();
+    store.add(node, ui('region'), ui(local), doc);
+  }
+  if (item.requiresWrite) store.add(node, acl('mode'), acl('Write'), doc);
+
+  if (item.type === 'component') {
+    store.add(node, a, ui('Component'), doc);
+    if (item.tag) store.add(node, ui('name'), rdf.literal(String(item.tag)), doc);
+    for (const [k, v] of item.params || []) {
+      if (!k) continue;
+      const b = rdf.blankNode();
+      store.add(b, sch('name'), rdf.literal(String(k)), doc);
+      store.add(b, sch('value'), rdf.literal(String(v ?? '')), doc);
+      store.add(node, ui('attribute'), b, doc);
+    }
+  } else {
+    store.add(node, a, ui('Link'), doc);
+    if (item.href != null) store.add(node, ui('href'), rdf.literal(String(item.href)), doc);
+    if (item.contents != null) store.add(node, ui('contents'), rdf.literal(String(item.contents)), doc);
+  }
+  return node;
+}
+
+function emitMenu(store, docUrl, doc, menuNode, { label, orientation, items, requiresWrite, comment }, taken) {
+  store.add(menuNode, a, ui('Menu'), doc);
+  if (label != null) store.add(menuNode, ui('label'), rdf.literal(String(label)), doc);
+  if (comment) store.add(menuNode, rdfs('comment'), rdf.literal(String(comment)), doc);
+  if (orientation) {
+    const local = orientation[0].toUpperCase() + orientation.slice(1).toLowerCase();
+    store.add(menuNode, ui('orientation'), ui(local), doc);
+  }
+  if (requiresWrite) store.add(menuNode, acl('mode'), acl('Write'), doc);
+  const nodes = (items || []).map((item) => emitItem(store, docUrl, doc, item, taken));
+  store.add(menuNode, ui('parts'), new rdf.Collection(nodes), doc);
+}
+
+/**
+ * Replace one ui:Menu (by IRI-with-fragment) inside the store with the edited
+ * tree. Items present in the new tree are fully re-emitted; subjects no
+ * longer referenced stay as pantry. Mutates the store.
+ *
+ * @param store rdflib store holding the parsed original document
+ * @param docUrl the document URL (graph name)
+ * @param menuIri full IRI of the menu root (e.g. `${docUrl}#Tabs`)
+ * @param menu   { label, orientation, items }
+ */
+export function updateMenuInStore(store, docUrl, menuIri, menu) {
+  const doc = rdf.sym(docUrl.split('#')[0]);
+  const menuNode = rdf.sym(menuIri);
+  const taken = usedFragments(store, docUrl);
+  // emitItem re-emits only the predicates it knows; a rebuilt entry would lose
+  // any dct:source provenance (added so the catalog can find a plugin's
+  // manifest). Snapshot it before the clear and re-attach after the re-emit.
+  const provenance = new Map();
+  for (const node of treeNodes(store, docUrl, menu.items)) {
+    const src = store.any(node, rdf.sym(DCT + 'source'));
+    if (src) provenance.set(node.value, src);
+  }
+  // Clear what's being rebuilt: the menu node (and its old list), every item
+  // the NEW tree references, and any old SUBMENU nodes the new tree carries.
+  for (const node of treeNodes(store, docUrl, menu.items)) {
+    if (store.any(node, ui('parts'))) removeMenuNode(store, node);
+    else removeSubject(store, node);
+  }
+  removeMenuNode(store, menuNode);
+  emitMenu(store, docUrl, doc, menuNode, menu, taken);
+  for (const [nodeVal, src] of provenance) {
+    store.add(rdf.sym(nodeVal), rdf.sym(DCT + 'source'), src, doc);
+  }
+}
+
+/** Serialize the document graph to Turtle (rdflib's serialize is async). */
+export async function serializeMenuDocument(store, docUrl) {
+  const doc = rdf.sym(docUrl.split('#')[0]);
+  return rdf.serialize(doc, store, doc.value, 'text/turtle');
+}
+
+/**
+ * Convenience: apply edits for one or more menus and return the Turtle for
+ * the whole document (pantry subjects included).
+ * `menus` = [{ iri, label, orientation, items }]
+ */
+export async function rewriteMenuDocument(store, docUrl, menus) {
+  for (const m of menus) updateMenuInStore(store, docUrl, m.iri, m);
+  return serializeMenuDocument(store, docUrl);
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/utils/contract.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/utils/contract.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * web/utils/contract.js — the shared image vocab + RDF read/write helpers.
+ *
+ * A *fetcher* (e.g. commons.js) acquires data and writes it as RDF; a *display*
+ * (e.g. &lt;sol-gallery>) reads that RDF and renders it. Neither knows the other's
+ * origin — RDF is the only interchange, shaped as **one envelope + a typed
+ * payload per media kind** (see PLAN-source-adapters in the omp repo).
+ *
+ * This module owns the image vocab (schema.org + dcat) and the read/write
+ * helpers both sides share, so the bytes on the wire have exactly one
+ * definition. Fetchers WRITE records with the `add*` helpers; displays READ
+ * them with the `read*` helpers.
+ *
+ *   CollectionRecord — a browsable grouping (`dcat:Dataset` / `schema:ImageGallery`)
+ *   ImageItem        — one picture (`schema:ImageObject`)
+ *
+ * @typedef {object} ImageFields
+ * @property {string}  iri          stable IRI for the image (its detail page)
+ * @property {string}  thumb        masonry thumbnail URL  (schema:thumbnailUrl)
+ * @property {string}  full         full-res URL           (schema:contentUrl)
+ * @property {number} [width]       thumb width            (schema:width)
+ * @property {number} [height]      thumb height           (schema:height)
+ * @property {string} [caption]     title / caption        (schema:caption)
+ * @property {string} [license]     license short name     (schema:license)
+ * @property {string} [author]      attribution            (schema:author)
+ * @property {string} [detailUrl]   "View on…" page        (schema:mainEntityOfPage)
+ * @property {number} [position]    display order          (schema:position)
+ */
+
+import { rdf } from '../../core/rdf.js';
+
+export const NS = {
+  rdf:    'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+  schema: 'http://schema.org/',
+  dcat:   'http://www.w3.org/ns/dcat#',
+  dct:    'http://purl.org/dc/terms/',
+  skos:   'http://www.w3.org/2004/02/skos/core#',
+};
+
+const sym = (u) => rdf.sym(u);
+const lit = (v) => rdf.literal(String(v));
+const a   = sym(NS.rdf + 'type');
+
+/** First object value for (s, predicateUri) as a string, or ''. */
+function valueOf(store, s, predUri) {
+  const o = store.any(s, sym(predUri));
+  return o ? o.value : '';
+}
+function numOf(store, s, predUri) {
+  const v = valueOf(store, s, predUri);
+  return v === '' ? undefined : Number(v);
+}
+
+/* ── ImageItem (schema:ImageObject) ─────────────────────────────────────── */
+
+/**
+ * Write one image into `store` as a schema:ImageObject.
+ * @param {object} store  an rdflib store
+ * @param {ImageFields} f
+ * @returns {object} the subject NamedNode
+ */
+export function addImageItem(store, f) {
+  const s = sym(f.iri);
+  store.add(s, a, sym(NS.schema + 'ImageObject'));
+  if (f.thumb)     store.add(s, sym(NS.schema + 'thumbnailUrl'), sym(f.thumb));
+  if (f.full)      store.add(s, sym(NS.schema + 'contentUrl'),   sym(f.full));
+  if (f.width)     store.add(s, sym(NS.schema + 'width'),        lit(f.width));
+  if (f.height)    store.add(s, sym(NS.schema + 'height'),       lit(f.height));
+  if (f.caption)   store.add(s, sym(NS.schema + 'caption'),      lit(f.caption));
+  if (f.license)   store.add(s, sym(NS.schema + 'license'),      lit(f.license));
+  if (f.author)    store.add(s, sym(NS.schema + 'author'),       lit(f.author));
+  if (f.detailUrl) store.add(s, sym(NS.schema + 'mainEntityOfPage'), sym(f.detailUrl));
+  if (f.position != null) store.add(s, sym(NS.schema + 'position'), lit(f.position));
+  return s;
+}
+
+/**
+ * Read every schema:ImageObject out of `store`, sorted by schema:position
+ * (insertion order). The shape is what a display renders.
+ * @returns {Array&lt;{iri,thumb,full,width,height,caption,license,author,detailUrl,position}>}
+ */
+export function readImageItems(store) {
+  const subjects = store.each(undefined, a, sym(NS.schema + 'ImageObject'));
+  const items = subjects.map((s) => ({
+    iri:       s.value,
+    thumb:     valueOf(store, s, NS.schema + 'thumbnailUrl'),
+    full:      valueOf(store, s, NS.schema + 'contentUrl'),
+    width:     numOf(store, s, NS.schema + 'width'),
+    height:    numOf(store, s, NS.schema + 'height'),
+    caption:   valueOf(store, s, NS.schema + 'caption'),
+    license:   valueOf(store, s, NS.schema + 'license'),
+    author:    valueOf(store, s, NS.schema + 'author'),
+    detailUrl: valueOf(store, s, NS.schema + 'mainEntityOfPage'),
+    position:  numOf(store, s, NS.schema + 'position') ?? 0,
+  }));
+  items.sort((x, y) => x.position - y.position);
+  return items;
+}
+
+/* ── CollectionRecord (dcat:Dataset / schema:ImageGallery) ───────────────── */
+
+/**
+ * Write one collection into `store`.
+ * @param {object} store
+ * @param {{iri:string,title?:string,landingPage?:string,theme?:string}} f
+ *        `landingPage` is the load() ref (for images, a Commons category URL);
+ *        `theme` is a LOCAL topic IRI (only the file path sets it — search
+ *        results have no topic until curated).
+ */
+export function addCollection(store, f) {
+  const s = sym(f.iri);
+  store.add(s, a, sym(NS.dcat + 'Dataset'));
+  store.add(s, a, sym(NS.schema + 'ImageGallery'));
+  if (f.title)       store.add(s, sym(NS.dct + 'title'),         lit(f.title));
+  if (f.landingPage) store.add(s, sym(NS.dcat + 'landingPage'),  sym(f.landingPage));
+  if (f.theme)       store.add(s, sym(NS.dcat + 'theme'),        sym(f.theme));
+  return s;
+}
+
+/** Read every dcat:Dataset out of `store`. */
+export function readCollections(store) {
+  const subjects = store.each(undefined, a, sym(NS.dcat + 'Dataset'));
+  return subjects.map((s) => ({
+    iri:         s.value,
+    title:       valueOf(store, s, NS.dct + 'title'),
+    landingPage: valueOf(store, s, NS.dcat + 'landingPage'),
+    theme:       valueOf(store, s, NS.dcat + 'theme'),
+  }));
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

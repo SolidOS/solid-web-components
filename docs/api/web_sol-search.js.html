@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/sol-search.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/sol-search.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * &lt;sol-search> — multi-engine search form, popup or inline.
+ *
+ * Two layouts, chosen by the `view` attribute:
+ *
+ *   view="button"  — (default) an icon trigger that opens a floating
+ *                    panel on click; the panel positions itself flush
+ *                    against the right edge of the trigger. Best for
+ *                    headers / toolbars where space is tight.
+ *   view="inline"  — the search field, Go button, and engine radios are
+ *                    rendered directly with no toggle. Best when you
+ *                    already have a dedicated strip for search.
+ *
+ * Engine sources, in order of precedence:
+ *   `source`   — URL of a Turtle file with a `schema:ItemList` whose
+ *                `schema:itemListElement`s are `hydra:IriTemplate`
+ *                entries (`hydra:template` = RFC 6570 search URL with
+ *                `{query}`, `dct:title` = display name,
+ *                `schema:position` = sort order). Parsed through
+ *                feed-fetch.js#parseEngineList, sharing the single
+ *                rdflib instance from core/rdf.js.
+ *   `engines`  — JSON array of {id,label,url} on the attribute itself.
+ *   built-ins  — a sensible default list (DuckDuckGo / Google /
+ *                Wikipedia / prefix.cc / LOV / Etymology / YouTube /
+ *                Wayback).
+ *
+ * Submitting opens the result in a shared "reader" window (the same
+ * window object is re-used across submissions so it never spawns a new
+ * tab per search).
+ *
+ * Attributes:
+ *   view             "button" | "inline"  (default: button)
+ *   source           "file.ttl#TopicName" — RDF engines list
+ *   engines          JSON array of {id,label,url}
+ *   default-engine   id (or url) of the engine that starts selected
+ *   placeholder      input placeholder (default: "Search…")
+ *
+ * @element sol-search
+ *
+ * @example
+ *   &lt;sol-search>&lt;/sol-search>
+ *   &lt;sol-search view="inline" default-engine="ddg">&lt;/sol-search>
+ *   &lt;sol-search view="inline" source="data/search-engines.ttl#SearchEngines">&lt;/sol-search>
+ */
+import { adopt } from '../core/adopt.js';
+import { define } from '../core/define.js';
+import { CSS as SEARCH_CSS, sheet as SEARCH_SHEET } from './styles/sol-search-css.js';
+import { parseEngineList } from './utils/feed-fetch.js';
+import { attachEditorSelfGear } from '../core/editor-self.js';
+
+/** Sensible defaults; callers can override via `engines` or `source`. */
+const DEFAULT_ENGINES = [
+  { id: 'ddg',     label: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
+  { id: 'g',       label: 'Google',     url: 'https://www.google.com/search?q=' },
+  { id: 'wp',      label: 'Wikipedia',  url: 'https://en.wikipedia.org/w/index.php?search=' },
+  { id: 'prefix',  label: 'prefix.cc',  url: 'https://prefix.cc/' },
+  { id: 'lov',     label: 'LOV',        url: 'https://lov.linkeddata.es/dataset/lov/terms?q=' },
+  { id: 'ety',     label: 'Etymology',  url: 'https://www.etymonline.com/search?q=' },
+  { id: 'yt',      label: 'YouTube',    url: 'https://www.youtube.com/results?search_query=' },
+  { id: 'wayback', label: 'Wayback',    url: 'https://web.archive.org/web/*/' },
+];
+
+/** Shared "reader" window — kept across submissions so the same off-canvas
+ *  window is re-used instead of spawning a fresh tab every time. Browsers
+ *  clear a window's name on cross-origin navigation, so we cannot look it
+ *  up by name later; we keep the handle that window.open() returns. */
+let readerWindow = null;
+
+/** A 1024×640 window flush against the right edge, vertically centred. */
+function readerFeatures() {
+  const w = 1024, h = 640;
+  const left = Math.max(0, window.screen.availWidth  - w);
+  const top  = Math.max(0, Math.round((window.screen.availHeight - h) / 2));
+  return `width=${w},height=${h},left=${left},top=${top}`;
+}
+
+/** Open `url` in the shared reader window; returns true when handled. */
+function openInReader(url) {
+  if (!url) return false;
+  if (readerWindow &amp;&amp; !readerWindow.closed) {
+    readerWindow.location.href = url;
+    readerWindow.focus();
+    return true;
+  }
+  readerWindow = window.open(url, 'sol-search-reader', readerFeatures());
+  if (readerWindow) { readerWindow.focus(); return true; }
+  return false;
+}
+
+/** HTML-escape a value for safe interpolation into innerHTML. */
+function esc(s) {
+  return String(s).replace(/[&amp;&lt;>"']/g,
+    c => ({ '&amp;':'&amp;amp;', '&lt;':'&amp;lt;', '>':'&amp;gt;', '"':'&amp;quot;', "'":'&amp;#39;' }[c]));
+}
+
+/** Derive a stable engine id from its label (slug-ish, lower-case). */
+function slugify(label) {
+  return String(label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/** Build the result URL for an engine + query. RDF-sourced engines
+ *  carry `template` with a `{query}` placeholder (RFC 6570-ish);
+ *  built-in / JSON-attr engines carry `url` as a prefix that the query
+ *  is appended to. Both paths URI-encode the query. */
+function expandQuery(eng, q) {
+  const encoded = encodeURIComponent(q);
+  if (eng?.template) return eng.template.replace(/\{query\}/g, encoded);
+  if (eng?.url)      return eng.url + encoded;
+  return 'https://duckduckgo.com/?q=' + encoded;
+}
+
+// RDF parsing is delegated to feed-fetch.js#parseSourceList — the same
+// utility sol-feed uses for its bookmark/SKOS source files, which routes
+// through core/rdf.js (the single rdflib instance the suite shares).
+
+/**
+ * Multi-engine search component.
+ *
+ * @class SolSearch
+ * @extends HTMLElement
+ */
+class SolSearch extends HTMLElement {
+  static get observedAttributes() {
+    return ['view', 'source', 'engines', 'default-engine', 'placeholder'];
+  }
+
+  /** SHACL shape describing the engines list. Discovery via
+   *  &amp;lt;sol-settings&amp;gt; picks this up; the shape uses a forward
+   *  `schema:itemListElement` so the editor lists each
+   *  `hydra:IriTemplate` that's a member of the currently-edited
+   *  `schema:ItemList`. */
+  static get shape() {
+    return new URL('../shapes/search-engines.shacl', import.meta.url).href;
+  }
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._open    = false;              // only relevant when view=button
+    this._engines = DEFAULT_ENGINES;
+    this._view    = 'button';           // resolved in connectedCallback
+    this._built   = false;              // true once the shadow tree exists
+  }
+
+  async connectedCallback() {
+    // Reset for the re-entry case (view change triggers a rebuild).
+    this.shadowRoot.adoptedStyleSheets = [];
+    this.shadowRoot.innerHTML = '';
+    adopt(this.shadowRoot, { sheet: SEARCH_SHEET, css: SEARCH_CSS });
+
+    this._view = (this.getAttribute('view') || 'button').toLowerCase();
+    // Surface the view on the host so external rules / parts can select on it.
+    this.dataset.view = this._view;
+
+    // The form body is shared between layouts — the only difference is
+    // whether it's wrapped in an [open]-toggled panel and preceded by a
+    // trigger button. The .engines-line wrapper keeps the engines row
+    // as a single flex item below the input + Go row; the engines
+    // inside flex-wrap onto a second (or third) row as space allows.
+    const formHTML = `
+      &lt;form class="form" part="form">
+        &lt;div class="row">
+          &lt;input class="q" type="search" name="q" autocomplete="off" part="input">
+          &lt;button class="go" type="submit" part="submit">Go&lt;/button>
+        &lt;/div>
+        &lt;div class="engines-line">
+          &lt;div class="engines" aria-label="Search engine">&lt;/div>
+        &lt;/div>
+      &lt;/form>
+    `;
+
+    if (this._view === 'inline') {
+      // Render the form directly in the shadow root — no trigger, no
+      // floating panel, no document-level listeners. Engines simply
+      // wrap onto subsequent rows when the list outgrows the
+      // viewport.
+      const wrap = document.createElement('div');
+      wrap.innerHTML = formHTML;
+      while (wrap.firstChild) this.shadowRoot.appendChild(wrap.firstChild);
+    } else {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `
+        &lt;button class="icon" type="button" part="trigger"
+                aria-haspopup="dialog" aria-expanded="false" title="Search">⌕&lt;/button>
+        &lt;div class="panel" role="dialog" aria-modal="false" part="panel">
+          ${formHTML}
+          &lt;span class="sr-only">Press Escape to close&lt;/span>
+        &lt;/div>
+      `;
+      while (wrap.firstChild) this.shadowRoot.appendChild(wrap.firstChild);
+      this.$btn   = this.shadowRoot.querySelector('button.icon');
+      this.$panel = this.shadowRoot.querySelector('.panel');
+
+      this._onDocPointerDown = (e) => {
+        const path = e.composedPath?.() ?? [];
+        if (!path.includes(this)) this.close();
+      };
+      this._onDocKeyDown = (e) => { if (e.key === 'Escape') this.close(); };
+
+      this.$btn.addEventListener('click', () => this.toggle());
+    }
+
+    this.$form    = this.shadowRoot.querySelector('form.form');
+    this.$q       = this.shadowRoot.querySelector('input.q');
+    this.$engines = this.shadowRoot.querySelector('.engines');
+
+    this._loadEngines();
+    this._renderEngines();
+    this._applyPlaceholder();
+    this._built = true;
+
+    this.$form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this._doSearch();
+    });
+
+    // If a `source` is set, fetch + parse it as a schema:ItemList of
+    // hydra:IriTemplate engines (see feed-fetch.js#parseEngineList).
+    // The default / engines-attr list is shown in the meantime so the
+    // UI is never blank, and stays put if the source request fails.
+    const source = this.getAttribute('source');
+    if (source) {
+      try {
+        const list = await parseEngineList(source);
+        if (list &amp;&amp; list.length) {
+          this._engines = list.map((item, i) => ({
+            id:       item.id || slugify(item.label) || `e${i}`,
+            label:    item.label,
+            template: item.template,
+          }));
+          this._loadEngines();
+          this._renderEngines();
+        }
+      } catch (err) {
+        // Source failed — leave the default / engines-attr list in
+        // place; surface to the console so the page author sees it.
+        console.warn(`[sol-search] source ${source}: ${err.message}`);
+      }
+    }
+
+    if (this.hasAttribute('editor-self')) attachEditorSelfGear(this);
+  }
+
+  disconnectedCallback() {
+    if (this._onDocPointerDown) {
+      document.removeEventListener('pointerdown', this._onDocPointerDown, { capture: true });
+    }
+    if (this._onDocKeyDown) {
+      document.removeEventListener('keydown', this._onDocKeyDown);
+    }
+    this._built = false;
+  }
+
+  /**
+   * Re-read `source` and rebuild the engines panel. Public hook used by
+   * external editors (e.g. dk-settings) after the engines TTL changes.
+   * sol-search loads its source inline in connectedCallback, so reload
+   * tears down and reconnects to walk the same path.
+   */
+  async reload() {
+    this.disconnectedCallback();
+    await this.connectedCallback();
+  }
+
+  attributeChangedCallback(name) {
+    // Static-attribute changes fire after the element is in the DOM but
+    // before our first connectedCallback runs (isConnected is already
+    // true). Bailing on `_built` is the correct gate — `connectedCallback`
+    // applies the attributes in order anyway, and we re-apply on later
+    // changes.
+    if (!this._built) return;
+
+    // Switching `view` requires a full rebuild — disconnect listeners,
+    // clear the root, and re-run connectedCallback (which resets the
+    // shadow root and re-loads the source if one is set).
+    if (name === 'view') {
+      this.disconnectedCallback();
+      this.connectedCallback();
+      return;
+    }
+    this._loadEngines();
+    this._renderEngines();
+    this._applyPlaceholder();
+  }
+
+  _loadEngines() {
+    // `engines` attribute beats the built-in defaults; an RDF `source`
+    // result (resolved in connectedCallback's tail) beats both.
+    const enginesAttr = this.getAttribute('engines');
+    if (enginesAttr) {
+      try {
+        const parsed = JSON.parse(enginesAttr);
+        if (Array.isArray(parsed) &amp;&amp; parsed.length) this._engines = parsed;
+      } catch { /* leave whatever was there on bad JSON */ }
+    } else if (!this.getAttribute('source')) {
+      this._engines = DEFAULT_ENGINES;
+    }
+    const def = this.getAttribute('default-engine');
+    // Allow matching by id or by URL prefix — convenient when defaults
+    // are RDF-sourced and ids are slugified labels.
+    this._defaultEngine = def
+      || this._engines.find(e => /duckduckgo/i.test(e.label))?.id
+      || this._engines[0]?.id
+      || 'ddg';
+  }
+
+  _applyPlaceholder() {
+    if (!this.$q) return;
+    this.$q.setAttribute('placeholder', this.getAttribute('placeholder') || 'Search…');
+  }
+
+  _renderEngines() {
+    if (!this.$engines) return;
+    // Unique radio-group name per render so repeated re-renders don't
+    // accidentally cross-link with stale inputs in the same shadow root.
+    const name = `engine-${Math.random().toString(36).slice(2, 8)}`;
+    // Radios go directly in .engines — the container is a flex-wrap
+    // row, so a list that's too wide for one line continues on a
+    // second (or third) row beneath. No track wrapper, no carousel.
+    this.$engines.innerHTML = this._engines.map(eng => `
+      &lt;label class="engine">
+        &lt;input type="radio" name="${name}" value="${esc(eng.id)}">
+        &lt;span>${esc(eng.label ?? eng.id)}&lt;/span>
+      &lt;/label>
+    `).join('');
+
+    const radios = [...this.shadowRoot.querySelectorAll(`input[name="${name}"]`)];
+    const pick = radios.find(r => r.value === this._defaultEngine) || radios[0];
+    if (pick) pick.checked = true;
+  }
+
+  /* ── view: button (popup) controls ─────────────────────────────────── */
+
+  toggle() {
+    if (this._view !== 'button') return;
+    this._open ? this.close() : this.openAtButton();
+  }
+
+  openAtButton() {
+    if (this._view !== 'button') return;
+    this._open = true;
+    this.$btn.setAttribute('aria-expanded', 'true');
+    this.$panel.setAttribute('open', '');
+
+    // Measure once visible, then position so the panel's right edge lines
+    // up with the trigger's right edge (drops down-and-left). Clamps into
+    // the viewport with a 10px margin.
+    this.$panel.style.left = '0px';
+    this.$panel.style.top  = '0px';
+
+    const btn   = this.$btn.getBoundingClientRect();
+    const panel = this.$panel.getBoundingClientRect();
+    const margin = 10;
+
+    let left = btn.right - panel.width;
+    let top  = btn.bottom + 4;
+    left = Math.max(margin, Math.min(left, window.innerWidth  - panel.width  - margin));
+    top  = Math.max(margin, Math.min(top,  window.innerHeight - panel.height - margin));
+
+    this.$panel.style.left = `${left}px`;
+    this.$panel.style.top  = `${top}px`;
+
+    document.addEventListener('pointerdown', this._onDocPointerDown, { capture: true });
+    document.addEventListener('keydown',     this._onDocKeyDown);
+    queueMicrotask(() => this.$q.focus());
+  }
+
+  close() {
+    if (this._view !== 'button') return;
+    if (!this._open) return;
+    this._open = false;
+    this.$btn.setAttribute('aria-expanded', 'false');
+    this.$panel.removeAttribute('open');
+    document.removeEventListener('pointerdown', this._onDocPointerDown, { capture: true });
+    document.removeEventListener('keydown',     this._onDocKeyDown);
+  }
+
+  /* ── shared submit ────────────────────────────────────────────────── */
+
+  _selectedEngine() {
+    const checked = this.shadowRoot.querySelector('input[type="radio"]:checked');
+    return this._engines.find(e => e.id === checked?.value) || this._engines[0];
+  }
+
+  _doSearch() {
+    const q = (this.$q.value || '').trim();
+    if (!q) return;
+    const eng = this._selectedEngine();
+    const url = expandQuery(eng, q);
+    if (!openInReader(url)) {
+      // Popup blocked; fall through to a normal new-tab open so the user
+      // still gets the search result rather than nothing.
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+    if (this._view === 'button') this.close();
+    // Inline view: leave the input populated so the user can refine and
+    // submit again without retyping.
+  }
+}
+
+define('sol-search', SolSearch);
+export { SolSearch };
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

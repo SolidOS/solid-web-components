@@ -1,0 +1,12 @@
+{
+  "source": {
+    "include": ["web", "core", "node"],
+    "includePattern": "\\.js$",
+    "excludePattern": "(web/styles/|__mocks__)"
+  },
+  "opts": {
+    "destination": "docs/api",
+    "recurse": true
+  },
+  "plugins": ["plugins/markdown"]
+}

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/menu-rdf.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/menu-rdf.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// Pure RDF→menu-item parsing helpers used by &lt;sol-menu>'s `from-rdf`
+// attribute. No DOM dependencies — `parseMenuItems` and friends return
+// plain JS descriptions that the host element wraps with render closures.
+
+import { rdf } from './rdf.js';
+import { loadRdfStore } from './rdf-utils.js';
+
+const UI     = 'http://www.w3.org/ns/ui#';
+const RDF    = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+const RDFS   = 'http://www.w3.org/2000/01/rdf-schema#';
+const SCHEMA = 'http://schema.org/';
+const ACL    = 'http://www.w3.org/ns/auth/acl#';
+const DCT    = 'http://purl.org/dc/terms/';
+
+// Who made / publishes the thing an item describes (dct:creator /
+// dct:publisher literals) — carried on entries so catalog cards can show a
+// byline; round-tripped by the serializer like every other item field.
+function dctVal(store, subject, localName) {
+  const node = store.any(subject, rdf.sym(DCT + localName));
+  return node ? node.value : null;
+}
+
+// A documentary comment carried on an item as rdfs:comment — used to round-trip
+// the HTML comments that document menu/chrome items (generator re-emits them).
+function rdfsComment(store, subject) {
+  const node = store.any(subject, rdf.sym(RDFS + 'comment'));
+  return node ? node.value : null;
+}
+
+// An item may declare the access mode it needs via the standard WAC vocab,
+// e.g. `acl:mode acl:Write`. We surface a `requiresWrite` flag; the host app
+// decides what to do with it (hide / disable / …) — the menu takes no policy.
+function requiresWriteMode(store, subject) {
+  return store.each(subject, rdf.sym(ACL + 'mode'), null)
+    .some(m => m.value === ACL + 'Write');
+}
+
+// Read a single ui:&lt;localName> property of `subject` from `store`.
+export function rdfVal(store, subject, localName) {
+  const node = store.any(subject, rdf.sym(UI + localName));
+  return node ? node.value : null;
+}
+
+// Walk an rdf:List, returning its elements as an array.
+export function rdfListElements(store, listNode) {
+  if (listNode.elements) return listNode.elements;
+  const items = [];
+  let cur = listNode;
+  const nil   = rdf.sym(RDF + 'nil');
+  const first = rdf.sym(RDF + 'first');
+  const rest  = rdf.sym(RDF + 'rest');
+  while (cur &amp;&amp; cur.value !== nil.value) {
+    const el = store.any(cur, first);
+    if (el) items.push(el);
+    cur = store.any(cur, rest);
+  }
+  return items;
+}
+
+// Read a ui:Component (or handler) node into { tag, params } where
+// params is [[name, value], ...] from ui:attribute blanks.
+export function rdfComponent(store, node) {
+  if (!node) return { tag: null, params: [] };
+  const tag = rdfVal(store, node, 'name') || rdfVal(store, node, 'label');
+  const attrNodes = store.each(node, rdf.sym(UI + 'attribute'), null);
+  const params = attrNodes.map(p => [
+    (store.any(p, rdf.sym(SCHEMA + 'name'))  || {}).value || '',
+    (store.any(p, rdf.sym(SCHEMA + 'value')) || {}).value || '',
+  ]).filter(([k]) => k);
+  return { tag, params };
+}
+
+// The fragment of a subject IRI (e.g. ".../menu.ttl#Settings" → "Settings"),
+// used as the item's stable id so an HTML region can claim it via data-for.
+function fragmentOf(node) {
+  const v = (node &amp;&amp; node.value) || '';
+  const i = v.indexOf('#');
+  return i >= 0 ? v.slice(i + 1) : null;
+}
+
+// Normalize a ui:orientation value to the "horizontal"/"vertical" token used
+// by the HTML attribute layer. Accepts a ui:Orientation instance IRI
+// (ui:Horizontal → "horizontal") or a legacy literal ("horizontal").
+function orientationToken(v) {
+  if (!v) return null;
+  const local = v.includes('#') ? v.slice(v.indexOf('#') + 1) : v;
+  return local.toLowerCase();
+}
+
+// Normalize a ui:region value to the lowercase token the HTML `region=`
+// attribute uses. Accepts a ui:Region instance IRI (ui:Modal → "modal") or a
+// literal. region is the ONE display property carried in RDF: it is the stored
+// form of placement. At render time placement is still resolved from HTML —
+// the generator emits `region=` from this token and display-target.js reads it
+// there — so the "display lives in HTML" runtime model is unchanged.
+function regionToken(v) {
+  if (!v) return null;
+  const local = v.includes('#') ? v.slice(v.indexOf('#') + 1) : v;
+  return local.toLowerCase();
+}
+
+/**
+ * Parse a ui:Menu's parts into a tree of plain item descriptions.
+ *
+ * Each description has one of these shapes (no functions, no DOM):
+ *
+ *   { type: 'submenu',   id, name, children: [...] }
+ *   { type: 'component', id, name, icon, region, tag, params }
+ *   { type: 'link',      id, name, icon, region, href, contents }
+ *
+ * The only display info in the RDF is `region` (ui:region, the stored placement
+ * token). `how/lifetime` and the resolution of `region` are still done from the
+ * HTML at render time (region= cascade, data-for, surface keywords). `id` is the
+ * item's IRI fragment, the join key an HTML region uses to claim it.
+ */
+export function parseMenuItems(store, menuNode) {
+  const partsNode = store.any(menuNode, rdf.sym(UI + 'parts'));
+  if (!partsNode) return [];
+  const parts = rdfListElements(store, partsNode);
+  const menuType      = rdf.sym(UI + 'Menu');
+  const componentType = rdf.sym(UI + 'Component');
+  const typeNode      = rdf.sym(RDF + 'type');
+  const items = [];
+
+  for (const part of parts) {
+    const partType = store.any(part, typeNode);
+    const id       = fragmentOf(part);
+    const label    = rdfVal(store, part, 'label') || part.value;
+    const icon     = rdfVal(store, part, 'icon');
+    const region   = regionToken(rdfVal(store, part, 'region'));
+    const comment  = rdfsComment(store, part);
+    const creator   = dctVal(store, part, 'creator');
+    const publisher = dctVal(store, part, 'publisher');
+    // dct:source — the chip's MANIFEST IRI (e.g. plugins/music.ttl). This is the
+    // chip's stable identity: a chip is a PLUGIN (one manifest), not a component
+    // (one ui:name tag backs many chips). It links a mounted menu item back to
+    // its catalog entry. NB: distinct from any ui:attribute `source` PARAM, which
+    // is the plugin's data source, not its identity.
+    const manifest  = dctVal(store, part, 'source');
+    const requiresWrite = requiresWriteMode(store, part);
+
+    if (partType &amp;&amp; partType.value === menuType.value) {
+      items.push({ type: 'submenu', id, name: label, comment, requiresWrite, children: parseMenuItems(store, part) });
+      continue;
+    }
+
+    if (partType &amp;&amp; partType.value === componentType.value) {
+      const { tag, params } = rdfComponent(store, part);
+      items.push({ type: 'component', id, name: label, icon, region, comment, creator, publisher, requiresWrite, tag, params, manifest });
+      continue;
+    }
+
+    const href     = rdfVal(store, part, 'href');
+    const contents = rdfVal(store, part, 'contents');
+    items.push({ type: 'link', id, name: label, icon, region, comment, creator, publisher, requiresWrite, href, contents, manifest });
+  }
+  return items;
+}
+
+/**
+ * Resolve `uri` (optionally relative to `baseUri`), fetch the RDF doc,
+ * locate the menu root (by fragment or by ui:Menu type), and parse it.
+ *
+ * @returns {Promise&lt;null | { items, orientation }>}
+ *   `null` if no ui:Menu is found in the document.
+ */
+export async function loadMenuFromUri(uri, baseUri = null) {
+  let docUrl, fragment;
+  try {
+    const parsed = new URL(uri, baseUri || undefined);
+    fragment = parsed.hash.slice(1);
+    parsed.hash = '';
+    docUrl = parsed.href;
+  } catch {
+    docUrl = uri;
+    fragment = '';
+  }
+
+  const store = await loadRdfStore(docUrl);
+  let root;
+  if (fragment) {
+    root = rdf.sym(docUrl + '#' + fragment);
+  } else {
+    const menuType = rdf.sym(UI + 'Menu');
+    const typeNode = rdf.sym(RDF + 'type');
+    root = store.each(null, typeNode, menuType)[0];
+  }
+  if (!root) return null;
+
+  const orientation = orientationToken(rdfVal(store, root, 'orientation')) || 'horizontal';
+  const items       = parseMenuItems(store, root);
+  return { items, orientation };
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

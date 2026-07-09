@@ -13,7 +13,9 @@
  *   - dropping on a submenu row ADDS to it,
  *   - submenu children render as draggable chips, and dropping a chip on
  *     another reorders within the submenu,
- *   - the inherited pure helpers (_itemFromPlugin, _normalize, _docUrl/_menuIri).
+ *   - the inherited pure helpers (_itemFromPlugin, _normalize, _docUrl/_menuIri),
+ *   - the tap-to-add public surface (addPlugin / placeTargets) that
+ *     <sol-plugin-manager>'s phone "Add to…" sheet drives instead of drag/drop.
  *
  * Deterministic seams only: fetch is 404'd so _load() lands on the documented
  * empty-tree path (no live RDF), then populated trees are seeded straight into
@@ -542,6 +544,136 @@ describe('SolMenuManager — reorder a submenu by dropping one chip on another',
     await flush();
 
     expect(el._items[0].children.map(c => c.name)).toEqual(['B', 'C', 'A']);
+  });
+});
+
+// ── tap-to-add public surface: addPlugin ─────────────────────────────────────
+
+describe('SolMenuManager — addPlugin (tap-to-add)', () => {
+  test('a tag payload lands at the top level as a component item', async () => {
+    const el = await mountMenu();
+    el.addPlugin({ label: 'Clock', tag: 'sol-clock', params: [['zone', 'utc']], icon: '🕐' });
+
+    expect(el._items).toHaveLength(1);
+    expect(el._items[0]).toMatchObject({
+      type: 'component', name: 'Clock', tag: 'sol-clock',
+      icon: '🕐', params: [['zone', 'utc']],
+    });
+    // The add re-renders — a row appears just like after a drop.
+    expect(rows(el)).toHaveLength(1);
+  });
+
+  test('an href payload lands as a link item', async () => {
+    const el = await mountMenu();
+    el.addPlugin({ label: 'Docs', href: 'https://example.org/docs', region: 'main' });
+    expect(el._items[0]).toMatchObject({
+      type: 'link', name: 'Docs', href: 'https://example.org/docs', region: 'main',
+    });
+  });
+
+  test('a payload with neither tag nor href is refused (no item, no render)', async () => {
+    const el = await mountMenu();
+    el.addPlugin({ label: 'Nothing to mount' });
+    el.addPlugin(null);
+    el.addPlugin();
+    expect(el._items).toHaveLength(0);
+    expect(rows(el)).toHaveLength(0);
+  });
+
+  test('submenuId places the item inside that submenu', async () => {
+    const el = await mountMenu();
+    el._items = [{
+      type: 'submenu', id: 'apps', name: 'Apps', children: [
+        { type: 'component', name: 'A', tag: 'sol-a', params: [] },
+      ],
+    }];
+    el._render();
+
+    el.addPlugin({ label: 'Clock', tag: 'sol-clock', params: [] }, { submenuId: 'apps' });
+
+    expect(el._items).toHaveLength(1);
+    expect(el._items[0].type).toBe('submenu');
+    expect(el._items[0].children).toHaveLength(2);
+    expect(el._items[0].children[1]).toMatchObject({ name: 'Clock', tag: 'sol-clock' });
+  });
+
+  test('an unknown submenuId falls back to the top level', async () => {
+    const el = await mountMenu();
+    el._items = [{ type: 'submenu', id: 'apps', name: 'Apps', children: [] }];
+    el._render();
+
+    el.addPlugin({ label: 'Clock', tag: 'sol-clock', params: [] }, { submenuId: 'nope' });
+
+    expect(el._items).toHaveLength(2);
+    expect(el._items[1]).toMatchObject({ type: 'component', tag: 'sol-clock' });
+    expect(el._items[0].children).toHaveLength(0);
+  });
+
+  test('adds run the same _normalize pass a drop takes (sole-plugin collapse)', async () => {
+    const el = await mountMenu();
+    el._items = [{ type: 'submenu', id: 'apps', name: 'Apps', children: [] }];
+    el._render();
+
+    // One assigned plugin in a submenu collapses to a direct item — the
+    // documented sole-plugin rule, shared with the drop path via _touch().
+    el.addPlugin({ label: 'Clock', tag: 'sol-clock', params: [] }, { submenuId: 'apps' });
+
+    expect(el._items).toHaveLength(1);
+    expect(el._items[0].type).toBe('component');
+    expect(el._items[0].tag).toBe('sol-clock');
+  });
+
+  test('the flat bar ignores submenuId (everything is top-level)', async () => {
+    document.body.innerHTML =
+      '<sol-button-bar-manager id="b" source="menu.ttl#Bar"></sol-button-bar-manager>';
+    const el = document.getElementById('b');
+    await settle();
+    el._items = [{ type: 'submenu', id: 'apps', name: 'Apps', children: [] }];
+
+    el.addPlugin({ label: 'Clock', tag: 'sol-clock', params: [] }, { submenuId: 'apps' });
+
+    expect(el._items).toHaveLength(2);
+    expect(el._items[1]).toMatchObject({ type: 'component', tag: 'sol-clock' });
+    expect(el._items[0].children).toHaveLength(0);
+  });
+});
+
+// ── tap-to-add public surface: placeTargets ──────────────────────────────────
+
+describe('SolMenuManager — placeTargets (tap-to-add destinations)', () => {
+  test('label falls back to "<title>: <meta label>" (fragment on the 404 path)', async () => {
+    const el = await mountMenu();
+    expect(el.placeTargets.label).toBe('Menu: Menu');
+  });
+
+  test('heading attribute wins as the label', async () => {
+    const el = await mountMenu('heading="Edit navigation"');
+    expect(el.placeTargets.label).toBe('Edit navigation');
+  });
+
+  test('only SAVED submenus (with a minted fragment id) are addressable', async () => {
+    const el = await mountMenu();
+    el._items = [
+      { type: 'submenu', id: 'apps', name: 'Apps', children: [] },
+      { type: 'submenu', id: null, name: 'Unsaved', children: [] },
+      { type: 'component', name: 'Clock', tag: 'sol-clock', params: [] },
+    ];
+    const t = el.placeTargets;
+    expect(t.flat).toBe(false);
+    expect(t.submenus).toEqual([{ id: 'apps', name: 'Apps' }]);
+  });
+
+  test('the flat bar reports flat:true and never offers submenus', async () => {
+    document.body.innerHTML =
+      '<sol-button-bar-manager id="b" source="menu.ttl#Bar"></sol-button-bar-manager>';
+    const el = document.getElementById('b');
+    await settle();
+    el._items = [{ type: 'submenu', id: 'apps', name: 'Apps', children: [] }];
+
+    const t = el.placeTargets;
+    expect(t.flat).toBe(true);
+    expect(t.submenus).toEqual([]);
+    expect(t.label.startsWith('Button bar:')).toBe(true);
   });
 });
 

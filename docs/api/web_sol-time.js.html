@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: web/sol-time.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: web/sol-time.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * &lt;sol-time> — clock display web component.
+ *
+ * Always shows local and UTC. An optional third timezone (label + hour
+ * offset from UTC) appears when either attribute is set. Updates once
+ * a minute.
+ *
+ * Attributes:
+ *   time-label    — short label for an extra timezone (e.g. "tokyo")
+ *   time-offset   — that timezone's offset from UTC in hours (e.g. "9")
+ *   source        — "file.ttl#Subject" Turtle config in schema.org
+ *                   PropertyValue form. Setting names map to the
+ *                   matching HTML attributes:
+ *                     "timezone"        → time-label
+ *                     "timezone-offset" → time-offset
+ *                   HTML attributes override the TTL.
+ *
+ * @element sol-time
+ *
+ * @example
+ *   &lt;sol-time>&lt;/sol-time>
+ *   &lt;sol-time time-label="tokyo" time-offset="9">&lt;/sol-time>
+ *   &lt;sol-time source="data/time-settings.ttl#Settings">&lt;/sol-time>
+ */
+import { adopt } from '../core/adopt.js';
+import { define } from '../core/define.js';
+import { SolElement } from '../core/sol-element.js';
+import { attachEditorSelfGear } from '../core/editor-self.js';
+import { CSS as TIME_CSS, sheet as TIME_SHEET } from './styles/sol-time-css.js';
+import { loadConfig } from './utils/rdf-config.js';
+
+/**
+ * Derive the current UTC offset (in hours, possibly fractional) for an
+ * IANA timezone name. Returns null if the name is unrecognised.
+ *
+ * Uses Intl.DateTimeFormat's "shortOffset" timezone name — emitted as
+ * strings like `"GMT+5:30"`, `"GMT-04:00"`, or just `"GMT"`. Parses
+ * the suffix back to a decimal hours value. Honours DST automatically
+ * because the formatter consults the OS / browser's IANA database.
+ */
+function ianaOffsetHours(iana) {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone: iana,
+      timeZoneName: 'shortOffset',
+    });
+    const parts = fmt.formatToParts(new Date());
+    const tz = parts.find(p => p.type === 'timeZoneName')?.value;
+    if (!tz) return null;
+    // tz looks like "GMT", "GMT+5:30", "GMT-04:00", "UTC+11", …
+    if (tz === 'GMT' || tz === 'UTC') return 0;
+    const m = tz.match(/^(?:GMT|UTC)([+-])(\d{1,2})(?::(\d{2}))?$/);
+    if (!m) return null;
+    const sign = m[1] === '-' ? -1 : 1;
+    const hours = parseInt(m[2], 10) + (parseInt(m[3] || '0', 10) / 60);
+    return sign * hours;
+  } catch {
+    return null;
+  }
+}
+
+/** Zero-pad a one- or two-digit clock value to two chars. */
+function pad2(n) { return n &lt; 10 ? '0' + n : String(n); }
+
+/**
+ * Clock display web component.
+ *
+ * @class SolTime
+ * @extends HTMLElement
+ */
+class SolTime extends SolElement {
+  static get observedAttributes() {
+    return ['time-label', 'time-offset', 'source'];
+  }
+
+  /** SHACL shape declaring the fixed schema (predicates + datatypes +
+   *  cardinalities). sol-form's shape-driven mode generates a labelled
+   *  field per property; dk-settings discovery picks this up. The
+   *  legacy `editor` (ui:Form TTL) getter was dropped in the
+   *  direct-predicate vocab migration — see
+   *  swc/claude/plans/PLAN-vocab-migration.md. */
+  static get shape() {
+    return new URL('../shapes/time-settings.shacl', import.meta.url).href;
+  }
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._root = document.createElement('div');
+    this._root.className = 'sol-time';
+    this._timer = null;
+  }
+
+  async connectedCallback() {
+    adopt(this.shadowRoot, { sheet: TIME_SHEET, css: TIME_CSS });
+    this.shadowRoot.appendChild(this._root);
+
+    // Pull defaults from the configured RDF source; explicit HTML
+    // attributes win, so the TTL is a baseline rather than a forced
+    // setting. Render once synchronously so the clock isn't blank
+    // during the async fetch.
+    this._render();
+    await this._applySource();
+    this._render();
+    // Tick once a minute — the seconds are not shown so a finer tick
+    // would be pure busywork.
+    this._timer = setInterval(() => this._render(), 60_000);
+    this._cleanup(() => { clearInterval(this._timer); this._timer = null; });
+
+    if (this.hasAttribute('editor-self')) attachEditorSelfGear(this);
+  }
+
+  /**
+   * Apply config from `source` to attributes the component already
+   * observes. Mapping (predicate URI → HTML attribute):
+   *   schema:timezone  → time-label   (display label = last IANA segment)
+   *                    → time-offset  (UTC offset in hours, derived)
+   *
+   * The IANA name in schema:timezone fully determines both the label
+   * (`"Asia/Kolkata"` → `"Kolkata"`) and the UTC offset (computed via
+   * `Intl.DateTimeFormat`, which honors DST). See
+   * claude/plans/PLAN-vocab-migration.md for the predicate choice and
+   * rationale.
+   */
+  async _applySource() {
+    const source = this.getAttribute('source');
+    if (!source) return;
+    const SCHEMA = 'http://schema.org/';
+    try {
+      const cfg = await loadConfig(source);
+      const iana = cfg[SCHEMA + 'timezone'];
+      if (!iana) return;
+      if (!this.hasAttribute('time-label')) {
+        // Display label = last path segment (the city/place part).
+        const label = String(iana).split('/').pop() || String(iana);
+        this.setAttribute('time-label', label);
+      }
+      if (!this.hasAttribute('time-offset')) {
+        const offset = ianaOffsetHours(String(iana));
+        if (offset != null) this.setAttribute('time-offset', String(offset));
+      }
+    } catch (err) {
+      console.warn(`[sol-time] source ${source}: ${err.message}`);
+    }
+  }
+
+  // Teardown (clearInterval) is registered via this._cleanup in connectedCallback;
+  // SolElement.disconnectedCallback runs it — no local disconnectedCallback needed.
+
+  /**
+   * Re-read `source` and re-render. Public hook used by external
+   * editors (e.g. dk-settings) after a configuration file changes.
+   */
+  async reload() {
+    await this._applySource();
+    this._render();
+  }
+
+  attributeChangedCallback() {
+    if (this.isConnected) this._render();
+  }
+
+  _render() {
+    const now = new Date();
+    const local = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
+    const utc   = pad2(now.getUTCHours()) + ':' + pad2(now.getUTCMinutes());
+
+    // local + gmt are always shown — the three label-value pairs read
+    // uniformly (label + value triplets).
+    const parts = [
+      '&lt;span class="label" part="local-label">local&lt;/span>',
+      `&lt;span class="value" part="local-time">${local}&lt;/span>`,
+      '&lt;span class="sep" part="sep">·&lt;/span>',
+      '&lt;span class="label" part="utc-label">gmt&lt;/span>',
+      `&lt;span class="value" part="utc-time">${utc}&lt;/span>`,
+    ];
+
+    const label  = this.getAttribute('time-label');
+    const offset = Number(this.getAttribute('time-offset'));
+    if (label &amp;&amp; Number.isFinite(offset)) {
+      const extra = new Date(now.getTime() + offset * 3_600_000);
+      const t = pad2(extra.getUTCHours()) + ':' + pad2(extra.getUTCMinutes());
+      parts.push(
+        '&lt;span class="sep" part="sep">·&lt;/span>',
+        `&lt;span class="label" part="extra-label">${label}&lt;/span>`,
+        `&lt;span class="value" part="extra-time">${t}&lt;/span>`,
+      );
+    }
+
+    this._root.innerHTML = parts.join('');
+  }
+}
+
+define('sol-time', SolTime);
+export { SolTime };
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

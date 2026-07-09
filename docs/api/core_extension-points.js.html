@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: core/extension-points.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: core/extension-points.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>// core/extension-points.js — the general "a capability discovers &amp; enhances any
+// component that offers a named point" protocol. Generalizes the editor/shape
+// contract (core/editor.js + sol-settings discovery) so it's no longer just
+// about editing.
+//
+// A COMPONENT author offers points, import-free, with one static getter:
+//
+//   class AcmeMap extends HTMLElement {
+//     static get extensionPoints() {
+//       return {
+//         edit:     { shape: 'https://acme/map.shacl' }, // the editing capability
+//         annotate: { vocab: 'https://acme/notes#' },    // some other capability
+//       };
+//     }
+//   }
+//
+// A CAPABILITY author (a module loaded via data-extend-with) finds and enhances
+// every component offering its point — now or whenever one mounts later:
+//
+//   observeExtensionPoint('annotate', (el, spec) => enhance(el, spec));
+//
+// Neither side imports the other; they meet in the DOM. `edit` is special: it
+// delegates to core/editor.js so the existing `static get editor()` /
+// `static get shape()` / `shape=` attribute all keep working as sugar for it.
+
+import { resolveEditorSpec, editorSpecFromDecl } from './editor.js';
+
+function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+function safe(fn) { try { return fn(); } catch (_) { return null; } }
+
+// ── externally-registered points ───────────────────────────────────────────
+// A component declares points with a `static get extensionPoints()`. But a
+// FOREIGN component (another library's element) can't — so a manifest's
+// `interop.editable` map lets a host register points for elements matching a
+// CSS selector, with no class change and no library patch. findExtensionPoints
+// consults this registry alongside class statics, so sol-form/sol-settings
+// enhance those elements through the unchanged `edit` protocol.
+const _registered = [];   // [{ selector, points }]
+
+/** Register extension points for every element matching `selector`. `points`
+ *  is the same shape a class returns from `extensionPoints` (e.g.
+ *  `{ edit: { shape, subject:{attr}, forms, present, open } }`). */
+export function registerExtensionPoints(selector, points) {
+  if (!selector || !points) return;
+  _registered.push({ selector: String(selector), points });
+  // nudge live observers to re-scan (late registration / already-mounted els)
+  if (typeof document !== 'undefined') {
+    document.dispatchEvent(new CustomEvent('swc:offer', { bubbles: true, composed: true, detail: { selector, points } }));
+  }
+}
+
+// The raw registered declaration for one point on `el`, or null.
+function registeredPoint(el, point) {
+  if (!el || typeof el.matches !== 'function') return null;
+  for (const r of _registered) {
+    if (own(r.points, point) &amp;&amp; safe(() => el.matches(r.selector))) return r.points[point];
+  }
+  return null;
+}
+
+// The component's declared point map (guarded — a class getter may throw).
+function pointsMap(Ctor) {
+  const m = safe(() => (Ctor &amp;&amp; Ctor.extensionPoints) || null);
+  return (m &amp;&amp; typeof m === 'object') ? m : {};
+}
+
+// The `edit` point: legacy editor/shape/shape= (editor.js owns the rules), then
+// extensionPoints.edit fed back through editor.js so a map-only component works.
+function editPoint(Ctor, el) {
+  const legacy = safe(() => resolveEditorSpec(Ctor, el));
+  if (legacy) return legacy;
+  const e = pointsMap(Ctor).edit;
+  if (e != null) {
+    const synthetic = (typeof e === 'string') ? { editor: e }
+      : (e.shape ? { shape: e.shape } : { editor: e });
+    const spec = safe(() => resolveEditorSpec(synthetic, el));
+    if (spec) return spec;
+  }
+  // Finally, a manifest-registered edit descriptor for this element.
+  return editorSpecFromDecl(registeredPoint(el, 'edit'));
+}
+
+/** The spec a component offers for ONE point, or null. */
+export function resolveExtensionPoint(Ctor, el, point) {
+  if (point === 'edit') return editPoint(Ctor, el);
+  const raw = pointsMap(Ctor);
+  if (own(raw, point)) return raw[point];
+  return registeredPoint(el, point);
+}
+
+/** Every point a component offers, as { [point]: spec }. `edit` (if any) is the
+ *  editor.js canonical spec; other points are their raw declarations. */
+export function resolveExtensionPoints(Ctor, el) {
+  const out = {};
+  const raw = pointsMap(Ctor);
+  for (const k in raw) if (own(raw, k) &amp;&amp; k !== 'edit') out[k] = raw[k];
+  // manifest-registered non-edit points for this element (class statics win)
+  for (const r of _registered) {
+    if (!safe(() => el &amp;&amp; el.matches &amp;&amp; el.matches(r.selector))) continue;
+    for (const k in r.points) if (own(r.points, k) &amp;&amp; k !== 'edit' &amp;&amp; !own(out, k)) out[k] = r.points[k];
+  }
+  const edit = editPoint(Ctor, el);
+  if (edit) out.edit = edit;
+  return out;
+}
+
+/** Walk the document (crossing shadow roots) for every element offering `point`.
+ *  Returns [{ el, spec }]. opts.root (default document), opts.skipAttr (an
+ *  attribute that opts an element out; default 'data-swc-skip'). */
+export function findExtensionPoints(point, opts) {
+  opts = opts || {};
+  const skipAttr = opts.skipAttr || 'data-swc-skip';
+  const out = [];
+  const seen = new WeakSet();
+  const visit = (r) => {
+    if (!r || !r.querySelectorAll) return;
+    for (const el of r.querySelectorAll('*')) {
+      if (seen.has(el)) continue;
+      seen.add(el);
+      if (el.hasAttribute &amp;&amp; el.hasAttribute(skipAttr)) { if (el.shadowRoot) visit(el.shadowRoot); continue; }
+      // Resolve against the class statics AND the manifest registry (the latter
+      // works even for foreign elements whose ctor declares nothing).
+      const ctor = customElements.get(el.localName);
+      const spec = safe(() => resolveExtensionPoint(ctor, el, point));
+      if (spec) out.push({ el, spec });
+      if (el.shadowRoot) visit(el.shadowRoot);
+    }
+  };
+  visit(opts.root || document);
+  return out;
+}
+
+/** Call onMatch(el, spec) once for every element offering `point` — now and as
+ *  components mount later (debounced MutationObserver) or announce via
+ *  `swc:offer`. Returns an unsubscribe function. */
+export function observeExtensionPoint(point, onMatch, opts) {
+  opts = opts || {};
+  const matched = new WeakSet();
+  const scan = () => {
+    for (const { el, spec } of findExtensionPoints(point, opts)) {
+      if (matched.has(el)) continue;
+      matched.add(el);
+      safe(() => onMatch(el, spec));
+    }
+  };
+  scan();
+  let timer = null;
+  const debounced = () => { clearTimeout(timer); timer = setTimeout(scan, 50); };
+  const target = (opts.root &amp;&amp; opts.root.documentElement) || document.documentElement || document;
+  const mo = new MutationObserver(debounced);
+  mo.observe(target, { childList: true, subtree: true });
+  document.addEventListener('swc:offer', debounced);
+  return () => { mo.disconnect(); clearTimeout(timer); document.removeEventListener('swc:offer', debounced); };
+}
+
+/** Announce, for a component that can't declare statically (created dynamically),
+ *  the points it offers — capabilities observing those points re-scan. */
+export function offerExtensionPoint(el, points) {
+  el.dispatchEvent(new CustomEvent('swc:offer', {
+    bubbles: true, composed: true, detail: { el, points },
+  }));
+}
+
+/** Register every `interop.editable` entry the loader collected from the page's
+ *  manifests, so a manifest can make any component (its own or a foreign
+ *  library's) editable with no class change. Each entry is keyed by CSS
+ *  selector → an edit descriptor `{ shape, subject:{attr}, forms, present, open }`.
+ *  Idempotent (a one-shot guard avoids double-registering on re-import). */
+export function registerInteropEditables() {
+  if (typeof window === 'undefined') return;
+  const api = window.SolidWebComponents;
+  const libs = (api &amp;&amp; Array.isArray(api.interop)) ? api.interop : [];
+  for (const lib of libs) {
+    const editable = lib &amp;&amp; lib.interop &amp;&amp; lib.interop.editable;
+    if (!editable || typeof editable !== 'object') continue;
+    const seen = (lib._editableSeen = lib._editableSeen || {});
+    for (const selector in editable) {
+      if (!own(editable, selector) || seen[selector]) continue;
+      seen[selector] = true;
+      registerExtensionPoints(selector, { edit: editable[selector] });
+    }
+  }
+  // Inline placement (edit="inPlace" / present:"inPlace") is activated by
+  // core/edit-placements.js, loaded with the rdf capability.
+}
+
+// Run on import: the rdf capability (sol-form/sol-settings → this module) loads
+// after the loader has parsed manifests, so api.interop is already populated.
+registerInteropEditables();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
