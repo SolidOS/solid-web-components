@@ -1,0 +1,13 @@
+
+PREFIX schema: <http://schema.org/>
+PREFIX ui: <http://www.w3.org/ns/ui#>
+
+shape <#PodLocationListShape> -> schema:ItemList {
+    schema:name xsd:string [0..1] % sh:name "List label" % .
+    schema:itemListElement schema:ListItem [1..*] @<#PodLocationShape> % sh:name "Locations" ; sh:description "Locations within Pods - can be storage root or any resource in a Solid storage." ; ui:sortedBy schema:position % .
+}
+shape <#PodLocationShape> {
+    schema:name xsd:string [0..1] % sh:name "Label" % .
+    schema:item IRI [1..1] % sh:name "Storage URL" ; sh:description "A Location within a Pod - can be storage root or any resource in a Solid storage." % .
+    schema:position xsd:integer [1..1] % sh:name "Position" ; sh:description "Display order (1=first)" % .
+}

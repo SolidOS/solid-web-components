@@ -367,3 +367,17 @@ describe('SolLiveEdit — preview alignment', () => {
     expect(el.shadowRoot.getElementById('pp').classList.contains('sle-doc')).toBe(true);
   });
 });
+
+// ── html preview height ──────────────────────────────────────────────────────
+// The html renderer mounts an <iframe style="height:100%"> — #po must carry a
+// real height for it (100% of an auto-height flex item collapses to the
+// browser's ~150px default iframe height, truncating the preview).
+
+describe('SolLiveEdit — html preview height', () => {
+  test('html format gives #po full height; other formats clear it', async () => {
+    const el = await mkEditor({ format: 'html' });
+    expect(el.shadowRoot.getElementById('po').style.height).toBe('100%');
+    await el._setFmt('markdown');
+    expect(el.shadowRoot.getElementById('po').style.height).toBe('');
+  });
+});

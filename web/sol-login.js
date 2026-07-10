@@ -153,6 +153,32 @@ class AuthManager {
       if (typeof session.handleIncomingRedirect !== 'function') continue;
       await session.handleIncomingRedirect(window.location.href);
     }
+
+    // Tier-1 boot restore (redirect mode): after a full app restart the
+    // session map starts empty, but solid-client-authn kept the last
+    // session's tokens in localStorage under its deterministic
+    // sol_<tag>_<origin> id — reachable again through the persisted
+    // side-origins. Recreate THE stored session and ask for a silent
+    // restore: with a refresh token this completes with no UI and no
+    // navigation; without one it may bounce via the IdP (prompt=none),
+    // and a failed bounce is one-shot (the host clears the stored state
+    // on an ?error= callback — dk's wormhole guard does).
+    let storedId = null;
+    try { storedId = localStorage.getItem('solidClientAuthn:currentSession'); } catch (_) {}
+    if (storedId) {
+      for (const [tag, origin] of Object.entries(this._sideOrigins)) {
+        if (this._sessionId(tag, origin) !== storedId) continue;
+        const session = this.sessionFor(tag, origin);
+        if (session.info?.isLoggedIn) break;
+        if (typeof session.handleIncomingRedirect !== 'function') break;
+        try {
+          await session.handleIncomingRedirect({ restorePreviousSession: true, url: window.location.href });
+        } catch (e) {
+          console.warn('[sol-login] session restore failed:', e?.message || e);
+        }
+        break;
+      }
+    }
   }
 
   async ensureAuthenticated(url, tag = 'default') {

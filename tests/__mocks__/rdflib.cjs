@@ -46,6 +46,7 @@ function graph()    { return new MockStore(); }
 function sym(v)     { return new NamedNode(v); }
 function literal(v, langOrDt) { return new Literal(v, langOrDt); }
 function blankNode(v) { return new BlankNode(v || `b${Math.random()}`); }
+function st(s, p, o, g) { return new Statement(s, p, o, g); }
 
 function parse(text, store, base, format) {
   const prefixes = {};
@@ -122,4 +123,4 @@ class Fetcher {
   }
 }
 
-module.exports = { graph, sym, literal, blankNode, parse, NamedNode, BlankNode, Literal, Statement, Fetcher };
+module.exports = { graph, sym, literal, blankNode, parse, st, NamedNode, BlankNode, Literal, Statement, Fetcher };

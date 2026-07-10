@@ -26,7 +26,7 @@
 
 window.__SolSuppressDefineWarn = true;
 
-import { SolForm } from '../../web/sol-form.js';
+import { SolForm, buildAddInserts } from '../../web/sol-form.js';
 
 // ── manual fetch stub ────────────────────────────────────────────────────────
 
@@ -407,5 +407,89 @@ describe('SolForm — _validate', () => {
     const report = await el._validate();
     expect(report.conforms).toBe(true);
     expect(report.results).toEqual([]);
+  });
+});
+
+// ── buildAddInserts (rolodex "Add new record") ───────────────────────────────
+//
+// Pure helper: computes the insert statements for a new rolodex record. The
+// container mode (shape+subject ItemList forms — pod locations, search
+// engines) must emit the membership triple + sh:class type; ordered rolodexes
+// (ui:sortedBy) must assign position = max(existing)+1 so the new record is
+// immediately reorderable.
+
+describe('SolForm — buildAddInserts', () => {
+  const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+  const doc       = { value: 'https://x/doc.ttl',            termType: 'NamedNode' };
+  const subj      = { value: 'https://x/doc.ttl#n1',         termType: 'NamedNode' };
+  const pred      = { value: 'http://schema.org/itemListElement', termType: 'NamedNode' };
+  const list      = { value: 'https://x/doc.ttl#Locations',  termType: 'NamedNode' };
+  const itemClass = { value: 'http://schema.org/ListItem',   termType: 'NamedNode' };
+  const sortedBy  = { value: 'http://schema.org/position',   termType: 'NamedNode' };
+
+  // dataStore stub: anyValue(subject, pred) → the canned position string.
+  const storeWith = (positions) => ({
+    anyValue: (s) => positions[s.value],
+    any: () => null,
+  });
+  const subjectsOf = (positions) => Object.keys(positions).map((v) => ({ value: v }));
+
+  test('container mode: membership + type + next position', () => {
+    const positions = { '#a': '1', '#b': '7', '#c': 'not-a-number' };
+    const out = buildAddInserts({
+      subj, docNode: doc,
+      container: { subject: list, pred, itemClass, reverse: false },
+      sortedBy, dataStore: storeWith(positions), subjects: subjectsOf(positions),
+    });
+    expect(out).toHaveLength(3);
+    expect(out[0].subject.value).toBe(list.value);        // <#Locations> itemListElement <#n1>
+    expect(out[0].predicate.value).toBe(pred.value);
+    expect(out[0].object.value).toBe(subj.value);
+    expect(out[1].subject.value).toBe(subj.value);        // <#n1> a schema:ListItem
+    expect(out[1].predicate.value).toBe(RDF_TYPE);
+    expect(out[1].object.value).toBe(itemClass.value);
+    expect(out[2].predicate.value).toBe(sortedBy.value);  // position = max(1,7)+1
+    expect(out[2].object.value).toBe('8');
+    out.forEach((st) => expect(st.graph.value).toBe(doc.value));
+  });
+
+  test('reverse container flips the membership triple', () => {
+    const out = buildAddInserts({
+      subj, docNode: doc,
+      container: { subject: list, pred, itemClass: null, reverse: true },
+      dataStore: storeWith({}), subjects: [],
+    });
+    expect(out).toHaveLength(1);
+    expect(out[0].subject.value).toBe(subj.value);        // <#n1> pred <#Locations>
+    expect(out[0].object.value).toBe(list.value);
+  });
+
+  test('no sortedBy → no position statement', () => {
+    const out = buildAddInserts({
+      subj, docNode: doc,
+      container: { subject: list, pred, itemClass, reverse: false },
+      dataStore: storeWith({}), subjects: [],
+    });
+    expect(out.map((s) => s.predicate.value)).not.toContain(sortedBy.value);
+  });
+
+  test('non-container mode keeps the target-class behavior, plus position', () => {
+    const klass = { value: 'https://x/vocab#Thing', termType: 'NamedNode' };
+    const out = buildAddInserts({
+      subj, docNode: doc, targets: { classes: [klass] },
+      sortedBy, dataStore: storeWith({ '#a': '2' }), subjects: subjectsOf({ '#a': '2' }),
+    });
+    expect(out[0].predicate.value).toBe(RDF_TYPE);
+    expect(out[0].object.value).toBe(klass.value);
+    expect(out[1].predicate.value).toBe(sortedBy.value);
+    expect(out[1].object.value).toBe('3');
+  });
+
+  test('nothing derivable → empty (caller bails), even when sorted', () => {
+    const out = buildAddInserts({
+      subj, docNode: doc, targets: {},
+      sortedBy, dataStore: storeWith({}), subjects: [],
+    });
+    expect(out).toEqual([]);
   });
 });

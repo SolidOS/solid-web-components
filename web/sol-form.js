@@ -17,6 +17,10 @@
  *   subject  — URI of an existing RDF resource to edit (optional; blank = new)
  *   shape    — URI of a SHACL shapes file for validation before save (optional)
  *   save-to  — Pre-filled Pod URL for saving (optional)
+ *   no-edit  — render read-only. Every form WITHOUT this attribute is fully
+ *              editable (fields, Add/Delete, record search); whether an edit
+ *              actually persists is the server's call (write access), not the
+ *              form's.
  *
  * Events (bubbling, composed):
  *   sol-form-change — detail: { subject, ok, message } — every field edit
@@ -37,7 +41,6 @@ import { rdf }    from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
 import { UI, RDF, readFormParts, findForm } from '../core/form-utils.js';
 import { parseShape, renderRecordForm, findSubjects } from '../core/shape-to-form.js';
-import { kitchenLoggedIn } from '../core/auth-core.js';
 import { CSS as FORM_CSS, sheet as formSheet } from './styles/sol-form-css.js';
 import { CSS as ROLODEX_CSS, sheet as rolodexSheet } from './styles/view-rolodex-css.js';
 
@@ -83,6 +86,39 @@ function installRawSparqlUpdate(store) {
       }
     }).catch(e => cb && cb(doc, false, e.message));
   };
+}
+
+// Insert statements for a rolodex "Add new record" click. Container mode (a
+// shape whose outer property nests a record shape, e.g. a schema:ItemList) adds
+// the membership triple on the container subject plus the sh:class type;
+// standalone rolodexes derive types from the shape targets as before. When the
+// rolodex is ordered (ui:sortedBy) the new record also gets the next position —
+// without one it sorts last but the reorder arrows can't move it. Pure;
+// exported for unit tests.
+export function buildAddInserts({ subj, docNode, targets = {}, container = null,
+                                  sortedBy = null, dataStore, subjects = [] }) {
+  const RDF_TYPE = rdf.sym('http://www.w3.org/1999/02/22-rdf-syntax-ns#type');
+  const inserts = [];
+  if (container) {
+    if (container.reverse) inserts.push(rdf.st(subj, container.pred, container.subject, docNode));
+    else inserts.push(rdf.st(container.subject, container.pred, subj, docNode));
+    if (container.itemClass) inserts.push(rdf.st(subj, RDF_TYPE, container.itemClass, docNode));
+  } else {
+    for (const c of (targets.classes || [])) inserts.push(rdf.st(subj, RDF_TYPE, c, docNode));
+    for (const p of (targets.subjectsOf || [])) {
+      const ex = dataStore.any(null, p, null, docNode);   // anchor to an existing parent
+      if (ex) inserts.push(rdf.st(subj, p, ex, docNode));
+    }
+  }
+  if (sortedBy && inserts.length) {
+    const max = Math.max(0, ...subjects.map((s) => {
+      const n = parseInt(dataStore.anyValue(s, sortedBy, null, docNode), 10);
+      return Number.isFinite(n) ? n : 0;
+    }));
+    inserts.push(rdf.st(subj, sortedBy,
+      rdf.literal(String(max + 1), rdf.sym('http://www.w3.org/2001/XMLSchema#integer')), docNode));
+  }
+  return inserts;
 }
 
 class SolForm extends HTMLElement {
@@ -436,13 +472,24 @@ class SolForm extends HTMLElement {
         ? store.each(null, containerProp.path, subject, doc).filter(n => n)
         : store.each(subject, containerProp.path, null, doc).filter(n => n);
       this._buildRolodexCards(body, store, doc, subjects,
-                              containerProp.nestedProperties, containerProp.sortedBy);
+                              containerProp.nestedProperties, containerProp.sortedBy, {
+        // Editable unless authored no-edit (saving is the server's concern,
+        // not the form's). Add/Remove need container semantics — the
+        // membership triple and the sh:class type for new records.
+        editable: !this.hasAttribute('no-edit'),
+        container: {
+          subject,
+          pred: containerProp.path,
+          itemClass: containerProp.classNode || null,
+          reverse: !!containerProp.reverse,
+        },
+      });
       return;
     }
 
-    // SolidKitchen desktop users are treated as logged in → fully editable, so
-    // an authored `no-edit` is ignored there (a plain web build keeps it).
-    const readOnly = this.hasAttribute('no-edit') && !kitchenLoggedIn();
+    // Editable unless authored no-edit — whether an edit persists is the
+    // server's call (write access), not the form's.
+    const readOnly = this.hasAttribute('no-edit');
     this._shapeCleanup?.();
     this._shapeCleanup = renderRecordForm(body, store, subject, parsed.properties, {
       doc,
@@ -489,7 +536,7 @@ class SolForm extends HTMLElement {
     // Editable rolodexes write through a raw sparql-update PATCH (rdflib's
     // own PATCH 500s on CSS for some docs). Field edits (solid-ui) and our
     // Add / Remove both go through updater.update, so this one swap covers all.
-    if (this.hasAttribute('editable') || kitchenLoggedIn()) installRawSparqlUpdate(dataStore);
+    if (!this.hasAttribute('no-edit')) installRawSparqlUpdate(dataStore);
     await dataStore.fetcher.load(docUrl);
     const docNode = rdf.sym(docUrl);
 
@@ -501,7 +548,7 @@ class SolForm extends HTMLElement {
 
     this._buildRolodexCards(body, dataStore, docNode, subjects, parsed.properties, null, {
       lazy: this.hasAttribute('lazy'),
-      editable: this.hasAttribute('editable') || kitchenLoggedIn(),
+      editable: !this.hasAttribute('no-edit'),
       targets: parsed.targets,
     });
   }
@@ -774,12 +821,10 @@ class SolForm extends HTMLElement {
     if (addBtn) addBtn.addEventListener('click', () => {
       const id = 'n' + Date.now().toString(36) + Math.floor(Math.random() * 46656).toString(36);
       const subj = rdf.sym(docNode.value.split('#')[0] + '#' + id);
-      const inserts = [];
-      for (const c of (targets.classes || [])) inserts.push(rdf.st(subj, RDF_TYPE, c, docNode));
-      for (const p of (targets.subjectsOf || [])) {
-        const ex = dataStore.any(null, p, null, docNode);   // anchor to an existing parent
-        if (ex) inserts.push(rdf.st(subj, p, ex, docNode));
-      }
+      const inserts = buildAddInserts({
+        subj, docNode, targets, container: opts.container || null,
+        sortedBy, dataStore, subjects,
+      });
       if (!inserts.length) { console.warn('[sol-form] cannot derive a type for the new record'); return; }
       dataStore.updater.update([], inserts, (_u, ok, msg) => {
         if (!ok) { console.warn('[sol-form] add failed:', msg); return; }

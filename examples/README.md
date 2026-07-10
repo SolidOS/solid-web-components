@@ -29,7 +29,16 @@ Then open `http://localhost:8080/examples/<page>`.
     element is; `data-edit-mode="collected"` gathers the editor into a
     `<sol-settings>` panel.
 
+- **`pod-locations.html`** — an ordered RDF list edited by a shape-driven
+  `<sol-form>`: `schema:ItemList` + `schema:ListItem` entries ordered by
+  integer `schema:position`, with `ui:sortedBy` supplying the ↑/↓ reorder
+  arrows and Add/Delete minting/removing typed records. Shows the live form
+  next to the turtle, the SHACL, and the one-tag HTML that wires them.
+  (The same form data-kitchen uses for its pod-locations setting.)
+
 ## Supporting files
 
 - `profile.shape.ttl`, `sample-profile.ttl` — sample SHACL shape and data the
   pages read.
+- `pod-locations.sample.ttl` — the ordered locations list pod-locations.html
+  edits (shape: `../shapes/pod-locations.shacl`).

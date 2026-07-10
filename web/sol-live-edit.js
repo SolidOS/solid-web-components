@@ -249,7 +249,12 @@ class SolLiveEdit extends HTMLElement {
     this._fmt=fmt||'markdown';
     this._zoom=1.0;
     const po=this.shadowRoot.getElementById('po');
-    if(po){po.style.transform='';po.style.transformOrigin='';po.style.width='100%';po.style.height='';}
+    // The html preview is an <iframe style="height:100%"> — #po must carry a
+    // real height for it (100% of an auto-height flex item collapses to the
+    // browser's ~150px default iframe height, truncating the preview). Every
+    // other format flows to its content height and scrolls inside .pp.
+    if(po){po.style.transform='';po.style.transformOrigin='';po.style.width='100%';
+      po.style.height=this._fmt==='html'?'100%':'';}
     // Documents read from the top; diagrams/graphs stay centered.
     const ppEl=this.shadowRoot.getElementById('pp');
     if(ppEl)ppEl.classList.toggle('sle-doc',DOC_FMTS.has(this._fmt));

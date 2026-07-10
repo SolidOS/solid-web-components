@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Pod locations — an ordered RDF list edited by a shape-driven sol-form</title>
+  <link rel="icon" href="data:,">
+
+  <script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
+          data-stage="local"
+          data-manifest="../dist/sol-components.manifest.json"
+  ></script>
+
+  <script type="module">
+    import 'sol-components/core/rdf-bundle.js';
+  </script>
+
+</head>
+<body>
+
+<h2>This deck of forms</h2>
+<div class="card">
+  <sol-form
+      subject="pod-locations.sample.ttl#Locations"
+      shape="../shapes/pod-locations.shacl"
+  ></sol-form>
+</div>
+
+<h2>Was auto-generated from this HTML component</h2>
+<div class="card">
+<pre><code>&lt;sol-form
+    subject="pod-locations.sample.ttl#Locations"
+    shape="../shapes/pod-locations.shacl"
+&gt;&lt;/sol-form&gt;</code></pre>
+</div>
+
+<h2>Which references the Data and Shapes shown below</h2>
+
+<h2>The data (in RFF/Turtle)</h2>
+<div class="card">
+<pre><code>@prefix : &lt;#&gt;.
+@prefix schema: &lt;http://schema.org/&gt;.
+
+:Locations a schema:ItemList;
+    schema:name "Pod locations";
+    schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :loc1, :loc2, :loc3.
+
+:loc1 a schema:ListItem;
+    schema:name "Alice's Pod";
+    schema:item &lt;https://alice.solidcommunity.net/&gt;;
+    schema:position 1.
+
+:loc2 a schema:ListItem;
+    schema:name "Team Pod";
+    schema:item &lt;https://pod.example/team/&gt;;
+    schema:position 2.
+
+:loc3 a schema:ListItem;
+    schema:name "Local Data Kitchen Pod";
+    schema:item &lt;http://localhost:8000/dk-pod/&gt;;
+    schema:position 3.</code></pre>
+</div>
+
+<h2>The shapes (in shaclc)</h2>
+<div class="card">
+<pre><code>PREFIX schema: &lt;http://schema.org/&gt;
+PREFIX ui: &lt;http://www.w3.org/ns/ui#&gt;
+
+shape &lt;#PodLocationListShape&gt; -&gt; schema:ItemList {
+  schema:name xsd:string [0..1] % sh:name "List label" % .
+  schema:itemListElement schema:ListItem [1..*] @&lt;#PodLocationShape&gt; %
+    sh:name "Locations" ;
+    sh:description "Locations within Pods - can be storage root or any resource in a Solid storage." ;
+    ui:sortedBy schema:position
+  % .
+}
+shape &lt;#PodLocationShape&gt; {
+  schema:name xsd:string [0..1] % sh:name "Label" % .
+  schema:item IRI [1..1] %
+    sh:name "Storage URL" ;
+    sh:description "A Location within a Pod - can be storage root or any resource in a Solid storage."
+  % .
+  schema:position xsd:integer [1..1] % 
+    sh:name "Position" ;
+    sh:description "Display order (1=first)"
+  % .
+}</code></pre>
+</div>
+
+  <style>
+    html, body { background: #1a1a1a; color:white; }
+    body { font: 15px/1.55 system-ui, sans-serif; margin: 2rem; max-width: 960px; }
+    h1 { font-size: 1.3rem; }
+    h2 { font-size: 1.05rem; margin-top: 2rem; }
+    .note { background: #f3f6fa; border: 1px solid #c9d3df; border-radius: 6px;
+            padding: .75rem 1rem; font-size: .92rem; color: #1a1a1a; }
+    .card { border: 1px solid #c4c4c4; border-radius: 8px; padding: 1rem; margin: 1rem 0;
+            background: #ffffff; color: #1a1a1a; }
+    code { background: #ffffff; color: #1a1a1a; padding: 0 .25rem; border-radius: 3px; }
+    pre  { background: #ffffff; border: 1px solid #d0d7de; border-radius: 6px;
+           padding: .8rem 1rem; overflow-x: auto; font-size: .85rem; color: #1a1a1a; }
+  </style>
+
+</body>
+</html>

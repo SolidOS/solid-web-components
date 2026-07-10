@@ -1,0 +1,44 @@
+@prefix :       <#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix ui:     <http://www.w3.org/ns/ui#> .
+
+:PodLocationListShape
+  a sh:NodeShape ;
+  sh:targetClass schema:ItemList ;
+
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ; sh:maxCount 1 ;
+    sh:name "List label" ;
+  ] ,
+  [
+    sh:path schema:itemListElement ;
+    sh:node :PodLocationShape ;
+    sh:class schema:ListItem ;
+    sh:minCount 1 ;
+    sh:name "Locations" ;
+    sh:description "Locations within Pods - can be storage root or any resource in a Solid storage." ;
+    ui:sortedBy schema:position ;
+  ] .
+
+:PodLocationShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ; sh:maxCount 1 ;
+    sh:name "Label" ;
+  ] ,
+  [
+    sh:path schema:item ;
+    sh:nodeKind sh:IRI ; sh:minCount 1 ; sh:maxCount 1 ;
+    sh:name "Storage URL" ;
+    sh:description "A Location within a Pod - can be storage root or any resource in a Solid storage." ;
+  ] ,
+  [
+    sh:path schema:position ;
+    sh:datatype xsd:integer ; sh:minCount 1 ; sh:maxCount 1 ;
+    sh:name "Position" ;
+    sh:description "Display order (1=first)" ;
+  ] .
