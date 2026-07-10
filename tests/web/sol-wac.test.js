@@ -243,6 +243,22 @@ describe('SolWac — rendering', () => {
     expect(addBtn.style.display).toBe('none');
   });
 
+  test('each mode cell wraps its checkbox in a chip label carrying the mode name', async () => {
+    // The tag spans are display:none on desktop and become the 44px chips of
+    // the coarse-pointer card layout (jsdom has no layout — assert markup).
+    const fetchFn = mkFetch({ acls: { 'https://pod.example/file.ttl.acl': OWNER_ACL } });
+    const el = await mkWac('https://pod.example/file.ttl', fetchFn);
+    const firstRowCells = el.querySelectorAll('.acl-matrix tbody tr:first-child td.acl-mode-cell');
+    expect(firstRowCells).toHaveLength(4);
+    for (const td of firstRowCells) {
+      const chip = td.querySelector('label.acl-mode-chip');
+      expect(chip.querySelector('input[type="checkbox"]')).toBeTruthy();
+    }
+    const tags = [...el.querySelectorAll('.acl-matrix tbody tr:first-child .acl-mode-tag')]
+      .map(s => s.textContent);
+    expect(tags).toEqual(['Read', 'Append', 'Write/Delete', 'Control Access']);
+  });
+
   test('the RDF tab shows the raw Turtle in a textarea', async () => {
     const fetchFn = mkFetch({ acls: { 'https://pod.example/file.ttl.acl': OWNER_ACL } });
     const el = await mkWac('https://pod.example/file.ttl', fetchFn);

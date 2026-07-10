@@ -181,6 +181,17 @@ export const CSS = BTN_CSS + `
   button { font-family: inherit; }
   button:focus { outline: 2px solid var(--accent, #2196f3); outline-offset: 2px; }
   /* Breadcrumb buttons use .sol-btn .sol-btn-sm .sol-btn-ghost. */
+
+  /* Phone (coarse pointer): tree rows and the per-item gear meet the
+     44px tap minimum. Desktop keeps the compact spacing. */
+  @media (hover: none) and (pointer: coarse) {
+    .file-tree li { min-height: 44px; }
+    .item-gear {
+      min-width: 44px; min-height: 44px;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .breadcrumb .crumb-gear { min-width: 44px; min-height: 44px; }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

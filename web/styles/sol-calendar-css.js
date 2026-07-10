@@ -148,6 +148,21 @@ export const CSS = `
   .cal-row a:focus-visible {
     text-decoration: underline;
   }
+
+  /* Phone (coarse pointer): inside a viewport-capped dropdown the fixed
+     7rem+7rem grid columns squeeze the event body to a sliver (one
+     character per line). Wrap instead: date + time on the first line,
+     event body full-width beneath. Desktop keeps the table-like grid. */
+  @media (hover: none) and (pointer: coarse) {
+    .cal-row {
+      display: flex; flex-wrap: wrap; align-items: baseline;
+      column-gap: .6rem; row-gap: .1rem;
+    }
+    .cal-row-body { flex: 1 1 100%; }
+    /* visibility:hidden would still hold a first-line slot in the flex
+       row — drop repeats entirely on the phone. */
+    .cal-row-date.repeat { display: none; }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

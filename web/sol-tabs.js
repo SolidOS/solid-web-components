@@ -805,14 +805,37 @@ class SolTabs extends HTMLElement {
   // (which switchTab alone can't identify); otherwise the active top tab wins.
   _syncNav() {
     if (!this._navTrigger) return;
-    let active = this._navKey ? this._navItems?.find((i) => i.key === this._navKey) : null;
-    if (!active) active = this._navItems?.find((i) => i.meta.kind === 'tab' && i.meta.name === this._active);
+    // A host-set override (setNavLabel) names a screen that is NOT one of
+    // the rooms (e.g. Settings opened from the ☰ menu) — the trigger shows
+    // it and no sheet row highlights until real tab navigation clears it.
+    let active = this._navLabelOverride
+      ? null
+      : (this._navKey ? this._navItems?.find((i) => i.key === this._navKey) : null);
+    if (!active && !this._navLabelOverride) {
+      active = this._navItems?.find((i) => i.meta.kind === 'tab' && i.meta.name === this._active);
+    }
     const label = this._navTrigger.querySelector('.sol-tabs-navtrigger-label');
-    if (label) label.textContent = active ? active.el.querySelector('.sol-tabs-sheet-label').textContent : (this._active || '');
+    if (label) {
+      label.textContent = this._navLabelOverride
+        || (active ? active.el.querySelector('.sol-tabs-sheet-label').textContent : (this._active || ''));
+    }
     // Carry the active room's id onto the trigger so dk can colour its dot.
     const id = active?.el.dataset.tabId;
     if (id) this._navTrigger.dataset.tabId = id; else delete this._navTrigger.dataset.tabId;
     for (const i of (this._navItems || [])) i.el.classList.toggle('is-active', i === active);
+  }
+
+  /**
+   * Name a non-room screen on the phone navigator trigger (e.g. the host
+   * opened Settings from its own menu, outside the tab set). The override
+   * sticks until the next switchTab, which returns the trigger to the
+   * active room's name. Pass a falsy value to clear it explicitly.
+   * No-op on desktop (no navigator trigger).
+   * @param {string|null} text - label to show on the trigger
+   */
+  setNavLabel(text) {
+    this._navLabelOverride = text || null;
+    this._syncNav();
   }
 
   // Act on a sheet pick, reusing the bar's own machinery.
@@ -941,6 +964,9 @@ class SolTabs extends HTMLElement {
     // A switch TO a top-level tab clears any remembered submenu leaf; a leaf pick
     // re-sets _navKey in _navigateTo right after this runs.
     if (this._navTrigger) {
+      // Any real tab navigation supersedes a host-set non-tab label
+      // (setNavLabel) — the trigger goes back to naming the active room.
+      this._navLabelOverride = null;
       if (this._navItems?.some((i) => i.meta.kind === 'tab' && i.meta.name === tab.name)) {
         this._navKey = `t:${tab.name}`;
       } else if (!(this._navKey || '').startsWith(`c:${tab.name}`)) {

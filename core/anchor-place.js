@@ -32,7 +32,10 @@ export function placeAnchored(anchor, panel, widthEl = panel, minWidth = 0) {
     panel.style.left = `${Math.round(r.left)}px`;
     panel.style.right = 'auto';
   } else {
-    panel.style.right = `${Math.round(window.innerWidth - r.right)}px`;
-    panel.style.left = 'auto';
+    // Right-align to the anchor, but never past the left viewport edge — a
+    // panel wider than the room left of the anchor (e.g. the calendar over
+    // a phone's bottom dock) would otherwise hang off-screen at x < 0.
+    panel.style.left = `${Math.max(4, Math.round(r.right) - w)}px`;
+    panel.style.right = 'auto';
   }
 }

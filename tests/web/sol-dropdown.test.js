@@ -110,7 +110,20 @@ describe('SolDropdown — placement', () => {
       configurable: true, value: 300,
     });
     d._place();                            // re-place now that the panel has width
-    expect(d.style.right).toBe(`${1000 - 998}px`);   // innerWidth − anchor.right
+    expect(d.style.left).toBe(`${998 - 300}px`);   // anchor.right − panel width
+  });
+
+  test('a right-aligned panel wider than the room clamps to the left edge, not x<0', () => {
+    window.innerWidth = 360;
+    // Phone-dock case: anchor near the left, panel wider than the space
+    // left of its right edge — the old right-pin put the panel at x<0.
+    const a = anchorAt({ left: 10, right: 160, bottom: 700 });
+    const d = conjure(a);
+    Object.defineProperty(d.shadowRoot.querySelector('.panel'), 'offsetWidth', {
+      configurable: true, value: 356,
+    });
+    d._place();
+    expect(d.style.left).toBe('4px');      // clamped fully on-screen
   });
 
   test('_place is a no-op without a usable anchor', () => {

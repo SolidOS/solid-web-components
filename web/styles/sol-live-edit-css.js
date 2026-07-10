@@ -81,6 +81,19 @@ export const CSS = `
 .sle-zoom button:hover{background:var(--hover,#f0f0f0)}
 .sle-zoom span{min-width:3.4em;text-align:center;color:var(--text-muted,#555);
     font-size:max(16px, .82em);font-variant-numeric:tabular-nums}
+
+/* Phone (coarse pointer): side-by-side panes at ~350px leave one truncated
+   code line each — stack the editor ABOVE the preview 50/50 instead. The
+   resizer's drag math is horizontal, so it is hidden here (fixed split).
+   Desktop keeps the draggable column layout. */
+@media (hover: none) and (pointer: coarse){
+.body{flex-direction:column}
+.ep,.pp{flex:1 1 50%;min-height:0}
+.sle-resizer{display:none}
+.modal-close{min-width:44px;min-height:44px}
+.sle-btn{min-height:44px}
+.cg label{min-height:44px}
+}
 `;
 
 export const sheet = sheetFrom(CSS);

@@ -331,6 +331,24 @@ describe('SolTabs — mobile navigator bottom sheet (coarse pointer)', () => {
     expect(navTrigger(el).querySelector('.sol-tabs-navtrigger-label').textContent).toBe('Data Table');
   });
 
+  test('setNavLabel overrides the trigger for a non-room screen until the next tab switch', async () => {
+    const el = attached(document.createElement('sol-tabs'));
+    el.setAttribute('keep-alive', '');
+    el.setAttribute('from-rdf', BASE + '#Main');
+    await flush();
+
+    const label = () => navTrigger(el).querySelector('.sol-tabs-navtrigger-label').textContent;
+    el.setNavLabel('Settings');            // host opened a screen outside the tab set
+    expect(label()).toBe('Settings');
+    // No sheet row highlights while the override names a non-room screen.
+    expect(navSheet().querySelector('.is-active')).toBeNull();
+    el.setNavLabel(null);                  // explicit clear → back to the room
+    expect(label()).toBe('Home');
+    el.setNavLabel('Customize');
+    itemByLabel('Data Table').click();     // real navigation supersedes the override
+    expect(label()).toBe('Data Table');
+  });
+
   test('picking a submenu leaf surfaces its pane and mounts the leaf (reuses the dropdown)', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('keep-alive', '');

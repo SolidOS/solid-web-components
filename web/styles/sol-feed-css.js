@@ -795,6 +795,13 @@ export const CSS = `
     .feed-card-title {
       font-size: 1rem;            /* ≥16px, tracks the text-size setter */
       -webkit-line-clamp: 3;
+      /* Belt over the clamp: line-clamp only paints its ellipsis — the
+         clip comes from overflow at the box bottom, so any box taller
+         than 3 lines shows a sliver of line 4. Cap at exactly 3
+         line-heights + the TOP padding (border-box; the bottom padding
+         must stay outside the cap), pinned to the row top. */
+      max-height: calc(3lh + .55rem);
+      align-self: flex-start;
     }
   }
 

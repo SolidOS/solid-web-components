@@ -33,24 +33,44 @@ const HOST_CSS = `
      Sticky so the data browser's own scroll-to-focus (solid-ui getEyeFocus calls
      window.scrollBy on every GotoSubject, scrolling the page down to the selected
      row) can't carry the bar off the top of the frame. */
-  sol-solidos > .sol-location-bar {
+  .sol-location-bar {
     position: sticky; top: 0; z-index: 120;   /* above mashlib's fixed banner (z 110) */
     display: flex; gap: 0.4rem; align-items: center;
     padding: 0.35rem 0.5rem; border-bottom: 1px solid #d0d7de;
     background: #f6f8fa; font-family: system-ui, -apple-system, sans-serif;
   }
-  sol-solidos > .sol-location-bar button {
+  .sol-location-bar button {
     border: 1px solid #d0d7de; background: #fff; border-radius: 4px;
     padding: 0.15rem 0.55rem; cursor: pointer; line-height: 1.4; font: inherit;
   }
-  sol-solidos > .sol-location-bar button:disabled { opacity: 0.45; cursor: default; }
-  sol-solidos > .sol-location-bar input {
+  .sol-location-bar button:disabled { opacity: 0.45; cursor: default; }
+  .sol-location-bar input {
     flex: 1; min-width: 4rem; padding: 0.25rem 0.5rem;
     border: 1px solid #d0d7de; border-radius: 4px; font: inherit;
   }
-  sol-solidos > .sol-location-bar select {
+  .sol-location-bar select {
     border: 1px solid #d0d7de; background: #fff; border-radius: 4px;
     padding: 0.2rem 0.4rem; font: inherit; cursor: pointer; max-width: 12rem;
+  }
+  /* Phone (coarse pointer): the single-row bar overflows a 360px frame
+     (Go lands fully off-screen, the URL box gets ~80px). Wrap to two
+     rows — Home / Back / Locations on top, full-width URL + Go below —
+     and meet the 44px tap minimum. Desktop keeps the one-row bar. */
+  @media (hover: none) and (pointer: coarse) {
+    .sol-location-bar { flex-wrap: wrap; }
+    .sol-location-bar button { min-width: 44px; min-height: 44px; }
+    .sol-location-bar select {
+      flex: 1 1 auto; min-width: 0; max-width: none; min-height: 44px;
+    }
+    .sol-location-bar input {
+      /* Basis short of the full row: forces the wrap onto a second row
+         while leaving Go-button room (44px min-width + padding + gap)
+         beside it. */
+      order: 9; flex: 1 1 calc(100% - 5rem); min-width: 0;
+      min-height: 44px; font-size: 16px;
+    }
+    .sol-location-bar button[data-act="go"] { flex: 0 0 auto; }
+    .sol-location-bar button[data-act="go"] { order: 10; }
   }
 `;
 
@@ -78,7 +98,10 @@ class SolSolidos extends HTMLElement {
   get locations() { return this._locations.slice(); }
 
   _renderLocations() {
-    const sel = this.querySelector('.sol-location-bar [data-locations]');
+    // The bar may have been re-seated at body level by _keepBarAlive (solid-ui's
+    // mobile layout discards this element) — prefer the kept handle.
+    const sel = this._barEl?.querySelector('[data-locations]')
+      || this.querySelector('.sol-location-bar [data-locations]');
     if (!sel) return;                          // no bar / not rendered yet
     sel.hidden = this._locations.length === 0;
     sel.textContent = '';
@@ -285,10 +308,34 @@ class SolSolidos extends HTMLElement {
     this._home = uri;
     this._outliner = m.panes.getOutliner(document);
     this._guardBrandLink();
-    if (this._hasBar()) { this._wireBar(uri); this._fitBar(); }
+    if (this._hasBar()) {
+      this._barEl = this.querySelector(':scope > .sol-location-bar');
+      this._wireBar(uri);
+      this._fitBar();
+    }
     m.initMainPage(store, uri);
+    if (this._hasBar()) this._keepBarAlive();
 
     this._ready = true;
+  }
+
+  // solid-ui's MOBILE layout (Android WebView UA) rebuilds the whole BODY from
+  // its own template during boot, discarding this element — and the wired
+  // location bar with it. Watch for that takeover for a while and re-seat the
+  // bar (its listeners ride along) at the top of the rebuilt body; _fitBar's
+  // document fallbacks then fit against the body-level header. On desktop the
+  // takeover never happens and this polls to a quiet stop.
+  _keepBarAlive() {
+    if (!this._barEl || this._barWatch) return;
+    let tries = 0;
+    this._barWatch = setInterval(() => {
+      if (++tries > 40) { clearInterval(this._barWatch); return; }
+      if (!this._barEl.isConnected && document.getElementById('MainContent')) {
+        document.body.prepend(this._barEl);
+        this._renderLocations();
+        this._fitBar();
+      }
+    }, 500);
   }
 
   // mashlib's banner (#mainSolidUiHeader) mounts position:fixed;top:0;z-index:110 and
@@ -298,12 +345,17 @@ class SolSolidos extends HTMLElement {
   // element) and the bar reflows on the host app's font-size toggle / viewport resize,
   // so re-fit on whenDefined + a ResizeObserver rather than once.
   _fitBar() {
+    // Document fallbacks: after solid-ui's mobile body takeover the header /
+    // main / bar live at body level, not inside this element (see _keepBarAlive).
     const fit = () => {
-      const bar = this.querySelector(':scope > .sol-location-bar');
+      const bar = this._barEl?.isConnected
+        ? this._barEl : this.querySelector(':scope > .sol-location-bar');
       if (!bar) return;
       const bh = bar.offsetHeight;
-      const hdr = this.querySelector(':scope > #mainSolidUiHeader');
-      const main = this.querySelector(':scope > #MainContent');
+      const hdr = this.querySelector(':scope > #mainSolidUiHeader')
+        || document.getElementById('mainSolidUiHeader');
+      const main = this.querySelector(':scope > #MainContent')
+        || document.getElementById('MainContent');
       if (hdr) hdr.style.top = `${bh}px`;                       // banner sits below the bar
       if (main) main.style.marginTop = `${hdr ? hdr.offsetHeight : 0}px`;  // content clears the banner
     };
@@ -312,8 +364,10 @@ class SolSolidos extends HTMLElement {
     customElements.whenDefined?.('solid-ui-header').then(() => requestAnimationFrame(fit)).catch(() => {});
     try {
       const ro = new ResizeObserver(fit);
-      ro.observe(this.querySelector(':scope > .sol-location-bar'));
-      const hdr = this.querySelector(':scope > #mainSolidUiHeader');
+      const bar = this._barEl || this.querySelector(':scope > .sol-location-bar');
+      if (bar) ro.observe(bar);
+      const hdr = this.querySelector(':scope > #mainSolidUiHeader')
+        || document.getElementById('mainSolidUiHeader');
       if (hdr) ro.observe(hdr);
     } catch (_) { /* no ResizeObserver — the static fits above still run */ }
   }

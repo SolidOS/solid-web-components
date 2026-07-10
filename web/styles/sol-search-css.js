@@ -74,10 +74,12 @@ export const CSS = `
     flex: 1 1 auto;
     min-width: 0;
     padding: .35rem .5rem;
-    border: 1px solid var(--border, #d0d0d0);
+    border: 1px solid var(--input-border, var(--border, #d0d0d0));
     border-radius: var(--radius-sm, 4px);
-    background: var(--bg, #fff);
-    color: var(--text, #212121);
+    /* Inputs are always visibly distinct from the page background —
+       the shared --input-* tokens (root.css), not --bg. */
+    background: var(--input-bg, #eef);
+    color: var(--input-text, #1a1a1a);
     font: inherit;
   }
   input.q:focus-visible {
@@ -150,6 +152,20 @@ export const CSS = `
     position: absolute; width: 1px; height: 1px;
     padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
     white-space: nowrap; border: 0;
+  }
+
+  /* Phone (coarse pointer): cap the floating panel to the viewport (the
+     JS clamps left to a 10px margin, so a too-wide panel clipped its Go
+     button off the right edge) and meet the 44px tap minimum on the
+     input, Go and engine radios. Desktop keeps the compact panel. */
+  @media (hover: none) and (pointer: coarse) {
+    /* border-box so the cap includes the panel's own padding — content-box
+       let the .75rem padding push the box past the viewport. */
+    .panel { max-width: calc(100vw - 20px); box-sizing: border-box; }
+    input.q { min-height: 44px; }
+    button.go { min-height: 44px; }
+    .engine { min-height: 44px; white-space: normal; }
+    .engine input[type="radio"] { width: 24px; height: 24px; }
   }
 `;
 

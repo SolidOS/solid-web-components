@@ -128,6 +128,15 @@ export const CSS = BTN_CSS + `
     display: flex; flex-direction: column;
     width: 100%; height: 100%;
   }
+
+  /* Phone (coarse pointer): the close button meets the 44px tap minimum.
+     Desktop keeps the compact ✕. */
+  @media (hover: none) and (pointer: coarse) {
+    .modal-close {
+      min-width: 44px; min-height: 44px;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

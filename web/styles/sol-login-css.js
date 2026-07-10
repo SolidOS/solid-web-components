@@ -110,6 +110,25 @@ export const CSS = BTN_CSS + `
     flex: 1; min-width: 44ch; font-size: max(16px, 0.82em); padding: 6px 8px;
     background: var(--bg, #f5f5f5);
   }
+
+  /* Phone (coarse pointer): the 44ch floors above beat the 90vw cap
+     (min-width wins over max-width), pushing the panel ~140px off a
+     360px screen. Clamp to the viewport and let issuer URLs wrap;
+     rows and the custom-issuer controls meet the 44px tap minimum.
+     Desktop keeps the one-line 44ch layout. */
+  @media (hover: none) and (pointer: coarse) {
+    /* border-box so the cap includes padding + border — content-box let
+       them push the box 18px past the cap once issuer URLs hit it. */
+    .dropdown { min-width: 0; max-width: calc(100vw - 8px); box-sizing: border-box; }
+    .issuer-item {
+      white-space: normal; word-break: break-word;
+      min-height: 44px; display: flex; align-items: center;
+    }
+    .switch-hint { white-space: normal; }
+    .custom-row { flex-wrap: wrap; }
+    .custom-row .issuer-input { min-width: 0; flex: 1 1 100%; min-height: 44px; }
+    .custom-row .sol-btn { min-height: 44px; }
+  }
 `;
 
 export const sheet = sheetFrom(CSS);

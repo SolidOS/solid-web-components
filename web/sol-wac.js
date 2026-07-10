@@ -5,6 +5,9 @@
  *   - Form: a permissions matrix — one row per "who" (Anyone / Any
  *     logged-in user / one row per specific user-or-group WebID) and one
  *     checkbox column per mode (Read / Append / Write-Delete / Control).
+ *     On coarse pointers (phones) the same DOM re-lays via CSS as one
+ *     stacked card per who-row with 44px toggle chips per mode; desktop
+ *     keeps the table.
  *     Specific rows carry a WebID input plus a user/group selector; an
  *     "Add user or group WebID" button appends further rows. A
  *     container-only checkbox toggles acl:default (apply to contents).
@@ -418,11 +421,21 @@ class SolWac extends HTMLElement {
       MODES.forEach(m => {
         const td = document.createElement('td');
         td.className = 'acl-mode-cell';
+        // The label + tag exist for the coarse-pointer layout: the tag is
+        // display:none on desktop (checkbox alone, as before), but becomes
+        // the 44px chip face of the stacked-card form on phones. The table
+        // header is hidden there, so the tag is the only mode name visible.
+        const chip = document.createElement('label');
+        chip.className = 'acl-mode-chip';
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = !!modes[m.key];
         cb.addEventListener('change', () => { modes[m.key] = cb.checked; onChange(); });
-        td.appendChild(cb);
+        const tag = document.createElement('span');
+        tag.className = 'acl-mode-tag';
+        tag.textContent = m.label;
+        chip.append(cb, tag);
+        td.appendChild(chip);
         tr.appendChild(td);
       });
     };

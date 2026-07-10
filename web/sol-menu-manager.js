@@ -519,9 +519,14 @@ class SolMenuManager extends HTMLElement {
     const input = document.createElement('input');
     input.className = 'add-input';
     input.type = 'text';
+    // Coarse pointers have no drag-and-drop — adding goes through the
+    // tap-to-add sheet on a catalog card, so the hint says that instead.
+    const coarse = typeof matchMedia === 'function'
+      && matchMedia('(hover: none) and (pointer: coarse)').matches;
     input.placeholder = this.constructor.flat
-      ? 'Drop a plugin here'
-      : 'Drop a plugin here or type the name of a submenu';
+      ? (coarse ? 'Tap a plugin below to add it here' : 'Drop a plugin here')
+      : (coarse ? 'Tap a plugin below to add it — or type a submenu name'
+                : 'Drop a plugin here or type the name of a submenu');
     input.setAttribute('aria-label', input.placeholder);
     if (!this.constructor.flat) {
       input.addEventListener('keydown', (e) => {
