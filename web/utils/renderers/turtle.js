@@ -1,12 +1,15 @@
 import { drawForceGraph } from './d3-force.js';
 import { rdf } from '../../../core/rdf.js';
 
-export async function renderTurtle(content, outputEl) {
+export async function renderTurtle(content, outputEl, { base } = {}) {
   if (!rdf.isReady()) throw new Error('rdflib not available');
 
   const store = rdf.graph();
   try {
-    rdf.parse(content, store, 'http://example.org/', 'text/turtle');
+    // Relative IRIs (<>, <#me>, …) resolve against the document's own URL,
+    // like a browser would; only unsourced scratch content falls back to
+    // the page URL.
+    rdf.parse(content, store, base || location.href, 'text/turtle');
   } catch (e) {
     throw new Error(`Turtle parse error: ${e.message}`);
   }

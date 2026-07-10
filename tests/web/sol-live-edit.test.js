@@ -32,7 +32,8 @@ window.__SolSuppressDefineWarn = true;
 
 // Pre-register fake renderers/examples so _render()/_init() don't dynamically
 // import the real (dependency-heavy) renderer and example modules.
-const fakeRenderer = (content, out) => { out.textContent = 'preview'; };
+const rendered = [];
+const fakeRenderer = (content, out, opts) => { rendered.push({ content, opts }); out.textContent = 'preview'; };
 beforeAll(() => {
   SolLiveEdit.registerModules({
     renderers: {
@@ -231,6 +232,24 @@ describe('SolLiveEdit — _loadSrc', () => {
     const er = el.shadowRoot.getElementById('er');
     expect(er.classList.contains('on')).toBe(true);
     expect(er.textContent).toMatch(/Load failed.*500/);
+  });
+});
+
+// ── renderer base URL ───────────────────────────────────────────────────────
+
+describe('SolLiveEdit — renderer base', () => {
+  test('a sourced document previews with its own URL as base', async () => {
+    const el = await mkEditor({ format: 'turtle', source: 'https://pod.example/profile/card' });
+    rendered.length = 0;
+    await el._render();
+    expect(rendered.at(-1).opts).toEqual({ base: 'https://pod.example/profile/card' });
+  });
+
+  test('unsourced content falls back to the page URL as base', async () => {
+    const el = await mkEditor({ format: 'turtle' });
+    rendered.length = 0;
+    await el._render();
+    expect(rendered.at(-1).opts).toEqual({ base: location.href });
   });
 });
 

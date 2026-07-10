@@ -319,7 +319,11 @@ class SolLiveEdit extends HTMLElement {
         _rendererCache[this._fmt]=await RENDERERS[this._fmt]();
       const fn=_rendererCache[this._fmt];
       if(!fn){out.innerHTML='<p style="padding:1rem">No preview.</p>';return;}
-      const r=await fn(this.content,out);
+      // Renderers that resolve relative IRIs (turtle) get the document's own
+      // URL as base; the rest ignore the extra argument.
+      const src=this.getAttribute('source');
+      const base=src?new URL(src,location.href).href:location.href;
+      const r=await fn(this.content,out,{base});
       if(typeof r==='function')this._sim=r;
       er.textContent='';er.classList.remove('on');
     }catch(e){er.textContent=e.message;er.classList.add('on');}

@@ -50,7 +50,8 @@ const HOST_CSS = `
   }
   .sol-location-bar select {
     border: 1px solid #d0d7de; background: #fff; border-radius: 4px;
-    padding: 0.2rem 0.4rem; font: inherit; cursor: pointer; max-width: 12rem;
+    padding: 0.2rem 0.4rem; font: inherit; cursor: pointer;
+    min-width: 16rem; max-width: 24rem;
   }
   /* Phone (coarse pointer): the single-row bar overflows a 360px frame
      (Go lands fully off-screen, the URL box gets ~80px). Wrap to two
