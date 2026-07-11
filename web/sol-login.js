@@ -168,13 +168,22 @@ class AuthManager {
     if (storedId) {
       for (const [tag, origin] of Object.entries(this._sideOrigins)) {
         if (this._sessionId(tag, origin) !== storedId) continue;
-        const session = this.sessionFor(tag, origin);
-        if (session.info?.isLoggedIn) break;
-        if (typeof session.handleIncomingRedirect !== 'function') break;
+        // The tag may be held by a non-OIDC session-shaped object — dk's
+        // synthetic local owner sits on 'default' at every boot. Restore
+        // into a REAL session constructed off-map, and seat it on the tag
+        // only when the restore actually logs in: a failed restore must
+        // leave the synthetic (and local-pod fetches) untouched.
+        let session = this.sessions.get(tag);
+        const isOidc = session && typeof session.handleIncomingRedirect === 'function';
+        if (isOidc && session.info?.isLoggedIn) break;      // already live
+        if (!isOidc) session = this._makeSession(storedId);
         try {
           await session.handleIncomingRedirect({ restorePreviousSession: true, url: window.location.href });
         } catch (e) {
           console.warn('[sol-login] session restore failed:', e?.message || e);
+        }
+        if (session.info?.isLoggedIn && this.sessions.get(tag) !== session) {
+          this.sessions.set(tag, session);
         }
         break;
       }
@@ -375,6 +384,14 @@ class SolLogin extends HTMLElement {
     }
     this._attachAuthNeededListener();
     this._setupAuthChannel();
+    // Kick the auth boot from the element itself: the module-load
+    // bootSolLogin() below only catches a sol-login already in the DOM when
+    // sol-login.js is imported — one mounted later (dk's chrome builds after
+    // the loader ran) was never initialized, so redirect-callback processing
+    // and the Tier-1 boot session restore silently never happened.
+    // initialize() is single-flight, so hosts that call it themselves
+    // (podz) are unaffected; set _manualInit to opt out entirely.
+    if (!this._manualInit) Promise.resolve().then(() => this.initialize()).catch(() => {});
   }
 
   disconnectedCallback() {

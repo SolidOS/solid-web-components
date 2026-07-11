@@ -7,11 +7,11 @@
 <#loc1> a schema:ListItem;
     schema:name "Alice's Pod";
     schema:item <https://alice.solidcommunity.net/>;
-    schema:position 1.
+    schema:position 2.
 <#loc2> a schema:ListItem;
     schema:name "Team Pod";
     schema:item <https://pod.example/team/>;
-    schema:position 2.
+    schema:position 1.
 <#loc3> a schema:ListItem;
     schema:name "Local Data Kitchen Pod";
     schema:item <http://localhost:8000/dk-pod/>;
