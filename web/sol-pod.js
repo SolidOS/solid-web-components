@@ -3,7 +3,7 @@
  * Attributes: source (one pod storage URL, or a comma/space-separated list;
  *             if omitted, discovers from current origin)
  *             pod-click-action (Function|string — callback when an item is activated
- *                          (gear icon, Enter, or double-click); if omitted, opens
+ *                          (gear icon, Enter, or a single click on a file); if omitted, opens
  *                          the default pod-ops modal)
  * Properties: login (SolLogin element ref), currentPath, items
  * Events: sol-navigate({url}), sol-drag-start({item}), sol-drag-end(), sol-status({message,type})
@@ -62,7 +62,7 @@ function editorKeysToken(uri) {
  * @attr {string} login-callback - forwarded to the built-in sol-login as its `popup-callback`
  * @attr {string} issuers - comma-separated OIDC issuer origins, forwarded to the built-in sol-login
  * @attr {string} side - auth session tag; also forwarded to the built-in sol-login as its `side`
- * @attr {string} pod-click-action - callback when an item is activated (gear / Enter / double-click)
+ * @attr {string} pod-click-action - callback when an item is activated (gear / Enter / single click on a file)
  * @attr {string} data-handler - default sol-* component for file viewing
  * @attr {string} gear-icon - icon for BOTH the per-item action button and
  *                 the breadcrumb (current-container) gear. Treated as a URL
@@ -609,7 +609,7 @@ class SolPod extends HTMLElement {
       <div class="breadcrumb"></div>
       <div class="pod-filter-row">
         <input class="pod-filter" type="search"
-               placeholder="Filter (type to search, esc to clear)"
+               placeholder="Type to autocomplete search files ..."
                aria-label="Filter items in this container" />
       </div>
       <div class="tree-wrapper" tabindex="0">
@@ -679,7 +679,7 @@ class SolPod extends HTMLElement {
       });
     }
     const addOpt = document.createElement('option');
-    addOpt.value = '__add__'; addOpt.textContent = '\uFF0B Add a Pod...';
+    addOpt.value = '__add__'; addOpt.textContent = '\uFF0B Add a Pod Location...';
     sel.appendChild(addOpt);
 
     // Offer the pod storages (which double as OIDC issuers) as login
@@ -1037,8 +1037,14 @@ class SolPod extends HTMLElement {
         if (!li.classList.contains('dragging')) this.loadContainer(item.url);
       };
     } else {
-      li.onclick = handleSelectClick;
-      li.ondblclick = openItemAction;
+      // Plain single click SELECTS the file and OPENS its actions (pod-ops /
+      // podClickAction); modifier clicks stay pure selection (shift-range,
+      // ctrl-toggle) so multi-select for drag/copy keeps working.
+      li.onclick = (e) => {
+        handleSelectClick(e);
+        if (e.shiftKey || e.ctrlKey || e.metaKey) return;
+        openItemAction(e);
+      };
     }
     // Keyboard activation (Enter / Backspace / arrows / `/`) is handled at
     // the .tree-wrapper level — see _onWrapperKey.

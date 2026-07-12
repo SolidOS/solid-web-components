@@ -180,6 +180,44 @@ describe('SolPodOps — tab construction', () => {
     expect(names).not.toContain('View');
     expect(names).not.toContain('Edit');
   });
+
+  // Renderable live formats (html / markdown / mermaid) open on a code-free
+  // View tab FIRST, with Live Edit one tab over; source-ish live formats
+  // (csv, turtle, ...) keep Live Edit first.
+  for (const [ext, mime] of [
+    ['html', 'text/html'], ['md', 'text/markdown'], ['mmd', 'text/x-mermaid'],
+  ]) {
+    test(`a .${ext} file leads with View, then Live Edit — View is the default`, async () => {
+      globalThis.fetch = jest.fn(async () => headResponse(mime));
+      const el = document.createElement('sol-pod-ops');
+      el.setAttribute('source', `https://pod.example/doc.${ext}`);
+      document.body.appendChild(el);
+      await flush(4);
+
+      const names = tabNames(el);
+      expect(names.slice(0, 2)).toEqual(['View', 'Live Edit']);
+      const tabsEl = el.shadowRoot.querySelector('sol-tabs');
+      const selected = [...tabsEl.querySelectorAll(':scope > .sol-tabs-bar button')]
+        .find(b => b.getAttribute('aria-selected') === 'true');
+      expect(selected?.textContent).toBe('View');
+    });
+  }
+
+  test('a csv (source-ish live format) keeps Live Edit first and default', async () => {
+    globalThis.fetch = jest.fn(async () => headResponse('text/csv'));
+    const el = document.createElement('sol-pod-ops');
+    el.setAttribute('source', 'https://pod.example/data.csv');
+    document.body.appendChild(el);
+    await flush(4);
+
+    const names = tabNames(el);
+    expect(names[0]).toBe('Live Edit');
+    expect(names).not.toContain('View');
+    const tabsEl = el.shadowRoot.querySelector('sol-tabs');
+    const selected = [...tabsEl.querySelectorAll(':scope > .sol-tabs-bar button')]
+      .find(b => b.getAttribute('aria-selected') === 'true');
+    expect(selected?.textContent).toBe('Live Edit');
+  });
 });
 
 // ── individual tab render methods ───────────────────────────────────────────

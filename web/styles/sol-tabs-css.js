@@ -181,6 +181,16 @@ export const CSS = `
   sol-tabs > .sol-tabs-bar .sol-bar-link img {
     width: 1.3em; height: 1.3em; object-fit: contain; display: block;
   }
+  /* A tab's ui:icon, painted before its name (emoji as text, URL as <img>). */
+  sol-tabs > .sol-tabs-bar [role="tab"] .sol-tab-icon {
+    display: inline-flex; align-items: center;
+    vertical-align: middle;
+    margin-right: var(--space-sm, 6px);
+    pointer-events: none;
+  }
+  sol-tabs > .sol-tabs-bar [role="tab"] .sol-tab-icon img {
+    width: 1.1em; height: 1.1em; object-fit: contain; display: block;
+  }
 
   /* ── Mobile navigator ───────────────────────────────────────────────────
      On a touch / coarse-pointer device <sol-tabs> swaps its strip for a

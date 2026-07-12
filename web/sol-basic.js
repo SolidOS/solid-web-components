@@ -35,6 +35,7 @@ import './sol-menu.js';
 import './sol-tabs.js';
 import './sol-accordion.js';
 import './sol-rolodex.js';
+import './sol-settings-nav.js';   // chip row: one sibling section shown at a time
 
 // Registered-by-tag helpers the primitives conjure / instantiate at runtime:
 import './sol-default.js';    // singleton holding shared non-CSS defaults (proxy, region…)

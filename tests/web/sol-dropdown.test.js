@@ -110,7 +110,24 @@ describe('SolDropdown — placement', () => {
       configurable: true, value: 300,
     });
     d._place();                            // re-place now that the panel has width
-    expect(d.style.left).toBe(`${998 - 300}px`);   // anchor.right − panel width
+    // Right-aligned to the anchor AND clamped to the right viewport edge
+    // (innerWidth − 4 − width), so the panel can never overhang the screen.
+    expect(d.style.left).toBe(`${1000 - 4 - 300}px`);
+  });
+
+  test('the panel never extends past the RIGHT viewport edge', () => {
+    window.innerWidth = 1000;
+    // A far-right anchor whose panel is wider than the gap to the edge —
+    // pure anchor-alignment would overhang (the ☰-menu bug: the popup grew
+    // after its first placement and hung off screen).
+    const a = anchorAt({ left: 940, right: 970, bottom: 20 });
+    const d = conjure(a);
+    Object.defineProperty(d.shadowRoot.querySelector('.panel'), 'offsetWidth', {
+      configurable: true, value: 200,
+    });
+    d._place();
+    const left = parseInt(d.style.left, 10);
+    expect(left + 200).toBeLessThanOrEqual(1000 - 4);
   });
 
   test('a right-aligned panel wider than the room clamps to the left edge, not x<0', () => {

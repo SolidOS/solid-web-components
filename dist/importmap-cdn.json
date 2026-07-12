@@ -37,6 +37,7 @@
     "sol-query": "https://esm.sh/sol-components/web/sol-query.js",
     "sol-rolodex": "https://esm.sh/sol-components/web/sol-rolodex.js",
     "sol-search": "https://esm.sh/sol-components/web/sol-search.js",
+    "sol-settings-nav": "https://esm.sh/sol-components/web/sol-settings-nav.js",
     "sol-settings": "https://esm.sh/sol-components/web/sol-settings.js",
     "sol-sheet": "https://esm.sh/sol-components/web/sol-sheet.js",
     "sol-solidos": "https://esm.sh/sol-components/web/sol-solidos.js",

@@ -2,12 +2,15 @@
  * @jest-environment jsdom
  *
  * Tests for <sol-settings> — the discovery-driven settings page that walks the
- * document for editable components and builds one accordion panel per widget:
+ * document for editable components and renders one flat section per widget
+ * (<section><h3>label</h3>…editor…</section> — the shape a <sol-settings-nav>
+ * chip row picks up):
  *   - registration
  *   - discovery via the `edit` extension point (static shape / editor / opt-out)
- *   - rendered accordion (labels, label= override, labelFromTag fallback)
+ *   - rendered sections (labels, label= override, labelFromTag fallback)
  *   - empty state
- *   - lazy editor mount on panel expand + sol-form-save → host.reload()
+ *   - editors mount eagerly with subject/save-to/shape from the host
+ *   - sol-form-save → host.reload()
  *   - the inPlace placement is skipped; opt-out via data-settings-skip
  *   - forms:"self" path renders an "Edit …" trigger button
  *   - refresh() rebuilds only when the discovered set changed (signature)
@@ -22,7 +25,6 @@ window.__SolSuppressDefineWarn = true;
 let registerExtensionPoints;
 
 beforeAll(async () => {
-  // sol-settings pulls in sol-accordion; both register on import.
   await import('../../web/sol-settings.js');
   // forms:"self" specs only arise from the manifest registry (editorSpecFromDecl),
   // not from a class's static extensionPoints — so register one explicitly.
@@ -31,9 +33,7 @@ beforeAll(async () => {
 
 afterEach(() => { document.body.innerHTML = ''; });
 
-// sol-settings defers _build() one microtask, then sol-accordion runs on
-// connect and lazy-wiring waits another microtask — a couple of macrotask
-// settles cover all of it deterministically.
+// sol-settings defers _build() one microtask — a macrotask settle covers it.
 function settle() { return new Promise(r => setTimeout(r, 0)); }
 
 let _seq = 0;
@@ -54,16 +54,15 @@ function mountSettings(inner = '') {
   return document.querySelector('sol-settings');
 }
 
-function summaries(settings) {
-  return [...settings.querySelectorAll('summary')].map(s => s.textContent);
+function headings(settings) {
+  return [...settings.querySelectorAll('section > h3')].map(h => h.textContent);
 }
 
 // ── registration ─────────────────────────────────────────────────────────────
 
 describe('sol-settings — registration', () => {
-  test('registers sol-settings and sol-accordion', () => {
+  test('registers sol-settings', () => {
     expect(customElements.get('sol-settings')).toBeTruthy();
-    expect(customElements.get('sol-accordion')).toBeTruthy();
   });
 
   test('exports the class as a named + default export', async () => {
@@ -76,36 +75,32 @@ describe('sol-settings — registration', () => {
 // ── empty state ──────────────────────────────────────────────────────────────
 
 describe('sol-settings — empty state', () => {
-  test('shows the empty note when no editable widgets exist', async () => {
+  test('renders NOTHING when no editable widgets exist (no stray note)', async () => {
     const s = mountSettings();
     await settle();
-    const note = s.querySelector('.sol-settings-empty');
-    expect(note).toBeTruthy();
-    expect(note.textContent).toBe('No editable widgets found on this page.');
-    expect(s.querySelector('sol-accordion')).toBeNull();
+    expect(s.childElementCount).toBe(0);
+    expect(s.textContent.trim()).toBe('');
   });
 });
 
-// ── discovery + rendered accordion ───────────────────────────────────────────
+// ── discovery + rendered sections ────────────────────────────────────────────
 
-describe('sol-settings — discovery & accordion', () => {
-  test('builds one panel per editable widget (static shape)', async () => {
+describe('sol-settings — discovery & sections', () => {
+  test('builds one section per editable widget (static shape)', async () => {
     const tag = defineEditable({ shape: () => 'https://pod.example/s.shacl' });
     const s = mountSettings(`<${tag} label="Weather"></${tag}>`);
     await settle();
 
-    const accordion = s.querySelector('sol-accordion');
-    expect(accordion).toBeTruthy();
-    expect(accordion.style.width).toBe('100%');
-    expect(s.querySelectorAll('details')).toHaveLength(1);
-    expect(summaries(s)).toEqual(['Weather']);
+    expect(s.querySelectorAll('section')).toHaveLength(1);
+    expect(headings(s)).toEqual(['Weather']);
+    expect(s.querySelector('sol-accordion')).toBeNull();   // the accordion is gone
   });
 
   test('a string static editor also makes a widget editable', async () => {
     const tag = defineEditable({ editor: () => 'https://pod.example/form.ttl' });
     const s = mountSettings(`<${tag} label="Tasks"></${tag}>`);
     await settle();
-    expect(summaries(s)).toEqual(['Tasks']);
+    expect(headings(s)).toEqual(['Tasks']);
   });
 
   test('label falls back to labelFromTag (drops vendor prefix, title-cases)', async () => {
@@ -118,65 +113,58 @@ describe('sol-settings — discovery & accordion', () => {
       .split('-')
       .map(p => p.charAt(0).toUpperCase() + p.slice(1))
       .join(' ');
-    expect(summaries(s)).toEqual([expected]);
+    expect(headings(s)).toEqual([expected]);
   });
 
   test('non-editable elements (no shape/editor) are not collected', async () => {
     const tag = defineEditable({});   // no statics → resolveEditorSpec → null
     const s = mountSettings(`<${tag}></${tag}>`);
     await settle();
-    expect(s.querySelector('.sol-settings-empty')).toBeTruthy();
+    expect(s.childElementCount).toBe(0);   // not collected → nothing rendered
   });
 
   test('editor:{inline:true} opts out of being collected', async () => {
     const tag = defineEditable({ editor: () => ({ inline: true }) });
     const s = mountSettings(`<${tag}></${tag}>`);
     await settle();
-    expect(s.querySelector('.sol-settings-empty')).toBeTruthy();
+    expect(s.childElementCount).toBe(0);   // not collected → nothing rendered
   });
 
   test('data-settings-skip removes a widget from discovery', async () => {
     const tag = defineEditable({ shape: () => 'https://pod.example/s.shacl' });
     const s = mountSettings(`<${tag} label="Hidden" data-settings-skip></${tag}>`);
     await settle();
-    expect(s.querySelector('.sol-settings-empty')).toBeTruthy();
+    expect(s.childElementCount).toBe(0);   // not collected → nothing rendered
   });
 
   test('edit="inPlace" widgets are skipped (only collected ones gathered)', async () => {
     const tag = defineEditable({ shape: () => 'https://pod.example/s.shacl' });
     const s = mountSettings(`<${tag} label="Gear" edit="inPlace"></${tag}>`);
     await settle();
-    expect(s.querySelector('.sol-settings-empty')).toBeTruthy();
+    expect(s.childElementCount).toBe(0);   // not collected → nothing rendered
   });
 
-  test('builds a panel each for several widgets', async () => {
+  test('builds a section each for several widgets', async () => {
     const a = defineEditable({ shape: () => 'https://pod.example/a.shacl' });
     const b = defineEditable({ shape: () => 'https://pod.example/b.shacl' });
     const s = mountSettings(
       `<${a} label="Alpha"></${a}><${b} label="Beta"></${b}>`,
     );
     await settle();
-    expect(s.querySelectorAll('details')).toHaveLength(2);
-    expect(summaries(s)).toEqual(['Alpha', 'Beta']);
+    expect(s.querySelectorAll('section')).toHaveLength(2);
+    expect(headings(s)).toEqual(['Alpha', 'Beta']);
   });
 });
 
-// ── lazy editor mount ────────────────────────────────────────────────────────
+// ── eager editor mount ───────────────────────────────────────────────────────
 
-describe('sol-settings — lazy editor mount', () => {
-  test('mounts a sol-form editor only when its panel is opened', async () => {
+describe('sol-settings — editor mount', () => {
+  test('mounts a sol-form editor eagerly with subject/save-to/shape from the host', async () => {
     const tag = defineEditable({ shape: () => 'https://pod.example/s.shacl' });
     const s = mountSettings(`<${tag} label="W" source="https://pod.example/w#it"></${tag}>`);
     await settle();
 
-    const det = s.querySelector('details');
-    expect(det.querySelector('sol-form')).toBeNull();   // start-closed: nothing yet
-
-    det.open = true;
-    det.dispatchEvent(new Event('toggle'));
-    await settle();
-
-    const form = det.querySelector('sol-form');
+    const form = s.querySelector('section .sol-settings-slot sol-form');
     expect(form).toBeTruthy();
     // subject + save-to come from the host's source= (made absolute)
     const abs = new URL('https://pod.example/w#it', document.baseURI).href;
@@ -192,12 +180,8 @@ describe('sol-settings — lazy editor mount', () => {
 
     const s = mountSettings(`<${tag} label="W" source="https://pod.example/w"></${tag}>`);
     await settle();
-    const det = s.querySelector('details');
-    det.open = true;
-    det.dispatchEvent(new Event('toggle'));
-    await settle();
 
-    const form = det.querySelector('sol-form');
+    const form = s.querySelector('sol-form');
     form.dispatchEvent(new CustomEvent('sol-form-save', { bubbles: true }));
     await settle();
     expect(reloaded).toBe(1);
@@ -219,15 +203,11 @@ describe('sol-settings — forms:"self"', () => {
 
     const s = mountSettings(`<${tag} label="Self"></${tag}>`);
     await settle();
-    const det = s.querySelector('details');
-    det.open = true;
-    det.dispatchEvent(new Event('toggle'));
-    await settle();
 
-    const btn = det.querySelector('.sol-settings-self-open');
+    const btn = s.querySelector('section .sol-settings-self-open');
     expect(btn).toBeTruthy();
     expect(btn.textContent).toBe('Edit Self…');
-    expect(det.querySelector('sol-form')).toBeNull();   // self: no generated form
+    expect(s.querySelector('sol-form')).toBeNull();   // self: no generated form
 
     btn.click();
     expect(opened).toBe(1);
@@ -241,7 +221,7 @@ describe('sol-settings — refresh()', () => {
     const a = defineEditable({ shape: () => 'https://pod.example/a.shacl' });
     const s = mountSettings(`<${a} label="Alpha"></${a}>`);
     await settle();
-    expect(s.querySelectorAll('details')).toHaveLength(1);
+    expect(s.querySelectorAll('section')).toHaveLength(1);
 
     const b = defineEditable({ shape: () => 'https://pod.example/b.shacl' });
     const el = document.createElement(b);
@@ -251,19 +231,19 @@ describe('sol-settings — refresh()', () => {
 
     s.refresh();
     await settle();
-    expect(s.querySelectorAll('details')).toHaveLength(2);
-    expect(summaries(s)).toEqual(['Alpha', 'Beta']);
+    expect(s.querySelectorAll('section')).toHaveLength(2);
+    expect(headings(s)).toEqual(['Alpha', 'Beta']);
   });
 
   test('refresh() is a no-op when the discovered set is unchanged', async () => {
     const a = defineEditable({ shape: () => 'https://pod.example/a.shacl' });
     const s = mountSettings(`<${a} label="Alpha" source="https://pod.example/a"></${a}>`);
     await settle();
-    const accordionBefore = s.querySelector('sol-accordion');
+    const sectionBefore = s.querySelector('section');
 
     s.refresh();
     await settle();
     // same node instance → no rebuild happened
-    expect(s.querySelector('sol-accordion')).toBe(accordionBefore);
+    expect(s.querySelector('section')).toBe(sectionBefore);
   });
 });

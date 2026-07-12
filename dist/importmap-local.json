@@ -37,6 +37,7 @@
     "sol-query": "../web/sol-query.js",
     "sol-rolodex": "../web/sol-rolodex.js",
     "sol-search": "../web/sol-search.js",
+    "sol-settings-nav": "../web/sol-settings-nav.js",
     "sol-settings": "../web/sol-settings.js",
     "sol-sheet": "../web/sol-sheet.js",
     "sol-solidos": "../web/sol-solidos.js",

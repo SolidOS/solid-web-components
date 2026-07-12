@@ -28,14 +28,15 @@ export function placeAnchored(anchor, panel, widthEl = panel, minWidth = 0) {
   } else {
     panel.style.top = `${Math.round(r.bottom + 4)}px`;
   }
-  if (Math.round(r.left) + w <= window.innerWidth - 4) {
-    panel.style.left = `${Math.round(r.left)}px`;
-    panel.style.right = 'auto';
-  } else {
-    // Right-align to the anchor, but never past the left viewport edge — a
-    // panel wider than the room left of the anchor (e.g. the calendar over
-    // a phone's bottom dock) would otherwise hang off-screen at x < 0.
-    panel.style.left = `${Math.max(4, Math.round(r.right) - w)}px`;
-    panel.style.right = 'auto';
-  }
+  let left = Math.round(r.left);
+  if (left + w > window.innerWidth - 4) left = Math.round(r.right) - w;   // flip: right-align to the anchor
+  // Clamp BOTH viewport edges regardless of branch: the right edge (a panel
+  // that grew after its first placement — the ☰ menu's popup — or one
+  // right-aligned to a far-right trigger must never overhang the viewport),
+  // then the left (a panel wider than the room left of the anchor — the
+  // calendar over a phone's bottom dock — must never hang off-screen at x<0).
+  left = Math.min(left, window.innerWidth - 4 - w);
+  left = Math.max(4, left);
+  panel.style.left = `${left}px`;
+  panel.style.right = 'auto';
 }

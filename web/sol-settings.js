@@ -3,11 +3,11 @@
  *
  * Walks the current document (crossing into every shadow root) for
  * elements whose custom-element class declares an editor (`static get
- * editor()` or `static get shape()`). For each, builds one accordion
- * panel: summary shows a friendly label, body lazy-mounts the
- * declared editor element on first expand, wired with the host's
- * `source` / `from-rdf` subject. On successful save the host
- * component's `reload()` (if present) is invoked.
+ * editor()` or `static get shape()`). For each, renders one flat
+ * `<section><h3>label</h3>…editor…</section>` — the same shape a
+ * hand-authored settings group has, so a `<sol-settings-nav>` chip row
+ * above picks every discovered widget up as its own chip. On successful
+ * save the host component's `reload()` (if present) is invoked.
  *
  * No configuration: drop a `<sol-settings></sol-settings>` anywhere
  * on the page; widgets elsewhere on the page are picked up
@@ -19,7 +19,7 @@
  *   none
  *
  * Methods:
- *   refresh() — re-walk and rebuild the accordion if the widget set
+ *   refresh() — re-walk and rebuild the sections if the widget set
  *               has changed (signature: tag + subject). Cheap no-op
  *               when nothing changed. Use from consumer code when a
  *               new editable widget is mounted after sol-settings
@@ -34,7 +34,6 @@
 import { define } from '../core/define.js';
 import { buildEditorElement, triggerSelfEditor, editPlacement } from '../core/editor.js';
 import { findExtensionPoints } from '../core/extension-points.js';
-import './sol-accordion.js';
 
 class SolSettings extends HTMLElement {
   connectedCallback() {
@@ -75,32 +74,20 @@ class SolSettings extends HTMLElement {
     const widgets = this._discover();
     this._lastSignature = signatureOf(widgets);
     this.innerHTML = '';
-    if (!widgets.length) {
-      this._empty();
-      return;
-    }
-
-    const accordion = document.createElement('sol-accordion');
-    accordion.setAttribute('start-closed', '');
-    // Fill the container's width so the accordion bars line up with a sibling
-    // sol-form's fields (which also fill) — the calling app sets the width by
-    // the element it places these in.
-    accordion.style.width = '100%';
-    widgets.forEach((w, i) => {
-      const panel = document.createElement('div');
-      const head = document.createElement('div');
-      head.textContent = w.label;
+    // No editable widgets → render NOTHING. (There used to be a "No editable
+    // widgets found" note; in a sections/chip-nav layout it painted as stray
+    // text under every group, and an empty element is the honest state.)
+    if (!widgets.length) return;
+    for (const widget of widgets) {
+      const section = document.createElement('section');
+      const h3 = document.createElement('h3');
+      h3.textContent = widget.label;
       const body = document.createElement('div');
       body.className = 'sol-settings-slot';
-      body.dataset.widgetIdx = String(i);
-      panel.append(head, body);
-      accordion.appendChild(panel);
-    });
-    this.appendChild(accordion);
-
-    // sol-accordion runs synchronously on connect; once it has cloned
-    // the author divs into <details>, attach lazy-mount handlers.
-    Promise.resolve().then(() => this._wireLazy(accordion, widgets));
+      section.append(h3, body);
+      this._mountEditor(body, widget);
+      this.appendChild(section);
+    }
   }
 
   _rebuildIfChanged() {
@@ -112,50 +99,28 @@ class SolSettings extends HTMLElement {
 
   refresh() { this._rebuildIfChanged(); }
 
-  _empty() {
-    const note = document.createElement('p');
-    note.className = 'sol-settings-empty';
-    note.textContent = 'No editable widgets found on this page.';
-    this.appendChild(note);
-  }
-
-  _wireLazy(accordion, widgets) {
-    const detailsList = accordion.querySelectorAll('details');
-    detailsList.forEach((det, i) => {
-      const widget = widgets[i];
-      if (!widget) return;
-      const section = det.querySelector('.accordion-content-section');
-      if (!section) return;
-      let mounted = false;
-      const mount = () => {
-        if (mounted) return;
-        mounted = true;
-        section.innerHTML = '';
-        // forms:"self" — the component renders its own editor; offer a trigger.
-        if (widget.spec && widget.spec.self) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'sol-settings-self-open';
-          btn.textContent = `Edit ${widget.label}…`;
-          btn.addEventListener('click', () => triggerSelfEditor(widget.el, widget.spec));
-          section.appendChild(btn);
-          return;
-        }
-        const editor = buildEditorElement(widget.el, widget.spec);
-        if (!editor) {
-          section.textContent = 'No editor available.';
-          return;
-        }
-        editor.addEventListener('sol-form-save', () => {
-          if (typeof widget.el.reload === 'function') {
-            widget.el.reload().catch(() => {});
-          }
-        });
-        section.appendChild(editor);
-      };
-      if (det.open) mount();
-      det.addEventListener('toggle', () => { if (det.open) mount(); });
+  _mountEditor(body, widget) {
+    // forms:"self" — the component renders its own editor; offer a trigger.
+    if (widget.spec && widget.spec.self) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sol-settings-self-open';
+      btn.textContent = `Edit ${widget.label}…`;
+      btn.addEventListener('click', () => triggerSelfEditor(widget.el, widget.spec));
+      body.appendChild(btn);
+      return;
+    }
+    const editor = buildEditorElement(widget.el, widget.spec);
+    if (!editor) {
+      body.textContent = 'No editor available.';
+      return;
+    }
+    editor.addEventListener('sol-form-save', () => {
+      if (typeof widget.el.reload === 'function') {
+        widget.el.reload().catch(() => {});
+      }
     });
+    body.appendChild(editor);
   }
 
   // Editable widgets = every element offering the `edit` extension point. The
@@ -190,7 +155,7 @@ function labelFromTag(tag) {
 /** Stable identity for a discovered widget set, used to detect when a
  *  later re-discovery has actually changed anything. Tag + subject is
  *  enough — two instances of the same widget with the same source
- *  would render an identical accordion panel. */
+ *  would render an identical section. */
 function signatureOf(widgets) {
   return widgets
     .map(w => `${w.el.localName}#${w.el.getAttribute('source') || w.el.getAttribute('from-rdf') || ''}`)

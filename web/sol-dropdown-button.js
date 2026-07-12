@@ -268,6 +268,15 @@ class SolDropdownButton extends SolMenu {
     this._onReflow = () => this._place();
     window.addEventListener('scroll', this._onReflow, true);
     window.addEventListener('resize', this._onReflow);
+    // The popup's width settles AFTER the first placement (items render,
+    // fonts load) — placing once against the first-paint width left the
+    // far-right ☰ popup hanging past the viewport edge. Re-place next frame
+    // and track the popup's own size while open (same wiring as sol-dropdown).
+    requestAnimationFrame(this._onReflow);
+    if (typeof ResizeObserver !== 'undefined') {
+      this._popupRo = new ResizeObserver(this._onReflow);
+      this._popupRo.observe(this._popup);
+    }
     const first = this._popup.querySelector('button');
     if (first) { first.setAttribute('tabindex', '0'); first.focus(); }
   }
@@ -287,6 +296,7 @@ class SolDropdownButton extends SolMenu {
       window.removeEventListener('resize', this._onReflow);
       this._onReflow = null;
     }
+    if (this._popupRo) { this._popupRo.disconnect(); this._popupRo = null; }
     super._closeAllPopups();   // collapse any submenu fly-outs
   }
 

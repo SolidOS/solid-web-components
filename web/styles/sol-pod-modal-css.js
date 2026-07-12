@@ -58,6 +58,9 @@ export const CSS = BTN_CSS + WAC_CSS + `
   .graph-legend-note { color: var(--text-muted, #666); margin-left: auto; }
 
   .markdown-preview { padding: 16px 24px; line-height: 1.7; font-size: max(16px, 0.95em); overflow-y: auto; flex: 1; }
+  /* Rendered Mermaid diagram (the View tab for .mmd files). */
+  .mermaid-preview { padding: 16px 24px; overflow: auto; flex: 1; }
+  .mermaid-preview svg { max-width: 100%; height: auto; }
   .markdown-preview h1,.markdown-preview h2,.markdown-preview h3,.markdown-preview h4 {
     margin: 1em 0 0.4em; font-weight: 700; border-bottom: 1px solid var(--border, #e0e0e0); padding-bottom: 4px;
   }

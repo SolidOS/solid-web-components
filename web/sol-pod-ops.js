@@ -155,9 +155,16 @@ class SolPodOps extends HTMLElement {
   }
 
   async _buildTabs(item, effectiveName) {
-    const hasLive = !item.isContainer && isLiveFormat(item.url, item.contentType);
+    const liveFmt = item.isContainer ? null : liveFormatFor(item.url, item.contentType);
+    const hasLive = !!liveFmt;
+    // Renderable live formats open on a code-free VIEW tab first (the same
+    // preview live-edit shows, without the editor); Live Edit sits one tab
+    // over. Source-ish live formats (csv, turtle, …) keep Live Edit first.
+    const viewFirst = hasLive && ['html', 'markdown', 'mermaid'].includes(liveFmt);
     const fileTabs = hasLive
-      ? ['Live Edit', 'Download', 'Rename', 'Delete', 'Permissions']
+      ? (viewFirst
+          ? ['View', 'Live Edit', 'Download', 'Rename', 'Delete', 'Permissions']
+          : ['Live Edit', 'Download', 'Rename', 'Delete', 'Permissions'])
       : ['View', 'Edit', 'Graph', 'Download', 'Rename', 'Delete', 'Permissions'];
     const tabDefs = item.isContainer
       ? ['New File', 'New Folder', 'Download', 'Rename', 'Delete', 'Permissions']
@@ -174,6 +181,7 @@ class SolPodOps extends HTMLElement {
     }));
 
     const defaultTab = item.isContainer ? 'New File'
+      : viewFirst ? 'View'
       : hasLive ? 'Live Edit'
       : isRdf(effectiveName) ? 'Graph'
       : isViewable(effectiveName) ? 'View' : 'Rename';
@@ -316,6 +324,14 @@ class SolPodOps extends HTMLElement {
         iframe.className = 'modal-pdf'; iframe.sandbox = 'allow-scripts';
         iframe.srcdoc = text;
         body.innerHTML = ''; body.appendChild(iframe);
+      } else if (extOf(effectiveName) === 'mmd' || extOf(effectiveName) === 'mermaid') {
+        const text = await (await fetchFn(item.url)).text();
+        // The same renderer sol-live-edit's preview pane uses.
+        const { renderMermaid } = await import('./utils/renderers/mermaid.js');
+        const div = document.createElement('div');
+        div.className = 'mermaid-preview';
+        body.innerHTML = ''; body.appendChild(div);
+        await renderMermaid(text, div);
       } else {
         const text = await (await fetchFn(item.url)).text();
         const pre = document.createElement('pre');

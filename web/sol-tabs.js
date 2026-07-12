@@ -74,6 +74,7 @@ import { CSS as TABS_CSS } from './styles/sol-tabs-css.js';
 import { attachEditorSelfGear } from '../core/editor-self.js';
 import { registerMenuConsumer, deferUntilLoader } from '../core/menu-consumer.js';
 import { renderComponentItem, renderLinkItem, ensureHandler, isCommandName, dispatchCommand, paramsToObject } from '../core/rdf-render.js';
+import { renderIcon } from '../core/utils.js';
 import { emitTab } from '../core/menu-generate.js';
 import { extractTab, extractSubmenu } from '../core/menu-html.js';
 import './sol-sheet.js';   // the shared bottom-sheet surface the phone nav slots into
@@ -336,6 +337,7 @@ class SolTabs extends HTMLElement {
         return {
           name: desc.name,
           id: desc.id,
+          icon: desc.icon,
           sig,
           // A from-rdf submenu renders as a dropdown launcher on the bar (see
           // _buildSubmenuDropdown) — the in-pane render is the fallback used
@@ -354,16 +356,16 @@ class SolTabs extends HTMLElement {
         // tab's pane (its region). Fire-and-forget commands leave the pane empty.
         if (isCommandName(desc.tag)) {
           return {
-            name: desc.name, id: desc.id, sig, type: desc.type,
+            name: desc.name, id: desc.id, icon: desc.icon, sig, type: desc.type,
             render: (body) => dispatchCommand(this, desc.tag, paramsToObject(desc.params), { id: desc.id, fallbackEl: body }),
           };
         }
-        return { name: desc.name, id: desc.id, sig, type: desc.type, render: renderComponentItem(desc, ctx) };
+        return { name: desc.name, id: desc.id, icon: desc.icon, sig, type: desc.type, render: renderComponentItem(desc, ctx) };
       }
       // A link leaf carries its href/type so the mobile navigator can open it
       // externally (into the dismissible overlay) rather than switching to an
       // empty submenu pane — see _navigateTo.
-      return { name: desc.name, id: desc.id, sig, type: desc.type, href: desc.href, render: renderLinkItem(desc, ctx) };
+      return { name: desc.name, id: desc.id, icon: desc.icon, sig, type: desc.type, href: desc.href, render: renderLinkItem(desc, ctx) };
     }).filter(Boolean);
   }
 
@@ -605,7 +607,14 @@ class SolTabs extends HTMLElement {
       btn.setAttribute('aria-selected', 'false');
       btn.setAttribute('tabindex', '-1');       // roving: only the active tab is tabbable
       if (this._panelId) btn.setAttribute('aria-controls', this._panelId);
-      btn.textContent = tab.name;
+      // ui:icon paints before the name — a URL as <img>, an emoji as text
+      // (renderIcon), same treatment sol-menu gives its items.
+      if (tab.icon) {
+        btn.appendChild(renderIcon(tab.icon, 'sol-tab-icon'));
+        btn.appendChild(document.createTextNode(tab.name));
+      } else {
+        btn.textContent = tab.name;
+      }
       btn.title = tab.name;   // hover tooltip (and the full name when a tab label is truncated)
       if (tab.id) btn.dataset.tabId = tab.id;
       btn.onclick = () => this.switchTab(tab.name);

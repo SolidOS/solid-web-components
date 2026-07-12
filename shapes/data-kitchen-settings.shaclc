@@ -1,5 +1,6 @@
 
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX schema: <http://schema.org/>
 PREFIX ui: <http://www.w3.org/ns/ui#>
 PREFIX wd: <http://www.wikidata.org/entity/>
 
@@ -9,8 +10,7 @@ shape <#DataKitchenSettingsFileShape> -> wd:Q1193846 {
 shape <#DataKitchenSettingsShape> {
     ui:colorScheme ui:ColorScheme [0..1] % sh:name "Color scheme" % .
     ui:fontSize ui:FontSize [0..1] % sh:name "Font size" % .
-    ui:editorKeys ui:EditorKeys [0..1] % sh:name "Editor keys" % .
-    ui:proxy xsd:string [0..1] % sh:name "CORS proxy" ; sh:description "URL prefix wrapping a target URL for CORS proxying; the target is URI-encoded onto the end." % .
+    schema:softwareHelp xsd:string [0..1] % sh:name "Help document" ; sh:description "Path or URL of the help document the ? button opens when the active plugin doesn't supply its own." % .
 }
 
 <> owl:imports <../data/ui-vocab.ttl> .

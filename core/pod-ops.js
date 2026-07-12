@@ -338,7 +338,7 @@ export function staleProviderRoots(storages, known) {
 
 // ── File-type classification ─────────────────────────────────────────
 
-const TEXT_VIEWABLE = ['txt','md','csv','json','jsonld','ttl','n3','html','xml','svg','js','css'];
+const TEXT_VIEWABLE = ['txt','md','csv','json','jsonld','ttl','n3','html','xml','svg','js','css','mmd','mermaid'];
 const EDITABLE      = ['txt','md','csv','json','jsonld','ttl','n3','html','htm','xml','svg','js','css'];
 const IMAGE_TYPES   = ['png','jpg','jpeg','gif','webp','svg','bmp','ico','avif'];
 const VIDEO_TYPES   = ['mp4','webm','ogg','mov','m4v'];

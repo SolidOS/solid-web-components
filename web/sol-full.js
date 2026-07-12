@@ -29,6 +29,7 @@ import './sol-query.js';
 import './sol-login.js';
 import './sol-feed.js';
 import './sol-sheet.js';   // bottom-sheet surface (no externals)
+import './sol-settings-nav.js';   // chip row: one sibling section shown at a time
 
 // Deliberately NOT in sol-full: sol-weather, sol-time, sol-calendar — chrome
 // widgets with their own heavy deps (e.g. ical). Load them as ESM where

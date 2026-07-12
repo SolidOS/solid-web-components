@@ -1,0 +1,44 @@
+@prefix :       <#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix ui:     <http://www.w3.org/ns/ui#> .
+
+:IssuerListShape
+  a sh:NodeShape ;
+  sh:targetClass schema:ItemList ;
+
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ; sh:maxCount 1 ;
+    sh:name "List label" ;
+  ] ,
+  [
+    sh:path schema:itemListElement ;
+    sh:node :IssuerShape ;
+    sh:class schema:ListItem ;
+    sh:minCount 1 ;
+    sh:name "Sign-in issuers" ;
+    sh:description "Solid OIDC issuers offered on sign-in; position 1 is the default." ;
+    ui:sortedBy schema:position ;
+  ] .
+
+:IssuerShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ; sh:maxCount 1 ;
+    sh:name "Label" ;
+  ] ,
+  [
+    sh:path schema:item ;
+    sh:nodeKind sh:IRI ; sh:minCount 1 ; sh:maxCount 1 ;
+    sh:name "Issuer URL" ;
+    sh:description "The Solid OIDC issuer (identity provider) URL." ;
+  ] ,
+  [
+    sh:path schema:position ;
+    sh:datatype xsd:integer ; sh:minCount 1 ; sh:maxCount 1 ;
+    sh:name "Position" ;
+    sh:description "Display order (1=first, the default issuer)" ;
+  ] .

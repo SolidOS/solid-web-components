@@ -21,6 +21,10 @@
     sh:node :DataKitchenSettingsShape ;
   ] .
 
+# NOTE: the settings doc also carries ui:proxy (the CORS-proxy URL prefix
+# components read at runtime), but the proxy is configured via its PORT in
+# the Pivot settings group — so the form deliberately does not surface the
+# URL here.
 :DataKitchenSettingsShape
   a sh:NodeShape ;
 
@@ -35,13 +39,6 @@
     sh:class ui:FontSize ;
     sh:maxCount 1 ;
     sh:name "Font size" ;
-  ] ,
-  [
-    sh:path ui:proxy ;
-    sh:datatype xsd:string ;
-    sh:maxCount 1 ;
-    sh:name "CORS proxy" ;
-    sh:description "URL prefix wrapping a target URL for CORS proxying; the target is URI-encoded onto the end." ;
   ] ,
   [
     sh:path schema:softwareHelp ;

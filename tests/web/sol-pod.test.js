@@ -572,6 +572,33 @@ describe('SolPod — interaction', () => {
     expect(el.loadContainer).toHaveBeenCalledWith('https://pod.example/docs/');
   });
 
+  test('a plain single click on a FILE activates it (opens its actions)', async () => {
+    const el = mkPod();
+    const action = jest.fn();
+    el.podClickAction = action;
+    const it = item('a.txt');
+    el._renderTree([it]);
+    fileTreeItems(el)[0].click();
+    await flush();
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(action.mock.calls[0][0].url).toBe(it.url);
+    // ...and the click still selected the file (drag/copy consistency).
+    expect(el._selected.has(it.url)).toBe(true);
+  });
+
+  test('modifier clicks on a file stay pure selection — no activation', async () => {
+    const el = mkPod();
+    const action = jest.fn();
+    el.podClickAction = action;
+    el._renderTree([item('a.txt'), item('b.txt')]);
+    const lis = fileTreeItems(el);
+    lis[0].dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    lis[1].dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }));
+    await flush();
+    expect(action).not.toHaveBeenCalled();
+    expect(el._selected.size).toBe(2);
+  });
+
   test('the gear button invokes a function podClickAction with the item', async () => {
     const el = mkPod();
     const action = jest.fn();
