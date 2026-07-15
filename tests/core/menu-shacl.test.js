@@ -80,3 +80,44 @@ test('a ui:Link with neither ui:href nor ui:contents fails the xone', async () =
 `);
   expect(report.conforms).toBe(false);
 });
+
+// ── plugin surface (2026-07-14: ui:module + settings pointers on both item
+//    kinds; dct:creator collapsed into dct:publisher) ─────────────────────
+
+test('a full plugin doc — Component with ui:module + settings pointers — conforms', async () => {
+  const report = await validate(`
+@prefix dcterms: <http://purl.org/dc/terms/> .
+<#Plug> a ui:Component ;
+  ui:label "Star Charts" ;
+  ui:name "star-charts" ;
+  ui:module <https://example.org/starcharts/star-charts.esm.js> ;
+  ui:icon "✨" ;
+  dcterms:publisher "Someone" ;
+  dcterms:conformsTo <https://example.org/starcharts/settings.shacl> ;
+  dcterms:references <https://example.org/starcharts/settings.ttl> ;
+  schema:softwareHelp <https://example.org/starcharts/help.html> .
+`);
+  expect(report.results.map((r) => r.message.map((m) => m.value).join('; '))).toEqual([]);
+  expect(report.conforms).toBe(true);
+});
+
+test('a ui:Link carrying the settings pointers conforms too', async () => {
+  const report = await validate(`
+@prefix dcterms: <http://purl.org/dc/terms/> .
+<#App> a ui:Link ;
+  ui:label "Some app" ;
+  ui:href <https://app.example.org/> ;
+  dcterms:publisher "Org" ;
+  dcterms:conformsTo <https://app.example.org/settings.shacl> ;
+  dcterms:references <https://app.example.org/settings.ttl> ;
+  schema:softwareHelp <https://app.example.org/help.html> .
+`);
+  expect(report.conforms).toBe(true);
+});
+
+test('ui:module must be an IRI', async () => {
+  const report = await validate(`
+<#Plug> a ui:Component ; ui:name "x-y" ; ui:module "not-an-iri" .
+`);
+  expect(report.conforms).toBe(false);
+});

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sol-load — components without component-interop</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../web/styles/root.css">
+
+  <!-- The whole bootstrap: one classic script. It injects the import map
+       (resolving rdflib + every sol-* bare name relative to wherever
+       sol-load.js was loaded from) and imports the components this tag
+       names. No component-interop on this page. -->
+  <script src="../web/sol-load.js"
+          data-components="sol-weather sol-time"></script>
+</head>
+<body>
+
+<h2>sol-load: ci-free bootstrap</h2>
+<p>This page loads <code>sol-weather</code> and <code>sol-time</code> with a
+single classic <code>&lt;script&gt;</code> tag — no component-interop, no
+hand-written import map. The tag's <code>data-components</code> attribute
+declares exactly what is loaded.</p>
+
+<div style="max-width: 24rem">
+  <sol-weather source="../help/data/weather-demo.ttl#Settings"></sol-weather>
+</div>
+
+<p><sol-time></sol-time></p>
+
+<h3>Late loading</h3>
+<p>Components can also be loaded programmatically after boot:
+<code>window.solLoad('sol-calendar')</code> returns the import promise.
+<code>window.solLoadReady</code> resolves when everything named in
+<code>data-components</code> has registered.</p>
+
+</body>
+</html>

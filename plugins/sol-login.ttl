@@ -1,0 +1,7 @@
+@prefix ui: <http://www.w3.org/ns/ui#> .
+
+<>
+  a ui:Component ;
+  ui:name "sol-login" ;
+  ui:label "Sign in" ;
+  ui:module <../web/sol-login.js> .

@@ -29,8 +29,7 @@
   <h2>Use it in your HTML</h2>
   <p>Add this line once, near the top of your page — it makes the component
   available:</p>
-  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-        data-manifest="../dist/sol-components.manifest.json"
+  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/sol-components/web/sol-load.js"
         data-components="sol-search"&gt;&lt;/script&gt;</code></pre>
   <p>Then drop the tag wherever you want the search box:</p>
   <pre><code>&lt;sol-search default-engine="ddg"&gt;&lt;/sol-search&gt;</code></pre>
@@ -88,9 +87,7 @@
   <pre><code>&lt;sol-search source="data/search-engines.ttl#SearchEngines"&gt;&lt;/sol-search&gt;</code></pre>
 
 <!-- IMPORTED SCRIPTS ------------------------------------------------- -->
-  <script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-          data-manifest="../dist/sol-components.manifest.json"
-          data-stage="local"
+  <script src="../web/sol-load.js"
           data-components="sol-search"
   ></script>
 <!-- ------------------------------------------------------------------ -->

@@ -27,7 +27,17 @@ export function registerMenuConsumer(klass) {
 // add-on may load before OR after the component, sync, deferred or as ESM).
 // Returns true when parked (caller should return), false if a loader is ready.
 export function deferUntilLoader(el) {
-  if (reg.loader) return false;
+  if (reg.loader) {
+    // Define-before-register hole: customElements.define() upgrades the
+    // element (running connectedCallback → _loadFromRdf) BEFORE the module's
+    // own registerMenuConsumer() call, so with the add-on already installed
+    // the class static isn't wired yet and nothing would ever re-drive the
+    // element (it isn't parked — the loader exists). Wire the class now and
+    // re-drive async; parallel importers (e.g. sol-load) hit this ordering.
+    el.constructor.fromRdfLoader = reg.loader;
+    queueMicrotask(() => { try { el.reload?.(); } catch { /* el gone */ } });
+    return false;
+  }
   reg.pending.add(el);
   return true;
 }

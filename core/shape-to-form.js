@@ -211,11 +211,11 @@ export function readShapeProperty(shapeStore, prop) {
   // sub-fields (wrapped in a ui:Multiple when the outer property is
   // multi-valued).
   const nodeShape = shapeStore.any(prop, rdf.sym(SH + 'node'));
-  // ui:sortedBy on a container property — names the inner predicate
+  // ui:sortBy on a container property — names the inner predicate
   // whose integer value orders the rolodex cards. Renderer hides the
   // named inner field and replaces it with ↑/↓ buttons that swap
   // values with the previous / next subject.
-  const sortedBy = shapeStore.any(prop, rdf.sym(UI + 'sortedBy')) || null;
+  const sortBy = shapeStore.any(prop, rdf.sym(UI + 'sortBy')) || null;
   let nestedProperties = null;
   if (nodeShape) {
     nestedProperties = [];
@@ -230,7 +230,7 @@ export function readShapeProperty(shapeStore, prop) {
   return {
     path, key, datatype, enumOpts, enumLabels, nodeKind, classNode,
     minCount, maxCount, label, description, nestedProperties, reverse,
-    sortedBy,
+    sortBy,
   };
 }
 

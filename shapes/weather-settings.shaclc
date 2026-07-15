@@ -13,7 +13,7 @@ shape <#WeatherSettingsShape> {
     geo:lat xsd:decimal [1..1] % sh:name "Latitude" ; sh:description "Decimal latitude (-90 to 90)" % .
     geo:long xsd:decimal [1..1] % sh:name "Longitude" ; sh:description "Decimal longitude (-180 to 180)" % .
     schema:addressLocality xsd:string [1..1] % sh:name "Place" ; sh:description "Display name shown on the weather card" % .
-    ui:temperatureUnit ui:TemperatureUnit [1..1] % sh:name "Temperature unit" ; sh:description "Fahrenheit, Celsius, or Both" % .
+    ui:temperatureUnit ui:TemperatureUnit [1..2] % sh:name "Temperature unit" ; sh:description "Fahrenheit, Celsius, or both (pick both to show both)" % .
     time:hours xsd:integer [1..1] % sh:name "Forecast window (hours)" ; sh:description "Max-precipitation lookahead, in hours" % .
 }
 

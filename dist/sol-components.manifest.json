@@ -1,204 +1,206 @@
 {
- "@context": "https://jeff-zucker.github.io/component-interop/context.jsonld",
- "@id": "",
- "@type": "Manifest",
- "name": "sol-components",
- "components": {
-  "sol-feed": {
-   "label": "News (three-panel feeds)"
+  "@context": "https://jeff-zucker.github.io/component-interop/context.jsonld",
+  "@id": "",
+  "@type": "Manifest",
+  "name": "sol-components",
+  "components": {
+    "sol-calendar": {
+      "label": "Calendar",
+      "icon": "📅",
+      "description": "Pop-out month calendar for the button bar.",
+      "shape": "../shapes/calendar-settings.shacl",
+      "data": "../data/calendar-settings.ttl"
+    },
+    "sol-feed": {
+      "label": "News (three-panel feeds)"
+    },
+    "sol-login": {
+      "label": "Sign in"
+    },
+    "sol-search": {
+      "label": "Search",
+      "icon": "🔍",
+      "description": "Search box for the button bar (pluggable search engines).",
+      "shape": "../shapes/search-engines.shacl",
+      "data": "../data/search-engines.ttl"
+    },
+    "sol-solidos": {
+      "icon": "https://solidproject.org/assets/img/solid-emblem.svg"
+    },
+    "sol-time": {
+      "label": "Clock",
+      "icon": "🕐",
+      "description": "Clock widget (timezone in its settings file).",
+      "shape": "../shapes/time-settings.shacl",
+      "data": "../data/time-settings.ttl"
+    },
+    "sol-weather": {
+      "label": "Weather",
+      "icon": "🌤",
+      "description": "Weather widget (location and units in its settings file).",
+      "shape": "../shapes/weather-settings.shacl",
+      "data": "../data/weather-settings.ttl"
+    }
   },
-  "sol-search": {
-   "label": "Search",
-   "icon": "🔍",
-   "description": "Search box for the button bar (pluggable search engines).",
-   "shape": "../shapes/search-engines.shacl",
-   "data": "../data/search-engines.ttl"
+  "attributes": {
+    "data-from-query": {
+      "module": "sol-components/core/from-query.js"
+    },
+    "data-handler": {
+      "module": "sol-components/core/handler.js"
+    },
+    "data-edit-shape": {
+      "module": "sol-components/core/rdf-bundle.js"
+    }
   },
-  "sol-login": {
-   "label": "Sign in"
+  "objects": {
+    "provides": {
+      "store": {
+        "service": "rdf",
+        "sendValue": "store"
+      },
+      "auth": {
+        "service": "auth",
+        "sendValue": "fetch"
+      },
+      "navigation": {
+        "respondTo": "sol-navigate",
+        "sendValue": "detail.url"
+      }
+    },
+    "consumes": {
+      "store": {
+        "call": "rdf.useStore"
+      },
+      "auth": {
+        "call": "adoptFetch"
+      }
+    },
+    "accepts": {
+      "navigation": {
+        "onElement": "sol-query",
+        "applyValueTo": "endpoint"
+      }
+    }
   },
-  "sol-time": {
-   "label": "Clock",
-   "icon": "🕐",
-   "description": "Clock widget (timezone in its settings file).",
-   "shape": "../shapes/time-settings.shacl",
-   "data": "../data/time-settings.ttl"
-  },
-  "sol-weather": {
-   "label": "Weather",
-   "icon": "🌤",
-   "description": "Weather widget (location and units in its settings file).",
-   "shape": "../shapes/weather-settings.shacl",
-   "data": "../data/weather-settings.ttl"
-  },
-  "sol-calendar": {
-   "label": "Calendar",
-   "icon": "📅",
-   "description": "Pop-out month calendar for the button bar.",
-   "shape": "../shapes/calendar-settings.shacl",
-   "data": "../data/calendar-settings.ttl"
-  },
-  "sol-solidos": {
-   "icon": "https://solidproject.org/assets/img/solid-emblem.svg"
+  "stages": {
+    "local": {
+      "components": {
+        "menu-from-rdf": "../web/menu-from-rdf.js",
+        "sol-accordion": "../web/sol-accordion.js",
+        "sol-basic": "../web/sol-basic.js",
+        "sol-breadcrumb": "../web/sol-breadcrumb.js",
+        "sol-button": "../web/sol-button.js",
+        "sol-button-bar-manager": "../web/sol-button-bar-manager.js",
+        "sol-calendar": "../web/sol-calendar.js",
+        "sol-default": "../web/sol-default.js",
+        "sol-dropdown": "../web/sol-dropdown.js",
+        "sol-dropdown-button": "../web/sol-dropdown-button.js",
+        "sol-feed": "../web/sol-feed.js",
+        "sol-form": "../web/sol-form.js",
+        "sol-form-bundle": "../web/sol-form-bundle.js",
+        "sol-gallery": "../web/sol-gallery.js",
+        "sol-include": "../web/sol-include.js",
+        "sol-live-edit": "../web/sol-live-edit.js",
+        "sol-login": "../web/sol-login.js",
+        "sol-menu": "../web/sol-menu.js",
+        "sol-menu-manager": "../web/sol-menu-manager.js",
+        "sol-modal": "../web/sol-modal.js",
+        "sol-plugin-manager": "../web/sol-plugin-manager.js",
+        "sol-pod": "../web/sol-pod.js",
+        "sol-pod-bundle": "../web/sol-pod-bundle.js",
+        "sol-pod-extras": "../web/sol-pod-extras.js",
+        "sol-pod-ops": "../web/sol-pod-ops.js",
+        "sol-query": "../web/sol-query.js",
+        "sol-rolodex": "../web/sol-rolodex.js",
+        "sol-search": "../web/sol-search.js",
+        "sol-settings": "../web/sol-settings.js",
+        "sol-settings-nav": "../web/sol-settings-nav.js",
+        "sol-sheet": "../web/sol-sheet.js",
+        "sol-solidos": "../web/sol-solidos.js",
+        "sol-tabs": "../web/sol-tabs.js",
+        "sol-time": "../web/sol-time.js",
+        "sol-tree-edit": "../web/sol-tree-edit.js",
+        "sol-wac": "../web/sol-wac.js",
+        "sol-weather": "../web/sol-weather.js",
+        "sol-window": "../web/sol-window.js"
+      },
+      "shared-modules": {
+        "rdf-bundle": "../core/rdf-bundle.js",
+        "rdflib": "./vendor/rdflib.js",
+        "dompurify": "./vendor/dompurify.js",
+        "ical.js": "./vendor/ical.js.js",
+        "marked": "./vendor/marked.js",
+        "@comunica/query-sparql": "https://esm.sh/@comunica/query-sparql@5",
+        "solid-ui": "./vendor/solid-ui.js",
+        "solid-logic": "./vendor/solid-logic.js",
+        "@inrupt/solid-client-authn-browser": "./vendor/@inrupt-solid-client-authn-browser.js",
+        "n3": "./vendor/n3.js",
+        "rdf-validate-shacl": "./vendor/rdf-validate-shacl.js",
+        "sol-components/core/": "../core/",
+        "sol-components/sources/": "../sources/",
+        "sol-components/data/": "../data/",
+        "sol-components/": "../web/"
+      }
+    },
+    "cdn": {
+      "components": {
+        "menu-from-rdf": "https://esm.sh/sol-components/web/menu-from-rdf.js",
+        "sol-accordion": "https://esm.sh/sol-components/web/sol-accordion.js",
+        "sol-basic": "https://esm.sh/sol-components/web/sol-basic.js",
+        "sol-breadcrumb": "https://esm.sh/sol-components/web/sol-breadcrumb.js",
+        "sol-button": "https://esm.sh/sol-components/web/sol-button.js",
+        "sol-button-bar-manager": "https://esm.sh/sol-components/web/sol-button-bar-manager.js",
+        "sol-calendar": "https://esm.sh/sol-components/web/sol-calendar.js",
+        "sol-default": "https://esm.sh/sol-components/web/sol-default.js",
+        "sol-dropdown": "https://esm.sh/sol-components/web/sol-dropdown.js",
+        "sol-dropdown-button": "https://esm.sh/sol-components/web/sol-dropdown-button.js",
+        "sol-feed": "https://esm.sh/sol-components/web/sol-feed.js",
+        "sol-form": "https://esm.sh/sol-components/web/sol-form.js",
+        "sol-form-bundle": "https://esm.sh/sol-components/web/sol-form-bundle.js",
+        "sol-gallery": "https://esm.sh/sol-components/web/sol-gallery.js",
+        "sol-include": "https://esm.sh/sol-components/web/sol-include.js",
+        "sol-live-edit": "https://esm.sh/sol-components/web/sol-live-edit.js",
+        "sol-login": "https://esm.sh/sol-components/web/sol-login.js",
+        "sol-menu": "https://esm.sh/sol-components/web/sol-menu.js",
+        "sol-menu-manager": "https://esm.sh/sol-components/web/sol-menu-manager.js",
+        "sol-modal": "https://esm.sh/sol-components/web/sol-modal.js",
+        "sol-plugin-manager": "https://esm.sh/sol-components/web/sol-plugin-manager.js",
+        "sol-pod": "https://esm.sh/sol-components/web/sol-pod.js",
+        "sol-pod-bundle": "https://esm.sh/sol-components/web/sol-pod-bundle.js",
+        "sol-pod-extras": "https://esm.sh/sol-components/web/sol-pod-extras.js",
+        "sol-pod-ops": "https://esm.sh/sol-components/web/sol-pod-ops.js",
+        "sol-query": "https://esm.sh/sol-components/web/sol-query.js",
+        "sol-rolodex": "https://esm.sh/sol-components/web/sol-rolodex.js",
+        "sol-search": "https://esm.sh/sol-components/web/sol-search.js",
+        "sol-settings": "https://esm.sh/sol-components/web/sol-settings.js",
+        "sol-settings-nav": "https://esm.sh/sol-components/web/sol-settings-nav.js",
+        "sol-sheet": "https://esm.sh/sol-components/web/sol-sheet.js",
+        "sol-solidos": "https://esm.sh/sol-components/web/sol-solidos.js",
+        "sol-tabs": "https://esm.sh/sol-components/web/sol-tabs.js",
+        "sol-time": "https://esm.sh/sol-components/web/sol-time.js",
+        "sol-tree-edit": "https://esm.sh/sol-components/web/sol-tree-edit.js",
+        "sol-wac": "https://esm.sh/sol-components/web/sol-wac.js",
+        "sol-weather": "https://esm.sh/sol-components/web/sol-weather.js",
+        "sol-window": "https://esm.sh/sol-components/web/sol-window.js"
+      },
+      "shared-modules": {
+        "rdf-bundle": "https://esm.sh/sol-components/core/rdf-bundle.js",
+        "rdflib": "https://esm.sh/rdflib@2",
+        "dompurify": "https://esm.sh/dompurify@3",
+        "ical.js": "https://esm.sh/ical.js@2",
+        "marked": "https://esm.sh/marked@4",
+        "@comunica/query-sparql": "https://esm.sh/@comunica/query-sparql@5",
+        "solid-ui": "https://esm.sh/solid-ui@3",
+        "solid-logic": "https://esm.sh/solid-logic@4",
+        "@inrupt/solid-client-authn-browser": "https://esm.sh/@inrupt/solid-client-authn-browser@4",
+        "n3": "https://esm.sh/n3@2",
+        "rdf-validate-shacl": "https://esm.sh/rdf-validate-shacl@0.6",
+        "sol-components/core/": "https://esm.sh/sol-components/core/",
+        "sol-components/sources/": "https://esm.sh/sol-components/sources/",
+        "sol-components/data/": "https://esm.sh/sol-components/data/",
+        "sol-components/": "https://esm.sh/sol-components/web/"
+      }
+    }
   }
- },
- "attributes": {
-  "data-from-query": {
-   "module": "sol-components/core/from-query.js"
-  },
-  "data-handler": {
-   "module": "sol-components/core/handler.js"
-  },
-  "data-edit-shape": {
-   "module": "sol-components/core/rdf-bundle.js"
-  }
- },
- "objects": {
-  "provides": {
-   "store": {
-    "service": "rdf",
-    "sendValue": "store"
-   },
-   "auth": {
-    "service": "auth",
-    "sendValue": "fetch"
-   },
-   "navigation": {
-    "respondTo": "sol-navigate",
-    "sendValue": "detail.url"
-   }
-  },
-  "consumes": {
-   "store": {
-    "call": "rdf.useStore"
-   },
-   "auth": {
-    "call": "adoptFetch"
-   }
-  },
-  "accepts": {
-   "navigation": {
-    "onElement": "sol-query",
-    "applyValueTo": "endpoint"
-   }
-  }
- },
- "stages": {
-  "local": {
-   "components": {
-    "menu-from-rdf": "../web/menu-from-rdf.js",
-    "sol-accordion": "../web/sol-accordion.js",
-    "sol-basic": "../web/sol-basic.js",
-    "sol-breadcrumb": "../web/sol-breadcrumb.js",
-    "sol-button": "../web/sol-button.js",
-    "sol-button-bar-manager": "../web/sol-button-bar-manager.js",
-    "sol-calendar": "../web/sol-calendar.js",
-    "sol-default": "../web/sol-default.js",
-    "sol-dropdown-button": "../web/sol-dropdown-button.js",
-    "sol-feed": "../web/sol-feed.js",
-    "sol-form": "../web/sol-form.js",
-    "sol-full": "../web/sol-full.js",
-    "sol-gallery": "../web/sol-gallery.js",
-    "sol-include": "../web/sol-include.js",
-    "sol-live-edit": "../web/sol-live-edit.js",
-    "sol-login": "../web/sol-login.js",
-    "sol-menu": "../web/sol-menu.js",
-    "sol-menu-manager": "../web/sol-menu-manager.js",
-    "sol-modal": "../web/sol-modal.js",
-    "sol-plugin-manager": "../web/sol-plugin-manager.js",
-    "sol-pod": "../web/sol-pod.js",
-    "sol-pod-extras": "../web/sol-pod-extras.js",
-    "sol-pod-ops": "../web/sol-pod-ops.js",
-    "sol-query": "../web/sol-query.js",
-    "sol-rolodex": "../web/sol-rolodex.js",
-    "sol-search": "../web/sol-search.js",
-    "sol-settings": "../web/sol-settings.js",
-    "sol-settings-nav": "../web/sol-settings-nav.js",
-    "sol-sheet": "../web/sol-sheet.js",
-    "sol-solidos": "../web/sol-solidos.js",
-    "sol-tabs": "../web/sol-tabs.js",
-    "sol-time": "../web/sol-time.js",
-    "sol-tree-edit": "../web/sol-tree-edit.js",
-    "sol-wac": "../web/sol-wac.js",
-    "sol-weather": "../web/sol-weather.js",
-    "sol-window": "../web/sol-window.js",
-    "sol-dropdown": "../web/sol-dropdown.js"
-   },
-   "shared-modules": {
-    "rdf-bundle": "../core/rdf-bundle.js",
-    "rdflib": "./vendor/rdflib.js",
-    "dompurify": "./vendor/dompurify.js",
-    "ical.js": "./vendor/ical.js.js",
-    "marked": "./vendor/marked.js",
-    "@comunica/query-sparql": "https://esm.sh/@comunica/query-sparql@5",
-    "solid-ui": "./vendor/solid-ui.js",
-    "solid-logic": "./vendor/solid-logic.js",
-    "@inrupt/solid-client-authn-browser": "./vendor/@inrupt-solid-client-authn-browser.js",
-    "n3": "./vendor/n3.js",
-    "rdf-validate-shacl": "./vendor/rdf-validate-shacl.js",
-    "sol-components/core/": "../core/",
-    "sol-components/sources/": "../sources/",
-    "sol-components/data/": "../data/",
-    "sol-components/": "../web/"
-   }
-  },
-  "cdn": {
-   "components": {
-    "menu-from-rdf": "https://esm.sh/sol-components/web/menu-from-rdf.js",
-    "sol-accordion": "https://esm.sh/sol-components/web/sol-accordion.js",
-    "sol-basic": "https://esm.sh/sol-components/web/sol-basic.js",
-    "sol-breadcrumb": "https://esm.sh/sol-components/web/sol-breadcrumb.js",
-    "sol-button": "https://esm.sh/sol-components/web/sol-button.js",
-    "sol-button-bar-manager": "https://esm.sh/sol-components/web/sol-button-bar-manager.js",
-    "sol-calendar": "https://esm.sh/sol-components/web/sol-calendar.js",
-    "sol-default": "https://esm.sh/sol-components/web/sol-default.js",
-    "sol-dropdown-button": "https://esm.sh/sol-components/web/sol-dropdown-button.js",
-    "sol-feed": "https://esm.sh/sol-components/web/sol-feed.js",
-    "sol-form": "https://esm.sh/sol-components/web/sol-form.js",
-    "sol-full": "https://esm.sh/sol-components/web/sol-full.js",
-    "sol-gallery": "https://esm.sh/sol-components/web/sol-gallery.js",
-    "sol-include": "https://esm.sh/sol-components/web/sol-include.js",
-    "sol-live-edit": "https://esm.sh/sol-components/web/sol-live-edit.js",
-    "sol-login": "https://esm.sh/sol-components/web/sol-login.js",
-    "sol-menu": "https://esm.sh/sol-components/web/sol-menu.js",
-    "sol-menu-manager": "https://esm.sh/sol-components/web/sol-menu-manager.js",
-    "sol-modal": "https://esm.sh/sol-components/web/sol-modal.js",
-    "sol-plugin-manager": "https://esm.sh/sol-components/web/sol-plugin-manager.js",
-    "sol-pod": "https://esm.sh/sol-components/web/sol-pod.js",
-    "sol-pod-extras": "https://esm.sh/sol-components/web/sol-pod-extras.js",
-    "sol-pod-ops": "https://esm.sh/sol-components/web/sol-pod-ops.js",
-    "sol-query": "https://esm.sh/sol-components/web/sol-query.js",
-    "sol-rolodex": "https://esm.sh/sol-components/web/sol-rolodex.js",
-    "sol-search": "https://esm.sh/sol-components/web/sol-search.js",
-    "sol-settings": "https://esm.sh/sol-components/web/sol-settings.js",
-    "sol-settings-nav": "https://esm.sh/sol-components/web/sol-settings-nav.js",
-    "sol-sheet": "https://esm.sh/sol-components/web/sol-sheet.js",
-    "sol-solidos": "https://esm.sh/sol-components/web/sol-solidos.js",
-    "sol-tabs": "https://esm.sh/sol-components/web/sol-tabs.js",
-    "sol-time": "https://esm.sh/sol-components/web/sol-time.js",
-    "sol-tree-edit": "https://esm.sh/sol-components/web/sol-tree-edit.js",
-    "sol-wac": "https://esm.sh/sol-components/web/sol-wac.js",
-    "sol-weather": "https://esm.sh/sol-components/web/sol-weather.js",
-    "sol-window": "https://esm.sh/sol-components/web/sol-window.js",
-    "sol-dropdown": "https://esm.sh/sol-components/web/sol-dropdown.js"
-   },
-   "shared-modules": {
-    "rdf-bundle": "https://esm.sh/sol-components/core/rdf-bundle.js",
-    "rdflib": "https://esm.sh/rdflib@2",
-    "dompurify": "https://esm.sh/dompurify@3",
-    "ical.js": "https://esm.sh/ical.js@2",
-    "marked": "https://esm.sh/marked@4",
-    "@comunica/query-sparql": "https://esm.sh/@comunica/query-sparql@5",
-    "solid-ui": "https://esm.sh/solid-ui@3",
-    "solid-logic": "https://esm.sh/solid-logic@4",
-    "@inrupt/solid-client-authn-browser": "https://esm.sh/@inrupt/solid-client-authn-browser@4",
-    "n3": "https://esm.sh/n3@2",
-    "rdf-validate-shacl": "https://esm.sh/rdf-validate-shacl@0.6",
-    "sol-components/core/": "https://esm.sh/sol-components/core/",
-    "sol-components/sources/": "https://esm.sh/sol-components/sources/",
-    "sol-components/data/": "https://esm.sh/sol-components/data/",
-    "sol-components/": "https://esm.sh/sol-components/web/"
-   }
-  }
- }
 }

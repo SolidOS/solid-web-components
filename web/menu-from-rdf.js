@@ -11,7 +11,7 @@
  *   <sol-tabs from-rdf="./tabs.ttl#Tabs"></sol-tabs>
  *
  * This layer carries no component definitions — load the components themselves
- * (individually, or via an aggregator like sol-full / sol-basic) however you
+ * (individually, or via the sol-basic bundle — which imports this add-on) however you
  * already do. installFromRdfLoader() wires every menu consumer that is or
  * becomes registered, in any import order (see core/menu-consumer.js).
  * sol-dropdown-button inherits the loader from SolMenu via the static prototype

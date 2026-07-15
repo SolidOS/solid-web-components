@@ -92,11 +92,11 @@ function installRawSparqlUpdate(store) {
 // shape whose outer property nests a record shape, e.g. a schema:ItemList) adds
 // the membership triple on the container subject plus the sh:class type;
 // standalone rolodexes derive types from the shape targets as before. When the
-// rolodex is ordered (ui:sortedBy) the new record also gets the next position —
+// rolodex is ordered (ui:sortBy) the new record also gets the next position —
 // without one it sorts last but the reorder arrows can't move it. Pure;
 // exported for unit tests.
 export function buildAddInserts({ subj, docNode, targets = {}, container = null,
-                                  sortedBy = null, dataStore, subjects = [] }) {
+                                  sortBy = null, dataStore, subjects = [] }) {
   const RDF_TYPE = rdf.sym('http://www.w3.org/1999/02/22-rdf-syntax-ns#type');
   const inserts = [];
   if (container) {
@@ -110,12 +110,12 @@ export function buildAddInserts({ subj, docNode, targets = {}, container = null,
       if (ex) inserts.push(rdf.st(subj, p, ex, docNode));
     }
   }
-  if (sortedBy && inserts.length) {
+  if (sortBy && inserts.length) {
     const max = Math.max(0, ...subjects.map((s) => {
-      const n = parseInt(dataStore.anyValue(s, sortedBy, null, docNode), 10);
+      const n = parseInt(dataStore.anyValue(s, sortBy, null, docNode), 10);
       return Number.isFinite(n) ? n : 0;
     }));
-    inserts.push(rdf.st(subj, sortedBy,
+    inserts.push(rdf.st(subj, sortBy,
       rdf.literal(String(max + 1), rdf.sym('http://www.w3.org/2001/XMLSchema#integer')), docNode));
   }
   return inserts;
@@ -472,7 +472,7 @@ class SolForm extends HTMLElement {
         ? store.each(null, containerProp.path, subject, doc).filter(n => n)
         : store.each(subject, containerProp.path, null, doc).filter(n => n);
       this._buildRolodexCards(body, store, doc, subjects,
-                              containerProp.nestedProperties, containerProp.sortedBy, {
+                              containerProp.nestedProperties, containerProp.sortBy, {
         // Editable unless authored no-edit (saving is the server's concern,
         // not the form's). Add/Remove need container semantics — the
         // membership triple and the sh:class type for new records.
@@ -558,19 +558,19 @@ class SolForm extends HTMLElement {
   // detection in _renderFromShape (a shape whose outer property is a
   // multi-valued sh:node onto an inner record shape).
   //
-  // When `sortedBy` (NamedNode) is given, cards are sorted by that
+  // When `sortBy` (NamedNode) is given, cards are sorted by that
   // predicate's integer value on each subject, the matching inner field
   // is hidden, and each card gains ↑/↓ buttons that swap the
-  // `sortedBy` value with the previous / next subject (two-statement
+  // `sortBy` value with the previous / next subject (two-statement
   // PATCH via store.updater.update).
-  _buildRolodexCards(body, dataStore, docNode, subjects, properties, sortedBy = null, opts = {}) {
+  _buildRolodexCards(body, dataStore, docNode, subjects, properties, sortBy = null, opts = {}) {
     adopt(this.shadowRoot, { sheet: rolodexSheet, css: ROLODEX_CSS });
 
     // `lazy` mounts only the active record's form (dispose + rebuild on
     // nav) so a rolodex over hundreds of records stays light; safe because
     // fields autosave (no in-progress state to preserve across a flip).
-    // sortedBy reorder needs neighbouring cards mounted, so it forces eager.
-    const lazy = !!opts.lazy && !sortedBy;
+    // sortBy reorder needs neighbouring cards mounted, so it forces eager.
+    const lazy = !!opts.lazy && !sortBy;
     const editable = !!opts.editable;   // show jump box + Add / Remove
     const targets = opts.targets || {};
     const startIndex = opts.startIndex || 0;
@@ -581,16 +581,16 @@ class SolForm extends HTMLElement {
     subjects = [...subjects];
 
     const sortKey = (subj) => {
-      if (!sortedBy) return 0;
-      const v = dataStore.anyValue(subj, sortedBy, null, docNode);
+      if (!sortBy) return 0;
+      const v = dataStore.anyValue(subj, sortBy, null, docNode);
       const n = parseInt(v, 10);
       return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
     };
-    if (sortedBy) subjects.sort((a, b) => sortKey(a) - sortKey(b));
+    if (sortBy) subjects.sort((a, b) => sortKey(a) - sortKey(b));
 
     // Hide the ordering field from each card — the ↑/↓ buttons own it.
-    const displayProps = sortedBy
-      ? properties.filter(p => !p.path || p.path.value !== sortedBy.value)
+    const displayProps = sortBy
+      ? properties.filter(p => !p.path || p.path.value !== sortBy.value)
       : properties;
     // Label predicate for the jump box: the first scalar field of the shape.
     const labelPred = (displayProps.find(p => p.path) || {}).path || null;
@@ -734,7 +734,7 @@ class SolForm extends HTMLElement {
       };
     } else {
       // Eager: pre-render every card and toggle visibility (preserves widget
-      // state across flips; required for the sortedBy reorder controls).
+      // state across flips; required for the sortBy reorder controls).
       pages = subjects.map(subj => {
         const page = document.createElement('div');
         page.className = 'sol-form-rolodex-page';
@@ -744,7 +744,7 @@ class SolForm extends HTMLElement {
           doc: docNode, onChange: () => onFieldChange(subj),
         }));
 
-        if (sortedBy) {
+        if (sortBy) {
           const reorder = document.createElement('div');
           reorder.className = 'rolodex-reorder';
           const hint = document.createElement('span');
@@ -778,7 +778,7 @@ class SolForm extends HTMLElement {
         pages.forEach((p, j) => { p.hidden = j !== index; });
         counter.textContent = `${index + 1} of ${pages.length}`;
         this._subject = subjects[index];
-        if (sortedBy) {
+        if (sortBy) {
           const cur = pages[index];
           const up = cur.querySelector('.rolodex-reorder-btn[aria-label="Move up"]');
           const dn = cur.querySelector('.rolodex-reorder-btn[aria-label="Move down"]');
@@ -792,11 +792,11 @@ class SolForm extends HTMLElement {
         const j = i + delta;
         if (j < 0 || j >= subjects.length) return;
         const a = subjects[i], b = subjects[j];
-        const litA = dataStore.any(a, sortedBy, null, docNode);
-        const litB = dataStore.any(b, sortedBy, null, docNode);
+        const litA = dataStore.any(a, sortBy, null, docNode);
+        const litB = dataStore.any(b, sortBy, null, docNode);
         if (!litA || !litB) return;
-        const olds = [rdf.st(a, sortedBy, litA, docNode), rdf.st(b, sortedBy, litB, docNode)];
-        const news = [rdf.st(a, sortedBy, litB, docNode), rdf.st(b, sortedBy, litA, docNode)];
+        const olds = [rdf.st(a, sortBy, litA, docNode), rdf.st(b, sortBy, litB, docNode)];
+        const news = [rdf.st(a, sortBy, litB, docNode), rdf.st(b, sortBy, litA, docNode)];
         dataStore.updater.update(olds, news, (_uri, ok) => {
           if (!ok) return;
           [subjects[i], subjects[j]] = [subjects[j], subjects[i]];
@@ -815,7 +815,7 @@ class SolForm extends HTMLElement {
     // Re-run the whole build (used by Add / Remove in eager mode, where the
     // pre-rendered `pages` array can't grow / shrink in place).
     const rebuild = (at) => this._buildRolodexCards(
-      body, dataStore, docNode, subjects, properties, sortedBy,
+      body, dataStore, docNode, subjects, properties, sortBy,
       { ...opts, startIndex: at });
 
     if (addBtn) addBtn.addEventListener('click', () => {
@@ -823,7 +823,7 @@ class SolForm extends HTMLElement {
       const subj = rdf.sym(docNode.value.split('#')[0] + '#' + id);
       const inserts = buildAddInserts({
         subj, docNode, targets, container: opts.container || null,
-        sortedBy, dataStore, subjects,
+        sortBy, dataStore, subjects,
       });
       if (!inserts.length) { console.warn('[sol-form] cannot derive a type for the new record'); return; }
       dataStore.updater.update([], inserts, (_u, ok, msg) => {

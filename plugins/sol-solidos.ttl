@@ -1,0 +1,7 @@
+@prefix ui: <http://www.w3.org/ns/ui#> .
+
+<>
+  a ui:Component ;
+  ui:name "sol-solidos" ;
+  ui:icon <https://solidproject.org/assets/img/solid-emblem.svg> ;
+  ui:module <../web/sol-solidos.js> .

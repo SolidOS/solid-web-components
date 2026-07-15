@@ -10,10 +10,8 @@
   <script src="../web/scripts/prefs.js"></script>
 
   <!-- Loads the components so the live demo on this page works. -->
-  <script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-          data-manifest="../dist/sol-components.manifest.json"
+  <script src="../web/sol-load.js"
           data-components="sol-login"
-          data-stage="local"
   ></script>
 
   <style>
@@ -52,8 +50,7 @@
   <code>sol-login</code> in <code>data-components</code> is what turns on
   logging in:</p>
 
-  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-        data-manifest="../dist/sol-components.manifest.json"
+  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/sol-components/web/sol-load.js"
         data-components="sol-login"&gt;&lt;/script&gt;</code></pre>
 
   <p>Then drop the tag wherever you want the sign-in button to appear:</p>

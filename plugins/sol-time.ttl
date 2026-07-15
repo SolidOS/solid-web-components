@@ -1,0 +1,13 @@
+@prefix dct:    <http://purl.org/dc/terms/> .
+@prefix ui:     <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+
+<>
+  a ui:Component ;
+  ui:name "sol-time" ;
+  ui:label "Clock" ;
+  ui:icon "🕐" ;
+  schema:description "Clock widget (timezone in its settings file)." ;
+  ui:module <../web/sol-time.js> ;
+  dct:conformsTo <../shapes/time-settings.shacl> ;
+  dct:references <../data/time-settings.ttl> .

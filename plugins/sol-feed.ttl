@@ -1,0 +1,7 @@
+@prefix ui: <http://www.w3.org/ns/ui#> .
+
+<>
+  a ui:Component ;
+  ui:name "sol-feed" ;
+  ui:label "News (three-panel feeds)" ;
+  ui:module <../web/sol-feed.js> .

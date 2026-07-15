@@ -12,9 +12,10 @@ const SCHEMA = 'http://schema.org/';
 const ACL    = 'http://www.w3.org/ns/auth/acl#';
 const DCT    = 'http://purl.org/dc/terms/';
 
-// Who made / publishes the thing an item describes (dct:creator /
-// dct:publisher literals) — carried on entries so catalog cards can show a
-// byline; round-tripped by the serializer like every other item field.
+// Who publishes the thing an item describes (a dct:publisher literal) —
+// carried on entries so catalog cards can show a byline; round-tripped by
+// the serializer like every other item field. (dct:creator collapsed into
+// publisher, 2026-07-14.)
 function dctVal(store, subject, localName) {
   const node = store.any(subject, rdf.sym(DCT + localName));
   return node ? node.value : null;
@@ -129,7 +130,6 @@ export function parseMenuItems(store, menuNode) {
     const icon     = rdfVal(store, part, 'icon');
     const region   = regionToken(rdfVal(store, part, 'region'));
     const comment  = rdfsComment(store, part);
-    const creator   = dctVal(store, part, 'creator');
     const publisher = dctVal(store, part, 'publisher');
     // dct:source — the chip's MANIFEST IRI (e.g. plugins/music.ttl). This is the
     // chip's stable identity: a chip is a PLUGIN (one manifest), not a component
@@ -146,13 +146,16 @@ export function parseMenuItems(store, menuNode) {
 
     if (partType && partType.value === componentType.value) {
       const { tag, params } = rdfComponent(store, part);
-      items.push({ type: 'component', id, name: label, icon, region, comment, creator, publisher, requiresWrite, tag, params, manifest });
+      // ui:module — the ES module that defines the tag; lets a renderer
+      // lazy-import an installable component on first mount.
+      const moduleUrl = rdfVal(store, part, 'module');
+      items.push({ type: 'component', id, name: label, icon, region, comment, publisher, requiresWrite, tag, params, module: moduleUrl, manifest });
       continue;
     }
 
     const href     = rdfVal(store, part, 'href');
     const contents = rdfVal(store, part, 'contents');
-    items.push({ type: 'link', id, name: label, icon, region, comment, creator, publisher, requiresWrite, href, contents, manifest });
+    items.push({ type: 'link', id, name: label, icon, region, comment, publisher, requiresWrite, href, contents, manifest });
   }
   return items;
 }

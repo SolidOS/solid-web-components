@@ -20,7 +20,7 @@
     sh:minCount 1 ;
     sh:name "Locations" ;
     sh:description "Locations within Pods - can be storage root or any resource in a Solid storage." ;
-    ui:sortedBy schema:position ;
+    ui:sortBy schema:position ;
   ] .
 
 :PodLocationShape

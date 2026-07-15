@@ -29,9 +29,17 @@ Then open `http://localhost:8080/examples/<page>`.
     element is; `data-edit-mode="collected"` gathers the editor into a
     `<sol-settings>` panel.
 
+- **`sol-load.html`** — components **without component-interop**: one
+  classic `<script src="../web/sol-load.js" data-components="sol-weather
+  sol-time">` tag injects the import map (all paths resolved relative to
+  wherever sol-load.js was loaded from) and imports the named components.
+  Also demonstrates late loading via `window.solLoad('sol-calendar')`.
+  Regenerate the map baked into `web/sol-load.js` with
+  `npm run build:importmaps`.
+
 - **`pod-locations.html`** — an ordered RDF list edited by a shape-driven
   `<sol-form>`: `schema:ItemList` + `schema:ListItem` entries ordered by
-  integer `schema:position`, with `ui:sortedBy` supplying the ↑/↓ reorder
+  integer `schema:position`, with `ui:sortBy` supplying the ↑/↓ reorder
   arrows and Add/Delete minting/removing typed records. Shows the live form
   next to the turtle, the SHACL, and the one-tag HTML that wires them.
   (The same form data-kitchen uses for its pod-locations setting.)

@@ -4,7 +4,7 @@ PREFIX ui: <http://www.w3.org/ns/ui#>
 
 shape <#IssuerListShape> -> schema:ItemList {
     schema:name xsd:string [0..1] % sh:name "List label" % .
-    schema:itemListElement schema:ListItem [1..*] @<#IssuerShape> % sh:name "Sign-in issuers" ; sh:description "Solid OIDC issuers offered on sign-in; position 1 is the default." ; ui:sortedBy schema:position % .
+    schema:itemListElement schema:ListItem [1..*] @<#IssuerShape> % sh:name "Sign-in issuers" ; sh:description "Solid OIDC issuers offered on sign-in; position 1 is the default." ; ui:sortBy schema:position % .
 }
 shape <#IssuerShape> {
     schema:name xsd:string [0..1] % sh:name "Label" % .

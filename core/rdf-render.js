@@ -88,17 +88,28 @@ export function dispatchCommand(host, command, params, regionCtx = {}) {
  * @param {string} baseUrl    importing component's import.meta.url
  * @param {string} sourceName host tag name, for the warning / event
  */
-export function ensureHandler(tag, host, baseUrl, sourceName) {
-  if (!/^sol-[a-z-]+$/.test(tag)) return;
+export function ensureHandler(tag, host, baseUrl, sourceName, moduleUrl = null) {
   if (customElements.get(tag)) return;
-  import(siblingUrl(`./${tag}.js`, baseUrl)).catch(err => {
+  const fail = (err) => {
     const msg = `<${sourceName}> could not auto-load handler "${tag}" — make sure its module is reachable and any externals are in the importmap (${err.message})`;
     console.warn(msg);
     if (host) host.dispatchEvent(new CustomEvent('sol-error', {
       bubbles: true, composed: true,
       detail: { source: sourceName, kind: 'handler-load', tag, message: err.message },
     }));
-  });
+  };
+  // ui:module — an installable component names its own ES module; import it
+  // for ANY tag. http(s) only: the page's CSP decides which origins may run.
+  if (moduleUrl) {
+    if (!/^https?:/.test(moduleUrl)) {
+      fail(new Error(`ui:module must be an http(s) URL, got ${moduleUrl}`));
+      return;
+    }
+    import(/* webpackIgnore: true */ moduleUrl).catch(fail);
+    return;
+  }
+  if (!/^sol-[a-z-]+$/.test(tag)) return;
+  import(siblingUrl(`./${tag}.js`, baseUrl)).catch(fail);
 }
 
 /**
@@ -115,7 +126,10 @@ export function renderComponentItem(desc, ctx) {
   return (body) => {
     const { id, name, tag, params } = desc;
     if (!tag) return;
-    const ensure = (t) => ensureHandler(t, ctx.host, ctx.baseUrl, ctx.sourceName);
+    // desc.module (ui:module) rides along so an installable component's own
+    // ES module is imported on first mount — no import-map entry needed.
+    const ensure = (t) => ensureHandler(t, ctx.host, ctx.baseUrl, ctx.sourceName,
+                                        t === tag ? desc.module : null);
     ensure(tag);
     displayItem({
       launcher: ctx.host, id, name: name || id,

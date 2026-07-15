@@ -1,8 +1,7 @@
 /**
- * sol-basic.js — bundle entry: the no-RDF, html-first tier.
+ * sol-basic.js — bundle entry: the everyday UI tier.
  *
- * Registers the everyday UI primitives that work from plain HTML and never
- * need the RDF / Solid stack at runtime:
+ * Registers the everyday UI primitives that work from plain HTML:
  *   sol-button, sol-dropdown-button, sol-include, sol-menu, sol-tabs,
  *   sol-accordion, sol-rolodex
  * …plus the registered-by-tag helpers these conjure / instantiate at runtime:
@@ -17,17 +16,16 @@
  * editing stack — loaded via component-interop's `rdf` capability (or the importmap +
  * module recipe). sol-menu conjures sol-tree-edit by tag when it's present.
  *
- * Deliberately NOT here (they need the RDF / Solid stack):
- *   sol-login, sol-form, sol-settings, sol-query, sol-solidos.
- * Also NOT here: `menu-from-rdf` — driving the menu family from RDF is the
- * opt-in add-on that pulls rdflib; import the `menu-from-rdf` module (it
- * resolves via the importmap) when a page wants `from-rdf`. Keeping it out is
- * what keeps this tier truly dependency-free.
- *
- * dompurify and marked (sol-include's sanitiser / Markdown renderer) are the
- * only third-party code, and they're bundled IN. There is no rdflib peer.
+ * Deliberately NOT here (the heavier Solid stacks):
+ *   sol-login, sol-form, sol-settings, sol-query, sol-solidos — see
+ *   sol-form-bundle (editing) and sol-pod-bundle (pods).
+ * `menu-from-rdf` IS included (2026-07-14): the menu family drives from RDF
+ * out of the box, so `from-rdf` works with just this bundle. It pulls
+ * rdflib through the importmap; pages that want the old truly-rdflib-free
+ * tier can import the individual components instead.
  */
 
+import './menu-from-rdf.js';  // from-rdf activation for the menu family (pulls rdflib)
 import './sol-include.js';
 import './sol-button.js';
 import './sol-dropdown-button.js';

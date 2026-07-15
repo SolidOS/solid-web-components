@@ -28,7 +28,7 @@
       "node": "./node/sol-menu.js",
       "default": "./web/sol-menu.js"
     },
-    "./web": "./web/sol-full.js",
+    "./web": "./web/sol-basic.js",
     "./web/*": "./web/*",
     "./node/*": "./node/*",
     "./core/*": "./core/*",
@@ -48,16 +48,18 @@
     "README.md",
     "LICENSE",
     "!**/*~",
-    "!**/*.swp"
+    "!**/*.swp",
+    "plugins/"
   ],
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
     "test:ci": "node --experimental-vm-modules node_modules/.bin/jest",
     "build:importmaps": "node tools/build-importmaps.mjs",
     "build:vendor": "node tools/vendor.mjs",
-    "build": "npm run build:importmaps && npm run build:vendor",
+    "build": "npm run build:manifest && npm run build:importmaps && npm run build:vendor",
     "lint": "eslint .",
-    "docs": "jsdoc -c jsdoc.config.json"
+    "docs": "jsdoc -c jsdoc.config.json",
+    "build:manifest": "node tools/build-manifest.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.0",

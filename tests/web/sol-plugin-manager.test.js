@@ -213,9 +213,9 @@ describe('SolPluginManager — card rendering (seeded _items)', () => {
     expect(card.title).toBe('does things');
   });
 
-  test('a creator byline shows in italics at the foot of the card', async () => {
+  test('a publisher byline shows in italics at the foot of the card', async () => {
     const el = await mount();
-    el._items = [{ type: 'component', id: 'a', name: 'Alpha', tag: 'sol-a', params: [], creator: 'Ada' }];
+    el._items = [{ type: 'component', id: 'a', name: 'Alpha', tag: 'sol-a', params: [], publisher: 'Ada' }];
     el._render();
     expect(cardEls(el)[0].querySelector('.card-byline').textContent).toBe('Ada');
   });

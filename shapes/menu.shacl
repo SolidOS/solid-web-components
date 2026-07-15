@@ -147,11 +147,24 @@
     sh:description "One-sentence user-facing description" ;
   ] ;
   sh:property [
-    sh:path dcterms:creator ;
+    sh:path dcterms:conformsTo ;
     sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "creator" ;
-    sh:description "Who made the linked resource" ;
+    sh:nodeKind sh:IRI ;
+    sh:name "shape" ;
+    sh:description "SHACL shape the item's settings/data conform to" ;
+  ] ;
+  sh:property [
+    sh:path dcterms:references ;
+    sh:nodeKind sh:IRI ;
+    sh:name "data" ;
+    sh:description "The data document(s) it reads/writes" ;
+  ] ;
+  sh:property [
+    sh:path schema:softwareHelp ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:name "help" ;
+    sh:description "USER online help (not developer docs)" ;
   ] ;
   sh:property [
     sh:path dcterms:publisher ;
@@ -187,6 +200,13 @@
     sh:datatype xsd:string ;
     sh:name "name" ;
     sh:description "Custom element tag name (hyphenated, e.g. 'sol-query'), OR a hyphen-free command key (e.g. 'installPod') dispatched as a sol-command event for the host app to handle" ;
+  ] ;
+  sh:property [
+    sh:path ui:module ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:name "module" ;
+    sh:description "The ES module that defines ui:name's element. Absent for components the page already loads (e.g. via the import map); present on installable/third-party ones." ;
   ] ;
   sh:property [
     sh:path ui:attribute ;
@@ -255,13 +275,6 @@
     sh:nodeKind sh:IRI ;
     sh:name "help" ;
     sh:description "USER online help (not developer docs)" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:creator ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "creator" ;
-    sh:description "Who made the component" ;
   ] ;
   sh:property [
     sh:path dcterms:publisher ;

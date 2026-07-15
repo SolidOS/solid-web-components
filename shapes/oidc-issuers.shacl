@@ -20,7 +20,7 @@
     sh:minCount 1 ;
     sh:name "Sign-in issuers" ;
     sh:description "Solid OIDC issuers offered on sign-in; position 1 is the default." ;
-    ui:sortedBy schema:position ;
+    ui:sortBy schema:position ;
   ] .
 
 :IssuerShape

@@ -174,8 +174,47 @@ class AuthManager {
       this.sessionFor(pendingTag);
     }
 
+    // The map can hold session-SHAPED objects that are not OIDC sessions —
+    // dk's synthetic local-owner session, popup proxies — which have no
+    // handleIncomingRedirect. Skip them instead of crashing initialize().
     for (const [, session] of this.sessions) {
+      if (typeof session.handleIncomingRedirect !== 'function') continue;
       await session.handleIncomingRedirect(window.location.href);
+    }
+
+    // Tier-1 boot restore (redirect mode): after a full app restart the
+    // session map starts empty, but solid-client-authn kept the last
+    // session's tokens in localStorage under its deterministic
+    // sol_&lt;tag>_&lt;origin> id — reachable again through the persisted
+    // side-origins. Recreate THE stored session and ask for a silent
+    // restore: with a refresh token this completes with no UI and no
+    // navigation; without one it may bounce via the IdP (prompt=none),
+    // and a failed bounce is one-shot (the host clears the stored state
+    // on an ?error= callback — dk's wormhole guard does).
+    let storedId = null;
+    try { storedId = localStorage.getItem('solidClientAuthn:currentSession'); } catch (_) {}
+    if (storedId) {
+      for (const [tag, origin] of Object.entries(this._sideOrigins)) {
+        if (this._sessionId(tag, origin) !== storedId) continue;
+        // The tag may be held by a non-OIDC session-shaped object — dk's
+        // synthetic local owner sits on 'default' at every boot. Restore
+        // into a REAL session constructed off-map, and seat it on the tag
+        // only when the restore actually logs in: a failed restore must
+        // leave the synthetic (and local-pod fetches) untouched.
+        let session = this.sessions.get(tag);
+        const isOidc = session &amp;&amp; typeof session.handleIncomingRedirect === 'function';
+        if (isOidc &amp;&amp; session.info?.isLoggedIn) break;      // already live
+        if (!isOidc) session = this._makeSession(storedId);
+        try {
+          await session.handleIncomingRedirect({ restorePreviousSession: true, url: window.location.href });
+        } catch (e) {
+          console.warn('[sol-login] session restore failed:', e?.message || e);
+        }
+        if (session.info?.isLoggedIn &amp;&amp; this.sessions.get(tag) !== session) {
+          this.sessions.set(tag, session);
+        }
+        break;
+      }
     }
   }
 
@@ -183,11 +222,23 @@ class AuthManager {
     if (this.isNoAuth(url)) return true;
     const origin = this.originOf(url);
     this.setSideOrigin(tag, url);
-    const session = this.sessionFor(tag, origin);
-    if (session.info.isLoggedIn) return true;
+    let session = this.sessionFor(tag, origin);
+    // Already signed in only counts when the session COVERS the requested
+    // origin. dk's synthetic local-owner session holds 'default' with
+    // isLoggedIn=true but covers just the local pod — it must not swallow a
+    // login to a remote issuer (the tap would silently do nothing).
+    if (session.info.isLoggedIn &amp;&amp; sessionCoversOrigin(session, origin)) return true;
 
     for (const [, s] of this.sessions) {
       if (sessionCoversOrigin(s, origin)) return true;
+    }
+
+    // The tag may be held by a session-shaped object that cannot run an OIDC
+    // login (synthetic owner session, popup proxy). Mint a real session for
+    // this origin in its place before starting the flow.
+    if (typeof session.login !== 'function') {
+      session = this._makeSession(this._sessionId(tag, origin));
+      this.sessions.set(tag, session);
     }
 
     try { localStorage.setItem('solLoginPendingTag', tag); } catch (e) {}
@@ -201,6 +252,21 @@ class AuthManager {
 // podz's per-side login elements register into a single session Map.
 // Single-login pages are unaffected (one consumer of the singleton).
 const sharedAuth = new AuthManager();
+
+// Environments with no multi-window support — Android System WebView (the
+// engine under Flutter/Cordova app shells; "; wv)" UA token) — cannot run
+// popup-mode login at all: window.open() there is swallowed or becomes a
+// same-frame navigation, so the popup ↔ opener postMessage contract never
+// completes, and by the time window.open returns the shell may already be
+// navigating away — too late to react. So detect up front and coerce popup
+// mode back to the classic full-page redirect. Such shells already route the
+// redirect round-trip: the IdP lands back on this page, where initialize()'s
+// handleIncomingRedirect completes the session. Electron (which turns login
+// popups into real windows) and desktop browsers carry no "wv" token and are
+// unaffected.
+function popupsUnavailable() {
+  try { return /;\s*wv\)/.test(navigator.userAgent); } catch (e) { return false; }
+}
 
 // Publish auth to the ecosystem: expose AuthManager on the global (consumers in
 // core/auth-fetch.js + web/sol-include.js already READ window.SolidWebComponents
@@ -229,6 +295,9 @@ try {
  *     Session; the parent talks to it via a PopupProxySession. Lets
  *     multiple &lt;sol-login side="..."> elements hold independent sessions
  *     in one tab. See core/popup-proxy.js and popup-auth-callback.html.
+ *     In environments that cannot open popup windows at all (Android
+ *     System WebView under app shells — see popupsUnavailable()), popup
+ *     mode is coerced back to "redirect" automatically.
  *
  * @class SolLogin
  * @extends HTMLElement
@@ -278,6 +347,7 @@ class SolLogin extends HTMLElement {
     this._popupCallback = new URL('./popup-auth-callback.html', import.meta.url).href;
     this._popupWindow = null;
     this._popupMsgHandler = null;
+    this._initPromise = null;
   }
 
   get auth() { return this._auth; }
@@ -327,6 +397,7 @@ class SolLogin extends HTMLElement {
     if (!this._initialized) {
       this._initialized = true;
       this._mode = (this.getAttribute('mode') || 'redirect').toLowerCase();
+      if (this._mode === 'popup' &amp;&amp; popupsUnavailable()) this._mode = 'redirect';
       this._side = this.getAttribute('side') || 'default';
       const cb = this.getAttribute('popup-callback');
       if (cb) this._popupCallback = cb;
@@ -341,6 +412,14 @@ class SolLogin extends HTMLElement {
     }
     this._attachAuthNeededListener();
     this._setupAuthChannel();
+    // Kick the auth boot from the element itself: the module-load
+    // bootSolLogin() below only catches a sol-login already in the DOM when
+    // sol-login.js is imported — one mounted later (dk's chrome builds after
+    // the loader ran) was never initialized, so redirect-callback processing
+    // and the Tier-1 boot session restore silently never happened.
+    // initialize() is single-flight, so hosts that call it themselves
+    // (podz) are unaffected; set _manualInit to opt out entirely.
+    if (!this._manualInit) Promise.resolve().then(() => this.initialize()).catch(() => {});
   }
 
   disconnectedCallback() {
@@ -514,6 +593,7 @@ class SolLogin extends HTMLElement {
       this._renderIssuers();
     } else if (name === 'mode' &amp;&amp; this._initialized) {
       this._mode = (newV || 'redirect').toLowerCase();
+      if (this._mode === 'popup' &amp;&amp; popupsUnavailable()) this._mode = 'redirect';
     } else if (name === 'side' &amp;&amp; this._initialized) {
       this._side = newV || 'default';
       this._updateUI();
@@ -522,10 +602,14 @@ class SolLogin extends HTMLElement {
     }
   }
 
-  async login(issuerUrl, tag = 'default') {
+  async login(issuerUrl, tag = this._side) {
     if (this._mode === 'popup') {
       return this._popupLogin(issuerUrl);
     }
+    // Default the session tag to this element's side (usually 'default'): a
+    // side-tagged element (podz left/right) coerced to redirect mode must not
+    // fight over the 'default' tag — on dk that slot holds the synthetic
+    // local-owner session.
     await this._auth.ensureAuthenticated(issuerUrl, tag);
   }
 
@@ -622,7 +706,19 @@ class SolLogin extends HTMLElement {
     }
   }
 
-async initialize(tags = ['default']) {
+initialize(tags = ['default']) {
+  // Single-flight: the embedding component's mount (sol-pod) and the host's
+  // own boot path (podz handleRedirect) BOTH call initialize(). Two
+  // concurrent runs raced the OIDC code exchange — one consumed the ?code,
+  // the other errored or no-oped and could paint the button from a
+  // not-yet-logged-in snapshot, leaving "Log in" on a logged-in session.
+  // Concurrent callers now share one run.
+  if (this._initPromise) return this._initPromise;
+  this._initPromise = this._doInitialize(tags);
+  return this._initPromise;
+}
+
+async _doInitialize(tags = ['default']) {
   if (this._mode === 'popup') {
     // PR 1: no cross-reload persistence — nothing to restore on boot.
     this._updateUI();
@@ -632,17 +728,29 @@ async initialize(tags = ['default']) {
   for (const tag of tags) {
     this._auth.sessionFor(tag);
   }
-  await this._auth.handleIncomingRedirect();
+  // The button must ALWAYS end up painted from the real session state, even
+  // when redirect processing throws (e.g. an already-consumed code).
+  try {
+    await this._auth.handleIncomingRedirect();
+  } catch (e) {
+    console.warn('[sol-login] incoming-redirect processing failed:', e?.message || e);
+  }
   this._updateUI();
   this._integrateWithRdflib();
 
-  const firstSession = this._auth.getFirstLoggedIn();
-  if (firstSession) {
+  // Announce the session THIS element displays (its own side first) — on a
+  // host with a synthetic always-on session under 'default' (dk's local
+  // owner), getFirstLoggedIn() would announce the owner instead of the user
+  // who just completed the redirect, and listeners like sol-pod's
+  // storage adoption would walk the wrong profile.
+  const session = this._displaySession() || this._auth.getFirstLoggedIn();
+  if (session?.info?.isLoggedIn) {
     this.dispatchEvent(new CustomEvent('sol-login', {
       bubbles: true, composed: true,
       detail: {
-        webId: firstSession.info.webId,
-        issuer: firstSession.info.issuer
+        webId: session.info.webId,
+        issuer: session.info.issuer,
+        side: this._side,
       }
     }));
   }
@@ -769,14 +877,25 @@ _integrateWithRdflib() {
     // true whenever the host reports a "kitchen"/owner session. Using the
     // getter made a popup-mode button that still shows "Log in" wrongly call
     // logout() on click: no dropdown opened, so it looked like nothing happened.
-    const session = this._mode === 'popup'
-      ? this._sideSession()
-      : this._auth.getFirstLoggedIn();
+    // Redirect mode is side-scoped for the same reason: on dk, 'default' holds
+    // the synthetic local-owner session, and a first-logged-in basis turned a
+    // side-tagged Log in button into a silent logout().
+    const session = this._displaySession();
     if (session &amp;&amp; session.info &amp;&amp; session.info.isLoggedIn) {
       this.logout();
     } else {
       this._toggleDropdown();
     }
+  }
+
+  /** The session this element's button/label reflects: its own side's session,
+   *  falling back (redirect mode only) to any logged-in session when this
+   *  element's side has none and the side IS the shared 'default' tag. */
+  _displaySession() {
+    if (this._mode === 'popup') return this._sideSession();
+    const own = this._sideSession();
+    if (own?.info?.isLoggedIn) return own;
+    return this._side === 'default' ? this._auth.getFirstLoggedIn() : own;
   }
 
   _toggleDropdown() {
@@ -877,9 +996,7 @@ _updateUI() {
   const btn = this.shadowRoot.querySelector('.auth-btn');
   if (!status || !btn) return;
 
-  const session = this._mode === 'popup'
-    ? this._sideSession()
-    : this._auth.getFirstLoggedIn();
+  const session = this._displaySession();
   // The WebID is surfaced only as the button's hover title, never as
   // visible page text.
   status.textContent = '';
@@ -926,13 +1043,13 @@ export default SolLogin;
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Tue Jul 14 2026 15:58:03 GMT-0700 (Pacific Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

@@ -45,6 +45,7 @@ const MENU_TTL = `
 <#aTrusted> schema:name "trusted" ; schema:value "true" .
 
 <#Podz> a ui:Component ; ui:label "Podz" ; ui:name "dk-podz" ;
+  ui:module <https://pod.example/plugins/podz/dk-podz.esm.js> ;
   acl:mode acl:Write .
 
 <#Sub> a ui:Menu ; ui:label "More" ; ui:parts <#sl1> .
@@ -206,3 +207,15 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
  * rdflib in the browser parses both forms identically into the same triples the
  * loader walks, so the parsing logic exercised here is the production logic.
  */
+
+describe('ui:module on component items', () => {
+  test('parseMenuItems surfaces ui:module as `module` (absolute IRI)', async () => {
+    global.fetch = turtleFetchStub();
+    const { loadMenuFromUri } = await import('../../core/menu-rdf.js');
+    const menu = await loadMenuFromUri(DOC_URL + '#Main');
+    const podz = menu.items.find((i) => i.name === 'Podz');
+    expect(podz.module).toBe('https://pod.example/plugins/podz/dk-podz.esm.js');
+    const home = menu.items.find((i) => i.name === 'Home');
+    expect(home.module).toBeNull();                 // absent stays null
+  });
+});

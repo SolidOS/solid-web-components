@@ -41,12 +41,15 @@ shape <#LinkShape> -> ui:Link ;
     ui:region IRI [0..1] % sh:name "region" ; sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" % .
     ui:hoverTitle xsd:string [0..1] % sh:name "hover title" ; sh:description "Hover / advisory text (HTML title semantics)" % .
     schema:description xsd:string [0..1] % sh:name "description" ; sh:description "One-sentence user-facing description" % .
-    dcterms:creator xsd:string [0..1] % sh:name "creator" ; sh:description "Who made the linked resource" % .
+    dcterms:conformsTo IRI [0..1] % sh:name "shape" ; sh:description "SHACL shape the item's settings/data conform to" % .
+    dcterms:references IRI % sh:name "data" ; sh:description "The data document(s) it reads/writes" % .
+    schema:softwareHelp IRI [0..1] % sh:name "help" ; sh:description "USER online help (not developer docs)" % .
     dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the linked resource" % .
 }
 shape <#ComponentShape> -> ui:Component {
     ui:label xsd:string [0..1] % sh:name "label" ; sh:description "Display name shown in the menu / palette. Optional here (manifest entries may omit it); items reachable from a ui:Menu must have one (see :MenuItemShape)" % .
     ui:name xsd:string [1..1] % sh:name "name" ; sh:description "Custom element tag name (hyphenated, e.g. 'sol-query'), OR a hyphen-free command key (e.g. 'installPod') dispatched as a sol-command event for the host app to handle" % .
+    ui:module IRI [0..1] % sh:name "module" ; sh:description "The ES module that defines ui:name's element. Absent for components the page already loads (e.g. via the import map); present on installable/third-party ones." % .
     ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "Attributes passed to the element (or args for a command) as schema:PropertyValue pairs" % .
     ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
     acl:mode IRI in=[acl:Read acl:Write acl:Append acl:Control] % sh:name "access mode" ; sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." % .
@@ -57,7 +60,6 @@ shape <#ComponentShape> -> ui:Component {
     dcterms:conformsTo IRI [0..1] % sh:name "shape" ; sh:description "SHACL shape the component's data conforms to" % .
     dcterms:references IRI % sh:name "data" ; sh:description "The data document(s) it reads/writes" % .
     schema:softwareHelp IRI [0..1] % sh:name "help" ; sh:description "USER online help (not developer docs)" % .
-    dcterms:creator xsd:string [0..1] % sh:name "creator" ; sh:description "Who made the component" % .
     dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the component" % .
 }
 shape <#PropertyValueShape> {

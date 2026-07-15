@@ -13,70 +13,72 @@
 
   <h1>Loading the components</h1>
 
-  <p>The loader is one <code>&lt;script&gt;</code> tag you add near the top of
-  your page. It reads a <em>manifest</em> that describes the components, makes
-  them available, and then you can use tags like <code>&lt;sol-button&gt;</code>
+  <p>Loading is one <code>&lt;script&gt;</code> tag you add near the top of
+  your page; after it, you can use tags like <code>&lt;sol-button&gt;</code>
   or <code>&lt;sol-menu&gt;</code> anywhere in your HTML.</p>
 
   <h2>The loader tag</h2>
-  <p>Add it once, in the <code>&lt;head&gt;</code> of your page:</p>
-<pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-        data-stage="local"
-        data-manifest="../dist/sol-components.manifest.json"
-        data-components="sol-basic sol-feed"
-&gt;&lt;/script&gt;</code></pre>
+  <p>Add it once, in the <code>&lt;head&gt;</code> of your page, before any
+  other <code>&lt;script type="module"&gt;</code>:</p>
+<pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/sol-components/web/sol-load.js"
+        data-components="sol-basic sol-feed"&gt;&lt;/script&gt;</code></pre>
 
-  <p>It has three knobs:</p>
-  <ul>
-    <li><code>data-manifest</code> — the manifest that describes the components.
-    The loader knows nothing about any one library on its own; this is what
-    points it at sol-components (list several manifests to mix libraries).</li>
-    <li><code>data-components</code> — the components (or bundles) you want; each
-    token is a tag name like <code>sol-feed</code>, or a bundle name like
-    <code>sol-basic</code> for the everyday UI. Use <code>*</code> for everything
-    the manifest offers.</li>
-    <li><code>data-stage</code> — where the code is loaded from:
-    <code>local</code> for files you host yourself, <code>cdn</code> for loading
-    over the internet, or <code>auto</code> to pick local on localhost and cdn
-    elsewhere.</li>
-  </ul>
+  <p><code>data-components</code> names the components (or bundles) you want:
+  each token is a tag name like <code>sol-feed</code>, or a bundle name —
+  <code>sol-basic</code> (the everyday UI, RDF-driven menus included),
+  <code>sol-pod-bundle</code> (pod browsing), <code>sol-form-bundle</code>
+  (the RDF editing stack).</p>
 
-  <p>You don't switch capabilities on by hand any more. A data capability like
-  editing loads automatically when the attribute that needs it appears on the
-  page — for example, <code>data-edit-shape</code> pulls in the editing stack,
-  and <code>data-from-query</code> pulls in the query engine. To guarantee a
-  capability is present up front, just name its component in
-  <code>data-components</code> (see the table below).</p>
+  <p>There is no local/CDN switch: everything loads relative to wherever
+  <code>sol-load.js</code> itself came from. Load it from the CDN and the
+  components come from the CDN; host the package yourself (say at
+  <code>/node_modules/sol-components/</code>) and point <code>src</code>
+  there, and everything is served by you:</p>
+<pre><code>&lt;script src="/node_modules/sol-components/web/sol-load.js"
+        data-components="sol-basic sol-feed"&gt;&lt;/script&gt;</code></pre>
 
   <h2>Run your code when it's ready</h2>
-  <p>If you have JavaScript that uses the components, wait for them to be ready
-  first:</p>
-<pre><code>&lt;script&gt;
-  await SolidWebComponents.ready;
+  <p>If you have JavaScript that uses the components, wait for them to be
+  ready first:</p>
+<pre><code>&lt;script type="module"&gt;
+  await window.solLoadReady;
   // your code here
 &lt;/script&gt;</code></pre>
-  <p>If you'd rather listen for an event, the loader fires
-  <code>swc:ready</code> on the document when everything is loaded.</p>
+  <p>Components can also be loaded on demand from code —
+  <code>window.solLoad('sol-calendar')</code> returns a promise for the
+  import.</p>
 
-  <h2>Component / capability reference</h2>
-  <p>A quick guide to which <code>data-components</code> tokens to use for what
-  you want to build.</p>
+  <h2>Component reference</h2>
+  <p>A quick guide to which <code>data-components</code> tokens to use for
+  what you want to build.</p>
   <table class="attr-table">
     <thead><tr><th>You want…</th><th><code>data-components</code></th><th>It pulls in for you</th></tr></thead>
     <tbody>
       <tr><td>The everyday UI (button, dropdown-button, include, menu, tabs, accordion, rolodex, modal, window, default)</td><td><code>sol-basic</code></td><td>the basic UI components</td></tr>
-      <tr><td>Drive the menu/tabs family from a data file</td><td><code>sol-basic menu-from-rdf</code></td><td>+ data support</td></tr>
+      <tr><td>Drive the menu/tabs family from a data file</td><td><code>sol-basic</code></td><td>from-rdf is built in</td></tr>
       <tr><td>A widget (time, weather, search, calendar, feed, gallery)</td><td><code>sol-feed</code> (etc.)</td><td>that widget and what it needs</td></tr>
-      <tr><td>Pods (pod, live-edit; pod-ops + wac as sol-pod-extras)</td><td><code>sol-pod sol-pod-extras sol-live-edit</code></td><td>the pod components</td></tr>
+      <tr><td>Pods (browser, file ops, sharing, live editor)</td><td><code>sol-pod-bundle</code></td><td>sol-pod + sol-pod-ops + sol-wac + sol-live-edit</td></tr>
       <tr><td>Sign-in</td><td><code>sol-login</code></td><td>sol-login</td></tr>
-      <tr><td>Query from any element (the <code>data-from-query</code> attribute)</td><td><em>nothing — the attribute auto-loads it</em></td><td>the query engine (Comunica)</td></tr>
-      <tr><td>The <code>&lt;sol-query&gt;</code> component</td><td><code>sol-query</code></td><td>sol-query</td></tr>
-      <tr><td>The editing components (sol-tree-edit, sol-form, sol-modal, sol-settings)</td><td><code>rdf-bundle</code></td><td>the editing components</td></tr>
+      <tr><td>The <code>&lt;sol-query&gt;</code> component</td><td><code>sol-query</code></td><td>sol-query + the query engine (Comunica)</td></tr>
+      <tr><td>The editing components</td><td><code>sol-form-bundle</code></td><td>sol-form + sol-tree-edit + sol-settings + solid-ui</td></tr>
     </tbody>
   </table>
   <p>Add a <code>&lt;sol-login&gt;</code> to the page and, once the user is
   signed in, the data components automatically use that sign-in — no wiring
   needed.</p>
+
+  <h2>When to use the component-interop broker instead</h2>
+  <p>The tag above is all a page of sol-components needs. The
+  <a href="https://github.com/jeff-zucker/component-interop">component-interop</a>
+  loader does the same job through a <em>manifest</em>, and adds what a
+  multi-library page needs: mixing independently-authored component
+  libraries, sharing capabilities between them (one sign-in, one RDF store),
+  and attribute-driven capabilities that auto-load when an attribute like
+  <code>data-from-query</code> or <code>data-edit-shape</code> appears — see
+  <a href="shared-resources.html">Shared resources</a> and
+  <a href="authoring-components.html">Authoring components</a>. If both
+  loaders end up on one page, whichever ran first wins; sol-load steps aside
+  when an import map is already present.</p>
 
   <p>Once the components are loaded, see <a href="common-attributes.html">Common
   attributes</a> for the options most of them share.</p>

@@ -20,8 +20,7 @@
   <h2>Use it in your HTML</h2>
   <p>Add this line once, near the top of your page — it makes the components
   available:</p>
-  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-        data-manifest="../dist/sol-components.manifest.json"
+  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/sol-components/web/sol-load.js"
         data-components="sol-pod"&gt;&lt;/script&gt;</code></pre>
   <p>Then drop the tag in. With no <code>source</code> it finds the pods for the
   signed-in user on its own:</p>
@@ -73,7 +72,7 @@
   JavaScript — that's what the live demo above does, showing the item's details
   in the box under the browser:</p>
   <pre><code>&lt;script type="module"&gt;
-  await SolidWebComponents.ready;
+  await window.solLoadReady;
   const pod = document.querySelector('sol-pod');
   pod.podClickAction = (item) =&gt; {
     console.log('picked', item.name, item.url);
@@ -81,13 +80,11 @@
 &lt;/script&gt;</code></pre>
 
   <!-- Loads the components so the live demo on this page works. -->
-  <script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-          data-manifest="../dist/sol-components.manifest.json"
-          data-stage="local"
+  <script src="../web/sol-load.js"
           data-components="sol-pod"
   ></script>
   <script type="module">
-    await SolidWebComponents.ready;
+    await window.solLoadReady;
     const pod = document.querySelector('sol-pod');
     pod.podClickAction = (item) => {
       document.body.querySelector('#results').innerHTML =

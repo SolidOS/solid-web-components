@@ -109,7 +109,6 @@ function emitItem(store, docUrl, doc, item, taken) {
 
   if (item.name != null) store.add(node, ui('label'), rdf.literal(String(item.name)), doc);
   if (item.comment) store.add(node, rdfs('comment'), rdf.literal(String(item.comment)), doc);
-  if (item.creator) store.add(node, rdf.sym(DCT + 'creator'), rdf.literal(String(item.creator)), doc);
   if (item.publisher) store.add(node, rdf.sym(DCT + 'publisher'), rdf.literal(String(item.publisher)), doc);
   // dct:source = the chip's MANIFEST IRI (its stable identity), emitted as a
   // RESOURCE so a mounted item links back to its catalog plugin. This is what
@@ -125,6 +124,9 @@ function emitItem(store, docUrl, doc, item, taken) {
   if (item.type === 'component') {
     store.add(node, a, ui('Component'), doc);
     if (item.tag) store.add(node, ui('name'), rdf.literal(String(item.tag)), doc);
+    // ui:module — an installable component's ES module IRI; round-tripped so
+    // a Customize save doesn't strip a third-party plugin's code pointer.
+    if (item.module) store.add(node, ui('module'), rdf.sym(String(item.module)), doc);
     for (const [k, v] of item.params || []) {
       if (!k) continue;
       const b = rdf.blankNode();

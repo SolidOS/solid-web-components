@@ -143,7 +143,7 @@ class SolWeather extends HTMLElement {
    *   geo:lat                  → lat
    *   geo:long                 → lon
    *   schema:addressLocality   → place
-   *   ui:temperatureUnit       → units   ("metric"/"imperial"/"both")
+   *   ui:temperatureUnit       → units   ("metric"/"imperial"; both listed → "both")
    *   time:hours               → hours-window
    * Skips any attribute already set in HTML. See
    * claude/plans/PLAN-vocab-migration.md for the predicate choices.
@@ -168,14 +168,17 @@ class SolWeather extends HTMLElement {
       setIf('place',         cfg[SCHEMA + 'addressLocality']);
       setIf('hours-window',  cfg[TIME   + 'hours']);
 
-      // ui:temperatureUnit is single-valued. Map the three instances
-      // onto the legacy 'units' attribute the renderer already speaks.
+      // ui:temperatureUnit is repeatable — ui:Fahrenheit and/or
+      // ui:Celsius. Listing both means show both; map onto the legacy
+      // 'units' attribute the renderer already speaks.
       const tu = cfg[UI + 'temperatureUnit'];
       if (tu != null) {
-        const value = Array.isArray(tu) ? tu[0] : tu;
-        const units = value === UI + 'Fahrenheit' ? 'imperial'
-                    : value === UI + 'Celsius'    ? 'metric'
-                    : value === UI + 'Both'       ? 'both'
+        const values = Array.isArray(tu) ? tu : [tu];
+        const f = values.includes(UI + 'Fahrenheit');
+        const c = values.includes(UI + 'Celsius');
+        const units = f && c ? 'both'
+                    : f      ? 'imperial'
+                    : c      ? 'metric'
                     : null;
         if (units) setIf('units', units);
       }

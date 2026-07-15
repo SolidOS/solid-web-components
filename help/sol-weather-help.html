@@ -25,8 +25,7 @@
   <h2>Use it in your HTML</h2>
   <p>Add this line once, near the top of your page — it makes the components
   available:</p>
-  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-        data-manifest="../dist/sol-components.manifest.json"
+  <pre><code>&lt;script src="https://cdn.jsdelivr.net/npm/sol-components/web/sol-load.js"
         data-components="sol-include sol-weather"&gt;&lt;/script&gt;</code></pre>
   <p>Then point the tag at a small settings file that says which place to show:</p>
   <pre><code>&lt;sol-weather source="data/weather-settings.ttl#Settings"&gt;&lt;/sol-weather&gt;</code></pre>
@@ -44,8 +43,8 @@
       <tr><td><code>schema:addressLocality</code></td>
           <td>The place name shown on the card.</td></tr>
       <tr><td><code>ui:temperatureUnit</code></td>
-          <td>Which units to show: <code>ui:Fahrenheit</code>,
-              <code>ui:Celsius</code>, or <code>ui:Both</code>.</td></tr>
+          <td>Which units to show: <code>ui:Fahrenheit</code> and/or
+              <code>ui:Celsius</code> (list both to show both).</td></tr>
       <tr><td><code>time:hours</code></td>
           <td>How many hours ahead to check for the highest rain chance
               (default 12).</td></tr>
@@ -64,9 +63,7 @@
   never the HTTPS form.</p>
 
   <!-- Loads the components so the live demo on this page works. -->
-  <script src="https://cdn.jsdelivr.net/npm/component-interop@0.2.2/component-interop.js"
-          data-manifest="../dist/sol-components.manifest.json"
-          data-stage="local"
+  <script src="../web/sol-load.js"
           data-components="sol-include sol-weather"
   ></script>
 

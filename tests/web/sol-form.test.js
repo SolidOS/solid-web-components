@@ -415,7 +415,7 @@ describe('SolForm — _validate', () => {
 // Pure helper: computes the insert statements for a new rolodex record. The
 // container mode (shape+subject ItemList forms — pod locations, search
 // engines) must emit the membership triple + sh:class type; ordered rolodexes
-// (ui:sortedBy) must assign position = max(existing)+1 so the new record is
+// (ui:sortBy) must assign position = max(existing)+1 so the new record is
 // immediately reorderable.
 
 describe('SolForm — buildAddInserts', () => {
@@ -425,7 +425,7 @@ describe('SolForm — buildAddInserts', () => {
   const pred      = { value: 'http://schema.org/itemListElement', termType: 'NamedNode' };
   const list      = { value: 'https://x/doc.ttl#Locations',  termType: 'NamedNode' };
   const itemClass = { value: 'http://schema.org/ListItem',   termType: 'NamedNode' };
-  const sortedBy  = { value: 'http://schema.org/position',   termType: 'NamedNode' };
+  const sortBy  = { value: 'http://schema.org/position',   termType: 'NamedNode' };
 
   // dataStore stub: anyValue(subject, pred) → the canned position string.
   const storeWith = (positions) => ({
@@ -439,7 +439,7 @@ describe('SolForm — buildAddInserts', () => {
     const out = buildAddInserts({
       subj, docNode: doc,
       container: { subject: list, pred, itemClass, reverse: false },
-      sortedBy, dataStore: storeWith(positions), subjects: subjectsOf(positions),
+      sortBy, dataStore: storeWith(positions), subjects: subjectsOf(positions),
     });
     expect(out).toHaveLength(3);
     expect(out[0].subject.value).toBe(list.value);        // <#Locations> itemListElement <#n1>
@@ -448,7 +448,7 @@ describe('SolForm — buildAddInserts', () => {
     expect(out[1].subject.value).toBe(subj.value);        // <#n1> a schema:ListItem
     expect(out[1].predicate.value).toBe(RDF_TYPE);
     expect(out[1].object.value).toBe(itemClass.value);
-    expect(out[2].predicate.value).toBe(sortedBy.value);  // position = max(1,7)+1
+    expect(out[2].predicate.value).toBe(sortBy.value);  // position = max(1,7)+1
     expect(out[2].object.value).toBe('8');
     out.forEach((st) => expect(st.graph.value).toBe(doc.value));
   });
@@ -464,31 +464,31 @@ describe('SolForm — buildAddInserts', () => {
     expect(out[0].object.value).toBe(list.value);
   });
 
-  test('no sortedBy → no position statement', () => {
+  test('no sortBy → no position statement', () => {
     const out = buildAddInserts({
       subj, docNode: doc,
       container: { subject: list, pred, itemClass, reverse: false },
       dataStore: storeWith({}), subjects: [],
     });
-    expect(out.map((s) => s.predicate.value)).not.toContain(sortedBy.value);
+    expect(out.map((s) => s.predicate.value)).not.toContain(sortBy.value);
   });
 
   test('non-container mode keeps the target-class behavior, plus position', () => {
     const klass = { value: 'https://x/vocab#Thing', termType: 'NamedNode' };
     const out = buildAddInserts({
       subj, docNode: doc, targets: { classes: [klass] },
-      sortedBy, dataStore: storeWith({ '#a': '2' }), subjects: subjectsOf({ '#a': '2' }),
+      sortBy, dataStore: storeWith({ '#a': '2' }), subjects: subjectsOf({ '#a': '2' }),
     });
     expect(out[0].predicate.value).toBe(RDF_TYPE);
     expect(out[0].object.value).toBe(klass.value);
-    expect(out[1].predicate.value).toBe(sortedBy.value);
+    expect(out[1].predicate.value).toBe(sortBy.value);
     expect(out[1].object.value).toBe('3');
   });
 
   test('nothing derivable → empty (caller bails), even when sorted', () => {
     const out = buildAddInserts({
       subj, docNode: doc, targets: {},
-      sortedBy, dataStore: storeWith({}), subjects: [],
+      sortBy, dataStore: storeWith({}), subjects: [],
     });
     expect(out).toEqual([]);
   });

@@ -31,11 +31,11 @@
  *
  * Walks the current document (crossing into every shadow root) for
  * elements whose custom-element class declares an editor (`static get
- * editor()` or `static get shape()`). For each, builds one accordion
- * panel: summary shows a friendly label, body lazy-mounts the
- * declared editor element on first expand, wired with the host's
- * `source` / `from-rdf` subject. On successful save the host
- * component's `reload()` (if present) is invoked.
+ * editor()` or `static get shape()`). For each, renders one flat
+ * `&lt;section>&lt;h3>label&lt;/h3>…editor…&lt;/section>` — the same shape a
+ * hand-authored settings group has, so a `&lt;sol-settings-nav>` chip row
+ * above picks every discovered widget up as its own chip. On successful
+ * save the host component's `reload()` (if present) is invoked.
  *
  * No configuration: drop a `&lt;sol-settings>&lt;/sol-settings>` anywhere
  * on the page; widgets elsewhere on the page are picked up
@@ -47,7 +47,7 @@
  *   none
  *
  * Methods:
- *   refresh() — re-walk and rebuild the accordion if the widget set
+ *   refresh() — re-walk and rebuild the sections if the widget set
  *               has changed (signature: tag + subject). Cheap no-op
  *               when nothing changed. Use from consumer code when a
  *               new editable widget is mounted after sol-settings
@@ -62,7 +62,6 @@
 import { define } from '../core/define.js';
 import { buildEditorElement, triggerSelfEditor, editPlacement } from '../core/editor.js';
 import { findExtensionPoints } from '../core/extension-points.js';
-import './sol-accordion.js';
 
 class SolSettings extends HTMLElement {
   connectedCallback() {
@@ -103,32 +102,20 @@ class SolSettings extends HTMLElement {
     const widgets = this._discover();
     this._lastSignature = signatureOf(widgets);
     this.innerHTML = '';
-    if (!widgets.length) {
-      this._empty();
-      return;
-    }
-
-    const accordion = document.createElement('sol-accordion');
-    accordion.setAttribute('start-closed', '');
-    // Fill the container's width so the accordion bars line up with a sibling
-    // sol-form's fields (which also fill) — the calling app sets the width by
-    // the element it places these in.
-    accordion.style.width = '100%';
-    widgets.forEach((w, i) => {
-      const panel = document.createElement('div');
-      const head = document.createElement('div');
-      head.textContent = w.label;
+    // No editable widgets → render NOTHING. (There used to be a "No editable
+    // widgets found" note; in a sections/chip-nav layout it painted as stray
+    // text under every group, and an empty element is the honest state.)
+    if (!widgets.length) return;
+    for (const widget of widgets) {
+      const section = document.createElement('section');
+      const h3 = document.createElement('h3');
+      h3.textContent = widget.label;
       const body = document.createElement('div');
       body.className = 'sol-settings-slot';
-      body.dataset.widgetIdx = String(i);
-      panel.append(head, body);
-      accordion.appendChild(panel);
-    });
-    this.appendChild(accordion);
-
-    // sol-accordion runs synchronously on connect; once it has cloned
-    // the author divs into &lt;details>, attach lazy-mount handlers.
-    Promise.resolve().then(() => this._wireLazy(accordion, widgets));
+      section.append(h3, body);
+      this._mountEditor(body, widget);
+      this.appendChild(section);
+    }
   }
 
   _rebuildIfChanged() {
@@ -140,50 +127,28 @@ class SolSettings extends HTMLElement {
 
   refresh() { this._rebuildIfChanged(); }
 
-  _empty() {
-    const note = document.createElement('p');
-    note.className = 'sol-settings-empty';
-    note.textContent = 'No editable widgets found on this page.';
-    this.appendChild(note);
-  }
-
-  _wireLazy(accordion, widgets) {
-    const detailsList = accordion.querySelectorAll('details');
-    detailsList.forEach((det, i) => {
-      const widget = widgets[i];
-      if (!widget) return;
-      const section = det.querySelector('.accordion-content-section');
-      if (!section) return;
-      let mounted = false;
-      const mount = () => {
-        if (mounted) return;
-        mounted = true;
-        section.innerHTML = '';
-        // forms:"self" — the component renders its own editor; offer a trigger.
-        if (widget.spec &amp;&amp; widget.spec.self) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'sol-settings-self-open';
-          btn.textContent = `Edit ${widget.label}…`;
-          btn.addEventListener('click', () => triggerSelfEditor(widget.el, widget.spec));
-          section.appendChild(btn);
-          return;
-        }
-        const editor = buildEditorElement(widget.el, widget.spec);
-        if (!editor) {
-          section.textContent = 'No editor available.';
-          return;
-        }
-        editor.addEventListener('sol-form-save', () => {
-          if (typeof widget.el.reload === 'function') {
-            widget.el.reload().catch(() => {});
-          }
-        });
-        section.appendChild(editor);
-      };
-      if (det.open) mount();
-      det.addEventListener('toggle', () => { if (det.open) mount(); });
+  _mountEditor(body, widget) {
+    // forms:"self" — the component renders its own editor; offer a trigger.
+    if (widget.spec &amp;&amp; widget.spec.self) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'sol-settings-self-open';
+      btn.textContent = `Edit ${widget.label}…`;
+      btn.addEventListener('click', () => triggerSelfEditor(widget.el, widget.spec));
+      body.appendChild(btn);
+      return;
+    }
+    const editor = buildEditorElement(widget.el, widget.spec);
+    if (!editor) {
+      body.textContent = 'No editor available.';
+      return;
+    }
+    editor.addEventListener('sol-form-save', () => {
+      if (typeof widget.el.reload === 'function') {
+        widget.el.reload().catch(() => {});
+      }
     });
+    body.appendChild(editor);
   }
 
   // Editable widgets = every element offering the `edit` extension point. The
@@ -218,7 +183,7 @@ function labelFromTag(tag) {
 /** Stable identity for a discovered widget set, used to detect when a
  *  later re-discovery has actually changed anything. Tag + subject is
  *  enough — two instances of the same widget with the same source
- *  would render an identical accordion panel. */
+ *  would render an identical section. */
 function signatureOf(widgets) {
   return widgets
     .map(w => `${w.el.localName}#${w.el.getAttribute('source') || w.el.getAttribute('from-rdf') || ''}`)
@@ -239,13 +204,13 @@ export default SolSettings;
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Thu Jul 09 2026 09:39:13 GMT-0700 (Pacific Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Tue Jul 14 2026 15:58:03 GMT-0700 (Pacific Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

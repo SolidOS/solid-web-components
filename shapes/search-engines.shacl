@@ -21,7 +21,7 @@
     sh:class hydra:IriTemplate ;
     sh:name "Engines" ;
     sh:description "Search engines in the list. Each row edits one hydra:IriTemplate." ;
-    ui:sortedBy schema:position ;
+    ui:sortBy schema:position ;
   ] .
 
 :EngineShape

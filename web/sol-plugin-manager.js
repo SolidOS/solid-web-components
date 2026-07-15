@@ -565,8 +565,8 @@ class SolPluginManager extends HTMLElement {
       note.textContent = 'also on offer — drag into a list to add it';
       card.appendChild(note);
     }
-    // Who made it — dct:creator (else dct:publisher), italic, bottom right.
-    const by = p.creator || p.publisher;
+    // Who publishes it — dct:publisher, italic, bottom right.
+    const by = p.publisher;
     if (by) {
       const byline = document.createElement('span');
       byline.className = 'card-byline';
@@ -927,7 +927,6 @@ class SolPluginManager extends HTMLElement {
         name: rdfVal(mStore, subj, 'label') || href,
         icon: rdfVal(mStore, subj, 'icon') || undefined,
         region: (rdfVal(mStore, subj, 'region') || '').split('#').pop().toLowerCase() || undefined,
-        creator: lit(DCT, 'creator'),
         publisher: lit(DCT, 'publisher'),
         href, categories,
       });
@@ -940,7 +939,7 @@ class SolPluginManager extends HTMLElement {
         icon: rdfVal(mStore, subj, 'icon') || undefined,
         tag,
         params: rdfComponent(mStore, subj).params,
-        creator: lit(DCT, 'creator'),
+        module: rdfVal(mStore, subj, 'module') || undefined,
         publisher: lit(DCT, 'publisher'),
         categories,
       });
