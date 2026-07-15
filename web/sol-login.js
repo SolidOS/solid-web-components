@@ -8,7 +8,7 @@
  *   <sol-login></sol-login>
  *   <sol-login issuers="https://solidcommunity.net,https://login.inrupt.com"></sol-login>
  *
- * Expects @inrupt/solid-client-authn-browser loaded as UMD at window.solidClientAuthn
+ * Imports @inrupt/solid-client-authn-browser via core/inrupt-global (imdow.solidClientAuthn
  */
 
 import { CSS, sheet as LOGIN_SHEET } from './styles/sol-login-css.js';
@@ -30,20 +30,15 @@ import {
 import { PopupProxySession } from '../core/popup-proxy.js';
 import { solFetch } from '../core/auth-fetch.js';
 import { register as registerService, root as swcRoot } from '../core/services.js';
+import { inrupt } from '../core/inrupt-global.js';
 
 function getSessionClass() {
-  const locations = [
-    window.solidClientAuthn?.Session,
-    window.solidClientAuthentication?.Session,
-    window.SolidClientAuthn?.Session,
-    window['@inrupt/solid-client-authn-browser']?.Session
-  ];
-  
-  for (const SessionClass of locations) {
-    if (SessionClass) return SessionClass;
-  }
-  
-  throw new Error('sol-login: solid-client-authn-browser must be loaded as UMD bundle. Expected at window.solidClientAuthn.Session or window.solidClientAuthentication.Session');
+  // The inrupt library arrives as an IMPORT through the page's import map
+  // (single shared instance) — the old window.solidClientAuthn probes are
+  // gone (2026-07-14).
+  const SessionClass = inrupt?.Session;
+  if (SessionClass) return SessionClass;
+  throw new Error('sol-login: @inrupt/solid-client-authn-browser did not resolve — is it in the import map?');
 }
 
 class AuthManager {

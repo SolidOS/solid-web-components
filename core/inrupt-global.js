@@ -1,18 +1,15 @@
-// core/inrupt-global.js — publish the inrupt Session class as the global
-// <sol-login> expects, from the manifest-mapped ESM build.
+// core/inrupt-global.js — the ONE place the inrupt auth library enters the
+// component library.
 //
-// <sol-login> reads the inrupt Session class from `window.solidClientAuthn`
-// (a UMD-style global) and throws if it is absent (see web/sol-login.js
-// getSessionClass). But the loader manifest maps
-// `@inrupt/solid-client-authn-browser` to an ESM build that sets no global, so
-// the `auth` capability could only work when the page ALSO loaded a separate
-// UMD <script> first. This shim imports the same mapped specifier and publishes
-// it at `window.solidClientAuthn`, so `data-extend-with="auth"` is self-contained
-// on every stage. It is listed BEFORE `sol-login` in the manifest's `auth`
-// capability, so the global is set by the time sol-login runs.
+// `@inrupt/solid-client-authn-browser` resolves through the page's import
+// map (sol-load or component-interop) to the vendored ESM build, so every
+// consumer shares a single instance. <sol-login> takes the Session class
+// from here and sol-form takes getDefaultSession — as IMPORTS, not window
+// probes (the `window.solidClientAuthn` global this module used to publish
+// was removed 2026-07-14; nothing reads it any more).
+//
+// Tests map this specifier to tests/__mocks__/solid-client-authn-browser.js
+// (live bindings — see __setSession there).
 import * as inrupt from '@inrupt/solid-client-authn-browser';
 
-if (typeof window !== 'undefined' && !window.solidClientAuthn) {
-  // sol-login looks up `.Session`; the ESM namespace exposes it directly.
-  window.solidClientAuthn = inrupt;
-}
+export { inrupt };

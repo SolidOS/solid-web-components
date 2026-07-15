@@ -6,6 +6,7 @@
  * companion components (sol-include, sol-query).
  */
 
+import { __setSession } from '@inrupt/solid-client-authn-browser';
 import { jest } from '@jest/globals';
 import { AuthManager, SolLogin } from '../../web/sol-login.js';
 import { getAuthFetch } from '../../core/auth-fetch.js';
@@ -36,7 +37,7 @@ beforeAll(() => {
   if (typeof globalThis.fetch === 'undefined') {
     globalThis.fetch = async () => ({ ok: true, status: 200 });
   }
-  window.solidClientAuthn = { Session: MockSession };
+  __setSession(MockSession);
   window.__SolSuppressDefineWarn = true;
 });
 

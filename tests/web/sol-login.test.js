@@ -5,6 +5,7 @@
  * Pure logic tests — mock Session class, no real OIDC.
  */
 
+import { __setSession } from '@inrupt/solid-client-authn-browser';
 import { jest } from '@jest/globals';
 import { AuthManager, SolLogin } from '../../web/sol-login.js';
 import { baseDomain } from '../../core/auth-core.js';
@@ -26,7 +27,7 @@ beforeAll(() => {
   if (typeof globalThis.fetch === 'undefined') {
     globalThis.fetch = async () => new Response('', { status: 200 });
   }
-  window.solidClientAuthn = { Session: MockSession };
+  __setSession(MockSession);
   window.__SolSuppressDefineWarn = true;
 });
 

@@ -11,6 +11,7 @@
  *   - disconnectedCallback unhooks the message listener
  */
 
+import { __setSession } from '@inrupt/solid-client-authn-browser';
 import { jest } from '@jest/globals';
 import { SolLogin } from '../../web/sol-login.js';
 
@@ -30,7 +31,7 @@ beforeAll(() => {
   if (typeof globalThis.fetch === 'undefined') {
     globalThis.fetch = async () => ({ ok: true, status: 200 });
   }
-  window.solidClientAuthn = { Session: MockSession };
+  __setSession(MockSession);
   window.__SolSuppressDefineWarn = true;
 });
 

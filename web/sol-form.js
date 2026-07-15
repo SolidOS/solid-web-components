@@ -35,6 +35,7 @@
  * @extends HTMLElement
  */
 
+import { inrupt } from '../core/inrupt-global.js';
 import { define } from '../core/define.js';
 import { adopt }  from '../core/adopt.js';
 import { rdf }    from '../core/rdf.js';
@@ -69,8 +70,9 @@ function installRawSparqlUpdate(store) {
     const body = parts.join(' ;\n');
     // Prefer the logged-in Solid session's fetch (carries the auth token for
     // writes to a protected pod); fall back to the page fetch (public pods,
-    // dev). solid-client-authn-browser is exposed as window.solidClientAuthn.
-    const session = globalThis.solidClientAuthn?.getDefaultSession?.();
+    // dev). The inrupt library is imported via core/inrupt-global (the old
+    // window.solidClientAuthn global is gone, 2026-07-14).
+    const session = inrupt?.getDefaultSession?.();
     const fetchFn = (session?.info?.isLoggedIn && session.fetch.bind(session))
       || globalThis.fetch.bind(globalThis);
     Promise.resolve(fetchFn(doc, {

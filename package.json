@@ -128,7 +128,8 @@
       "^@inrupt/solid-client-authn-node$": "<rootDir>/tests/__mocks__/solid-client-authn-node.js",
       "^openid-client$": "<rootDir>/tests/__mocks__/openid-client.js",
       "^dompurify$": "<rootDir>/tests/__mocks__/dompurify.js",
-      "^marked$": "<rootDir>/tests/__mocks__/marked.js"
+      "^marked$": "<rootDir>/tests/__mocks__/marked.js",
+      "^@inrupt/solid-client-authn-browser$": "<rootDir>/tests/__mocks__/solid-client-authn-browser.js"
     },
     "setupFiles": [
       "<rootDir>/tests/setup.js"
