@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { mkdtempSync, cpSync } from 'node:fs';
+import { mkdtempSync, cpSync, symlinkSync } from 'node:fs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
@@ -18,7 +18,10 @@ test('the shipped manifest matches what build-manifest derives from plugins/*.tt
   // Re-run the generator against a COPY so the real dist/ isn't touched.
   const work = mkdtempSync(join(tmpdir(), 'sc-manifest-'));
   for (const d of ['plugins', 'tools', 'dist']) cpSync(join(root, d), join(work, d), { recursive: true });
-  cpSync(join(root, 'node_modules', 'n3'), join(work, 'node_modules', 'n3'), { recursive: true });
+  // Symlink the real node_modules rather than copying n3 alone: n3's
+  // transitive deps (readable-stream, …) may be hoisted to the top level,
+  // where a lone-package copy can't resolve them (broke on CI's npm ci tree).
+  symlinkSync(join(root, 'node_modules'), join(work, 'node_modules'), 'dir');
   execFileSync(process.execPath, [join(work, 'tools', 'build-manifest.mjs')]);
 
   const shipped = JSON.parse(readFileSync(join(root, 'dist', 'sol-components.manifest.json'), 'utf8'));
