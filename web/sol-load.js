@@ -119,6 +119,11 @@
     var tag = document.createElement('script');
     tag.type = 'importmap';
     tag.textContent = JSON.stringify({ imports: imports });
+    // Nonce-based CSP hosts (e.g. data-kitchen's shell): the injected map is
+    // an inline script, so it must carry the nonce our own tag was served
+    // with. script.nonce reads the IDL property (the content attribute is
+    // hidden post-parse).
+    if (script.nonce) tag.nonce = script.nonce;
     script.parentNode.insertBefore(tag, script.nextSibling);
   }
 

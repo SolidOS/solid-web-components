@@ -120,3 +120,17 @@ describe('runtime behavior (jsdom)', () => {
     await expect(window.solLoadReady).resolves.toEqual([]);
   });
 });
+
+test('the injected map carries the loader tag\'s CSP nonce', () => {
+  document.head.innerHTML = '';
+  const tag = document.createElement('script');
+  tag.setAttribute('src', '/node_modules/sol-components/web/sol-load.js');
+  Object.defineProperty(tag, 'nonce', { value: 'abc123', configurable: true });
+  document.head.appendChild(tag);
+  Object.defineProperty(document, 'currentScript', { value: tag, configurable: true });
+  new Function(loaderSrc)();      // eslint-disable-line no-new-func
+  Object.defineProperty(document, 'currentScript', { value: null, configurable: true });
+  const map = document.querySelector('script[type="importmap"]');
+  expect(map.nonce).toBe('abc123');
+  delete window.solLoad; delete window.solLoadReady;
+});
