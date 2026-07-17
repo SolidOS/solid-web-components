@@ -242,7 +242,7 @@
     sh:maxCount 1 ;
     sh:nodeKind sh:IRI ;
     sh:name "region" ;
-    sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" ;
+    sh:description "LEGACY spelling (still read). Since 2026-07-17 a component's placement is stored as a `region` ui:attribute (e.g. schema:name \"region\"; schema:value \"dropdown\") — the attribute channel the HTML side already uses; serialization writes that form back. The triple remains the spelling for ui:Link items, which have no attribute channel." ;
   ] ;
   sh:property [
     sh:path rdfs:comment ;

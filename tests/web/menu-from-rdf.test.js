@@ -37,7 +37,20 @@ const MENU_TTL = `
   ui:parts <#l1> .
 <#l1> rdf:first <#Home> ; rdf:rest <#l2> .
 <#l2> rdf:first <#Podz> ; rdf:rest <#l3> .
-<#l3> rdf:first <#Sub>  ; rdf:rest rdf:nil .
+<#l3> rdf:first <#Sub>  ; rdf:rest <#l4> .
+<#l4> rdf:first <#Customize> ; rdf:rest <#l5> .
+<#l5> rdf:first <#Help> ; rdf:rest rdf:nil .
+
+<#Customize> a ui:Component ; ui:label "Customize" ; ui:name "sol-include" ;
+  ui:attribute <#cGate> , <#cSource> , <#cRegion> .
+<#cGate>   schema:name "if-logged-in" ; schema:value "" .
+<#cSource> schema:name "source" ; schema:value "pages/customize.html" .
+<#cRegion> schema:name "region" ; schema:value "Dropdown" .
+
+<#Help> a ui:Component ; ui:label "Help" ; ui:name "sol-include" ;
+  ui:attribute <#hAlt> , <#hSource> .
+<#hAlt>    schema:name "if-logged-in" ; schema:value "help/owner.html" .
+<#hSource> schema:name "source" ; schema:value "help/guest.html" .
 
 <#Home> a ui:Component ; ui:label "Home" ; ui:icon "🏠" ; ui:name "sol-include" ;
   ui:attribute <#aSource> , <#aTrusted> .
@@ -46,6 +59,7 @@ const MENU_TTL = `
 
 <#Podz> a ui:Component ; ui:label "Podz" ; ui:name "dk-podz" ;
   ui:module <https://pod.example/plugins/podz/dk-podz.esm.js> ;
+  ui:region ui:Modal ;
   acl:mode acl:Write .
 
 <#Sub> a ui:Menu ; ui:label "More" ; ui:parts <#sl1> .
@@ -133,7 +147,7 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     const menu = await loadMenuFromUri(DOC_URL + '#Main');
     expect(menu).not.toBeNull();
     expect(menu.orientation).toBe('horizontal');   // ui:Horizontal → token
-    expect(menu.items).toHaveLength(3);             // Home, Podz, Sub (pantry #Forum excluded)
+    expect(menu.items).toHaveLength(5);             // Home, Podz, Sub, Customize, Help (pantry #Forum excluded)
   });
 
   test('parses a component item: tag, label, icon, and ui:attribute params', async () => {
@@ -158,6 +172,28 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     expect(podz.requiresWrite).toBe(true);
     // a plain component with no acl:mode is not flagged
     expect(items[0].requiresWrite).toBe(false);
+  });
+
+  test('a region ui:attribute lifts into desc.region (lowercased) and leaves params', async () => {
+    global.fetch = turtleFetchStub();
+    const { items } = await loadMenuFromUri(DOC_URL + '#Main');
+    const customize = items.find((i) => i.id === 'Customize');
+    expect(customize.region).toBe('dropdown');                       // attribute channel, normalized
+    expect(customize.params.some(([k]) => k === 'region')).toBe(false); // structural, not a param
+    // legacy ui:region triple still reads
+    const podz = items.find((i) => i.id === 'Podz');
+    expect(podz.region).toBe('modal');
+  });
+
+  test('an EMPTY if-logged-in attribute gates; the valued form does not', async () => {
+    global.fetch = turtleFetchStub();
+    const { items } = await loadMenuFromUri(DOC_URL + '#Main');
+    // boolean form (schema:value "") = the attribute spelling of the gate
+    const customize = items.find((i) => i.id === 'Customize');
+    expect(customize.requiresWrite).toBe(true);
+    // valued form = sol-include's alternate-source switch, NOT a gate
+    const help = items.find((i) => i.id === 'Help');
+    expect(help.requiresWrite).toBe(false);
   });
 
   test('a ui:Menu part becomes a submenu with parsed children (recursion)', async () => {

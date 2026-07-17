@@ -54,7 +54,7 @@ shape <#ComponentShape> -> ui:Component {
     ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
     acl:mode IRI in=[acl:Read acl:Write acl:Append acl:Control] % sh:name "access mode" ; sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." % .
     ui:hoverTitle xsd:string [0..1] % sh:name "hover title" ; sh:description "Hover / advisory text (HTML title semantics)" % .
-    ui:region IRI [0..1] % sh:name "region" ; sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" % .
+    ui:region IRI [0..1] % sh:name "region" ; sh:description "LEGACY spelling (still read). Since 2026-07-17 a component's placement is stored as a `region` ui:attribute (e.g. schema:name \"region\"; schema:value \"dropdown\") — the attribute channel the HTML side already uses; serialization writes that form back. The triple remains the spelling for ui:Link items, which have no attribute channel." % .
     rdfs:comment xsd:string % sh:description "Documentary note (round-tripped by generators)" % .
     schema:description xsd:string [0..1] % sh:name "description" ; sh:description "One-sentence user-facing description" % .
     dcterms:conformsTo IRI [0..1] % sh:name "shape" ; sh:description "SHACL shape the component's data conforms to" % .

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 // Regenerate .shaclc twins for every .shacl in shapes/.
 //
-// Usage: node scripts/regen-shaclc.mjs [path/to/file.shacl ...]
+// Usage: node scripts/regen-shaclc.mjs [--check] [path/to/file.shacl ...]
 // With no args, processes every shapes/*.shacl.
+// --check: compare instead of write — exit 1 if any twin is stale or missing
+//          (the drift guard tests/core/shaclc-generated.test.js runs this).
 //
 // .shaclc is a derived artifact — do NOT hand-edit. The .shacl file is the
 // canonical source. After modifying a .shacl, run this script to refresh
@@ -17,7 +19,9 @@ import { write } from 'shaclc-write';
 const here = dirname(fileURLToPath(import.meta.url));
 const shapesDir = join(here, '..', 'shapes');
 
-const explicit = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const CHECK = argv.includes('--check');
+const explicit = argv.filter((a) => a !== '--check');
 const targets = explicit.length
   ? explicit
   : (await readdir(shapesDir))
@@ -100,8 +104,18 @@ for (const shaclPath of targets) {
     // No # comment header — per project rule, RDF files (incl. .shaclc)
     // carry no comments. The "auto-generated" fact is documented in
     // claude/ memory, not in the file.
-    await writeFile(shaclcPath, cleaned);
-    console.log(`✓ ${basename(shaclPath)} → ${basename(shaclcPath)}`);
+    if (CHECK) {
+      const current = await readFile(shaclcPath, 'utf8').catch(() => null);
+      if (current === cleaned) {
+        console.log(`✓ ${basename(shaclcPath)} in sync`);
+      } else {
+        console.error(`✗ ${basename(shaclcPath)} ${current === null ? 'MISSING' : 'STALE'} — run: node scripts/regen-shaclc.mjs`);
+        fail++;
+      }
+    } else {
+      await writeFile(shaclcPath, cleaned);
+      console.log(`✓ ${basename(shaclPath)} → ${basename(shaclcPath)}`);
+    }
   } catch (err) {
     console.error(`✗ ${basename(shaclPath)}: ${err.message}`);
     fail++;

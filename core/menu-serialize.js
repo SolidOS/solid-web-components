@@ -17,6 +17,7 @@
 // delete remove the subject's statements themselves before serializing).
 
 import { rdf } from './rdf.js';
+import { gatedByParams } from './menu-rdf.js';
 
 const UI     = 'http://www.w3.org/ns/ui#';
 const RDF    = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
@@ -115,11 +116,20 @@ function emitItem(store, docUrl, doc, item, taken) {
   // lets the pantry know a chip is in use without guessing from tag+params.
   if (item.manifest) store.add(node, rdf.sym(DCT + 'source'), rdf.sym(String(item.manifest)), doc);
   if (item.icon) store.add(node, ui('icon'), rdf.literal(String(item.icon)), doc);
-  if (item.region) {
+  // Placement: a COMPONENT stores region as a `region` ui:attribute (the
+  // attribute channel — see the params loop below); the ui:region triple is
+  // written only for links, which have no attribute channel. Parsing strips
+  // `region` from params into the structural field, so re-adding it here is
+  // the write half of that round trip.
+  if (item.region && item.type !== 'component') {
     const local = item.region[0].toUpperCase() + item.region.slice(1).toLowerCase();
     store.add(node, ui('region'), ui(local), doc);
   }
-  if (item.requiresWrite) store.add(node, acl('mode'), acl('Write'), doc);
+  // The attribute spelling (an empty-valued `if-logged-in` / `requires-write`
+  // param) round-trips through the params below — emitting acl:mode as well
+  // would double-declare the gate and resurrect the triple on every save.
+  // Only a legacy acl-only item still gets the triple.
+  if (item.requiresWrite && !gatedByParams(item.params)) store.add(node, acl('mode'), acl('Write'), doc);
 
   if (item.type === 'component') {
     store.add(node, a, ui('Component'), doc);
@@ -127,7 +137,11 @@ function emitItem(store, docUrl, doc, item, taken) {
     // ui:module — an installable component's ES module IRI; round-tripped so
     // a Customize save doesn't strip a third-party plugin's code pointer.
     if (item.module) store.add(node, ui('module'), rdf.sym(String(item.module)), doc);
-    for (const [k, v] of item.params || []) {
+    // region re-joins the attribute list on write (deduped — in-memory params
+    // are region-free after parse, but be safe against hand-built items).
+    const params = (item.params || []).filter(([k]) => k !== 'region');
+    if (item.region) params.push(['region', String(item.region).toLowerCase()]);
+    for (const [k, v] of params) {
       if (!k) continue;
       const b = rdf.blankNode();
       store.add(b, sch('name'), rdf.literal(String(k)), doc);

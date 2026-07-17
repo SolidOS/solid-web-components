@@ -36,6 +36,15 @@ function requiresWriteMode(store, subject) {
     .some(m => m.value === ACL + 'Write');
 }
 
+// The attribute spelling of the same gate: a ui:attribute named `if-logged-in`
+// (or `requires-write`) with an EMPTY value — the boolean form. Mirrors the
+// HTML path's isGated (sol-menu). A NON-empty `if-logged-in` is sol-include's
+// alternate-source switch, NOT a gate, so it must not match here.
+export function gatedByParams(params) {
+  return (params || []).some(([k, v]) =>
+    (k === 'if-logged-in' || k === 'requires-write') && !v);
+}
+
 // Read a single ui:<localName> property of `subject` from `store`.
 export function rdfVal(store, subject, localName) {
   const node = store.any(subject, rdf.sym(UI + localName));
@@ -149,7 +158,17 @@ export function parseMenuItems(store, menuNode) {
       // ui:module — the ES module that defines the tag; lets a renderer
       // lazy-import an installable component on first mount.
       const moduleUrl = rdfVal(store, part, 'module');
-      items.push({ type: 'component', id, name: label, icon, region, comment, publisher, requiresWrite, tag, params, module: moduleUrl, manifest });
+      // Placement rides the attribute channel (a `region` ui:attribute) —
+      // lift it into the structural field, exactly as the HTML harvest does
+      // with a region= attribute (menu-html TAB_SKIP). The legacy ui:region
+      // triple is still READ for third-party data; menu-serialize writes the
+      // attribute spelling back for components (never the triple).
+      const paramRegion = (params.find(([k]) => k === 'region') || [])[1];
+      const itemParams = params.filter(([k]) => k !== 'region');
+      items.push({ type: 'component', id, name: label, icon, comment, publisher,
+        region: (paramRegion || '').toLowerCase() || region,
+        requiresWrite: requiresWrite || gatedByParams(params),
+        tag, params: itemParams, module: moduleUrl, manifest });
       continue;
     }
 
