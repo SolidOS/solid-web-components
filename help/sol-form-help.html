@@ -109,6 +109,13 @@
   <p>The field description (the <code>shape</code> file) decides which inputs
   appear and what kind each is — a text box, a number, a checkbox, a dropdown,
   and so on. Add a field there and it shows up in the form automatically.</p>
+  <p>A shape may also branch with <code>sh:xone</code> — "exactly one of
+  these variants". The form picks the variant the record's own data
+  satisfies (via the branches' <code>sh:hasValue</code> discriminators) and
+  shows just that variant's fields; a record matching no branch shows only
+  the shared fields. This is how one shape can describe, say, a plugin that
+  is <em>either</em> an external link <em>or</em> a mounted component, with
+  the right payload field appearing for each.</p>
 
 </body>
 </html>

@@ -13,7 +13,7 @@ shape <#MenuShape> -> ui:Menu {
 }
 shape <#MenuPartsCollectionShape> {
     rdf:rest* hasValue=rdf:nil .
-    rdf:rest*/rdf:first ui:Link|ui:Component|ui:Menu @<#MenuItemShape> .
+    rdf:rest*/rdf:first ui:Plugin|ui:Link|ui:Component|ui:Command|ui:Menu @<#MenuItemShape> .
 }
 shape <#MenuItemShape> {
     ui:label xsd:string [1..1] message="Every menu item (ui:Link, ui:Component, nested ui:Menu) must have a ui:label" % sh:name "label" ; sh:description "Display label — required for every item reachable from a ui:Menu" % .
@@ -21,7 +21,7 @@ shape <#MenuItemShape> {
 shape <#LinkShape> -> ui:Link ;
     sh:xone ([
         sh:property [
-            sh:path ui:href ;
+            sh:path schema:url ;
             sh:minCount 1
         ]
     ] [
@@ -30,9 +30,9 @@ shape <#LinkShape> -> ui:Link ;
             sh:minCount 1
         ]
     ]) {
-    message="A ui:Link must have either ui:href or ui:contents" .
+    message="A ui:Link must have either schema:url or ui:contents" .
     ui:label xsd:string [1..1] % sh:name "label" ; sh:description "The display label for the link" % .
-    ui:href [0..1] IRI|xsd:string % sh:name "href" ; sh:description "URL to load (via handler component if present) — an IRI or a URL string" % .
+    schema:url [0..1] IRI|xsd:string % sh:name "url" ; sh:description "URL to load (via handler component if present) — an IRI or a URL string" % .
     ui:contents rdf:HTML [0..1] % sh:name "contents" ; sh:description "Literal HTML rendered inline (sanitized by default)" % .
     ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
     rdfs:comment xsd:string [0..1] % sh:description "Description of the Link" % .
@@ -46,10 +46,18 @@ shape <#LinkShape> -> ui:Link ;
     schema:softwareHelp IRI [0..1] % sh:name "help" ; sh:description "USER online help (not developer docs)" % .
     dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the linked resource" % .
 }
+shape <#CommandShape> -> ui:Command {
+    schema:url IRI [0..1] pattern="#[A-Za-z][A-Za-z0-9]*$" % sh:name "command URL" ; sh:description "A fragment IRI in the host app's command registry document; the hyphen-free fragment is the command key." % .
+    ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "Args for the command as schema:PropertyValue pairs" % .
+    ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
+}
+shape <#PropertyValueShape> {
+    schema:name xsd:string [1..1] % sh:name "name" ; sh:description "Attribute name" % .
+    schema:value [1..1] % sh:name "value" ; sh:description "Attribute value (datatype-free; JSON-LD manifests always emit strings)" % .
+}
 shape <#ComponentShape> -> ui:Component {
     ui:label xsd:string [0..1] % sh:name "label" ; sh:description "Display name shown in the menu / palette. Optional here (manifest entries may omit it); items reachable from a ui:Menu must have one (see :MenuItemShape)" % .
-    ui:name xsd:string [1..1] % sh:name "name" ; sh:description "Custom element tag name (hyphenated, e.g. 'sol-query'), OR a hyphen-free command key (e.g. 'installPod') dispatched as a sol-command event for the host app to handle" % .
-    ui:module IRI [0..1] % sh:name "module" ; sh:description "The ES module that defines ui:name's element. Absent for components the page already loads (e.g. via the import map); present on installable/third-party ones." % .
+    schema:url IRI [0..1] pattern="/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$" % sh:name "module URL" ; sh:description "The ES module that defines the element; the element tag derives from the filename (a page that preloads the component still names the module — the filename IS the tag). Optional ONLY for component-interop manifest entries, whose loader plumbing is ci:module; an item reachable from a ui:Menu without one is unmountable and skipped by the parser." % .
     ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "Attributes passed to the element (or args for a command) as schema:PropertyValue pairs" % .
     ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
     acl:mode IRI in=[acl:Read acl:Write acl:Append acl:Control] % sh:name "access mode" ; sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." % .
@@ -62,7 +70,59 @@ shape <#ComponentShape> -> ui:Component {
     schema:softwareHelp IRI [0..1] % sh:name "help" ; sh:description "USER online help (not developer docs)" % .
     dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the component" % .
 }
-shape <#PropertyValueShape> {
-    schema:name xsd:string [1..1] % sh:name "name" ; sh:description "Attribute name" % .
-    schema:value [1..1] % sh:name "value" ; sh:description "Attribute value (datatype-free; JSON-LD manifests always emit strings)" % .
+shape <#PluginShape> -> ui:Plugin ;
+    sh:xone ([
+        sh:property [
+            sh:path schema:additionalType ;
+            sh:hasValue ui:Link
+        ], [
+            sh:path schema:url ;
+            sh:minCount 1 ;
+            sh:maxCount 1 ;
+            sh:name "app URL" ;
+            sh:description "The URL the link opens." ;
+            sh:or ([
+                sh:nodeKind sh:IRI
+            ] [
+                sh:datatype xsd:string
+            ])
+        ]
+    ] [
+        sh:property [
+            sh:path schema:additionalType ;
+            sh:hasValue ui:Component
+        ], [
+            sh:path schema:url ;
+            sh:minCount 1 ;
+            sh:maxCount 1 ;
+            sh:name "module URL" ;
+            sh:description "The ES module defining the element; the element tag derives from the filename." ;
+            sh:nodeKind sh:IRI ;
+            sh:pattern "/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$"
+        ]
+    ] [
+        sh:property [
+            sh:path schema:additionalType ;
+            sh:hasValue ui:Command
+        ], [
+            sh:path schema:url ;
+            sh:minCount 1 ;
+            sh:maxCount 1 ;
+            sh:name "command URL" ;
+            sh:description "A fragment IRI in the host app's command registry document; the hyphen-free fragment is the command key." ;
+            sh:nodeKind sh:IRI ;
+            sh:pattern "#[A-Za-z][A-Za-z0-9]*$"
+        ]
+    ]) {
+    message="A ui:Plugin carries ONE schema:url payload, constrained by its kind: the URL a Link opens, an ES module with a tag-shaped filename (Component), or a registry fragment IRI with a hyphen-free key (Command)" .
+    schema:additionalType [1..1] in=[ui:Link ui:Component ui:Command] % sh:name "kind" ; sh:description "REQUIRED discriminator: what kind of capability this entry describes — ui:Link (external URL), ui:Component (custom element), ui:Command (host command key)." % .
+    ui:label xsd:string [1..1] % sh:name "label" ; sh:description "Display name — the card title AND the menu entry text (one label everywhere)." % .
+    ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "Attributes for the element (or args for the command) as schema:PropertyValue pairs, incl. the deployment conventions: region (placement keyword) and if-logged-in \"\" (owner gate)" % .
+    ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
+    schema:description xsd:string [0..1] % sh:name "description" ; sh:description "User-facing card blurb (deliberately schema:description, NOT rdfs:comment — which stays a documentary note outside the contract)" % .
+    dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the plugin (card byline)" % .
+    dcterms:subject xsd:string|skos:Concept % sh:name "topics" ; sh:description "Topic categories (Customize tabs) — plain strings or skos:Concept nodes" % .
+    dcterms:conformsTo IRI [0..1] % sh:name "shape" ; sh:description "SHACL shape the plugin's settings/data conform to" % .
+    dcterms:references IRI % sh:name "data" ; sh:description "Default/seed data document(s) the plugin starts from" % .
+    schema:softwareHelp IRI [0..1] % sh:name "help" ; sh:description "USER online help (not developer docs)" % .
 }

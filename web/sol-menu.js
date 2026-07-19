@@ -288,7 +288,7 @@ class SolMenu extends HTMLElement {
         return { name: desc.name, requiresWrite: rw, children: this._wrapRdfItems(desc.children) };
       }
       if (desc.type === 'component') {
-        // A ui:Component whose ui:name isn't a custom-element tag is a command:
+        // A desc whose tag isn't a custom-element tag is a command:
         // clicking dispatches sol-command (no content mounted, not selectable).
         if (isCommandName(desc.tag)) {
           return { name: desc.name, icon: desc.icon, requiresWrite: rw, command: desc.tag, params: paramsToObject(desc.params) };

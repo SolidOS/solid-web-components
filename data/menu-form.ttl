@@ -73,8 +73,8 @@ ui:Vertical   a ui:Orientation ; rdfs:label "Vertical"   .
   ui:required true .
 
 :hrefField a ui:SingleLineTextField ;
-  ui:property ui:href ;
-  ui:label "URL (href)" .
+  ui:property schema:url ;
+  ui:label "URL" .
 
 :contentsField a ui:MultiLineTextField ;
   ui:property ui:contents ;
@@ -95,8 +95,8 @@ ui:Vertical   a ui:Orientation ; rdfs:label "Vertical"   .
   ui:required true .
 
 :compNameField a ui:SingleLineTextField ;
-  ui:property ui:name ;
-  ui:label "Element tag (e.g. sol-query)" ;
+  ui:property schema:url ;
+  ui:label "Module URL (its filename is the element tag)" ;
   ui:required true .
 
 :compIconField a ui:SingleLineTextField ;

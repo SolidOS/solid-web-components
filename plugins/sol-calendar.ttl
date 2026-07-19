@@ -4,10 +4,9 @@
 
 <>
   a ui:Component ;
-  ui:name "sol-calendar" ;
   ui:label "Calendar" ;
   ui:icon "📅" ;
   schema:description "Pop-out month calendar for the button bar." ;
-  ui:module <../web/sol-calendar.js> ;
+  schema:url <../web/sol-calendar.js> ;
   dct:conformsTo <../shapes/calendar-settings.shacl> ;
   dct:references <../data/calendar-settings.ttl> .

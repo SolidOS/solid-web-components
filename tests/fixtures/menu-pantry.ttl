@@ -12,29 +12,26 @@
   ui:parts ( <#Home> <#Podz> <#SolidResources> ) .
 
 <#Home> a ui:Component ; ui:label "Home" ;
-  ui:name "sol-include" ;
+  schema:url <web/sol-include.js> ;
   ui:attribute
     [ schema:name "source"  ; schema:value "pages/home.html" ] ,
     [ schema:name "trusted" ; schema:value "true" ] .
 
 <#Podz> a ui:Component ; ui:label "Podz" ;
-  ui:name "dk-podz" ;
+  schema:url <plugins/podz/dk-podz.js> ;
   acl:mode acl:Write .
 
 <#SolidResources> a ui:Menu ; ui:label "SolidResources" ;
   ui:parts ( <#Website> <#Faq> ) .
 
-<#Website> a ui:Component ; ui:label "Website" ;
-  ui:name "iframe" ;
-  ui:attribute [ schema:name "src" ; schema:value "https://solidproject.org" ] .
+<#Website> a ui:Link ; ui:label "Website" ;
+  schema:url "https://solidproject.org" .
 
 <#Faq> a ui:Link ; ui:label "FAQ" ;
-  ui:href "https://solidproject.org/FAQ" .
+  schema:url "https://solidproject.org/FAQ" .
 
-<#Forum> a ui:Component ; ui:label "Forum" ;
-  ui:name "iframe" ;
-  ui:attribute [ schema:name "src" ; schema:value "https://forum.solidproject.org" ] .
+<#Forum> a ui:Link ; ui:label "Forum" ;
+  schema:url "https://forum.solidproject.org" .
 
-<#Chat> a ui:Component ; ui:label "Chat" ;
-  ui:name "iframe" ;
-  ui:attribute [ schema:name "src" ; schema:value "https://matrix.to/#/#solid-practitioners:matrix.org/" ] .
+<#Chat> a ui:Link ; ui:label "Chat" ;
+  schema:url "https://matrix.to/#/#solid-practitioners:matrix.org/" .

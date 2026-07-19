@@ -40,6 +40,7 @@ import { define } from '../core/define.js';
 import { adopt }  from '../core/adopt.js';
 import { rdf }    from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
+import { solFetch } from '../core/auth-fetch.js';
 import { UI, RDF, readFormParts, findForm } from '../core/form-utils.js';
 import { parseShape, renderRecordForm, findSubjects } from '../core/shape-to-form.js';
 import { CSS as FORM_CSS, sheet as formSheet } from './styles/sol-form-css.js';
@@ -69,23 +70,57 @@ function installRawSparqlUpdate(store) {
     if (inserts.length) parts.push(`INSERT DATA {\n${inserts.map(nt).join('\n')}\n}`);
     const body = parts.join(' ;\n');
     // Prefer the logged-in Solid session's fetch (carries the auth token for
-    // writes to a protected pod); fall back to the page fetch (public pods,
-    // dev). The inrupt library is imported via core/inrupt-global (the old
-    // window.solidClientAuthn global is gone, 2026-07-14).
+    // writes to a protected pod); fall back to solFetch — the same
+    // auth-manager-aware wrapper every other component writes through (in
+    // Data Kitchen it carries the shell's gate token; on a plain page it
+    // degrades to fetch). A bare globalThis.fetch fallback 401s on dk
+    // (2026-07-18, found by the entry-editor live probe).
     const session = inrupt?.getDefaultSession?.();
     const fetchFn = (session?.info?.isLoggedIn && session.fetch.bind(session))
-      || globalThis.fetch.bind(globalThis);
+      || solFetch;
+    const applyLocal = () => {
+      for (const s of deletes) store.remove(s);
+      for (const s of inserts) store.add(s.subject, s.predicate, s.object, s.why || s.graph);
+    };
+    const unapplyLocal = () => {
+      for (const s of inserts) {
+        for (const m of store.statementsMatching(s.subject, s.predicate, s.object, s.why || s.graph).slice()) store.remove(m);
+      }
+      for (const s of deletes) store.add(s.subject, s.predicate, s.object, s.why || s.graph);
+    };
     Promise.resolve(fetchFn(doc, {
       method: 'PATCH', headers: { 'Content-Type': 'application/sparql-update' }, body,
     })).then(async res => {
       if (res && res.ok) {
-        for (const s of deletes) store.remove(s);
-        for (const s of inserts) store.add(s.subject, s.predicate, s.object, s.why || s.graph);
+        applyLocal();
         cb && cb(doc, true);
-      } else {
-        console.warn('[sol-form] PATCH failed:', res && res.status, 'on', doc);
-        cb && cb(doc, false, `HTTP ${res && res.status}`);
+        return;
       }
+      if (res && res.status >= 500) {
+        // CSS's PATCH handler times its write lock out (6s) on documents
+        // holding large RDF collections — the plugins catalog reproducibly
+        // 500s "Lock expired" on a one-triple patch (2026-07-18). Fall back
+        // to rewriting the WHOLE doc: apply the edit to the local graph,
+        // serialize it, PUT — the same path the menu managers save this very
+        // document through. Rolled back locally if the PUT fails too.
+        try {
+          applyLocal();
+          const turtle = rdf.serialize(rdf.sym(doc), store, doc, 'text/turtle');
+          const r2 = await fetchFn(doc, {
+            method: 'PUT', headers: { 'Content-Type': 'text/turtle' }, body: turtle,
+          });
+          if (r2 && r2.ok) { cb && cb(doc, true); return; }
+          unapplyLocal();
+          console.warn('[sol-form] PATCH 500 → PUT fallback failed:', r2 && r2.status, 'on', doc);
+          cb && cb(doc, false, `HTTP ${r2 && r2.status}`);
+        } catch (e) {
+          unapplyLocal();
+          cb && cb(doc, false, e.message);
+        }
+        return;
+      }
+      console.warn('[sol-form] PATCH failed:', res && res.status, 'on', doc);
+      cb && cb(doc, false, `HTTP ${res && res.status}`);
     }).catch(e => cb && cb(doc, false, e.message));
   };
 }
@@ -467,7 +502,12 @@ class SolForm extends HTMLElement {
     // own properties. Scalar siblings on the outer shape are
     // intentionally ignored here; the rolodex of records is what the
     // user cares about. First match wins.
-    const containerProp = parsed.properties.find(p =>
+    // `recordMode` (JS property, set by an embedding component such as
+    // sol-plugin-manager's entry editor) opts OUT of the container pattern:
+    // the subject is one record whose multi-valued nested property (e.g. a
+    // plugin's ui:attribute pairs) is just one field among its scalars, not
+    // the collection the whole form should pivot on.
+    const containerProp = this.recordMode ? null : parsed.properties.find(p =>
       (p.maxCount === Infinity || p.maxCount > 1) && p.nestedProperties);
     if (containerProp) {
       const subjects = containerProp.reverse
@@ -492,10 +532,19 @@ class SolForm extends HTMLElement {
     // Editable unless authored no-edit — whether an edit persists is the
     // server's call (write access), not the form's.
     const readOnly = this.hasAttribute('no-edit');
+    // Same swap the rolodex path makes: field edits commit through
+    // updater.update, and rdflib's own PATCH 500s on CSS for some docs —
+    // route them through the raw sparql-update shim (with its whole-doc PUT
+    // fallback for docs whose PATCH times CSS's lock out).
+    if (!readOnly) installRawSparqlUpdate(store);
     this._shapeCleanup?.();
     this._shapeCleanup = renderRecordForm(body, store, subject, parsed.properties, {
       doc,
       readOnly,
+      // JS property (set by an embedding component, e.g. sol-plugin-manager's
+      // entry editor): descriptor keys to render as static rows — guard rails
+      // for contract fields like a plugin's module/name.
+      readOnlyKeys: this.readOnlyKeys || [],
       onChange: () => {
         // solid-ui's fieldFunction widgets (basic + Choice via our
         // wireSingleSelectAutosave) PATCH via store.updater.update — that

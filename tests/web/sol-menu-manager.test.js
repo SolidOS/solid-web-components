@@ -571,6 +571,21 @@ describe('SolMenuManager — addPlugin (tap-to-add)', () => {
     });
   });
 
+  test('a payload with a manifest becomes a REFERENCE item (entry set)', async () => {
+    // unified model: menus are reference lists — a card that knows its
+    // ui:Plugin entry must land as a bare-reference item, never an inline
+    // copy (menu-serialize emits item.entry as the ref and skips the body)
+    const el = await mountMenu();
+    const entry = 'http://pod.test/catalog.ttl#Clock';
+    el.addPlugin({ label: 'Clock', tag: 'sol-clock', params: [], manifest: entry });
+    el.addPlugin({ label: 'Docs', href: 'https://example.org/docs', manifest: entry });
+    expect(el._items[0]).toMatchObject({ type: 'component', entry, manifest: entry });
+    expect(el._items[1]).toMatchObject({ type: 'link', entry, manifest: entry });
+    // manifest-less payloads keep the legacy inline form
+    el.addPlugin({ label: 'Loose', tag: 'sol-loose', params: [] });
+    expect(el._items[2].entry).toBeUndefined();
+  });
+
   test('a payload with neither tag nor href is refused (no item, no render)', async () => {
     const el = await mountMenu();
     el.addPlugin({ label: 'Nothing to mount' });

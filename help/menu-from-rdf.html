@@ -69,23 +69,25 @@
   <h2>3 · The <code>ui:Menu</code> shape</h2>
   <p>A <code>ui:Menu</code> has a <code>ui:label</code> and a <code>ui:parts</code> list of
   items. Each item is a <code>ui:Link</code> (a URL to load), a <code>ui:Component</code>
-  (a custom element, or — when <code>ui:name</code> has no hyphen — a command), or a
-  nested <code>ui:Menu</code> (a submenu).</p>
+  (a custom element — the tag derives from its module's filename), a
+  <code>ui:Command</code> (a host command), or a nested <code>ui:Menu</code> (a submenu).
+  Every kind carries the SAME single payload predicate, <code>schema:url</code>.</p>
   <pre><code>@prefix ui:     &lt;http://www.w3.org/ns/ui#&gt; .
 @prefix schema: &lt;http://schema.org/&gt; .
 
 &lt;#MainMenu&gt; a ui:Menu ; ui:label "Demo" ;
   ui:parts ( &lt;#New&gt; &lt;#Open&gt; &lt;#Tools&gt; ) .
 
-&lt;#New&gt;  a ui:Component ; ui:label "New"  ; ui:name "newItem" .   # command
-&lt;#Open&gt; a ui:Component ; ui:label "Open" ; ui:name "openItem" .  # command
+# commands: schema:url is a fragment IRI; the hyphen-free fragment is the key
+&lt;#New&gt;  a ui:Command ; ui:label "New"  ; schema:url &lt;#newItem&gt; .
+&lt;#Open&gt; a ui:Command ; ui:label "Open" ; schema:url &lt;#openItem&gt; .
 
 &lt;#Tools&gt; a ui:Menu ; ui:label "Tools" ;                          # submenu
   ui:parts ( &lt;#Export&gt; &lt;#Settings&gt; ) .
 
-&lt;#Export&gt; a ui:Component ; ui:label "Export" ; ui:name "export" ;
+&lt;#Export&gt; a ui:Command ; ui:label "Export" ; schema:url &lt;#export&gt; ;
   ui:attribute [ schema:name "format" ; schema:value "csv" ] .   # → params
-&lt;#Settings&gt; a ui:Component ; ui:label "Settings" ; ui:name "settings" .</code></pre>
+&lt;#Settings&gt; a ui:Command ; ui:label "Settings" ; schema:url &lt;#settings&gt; .</code></pre>
 
   <table class="attr-table">
     <thead><tr><th>Term</th><th>On</th><th>Meaning</th></tr></thead>
@@ -95,24 +97,67 @@
           <td>Ordered list (an RDF Collection) of the menu's items.</td></tr>
       <tr><td><code>ui:orientation</code></td><td><code>ui:Menu</code></td>
           <td><code>ui:Horizontal</code> (default) or <code>ui:Vertical</code>.</td></tr>
-      <tr><td><code>ui:href</code> / <code>ui:contents</code></td><td><code>ui:Link</code></td>
-          <td>A URL to load, or literal HTML to render inline.</td></tr>
-      <tr><td><code>ui:name</code></td><td><code>ui:Component</code></td>
-          <td>A hyphenated custom-element tag to mount, <i>or</i> a hyphen-free
-              <b>command</b> key (click → <code>sol-command</code>).</td></tr>
-      <tr><td><code>ui:attribute</code></td><td><code>ui:Component</code></td>
+      <tr><td><code>schema:url</code></td><td>any leaf item</td>
+          <td>The ONE payload: a Link's URL to open; a Component's ES module
+              (its filename IS the element tag, e.g.
+              <code>sol-query.js</code> → <code>&lt;sol-query&gt;</code>); a
+              Command's registry fragment IRI (the hyphen-free fragment is
+              the key — click → <code>sol-command</code>).</td></tr>
+      <tr><td><code>ui:contents</code></td><td><code>ui:Link</code></td>
+          <td>Literal HTML rendered inline (in place of a URL).</td></tr>
+      <tr><td><code>ui:attribute</code></td><td>component / command</td>
           <td><code>schema:name</code>/<code>schema:value</code> pairs — element
               attributes, or a command's <code>params</code>.</td></tr>
-      <tr><td><code>ui:icon</code></td><td>link / component</td><td>Icon URL.</td></tr>
+      <tr><td><code>ui:icon</code></td><td>any leaf item</td><td>Icon URL.</td></tr>
     </tbody>
   </table>
   <p>The canonical shape lives in <code>shapes/menu.shacl</code>. Its
-  <code>ui:Link</code> / <code>ui:Component</code> shapes are shared: a menu item, a
-  palette card, and a component-interop manifest entry are all the same shape
-  (component-interop's manifest shape adds only the envelope and
-  <code>ci:module</code>). A command's
-  <code>ui:name</code> is just a key — no code is named in the RDF; your app maps the key
-  to a handler when it receives the <code>sol-command</code> event.</p>
+  <code>ui:Link</code> / <code>ui:Component</code> / <code>ui:Command</code> shapes are
+  shared: a menu item, a palette card, and a component-interop manifest entry
+  are all the same shape (component-interop's manifest shape adds only the
+  envelope and <code>ci:module</code>). A command's key is just a fragment name —
+  no code is named in the RDF; your app maps the key to a handler when it
+  receives the <code>sol-command</code> event.</p>
+
+  <h2>4 · Reference-style menus (<code>ui:Plugin</code> entries)</h2>
+  <p>The inline items above still work, but the richer form keeps every
+  capability as ONE editable <code>ui:Plugin</code> entry in a catalog
+  document, and makes menus ordered lists of <em>references</em> to those
+  entries. The entry is at once the manifest, the palette card, and — when a
+  menu references it — the mounted item; edit the entry and every consumer
+  follows on the next parse.</p>
+  <pre><code>@prefix ui:     &lt;http://www.w3.org/ns/ui#&gt; .
+@prefix schema: &lt;http://schema.org/&gt; .
+@prefix data:   &lt;plugins-catalog.ttl#&gt; .
+
+&lt;#Menu&gt; a ui:Menu ; ui:label "Apps" ;
+  ui:parts ( data:Clock data:Penny data:Restart ) .   # references only
+
+# …and in plugins-catalog.ttl — one entry per capability, ONE payload
+# predicate (schema:url) the kind interprets:
+&lt;#Clock&gt;   a ui:Plugin ; schema:additionalType ui:Component ;
+  ui:label "Clock" ; schema:url &lt;web/sol-clock.esm.js&gt; .   # tag ← filename
+&lt;#Penny&gt;   a ui:Plugin ; schema:additionalType ui:Link ;
+  ui:label "Penny" ; schema:url &lt;https://penny.vincenttunru.com/&gt; .
+&lt;#Restart&gt; a ui:Plugin ; schema:additionalType ui:Command ;
+  ui:label "Restart" ; schema:url &lt;commands.ttl#restartApp&gt; .</code></pre>
+  <p>The REQUIRED <code>schema:additionalType</code> picks the kind, and every
+  kind carries the SAME single payload — <code>schema:url</code> — which the
+  kind interprets: the URL a Link opens; the ES module defining a Component's
+  element (the tag derives from the module filename); or, for a Command, a
+  fragment IRI in the host app's command registry document whose hyphen-free
+  fragment is the command key. <code>:PluginShape</code> in
+  <code>shapes/menu.shacl</code> constrains the url per kind with
+  <code>sh:xone</code>.
+  Shared metadata rides on the entry: <code>schema:description</code> (card
+  blurb), <code>dcterms:publisher</code>, <code>dcterms:subject</code>
+  (topics), <code>ui:icon</code>, <code>ui:attribute</code> pairs, and
+  settings pointers (<code>dcterms:conformsTo</code> /
+  <code>dcterms:references</code> / <code>schema:softwareHelp</code>).
+  <code>&lt;sol-menu&gt;</code>, the managers, and
+  <code>&lt;sol-plugin-manager&gt;</code> resolve the references (across
+  documents) automatically; serialization preserves whichever form a document
+  already uses.</p>
 
 </body>
 </html>

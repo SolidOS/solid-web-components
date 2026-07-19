@@ -31,7 +31,7 @@
  *   - ＋ item appends; ✕ removes from the menu (the item's RDF stays in
  *     the document as "pantry" — recoverable)
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
- *     that row's component (ui:name + ui:attribute set); dropped between
+ *     that row's component (its module url + ui:attribute set); dropped between
  *     rows it inserts a new, fully-assigned item there
  *   - a SECOND plugin dropped on an assigned menu item turns it into a
  *     submenu holding both (one plugin = the item opens it directly;
@@ -57,7 +57,7 @@ import { adopt, sheetFrom } from '../core/adopt.js';
 import { CSS } from './styles/sol-builders-css.js';
 import { rdf } from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
-import { parseMenuItems } from '../core/menu-rdf.js';
+import { parseMenuItems, loadReferencedDocs, deriveTagFromModule, commandKeyFromUrl } from '../core/menu-rdf.js';
 import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
 
@@ -85,7 +85,11 @@ class SolMenuManager extends HTMLElement {
     this.attachShadow({ mode: 'open' });
     adopt(this.shadowRoot, { sheet: SHEET, css: CSS });
     this._items = [];        // the edited tree (parseMenuItems shape)
-    this._meta = { label: null, orientation: 'horizontal' };
+    // orientation starts NULL and is set only from a ui:orientation triple in
+    // the loaded doc — a save must never inject an orientation the doc didn't
+    // declare (a flat menu that gains ui:Horizontal would reclassify as a
+    // button bar in sol-plugin-manager's slot discovery).
+    this._meta = { label: null, orientation: null };
     this._dirty = false;
   }
 
@@ -99,7 +103,12 @@ class SolMenuManager extends HTMLElement {
         if (e.target === this || this._dirty || !this.source) return;
         const src = (e.detail && e.detail.source) || '';
         try {
-          if (new URL(src.split('#')[0], document.baseURI).href === this._docUrl()) this._load();
+          const doc = new URL(src.split('#')[0], document.baseURI).href;
+          if (doc === this._docUrl()) { this._load(); return; }
+          // A save of the catalog this manager labels from (entry edits in
+          // the pantry's ✎ editor) — chips carry entry labels/icons, reload.
+          const cat = this.getAttribute('catalog');
+          if (cat && doc === new URL(cat.split('#')[0], document.baseURI).href) this._load();
         } catch { /* unparseable source — not ours */ }
       };
     }
@@ -203,6 +212,7 @@ class SolMenuManager extends HTMLElement {
     try {
       const docUrl = new URL(src.split('#')[0], document.baseURI).href;
       const store = await loadRdfStore(docUrl, freshFetch);
+      await loadReferencedDocs(store, docUrl, freshFetch);
       const UI = 'http://www.w3.org/ns/ui#';
       const byHref = new Map();
       const byTag = new Map();
@@ -211,8 +221,11 @@ class SolMenuManager extends HTMLElement {
         const subj = st.subject;
         if (!subj.value || !subj.value.startsWith(docUrl + '#')) continue;
         const label = st.object.value;
-        const href = (store.any(subj, rdf.sym(UI + 'href')) || {}).value;
-        const tag = (store.any(subj, rdf.sym(UI + 'name')) || {}).value;
+        // ONE payload predicate — schema:url — read by shape: a tag-shaped
+        // module filename names a component; anything else is a link URL.
+        const payload = (store.any(subj, rdf.sym('http://schema.org/url')) || {}).value;
+        const tag = deriveTagFromModule(payload) || commandKeyFromUrl(payload);
+        const href = tag ? null : payload;
         const manifest = (store.any(subj, rdf.sym('http://purl.org/dc/terms/source')) || {}).value;
         if (manifest) byManifest.set(manifest, label);
         if (href) byHref.set(href, label);
@@ -255,6 +268,7 @@ class SolMenuManager extends HTMLElement {
     this._loadCatalog();
     try {
       const store = await loadRdfStore(this._docUrl(), freshFetch);
+      await loadReferencedDocs(store, this._docUrl(), freshFetch);
       const menuNode = rdf.sym(this._menuIri());
       this._items = parseMenuItems(store, menuNode);
       const label = store.any(menuNode, rdf.sym('http://www.w3.org/ns/ui#label'));
@@ -712,6 +726,12 @@ class SolMenuManager extends HTMLElement {
     return y > 0.3 && y < 0.7;
   }
 
+  // A card that carries its catalog identity (manifest = the ui:Plugin entry
+  // IRI) becomes a REFERENCE item: it serializes as a bare entry in ui:parts,
+  // never an inline copy — the unified model's menus are reference lists.
+  // Payload details (label/icon/…) still render the row until the next parse
+  // resolves them from the catalog. Manifest-less payloads (hand-entered
+  // URLs, legacy docs) keep the old inline form.
   _itemFromPlugin(plugin) {
     if (plugin.href) {
       return {
@@ -720,8 +740,8 @@ class SolMenuManager extends HTMLElement {
         icon: plugin.icon || undefined,
         region: plugin.region || undefined,
         href: plugin.href,
-        // chip identity (dct:source) — keep the link back to the catalog plugin
         manifest: plugin.manifest || undefined,
+        entry: plugin.manifest || undefined,
       };
     }
     return {
@@ -730,8 +750,8 @@ class SolMenuManager extends HTMLElement {
       icon: plugin.icon || undefined,
       tag: plugin.tag || null,
       params: (plugin.params || []).map(([k, v]) => [k, v]),
-      // chip identity (dct:source) — keep the link back to the catalog plugin
       manifest: plugin.manifest || undefined,
+      entry: plugin.manifest || undefined,
     };
   }
 

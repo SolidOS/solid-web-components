@@ -235,7 +235,7 @@ class SolTabs extends HTMLElement {
 
   // Fetch a ui:Menu RDF document and render its parts as tabs. This is the
   // exact shape <sol-menu> consumes — ui:parts of ui:Link / ui:Component
-  // with ui:label / ui:href / ui:contents / ui:name — so a single RDF
+  // with ui:label / schema:url / ui:contents — so a single RDF
   // document can drive either element. A nested ui:Menu becomes a tab whose
   // body holds a slimmer <sol-tabs variant="sub"> strip of its children.
   async _loadFromRdf(uri) {
@@ -271,7 +271,7 @@ class SolTabs extends HTMLElement {
     }
   }
 
-  // Build a toolbar launcher element from an RDF action descriptor (ui:name =
+  // Build a toolbar launcher element from an RDF action descriptor (tag =
   // tag, ui:label → text, ui:attribute → attributes; the slot="actions" marker
   // is dropped). Mirrors an inline non-anchor launcher.
   _buildLauncher(desc) {
@@ -291,7 +291,14 @@ class SolTabs extends HTMLElement {
     if (!el.hasAttribute('title') && desc.name) el.setAttribute('title', desc.name);
     // Only a button carries its label as text (?, A, 🌙); search / login /
     // dropdown render themselves, so a text node would show as a bare word.
-    if (desc.name && desc.tag === 'sol-button') el.textContent = desc.name;
+    // A `label` attribute overrides the display text — the same convention
+    // sol-dropdown-button already honors (the ☰), so a ui:Plugin entry whose
+    // ui:label is the card title can still show e.g. "📅" on the bar.
+    if (desc.tag === 'sol-button') {
+      const labelParam = (desc.params || []).find(([k]) => k === 'label')?.[1];
+      const text = labelParam || desc.name;
+      if (text) el.textContent = text;
+    }
     return el;
   }
 
@@ -351,7 +358,7 @@ class SolTabs extends HTMLElement {
         };
       }
       if (desc.type === 'component') {
-        // A command part (ui:name is a registry key, not a tag) renders by
+        // A command part (its key is a registry key, not a tag) renders by
         // dispatching sol-command; the app's handler may render output into this
         // tab's pane (its region). Fire-and-forget commands leave the pane empty.
         if (isCommandName(desc.tag)) {

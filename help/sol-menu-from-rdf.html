@@ -73,15 +73,15 @@ one) — in that region instead.
 
 <b>ui:Link</b>
   ui:label       # (required) display name
-  ui:href        # (optional) URL to load (same-origin → sol-include, external → iframe)
+  schema:url     # (optional) URL to load (same-origin → sol-include, external → iframe)
   ui:contents    # (optional) literal HTML rendered inline directly
   ui:icon        # (optional) icon URL
 
-  <b>note:</b> a ui:Link must have either a ui:href or a ui:contents triple.
+  <b>note:</b> a ui:Link must have either a schema:url or a ui:contents triple.
 
 <b>ui:Component</b>
   ui:label       # (required) display name shown in the menu
-  ui:name        # (required) EITHER a custom-element tag (hyphenated, e.g. "sol-query")
+  schema:url     # (required) the ES module; its FILENAME is the element tag
                  #            OR a hyphen-free command key (e.g. "installPod")
   ui:attribute   # (optional) schema:PropertyValue pairs — element attributes,
                  #            or, for a command, args carried in the event detail
@@ -91,8 +91,9 @@ one) — in that region instead.
                  #            Rendered with part="requires-write"; the host app
                  #            decides the policy (hide / disable / …).
 
-  <b>note:</b> a hyphenated ui:name names a custom element the app loads/defines.
-  A hyphen-free ui:name is a <b>command</b>: clicking dispatches a bubbling
+  <b>note:</b> a Component's schema:url module filename names its custom element.
+  A ui:Command's schema:url is a registry fragment IRI whose hyphen-free
+  fragment is a <b>command</b> key: clicking dispatches a bubbling
   <code>sol-command</code> (detail: { command, params }) for the host app to
   resolve against its own registry — no code is named in the RDF. (Menus and
   &lt;sol-dropdown-button&gt; dispatch on click; &lt;sol-tabs&gt; skips command items.)</pre>

@@ -2,18 +2,19 @@
 @prefix schema: <http://schema.org/> .
 
 # A ui:Menu drives <sol-menu from-rdf>. ui:parts is an ordered list of items;
-# each hyphen-free ui:name is a command (clicking fires `sol-command`). A nested
-# ui:Menu becomes a fly-out submenu.
+# a `ui:Command` item's schema:url is a fragment IRI whose hyphen-free
+# fragment is the command key (clicking fires `sol-command`) — this demo doc
+# doubles as its own registry. A nested ui:Menu becomes a fly-out submenu.
 
 <#MainMenu> a ui:Menu ; ui:label "Demo" ;
   ui:parts ( <#New> <#Open> <#Tools> ) .
 
-<#New>  a ui:Component ; ui:label "New"  ; ui:name "newItem" .
-<#Open> a ui:Component ; ui:label "Open" ; ui:name "openItem" .
+<#New>  a ui:Command ; ui:label "New"  ; schema:url <#newItem> .
+<#Open> a ui:Command ; ui:label "Open" ; schema:url <#openItem> .
 
 <#Tools> a ui:Menu ; ui:label "Tools" ;
   ui:parts ( <#Export> <#Settings> ) .
 
-<#Export> a ui:Component ; ui:label "Export" ; ui:name "export" ;
+<#Export> a ui:Command ; ui:label "Export" ; schema:url <#export> ;
   ui:attribute [ schema:name "format" ; schema:value "csv" ] .
-<#Settings> a ui:Component ; ui:label "Settings" ; ui:name "settings" .
+<#Settings> a ui:Command ; ui:label "Settings" ; schema:url <#settings> .

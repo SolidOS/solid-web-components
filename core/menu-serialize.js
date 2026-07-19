@@ -88,9 +88,13 @@ function removeMenuNode(store, menuNode) {
 }
 
 /** Collect the item nodes a tree references (recursively), so their old
- *  statements can be cleared before re-emit. */
+ *  statements can be cleared before re-emit. ui:Plugin ENTRIES (item.entry —
+ *  plugin-manifest-unification stage 2) are excluded: the menu doc only holds
+ *  a REFERENCE to them; their bodies live in the catalog doc and must never
+ *  be cleared or re-emitted by a menu save. */
 function treeNodes(store, docUrl, items, out = []) {
   for (const item of items || []) {
+    if (item.entry) continue;
     if (item.id) out.push(fragNode(docUrl, item.id));
     if (item.type === 'submenu') treeNodes(store, docUrl, item.children, out);
   }
@@ -98,6 +102,10 @@ function treeNodes(store, docUrl, items, out = []) {
 }
 
 function emitItem(store, docUrl, doc, item, taken) {
+  // A ui:Plugin entry re-emits as its REFERENCE — the bare entry IRI in the
+  // parts list. No body statements: the entry is not this doc's to write.
+  if (item.entry) return rdf.sym(String(item.entry));
+
   if (!item.id) item.id = mintFragment(item.name, taken);
   const node = fragNode(docUrl, item.id);
 
@@ -132,11 +140,21 @@ function emitItem(store, docUrl, doc, item, taken) {
   if (item.requiresWrite && !gatedByParams(item.params)) store.add(node, acl('mode'), acl('Write'), doc);
 
   if (item.type === 'component') {
-    store.add(node, a, ui('Component'), doc);
-    if (item.tag) store.add(node, ui('name'), rdf.literal(String(item.tag)), doc);
-    // ui:module — an installable component's ES module IRI; round-tripped so
-    // a Customize save doesn't strip a third-party plugin's code pointer.
-    if (item.module) store.add(node, ui('module'), rdf.sym(String(item.module)), doc);
+    // ONE payload predicate everywhere (2026-07-19): schema:url. An inline
+    // command (module-less, `command` carries its registry fragment IRI)
+    // types as ui:Command; a mountable component types as ui:Component with
+    // its module as the url (the tag derives from the filename — the
+    // retired ui:name spelling is never written). A component with neither
+    // module nor command url gets NO payload triple (visible to SHACL
+    // validation rather than silently mis-spelled).
+    if (!item.module && item.command) {
+      store.add(node, a, ui('Command'), doc);
+      store.add(node, sch('url'), rdf.sym(String(item.command)), doc);
+    } else {
+      store.add(node, a, ui('Component'), doc);
+      if (item.module) store.add(node, sch('url'), rdf.sym(String(item.module)), doc);
+      else console.warn(`[menu-serialize] component "${item.name || item.tag}" has no module url — payload omitted`);
+    }
     // region re-joins the attribute list on write (deduped — in-memory params
     // are region-free after parse, but be safe against hand-built items).
     const params = (item.params || []).filter(([k]) => k !== 'region');
@@ -150,7 +168,7 @@ function emitItem(store, docUrl, doc, item, taken) {
     }
   } else {
     store.add(node, a, ui('Link'), doc);
-    if (item.href != null) store.add(node, ui('href'), rdf.literal(String(item.href)), doc);
+    if (item.href != null) store.add(node, sch('url'), rdf.literal(String(item.href)), doc);
     if (item.contents != null) store.add(node, ui('contents'), rdf.literal(String(item.contents)), doc);
   }
   return node;

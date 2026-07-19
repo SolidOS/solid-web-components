@@ -67,7 +67,7 @@ function buildStore() {
 
   store.add(s(BASE + '#Home'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Home'), s(UI + 'label'), l('Home'));
-  store.add(s(BASE + '#Home'), s(UI + 'href'), s('http://example.org/home.html'));
+  store.add(s(BASE + '#Home'), s(SCHEMA + 'url'), s('http://example.org/home.html'));
   store.add(s(BASE + '#Home'), s(UI + 'icon'), s('http://example.org/house.svg'));
 
   store.add(s(BASE + '#Sub'), s(RDF + 'type'), s(UI + 'Menu'));
@@ -83,7 +83,7 @@ function buildStore() {
 
   store.add(s(BASE + '#About'), s(RDF + 'type'), s(UI + 'Component'));
   store.add(s(BASE + '#About'), s(UI + 'label'), l('About'));
-  store.add(s(BASE + '#About'), s(UI + 'name'), l('sol-query'));
+  store.add(s(BASE + '#About'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));
   const param1 = s(BASE + '#_param1');
   store.add(s(BASE + '#About'), s(UI + 'attribute'), param1);
   store.add(param1, s(SCHEMA + 'name'), l('pattern'));
@@ -771,7 +771,7 @@ describe('SolMenu — handler fallback (no ui:handler)', () => {
     store.add(lb, s(RDF + 'first'), s(base + '#Item'));
     store.add(lb, s(RDF + 'rest'), s(RDF + 'nil'));
     store.add(s(base + '#Item'), s(UI + 'label'), l('Page'));
-    store.add(s(base + '#Item'), s(UI + 'href'), s('http://example.org/page.html'));
+    store.add(s(base + '#Item'), s(SCHEMA + 'url'), s('http://example.org/page.html'));
     mockStore = store;
 
     const el = attached(document.createElement('sol-menu'));
@@ -1021,7 +1021,7 @@ describe('SolMenu — ARIA state updates on re-select', () => {
   });
 });
 
-// ── command items (ui:Component whose ui:name is a registry key) ─────────────
+// ── command items (ui:Command whose schema:url fragment is the key) ──────────
 
 function buildCommandStore() {
   const store = rdflib.graph();
@@ -1039,12 +1039,12 @@ function buildCommandStore() {
 
   store.add(s(BASE + '#Home'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Home'), s(UI + 'label'), l('Home'));
-  store.add(s(BASE + '#Home'), s(UI + 'href'), s('http://example.org/home.html'));
+  store.add(s(BASE + '#Home'), s(SCHEMA + 'url'), s('http://example.org/home.html'));
 
-  // ui:name "installPod" — no hyphen → a command, not an element tag.
-  store.add(s(BASE + '#Install'), s(RDF + 'type'), s(UI + 'Component'));
+  // schema:url <…#installPod> — hyphen-free fragment → a command key.
+  store.add(s(BASE + '#Install'), s(RDF + 'type'), s(UI + 'Command'));
   store.add(s(BASE + '#Install'), s(UI + 'label'), l('Install on my Pod'));
-  store.add(s(BASE + '#Install'), s(UI + 'name'), l('installPod'));
+  store.add(s(BASE + '#Install'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#installPod'));
   const p = s(BASE + '#_p');
   store.add(s(BASE + '#Install'), s(UI + 'attribute'), p);
   store.add(p, s(SCHEMA + 'name'), l('target'));

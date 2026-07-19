@@ -1,7 +1,7 @@
 /**
  * <sol-plugin-manager> — an editable plugin list backed by a ui:Menu whose
  * entries are ui:Components (mountable plugins) or ui:Links (external apps:
- * ui:href + a ui:region like ui:Tab saying how they open — e.g. a new
+ * schema:url + a region saying how they open — e.g. a new
  * browser tab). Renders the entries as draggable cards AND accepts
  * drops, so two instances side by side ("Plugins to Use" / "Plugins
  * Available") let the user drag plugins between the lists. Every change
@@ -15,13 +15,14 @@
  * Attributes:
  *   source  — Turtle document + #fragment of the ui:Menu this box edits
  *             (required). The box title is the list's ui:label.
- *   for     — selector naming the manager(s) this palette feeds. Drag data
- *             is set globally (any manager accepts it). The pairing also
- *             SUBTRACTS what's in use: entries mounted by the paired
- *             managers' menus (links matched by href, components by tag —
- *             a plugin is in use once mounted, whatever attributes the menu
- *             gives it) are hidden from this box, and reappear the moment
- *             they're dragged off a menu. A box without `for` shows everything.
+ *   for     — LEGACY pairing: selector naming hand-placed manager(s) this
+ *             palette feeds; in-use subtraction reads their menus. With NO
+ *             `for`, the palette DISCOVERS the document's plugin-holding UI
+ *             slots itself (any element declaring a menu source whose root
+ *             menus hold ui:Plugin references) and emits one manager per
+ *             slot — "Customize <ui:label>" — pairing with those. A page
+ *             with no qualifying slots (e.g. pre-unification data) keeps
+ *             the old behavior: no pairing, every card shown.
  *   grouped — boolean: render this box's topics as TABS — pick a topic, see
  *             only that topic's cards. The topics are skos:Collections in
  *             the source document (skos:prefLabel = tab label, skos:member =
@@ -41,7 +42,8 @@
  *   - a ghost card (no subject in its payload) → adopt into this list.
  *   - a manifest URL (`text/uri-list` / URL-shaped `text/plain`, e.g. a link
  *     dragged from another window) → import: the manifest must offer
- *     `<> a ui:Component ; ui:name "tag"`; its ui:label / ui:icon /
+ *     `<> a ui:Component ; schema:url <module>` (tag ← filename) or a
+ *     ui:Plugin entry; its ui:label / ui:icon /
  *     ui:attribute defaults become the entry, and its dct:subject literal
  *     (the plugin's CATEGORY) files the entry into the matching
  *     skos:Collection — created on the fly for a new category. Typing the
@@ -69,7 +71,7 @@ import { adopt, sheetFrom, ensureDocStyle } from '../core/adopt.js';
 import { CSS } from './styles/sol-builders-css.js';
 import { rdf } from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
-import { parseMenuItems, rdfVal, rdfComponent } from '../core/menu-rdf.js';
+import { parseMenuItems, rdfVal, rdfComponent, loadReferencedDocs, deriveTagFromModule } from '../core/menu-rdf.js';
 import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
 import { renderIcon } from '../core/utils.js';
@@ -81,7 +83,46 @@ import './sol-sheet.js';   // the "Add to…" surface the phone tap flow opens
 // Otherwise an edit (or an external sync) keeps showing the stale grouping.
 const freshFetch = (url, opts) => solFetch(url, { ...(opts || {}), cache: 'no-store' });
 
-const SHEET = sheetFrom(CSS);
+// Self-discovered targets: the component owns the two-region layout —
+// cards (the builder) beside a scrolling column of slot editors. Each box
+// scrolls itself; the host never scrolls.
+const TARGETS_CSS = `
+  :host([has-targets]) { display: flex; align-items: stretch; gap: .8rem; min-height: 0; overflow: hidden; }
+  :host([has-targets]) .builder { flex: 1 1 50%; min-width: 0; min-height: 0; }
+  :host([has-targets]) .targets { flex: 1 1 50%; min-width: 0; min-height: 0;
+    display: flex; flex-direction: column; gap: .8rem; overflow-y: auto; }
+  @media (max-width: 700px), (hover: none) and (pointer: coarse) {
+    :host([has-targets]) { flex-direction: column; overflow-y: auto; }
+    :host([has-targets]) .builder, :host([has-targets]) .targets { flex: 1 1 auto; overflow: visible; }
+  }
+`;
+// The entry editor (stage 6 of plugin-manifest-unification): ✎ on an owned
+// card opens a modal overlay hosting a shape-driven <sol-form> over the
+// entry — the SHACL contract (:PluginShape in the shapes/ this package
+// ships) IS the form. The entry being live config, edits propagate on the
+// next menu parse; the contract payload (a Component/Command schema:url) renders read-only.
+const EDITOR_SHAPE_URL = new URL('../shapes/menu.shacl', import.meta.url).href;
+const EDITOR_CSS = `
+  .editor-overlay { position: fixed; inset: 0; z-index: 60;
+    background: rgba(0, 0, 0, 0.45); display: flex;
+    align-items: center; justify-content: center; padding: 4vh 4vw; }
+  .editor-panel { background: var(--menu-bg, #fff); color: inherit;
+    border-radius: 10px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    width: min(680px, 100%); max-height: 100%; display: flex;
+    flex-direction: column; overflow: hidden; }
+  .editor-head { display: flex; align-items: center; gap: .6rem;
+    padding: .7rem 1rem; font-weight: 700; font-size: max(16px, 1em); }
+  .editor-head .editor-close { margin-left: auto; border: 0; background: none;
+    color: inherit; font: inherit; font-size: max(18px, 1.1em);
+    cursor: pointer; padding: 2px 8px; }
+  .editor-panel sol-form { flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    padding: 0 1rem 1rem; }
+  .card .card-edit { border: 0; background: none; color: inherit;
+    cursor: pointer; font-size: max(14px, .9em); opacity: .55;
+    padding: 0 4px; }
+  .card:hover .card-edit, .card .card-edit:focus { opacity: 1; }
+`;
+const SHEET = sheetFrom(CSS + TARGETS_CSS + EDITOR_CSS);
 
 // Light-DOM styles for the phone "Add to…" sheet rows (the sheet is
 // body-mounted, so these are document-level — same recipe as sol-tabs' nav
@@ -137,7 +178,7 @@ class SolPluginManager extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    adopt(this.shadowRoot, { sheet: SHEET, css: CSS });
+    adopt(this.shadowRoot, { sheet: SHEET, css: CSS + TARGETS_CSS + EDITOR_CSS });
     this._items = [];                      // this list's entries (parseMenuItems shape)
     this._meta = { label: null, comment: null, orientation: null };
     this._queue = Promise.resolve();       // serializes saves within this box
@@ -170,6 +211,71 @@ class SolPluginManager extends HTMLElement {
     // The "Add to…" sheet is body-mounted so it overlays everything; it goes
     // when its owner goes.
     if (this._sheet) { this._sheet.remove(); this._sheet = null; }
+    this._closeEditor({ skipRefresh: true });
+  }
+
+  // ---- the entry editor (✎ on an owned card) ------------------------------
+  // A modal overlay hosting a shape-driven <sol-form> over the ui:Plugin
+  // entry: shape = the shipped :PluginShape contract, subject = the entry
+  // IRI. sol-form's own updater PATCHes each field edit; on close we reload
+  // the cards and announce the catalog change so paired managers refresh
+  // their chips. The contract payload stays read-only (guard rails — a
+  // Component's schema:url names the tag, a Command's names the key).
+  async _openEditor(p) {
+    this._closeEditor({ skipRefresh: true });
+    try { await import('./sol-form.js'); } catch (_) { /* bundled hosts predefine it */ }
+    const ov = document.createElement('div');
+    ov.className = 'editor-overlay';
+    const panel = document.createElement('div');
+    panel.className = 'editor-panel';
+    const head = document.createElement('div');
+    head.className = 'editor-head';
+    const title = document.createElement('span');
+    title.textContent = `Edit “${p.name || p.tag}”`;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'editor-close';
+    close.textContent = '✕';
+    close.title = 'Close';
+    close.setAttribute('aria-label', 'Close editor');
+    close.addEventListener('click', () => this._closeEditor());
+    head.append(title, close);
+    const form = document.createElement('sol-form');
+    form.recordMode = true;              // one record — never the rolodex pivot
+    // Guard rails on the single schema:url payload: a Link's URL is the
+    // owner's to edit; a Component's module (names the tag) and a Command's
+    // registry fragment (names the key) are contract — shown, not editable.
+    form.readOnlyKeys = p.type === 'link' ? [] : ['url'];
+    form.setAttribute('shape', EDITOR_SHAPE_URL);
+    form.setAttribute('subject', `${this._docUrl()}#${p.id}`);
+    form.addEventListener('sol-form-save', () => { this._editorDirty = true; });
+    form.addEventListener('sol-form-change', () => { this._editorDirty = true; });
+    panel.append(head, form);
+    ov.appendChild(panel);
+    ov.addEventListener('click', (e) => { if (e.target === ov) this._closeEditor(); });
+    this._onEditorKey = (e) => { if (e.key === 'Escape') this._closeEditor(); };
+    document.addEventListener('keydown', this._onEditorKey);
+    this.shadowRoot.appendChild(ov);
+    this._editor = ov;
+    close.focus();
+  }
+
+  _closeEditor({ skipRefresh = false } = {}) {
+    if (this._onEditorKey) {
+      document.removeEventListener('keydown', this._onEditorKey);
+      this._onEditorKey = null;
+    }
+    if (!this._editor) return;
+    this._editor.remove();
+    this._editor = null;
+    if (skipRefresh || !this._editorDirty) return;
+    this._editorDirty = false;
+    this._load();
+    // Same announcement a catalog save makes — paired managers re-resolve
+    // their chips (labels/icons come from the entries).
+    this.dispatchEvent(new CustomEvent('sol-menu-built', {
+      bubbles: true, composed: true, detail: { source: this.source },
+    }));
   }
 
   get source() { return this.getAttribute('source') || ''; }
@@ -198,9 +304,10 @@ class SolPluginManager extends HTMLElement {
   _pairedDocs() {
     const docs = new Set();
     const sel = this.getAttribute('for');
-    if (!sel) return docs;
+    if (!sel && !(this._targets && this._targets.length)) return docs;
     let els = [];
-    try { els = [...document.querySelectorAll(sel)]; } catch { return docs; }
+    if (sel) { try { els = [...document.querySelectorAll(sel)]; } catch { return docs; } }
+    else els = this._targets;
     for (const el of els) {
       const src = el.getAttribute && el.getAttribute('source');
       if (!src) continue;
@@ -215,11 +322,13 @@ class SolPluginManager extends HTMLElement {
   // Submenu children count too.
   async _loadUsed() {
     const sel = this.getAttribute('for');
-    if (!sel) { this._used = null; return; }
+    // pairing: an explicit `for` selector, else the SELF-DISCOVERED targets
+    if (!sel && !(this._targets && this._targets.length)) { this._used = null; return; }
     const used = { hrefs: new Set(), keys: new Set(), manifests: new Set() };
     const perDoc = new Map();
     let els = [];
-    try { els = [...document.querySelectorAll(sel)]; } catch { els = []; }
+    if (sel) { try { els = [...document.querySelectorAll(sel)]; } catch { els = []; } }
+    else els = this._targets;
     for (const el of els) {
       const src = el.getAttribute && el.getAttribute('source');
       if (!src || !src.includes('#')) continue;
@@ -232,6 +341,8 @@ class SolPluginManager extends HTMLElement {
     for (const [docUrl, frags] of perDoc) {
       try {
         const store = await loadRdfStore(docUrl, freshFetch);
+        // reference-style menus point at ui:Plugin entries in other docs
+        await loadReferencedDocs(store, docUrl, freshFetch);
         const walk = (items) => {
           for (const it of items || []) {
             if (it.type === 'submenu') { walk(it.children); continue; }
@@ -264,15 +375,89 @@ class SolPluginManager extends HTMLElement {
 
   // ---- loading -----------------------------------------------------------
 
+  // ── UI-slot discovery (plugin-manifest-unification, 2026-07-18) ──────────
+  // With NO `for` attribute the palette discovers the document's
+  // plugin-holding UI slots itself and emits their editors: every element
+  // that DECLARES a menu source (from-rdf= / source=) nominates its doc;
+  // each doc's ROOT menus (not nested in another menu's parts) qualify when
+  // their tree holds at least one ui:Plugin REFERENCE — the unified model's
+  // signature. (Legacy inline-item menus never qualify, so pre-unification
+  // pages keep the old "no pairing, show everything" behavior.) A root with
+  // A FLAT root with ui:orientation ui:Horizontal gets a
+  // <sol-button-bar-manager>; anything with submenus is a tree and gets a
+  // <sol-menu-manager> whatever its orientation (the tab bar is horizontal
+  // but holds submenus). Headings are "Customize " + the root's ui:label.
+  // The component's own catalog doc is never a slot.
+  async _ensureTargets() {
+    if (this.getAttribute('for') || this._targets) return;
+    this._targets = [];
+    const UI_ = 'http://www.w3.org/ns/ui#';
+    const RDF_ = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+    const docs = new Set();
+    for (const el of document.querySelectorAll('[from-rdf], [source]')) {
+      const src = el.getAttribute('from-rdf') || el.getAttribute('source') || '';
+      if (!src) continue;
+      try { docs.add(new URL(src.split('#')[0], document.baseURI).href); } catch { /* skip */ }
+    }
+    docs.delete(this._docUrl());
+    const found = [];
+    for (const docUrl of docs) {
+      let store;
+      try {
+        store = await loadRdfStore(docUrl, freshFetch);
+        await loadReferencedDocs(store, docUrl, freshFetch);
+      } catch { continue; }
+      const menus = store.each(null, rdf.sym(RDF_ + 'type'), rdf.sym(UI_ + 'Menu'))
+        .filter((n) => n.value.split('#')[0] === docUrl);
+      if (!menus.length) continue;
+      // roots: menus not inside another menu's parts (in this doc)
+      const nested = new Set();
+      for (const m of menus) {
+        for (const it of parseMenuItems(store, m)) {
+          if (it.type === 'submenu' && it.id) nested.add(docUrl + '#' + it.id);
+        }
+      }
+      const holdsPlugin = (items) => items.some((it) =>
+        it.type === 'submenu' ? holdsPlugin(it.children) : !!it.entry);
+      for (const m of menus) {
+        if (nested.has(m.value)) continue;
+        const items = parseMenuItems(store, m);
+        if (!holdsPlugin(items)) continue;
+        const o = (rdfVal(store, m, 'orientation') || '').split('#').pop().toLowerCase();
+        const flat = !items.some((it) => it.type === 'submenu');
+        found.push({
+          iri: m.value,
+          label: rdfVal(store, m, 'label') || m.value.split('#')[1],
+          horizontal: o === 'horizontal' && flat,
+        });
+      }
+    }
+    if (!found.length) { this._targets = []; return; }
+    const region = document.createElement('div');
+    region.className = 'targets';
+    for (const t of found) {
+      const el = document.createElement(t.horizontal ? 'sol-button-bar-manager' : 'sol-menu-manager');
+      el.setAttribute('heading', `Customize ${t.label}`);
+      el.setAttribute('source', t.iri);
+      el.setAttribute('catalog', this.source);
+      region.appendChild(el);
+      this._targets.push(el);
+    }
+    this.shadowRoot.appendChild(region);
+    this.setAttribute('has-targets', '');
+  }
+
   async _load() {
     if (!this.source || !this._menuIri()) {
       this._root.innerHTML = '<div class="hint">Set source="plugins-catalog.ttl#InUse" (a ui:Menu of plugins) to manage a list.</div>';
       return;
     }
     this._loadError = null;
+    await this._ensureTargets();
     await this._loadUsed();
     try {
       const store = await loadRdfStore(this._docUrl(), freshFetch);
+      await loadReferencedDocs(store, this._docUrl(), freshFetch);
       const menuNode = rdf.sym(this._menuIri());
       const desc = this._menuDesc(store, this._menuIri());
       this._items = desc.items;
@@ -352,11 +537,13 @@ class SolPluginManager extends HTMLElement {
   }
 
   // Every element tag any ui:Component in the document declares — used to
-  // decide which loader-manifest entries still show as ghost cards.
+  // decide which loader-manifest entries still show as ghost cards. Tags
+  // derive from schema:url module filenames (the single payload predicate).
   _tagsInDoc(store) {
     const tags = new Set();
-    for (const st of store.statementsMatching(null, rdf.sym(UI + 'name'), null)) {
-      if (st.object && st.object.value) tags.add(st.object.value);
+    for (const st of store.statementsMatching(null, rdf.sym(SCHEMA + 'url'), null)) {
+      const tag = deriveTagFromModule(st.object && st.object.value);
+      if (tag) tags.add(tag);
     }
     // A data-handler attribute adopts its component too (e.g. the calendar
     // is catalogued as a sol-button with data-handler="sol-calendar"), so
@@ -421,7 +608,7 @@ class SolPluginManager extends HTMLElement {
     head.append(title, this._status);
 
     // Entries are components (mountable plugins) OR links (external apps —
-    // a ui:Link with ui:href; clicking the placed item fires the link).
+    // a ui:Link with its schema:url; clicking the placed item fires the link).
     // Cards DISPLAY alphabetically by name; the stored list keeps its own
     // order (sorting is presentation only).
     const byName = (a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
@@ -526,6 +713,22 @@ class SolPluginManager extends HTMLElement {
     label.className = 'card-label';
     label.textContent = p.name || p.tag;
     top.appendChild(label);
+    // Edit: an owned entry opens the shape-driven manifest editor — the entry
+    // IS the live config, so a label/icon/attribute change propagates on the
+    // next menu parse without reinstalling.
+    if (!p.ghost && p.id) {
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'card-edit';
+      edit.textContent = '✎';
+      edit.title = `Edit “${p.name || p.tag}”`;
+      edit.setAttribute('aria-label', edit.title);
+      edit.draggable = false;
+      edit.addEventListener('mousedown', (e) => e.stopPropagation());
+      edit.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+      edit.addEventListener('click', (e) => { e.stopPropagation(); this._openEditor(p); });
+      top.appendChild(edit);
+    }
     // Delete: an owned entry (not a loader-manifest ghost) can be removed from
     // the catalog entirely — entry + its manifest (via dct:source). Confirmed,
     // since it's destructive.
@@ -591,7 +794,7 @@ class SolPluginManager extends HTMLElement {
     // sheet listing the paired managers (and their submenus) as destinations.
     card.addEventListener('click', (e) => {
       if (!isCoarse()) return;
-      if (e.target.closest('.card-del')) return;
+      if (e.target.closest('.card-del') || e.target.closest('.card-edit')) return;
       this._openPlaceSheet(p);
     });
     return card;
@@ -848,14 +1051,16 @@ class SolPluginManager extends HTMLElement {
   }
 
   // An existing subject in the document describing the same thing —
-  // components by tag + identical attribute defaults, links by href — as a
-  // re-listable entry.
+  // links by matching schema:url; components by the tag its schema:url
+  // module filename derives to + identical attribute defaults — as a
+  // re-listable entry. One payload predicate covers both kinds.
   _findExisting(store, docUrl, entry) {
     const doc = docUrl.split('#')[0];
-    if (entry.type === 'link') {
-      for (const st of store.statementsMatching(null, rdf.sym(UI + 'href'), null)) {
-        const subj = st.subject;
-        if (!subj.value || !subj.value.startsWith(doc + '#')) continue;
+    const want = entry.type === 'link' ? null : paramsKey(entry.params);
+    for (const st of store.statementsMatching(null, rdf.sym(SCHEMA + 'url'), null)) {
+      const subj = st.subject;
+      if (!subj.value || !subj.value.startsWith(doc + '#')) continue;
+      if (entry.type === 'link') {
         if (st.object.value !== entry.href) continue;
         return {
           type: 'link',
@@ -866,12 +1071,6 @@ class SolPluginManager extends HTMLElement {
           href: entry.href,
         };
       }
-      return null;
-    }
-    const want = paramsKey(entry.params);
-    for (const st of store.statementsMatching(null, rdf.sym(UI + 'name'), null)) {
-      const subj = st.subject;
-      if (!subj.value || !subj.value.startsWith(doc + '#')) continue;
       const { tag, params } = rdfComponent(store, subj);
       if (tag !== entry.tag || paramsKey(params) !== want) continue;
       return {
@@ -898,10 +1097,10 @@ class SolPluginManager extends HTMLElement {
   }
 
   // Fetch + parse a manifest and add it as an entry. Two kinds:
-  //   `<> a ui:Component ; ui:name "tag"` — a mountable plugin (ui:label /
-  //   ui:icon / ui:attribute defaults flesh out the entry);
-  //   `<> a ui:Link ; ui:href <url>`      — an external app (ui:region, e.g.
-  //   ui:Tab, says how it opens).
+  //   `<> a ui:Component ; schema:url <module>` — a mountable plugin (the
+  //   tag derives from the filename; ui:label / ui:icon / ui:attribute
+  //   defaults flesh out the entry);
+  //   `<> a ui:Link ; schema:url <url>` — an external app.
   // dct:subject literals are the categories the entry files under.
   async _importManifest(input) {
     let url;
@@ -915,37 +1114,42 @@ class SolPluginManager extends HTMLElement {
       subj, rdf.sym(RDF + 'type'), rdf.sym(UI + local),
     ).length > 0;
     const categories = mStore.each(subj, rdf.sym(DCT + 'subject'), null).map((n) => n.value);
-    const tag = rdfVal(mStore, subj, 'name');
-    const href = rdfVal(mStore, subj, 'href');
+    // ONE payload predicate — schema:url — for manifests too; the kind
+    // (rdf:type or a ui:Plugin's schema:additionalType) says how to read it.
+    const payload = (mStore.any(subj, rdf.sym(SCHEMA + 'url')) || {}).value || null;
+    const addl = (mStore.any(subj, rdf.sym(SCHEMA + 'additionalType')) || {}).value || '';
+    const isLink = hasType('Link') || addl === UI + 'Link';
+    const isComponent = hasType('Component') || addl === UI + 'Component';
     const lit = (ns, local) => {
       const n = mStore.any(subj, rdf.sym(ns + local));
       return n ? n.value : undefined;
     };
-    if (hasType('Link') && href) {
+    if (isLink && payload) {
       await this._addEntry({
         type: 'link', id: null,
-        name: rdfVal(mStore, subj, 'label') || href,
+        name: rdfVal(mStore, subj, 'label') || payload,
         icon: rdfVal(mStore, subj, 'icon') || undefined,
         region: (rdfVal(mStore, subj, 'region') || '').split('#').pop().toLowerCase() || undefined,
         publisher: lit(DCT, 'publisher'),
-        href, categories,
+        href: payload, categories,
       });
       return;
     }
-    if (hasType('Component') && tag) {
+    const tag = deriveTagFromModule(payload);
+    if (isComponent && tag) {
       await this._addEntry({
         type: 'component', id: null,
         name: rdfVal(mStore, subj, 'label') || tag,
         icon: rdfVal(mStore, subj, 'icon') || undefined,
         tag,
         params: rdfComponent(mStore, subj).params,
-        module: rdfVal(mStore, subj, 'module') || undefined,
+        module: payload,
         publisher: lit(DCT, 'publisher'),
         categories,
       });
       return;
     }
-    throw new Error(`${input} is not a plugin manifest (need <> a ui:Component with ui:name, or a ui:Link with ui:href)`);
+    throw new Error(`${input} is not a plugin manifest (need a ui:Component whose schema:url is a tag-shaped module, or a ui:Link with a schema:url)`);
   }
 
   // Rewrite the given menus in the store, run the optional `after` hook

@@ -108,19 +108,19 @@ ui:proxy a rdf:Property ; rdfs:isDefinedBy <> ;
 ##############
 
 ui:Menu a rdfs:Class ; rdfs:label "Menu" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A navigable menu or tab set consisting of ui:Links, ui:Menus, ui:Components" .
+  rdfs:comment "A navigable menu or tab set; its ui:parts is an ordered list of references to ui:Plugin entries (or nested ui:Menus). Menus may also inline ui:Link/ui:Component/ui:Command items directly." .
 
 ui:Link a rdfs:Class ; rdfs:label "Link" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A menu item that loads a ui:href or renders a ui:contents literal." .
+  rdfs:comment "An external app/URL. As a schema:additionalType value it marks the kind of a ui:Plugin entry; as an rdf:type it is the inline menu-item form. Either way the single schema:url payload is the URL to open (ui:contents may replace it with inline HTML)." .
 
 ui:Component a rdfs:Class ; rdfs:label "Component" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A menu item that instantiates the custom element named by ui:name, configured with ui:attribute pairs." .
+  rdfs:comment "A mountable custom element, configured with ui:attribute pairs. As a schema:additionalType value it marks the kind of a ui:Plugin entry; as an rdf:type it is the inline menu-item form. Either way the single schema:url payload is the defining ES module — the element tag derives from its filename." .
 
-ui:href a rdf:Property ; rdfs:label "href" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "The URL a ui:Link loads." .
+ui:Plugin a rdfs:Class ; rdfs:label "Plugin" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "One editable plugin entry: the description of an available capability — an external app (ui:Link), a mountable custom element (ui:Component), or a host command (ui:Command) — discriminated by a REQUIRED schema:additionalType, with a single schema:url payload the kind interprets. The same node is the catalog card and, when referenced from a ui:Menu's parts list, the mounted item; being referenced is what makes it in use." .
 
-ui:module a rdf:Property ; rdfs:label "module" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "The ES module that defines a ui:Component's element; pairs with ui:name as ui:href pairs with ui:Link." .
+ui:Command a rdfs:Class ; rdfs:label "Command" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "A host-app command. Its entry's schema:url is a fragment IRI in the host's command registry document; the hyphen-free fragment (the spelling that distinguishes a key from a custom-element tag) is dispatched as a sol-command event. The registry is an allow-list, so an unregistered key is a no-op. No code is loaded or executed from RDF." .
 
 ui:icon a rdf:Property ; rdfs:label "icon" ; rdfs:isDefinedBy <> ;
   rdfs:comment "Optional icon URL shown for a menu item." .

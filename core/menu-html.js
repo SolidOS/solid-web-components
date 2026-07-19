@@ -33,7 +33,23 @@ const TAB_SKIP = new Set(['href', 'id', 'data-handler', 'region', 'target', 'dat
 // Exported singly (besides extractShell) so sol-tabs can normalize a live
 // anchor / <submenu> child into the same item shape the RDF parse produces —
 // the basis of applyTabs' change detection.
-export function extractTab(a) {
+// href doc-part match against the caller-supplied entry docs (absolute or
+// exactly-as-written relative forms). References are recognized ONLY when the
+// caller names the catalog doc(s) — a plain hand-authored link can never be
+// mistaken for one.
+function entryRef(el, opts) {
+  const docs = (opts && opts.entryDocs) || [];
+  if (!docs.length || el.getAttribute('data-handler')) return null;
+  const href = el.getAttribute('href') || '';
+  return docs.includes(href.split('#')[0]) ? href : null;
+}
+
+export function extractTab(a, opts = {}) {
+  // A ui:Plugin REFERENCE (a bare anchor whose href is the entry IRI): the
+  // desc carries ONLY the entry marker — menu-serialize re-emits the bare
+  // reference; the entry body lives in the catalog doc, never in the menu.
+  const ref = entryRef(a, opts);
+  if (ref) return { entry: ref, id: a.getAttribute('id') || undefined };
   // A LINK tab (ui:Link): emitTab's no-data-handler anchor — target (or a
   // region= for richer placements) marks it; href IS the link, not a
   // source to include. ui:icon has no HTML spelling, so it survives only
@@ -77,9 +93,9 @@ export function extractTab(a) {
 
 // A <submenu> block (emitted by menu-generate for a multi-plugin menu item):
 // <label> = the item's name, child anchors = its plugins.
-export function extractSubmenu(el) {
+export function extractSubmenu(el, opts = {}) {
   const label = el.querySelector(':scope > label');
-  const children = Array.from(el.querySelectorAll(':scope > a[href]')).map(extractTab);
+  const children = Array.from(el.querySelectorAll(':scope > a[href]')).map((a) => extractTab(a, opts));
   return {
     type: 'submenu',
     id: el.getAttribute('id') || undefined,
@@ -119,7 +135,7 @@ function extractBarItem(el) {
  * @param {Element} tabsEl a <sol-tabs> element (from parsed source markup)
  * @returns {{ tabs: object[], bar: object[] }}
  */
-export function extractShell(tabsEl) {
+export function extractShell(tabsEl, opts = {}) {
   const tabs = [];
   const bar = [];
   if (!tabsEl) return { tabs, bar };
@@ -136,10 +152,15 @@ export function extractShell(tabsEl) {
     let item = null;
     if (el.tagName.toLowerCase() === 'a' && el.hasAttribute('href')
         && el.getAttribute('slot') !== 'actions') {
-      item = extractTab(el); tabs.push(item);
+      item = extractTab(el, opts); tabs.push(item);
     } else if (el.tagName.toLowerCase() === 'submenu') {
-      item = extractSubmenu(el); tabs.push(item);
-    } else if (el.tagName.toLowerCase() !== 'a') {
+      item = extractSubmenu(el, opts); tabs.push(item);
+    } else if (el.tagName.toLowerCase() === 'a') {
+      // slot="actions" anchor: a BAR-side ui:Plugin reference (emitBarItem's
+      // spelling); non-reference actions anchors stay ignored as before.
+      const ref = entryRef(el, opts);
+      if (ref) { item = { entry: ref }; bar.push(item); }
+    } else {
       item = extractBarItem(el); bar.push(item);
     }
     if (item && pendingComment) item.comment = pendingComment;
@@ -156,8 +177,8 @@ export function extractShell(tabsEl) {
  * @param {string} html
  * @returns {{ tabs: object[], bar: object[] }}
  */
-export function extractFromHtml(html) {
+export function extractFromHtml(html, opts = {}) {
   const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
   const tabsEl = doc.querySelector('sol-tabs');
-  return extractShell(tabsEl);
+  return extractShell(tabsEl, opts);
 }

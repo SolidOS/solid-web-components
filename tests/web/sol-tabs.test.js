@@ -46,8 +46,8 @@ installFromRdfLoader(loadMenuFromUri);
 // #Main → ( #Home #Settings #Table #About )
 //   #Home     ui:Link      href + icon
 //   #Settings ui:Menu      nested: ( #Light #Dark ) both ui:contents links
-//   #Table    ui:Component ui:name "sol-query" + ui:attribute endpoint
-//   #About    ui:Component ui:name "sol-query" + ui:attribute pattern
+//   #Table    ui:Component schema:url …/sol-query.js + ui:attribute endpoint
+//   #About    ui:Component schema:url …/sol-query.js + ui:attribute pattern
 function buildStore() {
   const store = rdflib.graph();
   const s = (v) => rdflib.sym(v);
@@ -72,7 +72,7 @@ function buildStore() {
 
   store.add(s(BASE + '#Home'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Home'), s(UI + 'label'), l('Home'));
-  store.add(s(BASE + '#Home'), s(UI + 'href'), s('http://example.org/home.html'));
+  store.add(s(BASE + '#Home'), s(SCHEMA + 'url'), s('http://example.org/home.html'));
   store.add(s(BASE + '#Home'), s(UI + 'icon'), s('http://example.org/house.svg'));
 
   store.add(s(BASE + '#Settings'), s(RDF + 'type'), s(UI + 'Menu'));
@@ -95,7 +95,7 @@ function buildStore() {
 
   store.add(s(BASE + '#Table'), s(RDF + 'type'), s(UI + 'Component'));
   store.add(s(BASE + '#Table'), s(UI + 'label'), l('Data Table'));
-  store.add(s(BASE + '#Table'), s(UI + 'name'), l('sol-query'));
+  store.add(s(BASE + '#Table'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));
   const attr1 = s(BASE + '#_a1');
   store.add(s(BASE + '#Table'), s(UI + 'attribute'), attr1);
   store.add(attr1, s(SCHEMA + 'name'), l('endpoint'));
@@ -103,7 +103,7 @@ function buildStore() {
 
   store.add(s(BASE + '#About'), s(RDF + 'type'), s(UI + 'Component'));
   store.add(s(BASE + '#About'), s(UI + 'label'), l('About'));
-  store.add(s(BASE + '#About'), s(UI + 'name'), l('sol-query'));
+  store.add(s(BASE + '#About'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));
   const param1 = s(BASE + '#_p1');
   store.add(s(BASE + '#About'), s(UI + 'attribute'), param1);
   store.add(param1, s(SCHEMA + 'name'), l('pattern'));
@@ -201,7 +201,7 @@ describe('SolTabs — from-rdf loading', () => {
     expect(pane.textContent).toContain('light content');
   });
 
-  test('ui:href link wraps the URL in sol-include by default', async () => {
+  test('a link schema:url wraps in sol-include by default', async () => {
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#Main');
     await flush();
@@ -368,7 +368,7 @@ describe('SolTabs — mobile navigator bottom sheet (coarse pointer)', () => {
 
   test('an EXTERNAL link leaf opens via window.open and does NOT switch to the submenu', async () => {
     // Give #Light an href so it becomes an external link leaf (like an Apps item).
-    mockStore.add(rdflib.sym(BASE + '#Light'), rdflib.sym(UI + 'href'), rdflib.sym('http://ext.example/read'));
+    mockStore.add(rdflib.sym(BASE + '#Light'), rdflib.sym(SCHEMA + 'url'), rdflib.sym('http://ext.example/read'));
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('keep-alive', '');
     el.setAttribute('from-rdf', BASE + '#Main');
@@ -821,10 +821,10 @@ describe('SolTabs — command items', () => {
     store.add(b2, s(RDF + 'rest'), s(RDF + 'nil'));
     store.add(s(BASE + '#Table'), s(RDF + 'type'), s(UI + 'Component'));
     store.add(s(BASE + '#Table'), s(UI + 'label'), l('Table'));
-    store.add(s(BASE + '#Table'), s(UI + 'name'), l('sol-query'));
-    store.add(s(BASE + '#Run'), s(RDF + 'type'), s(UI + 'Component'));
+    store.add(s(BASE + '#Table'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));
+    store.add(s(BASE + '#Run'), s(RDF + 'type'), s(UI + 'Command'));
     store.add(s(BASE + '#Run'), s(UI + 'label'), l('Run'));
-    store.add(s(BASE + '#Run'), s(UI + 'name'), l('installPod'));   // bare → command
+    store.add(s(BASE + '#Run'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#installPod'));   // registry fragment → command key
     mockStore = store;
 
     const el = attached(document.createElement('sol-tabs'));

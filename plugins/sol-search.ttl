@@ -4,10 +4,9 @@
 
 <>
   a ui:Component ;
-  ui:name "sol-search" ;
   ui:label "Search" ;
   ui:icon "🔍" ;
   schema:description "Search box for the button bar (pluggable search engines)." ;
-  ui:module <../web/sol-search.js> ;
+  schema:url <../web/sol-search.js> ;
   dct:conformsTo <../shapes/search-engines.shacl> ;
   dct:references <../data/search-engines.ttl> .

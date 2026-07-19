@@ -41,32 +41,51 @@ const MENU_TTL = `
 <#l4> rdf:first <#Customize> ; rdf:rest <#l5> .
 <#l5> rdf:first <#Help> ; rdf:rest rdf:nil .
 
-<#Customize> a ui:Component ; ui:label "Customize" ; ui:name "sol-include" ;
+<#Customize> a ui:Component ; ui:label "Customize" ; schema:url <https://pod.example/web/sol-include.js> ;
   ui:attribute <#cGate> , <#cSource> , <#cRegion> .
 <#cGate>   schema:name "if-logged-in" ; schema:value "" .
 <#cSource> schema:name "source" ; schema:value "pages/customize.html" .
 <#cRegion> schema:name "region" ; schema:value "Dropdown" .
 
-<#Help> a ui:Component ; ui:label "Help" ; ui:name "sol-include" ;
+<#Help> a ui:Component ; ui:label "Help" ; schema:url <https://pod.example/web/sol-include.js> ;
   ui:attribute <#hAlt> , <#hSource> .
 <#hAlt>    schema:name "if-logged-in" ; schema:value "help/owner.html" .
 <#hSource> schema:name "source" ; schema:value "help/guest.html" .
 
-<#Home> a ui:Component ; ui:label "Home" ; ui:icon "🏠" ; ui:name "sol-include" ;
+<#Home> a ui:Component ; ui:label "Home" ; ui:icon "🏠" ; schema:url <https://pod.example/web/sol-include.js> ;
   ui:attribute <#aSource> , <#aTrusted> .
 <#aSource>  schema:name "source"  ; schema:value "pages/home.html" .
 <#aTrusted> schema:name "trusted" ; schema:value "true" .
 
-<#Podz> a ui:Component ; ui:label "Podz" ; ui:name "dk-podz" ;
-  ui:module <https://pod.example/plugins/podz/dk-podz.esm.js> ;
+<#Podz> a ui:Component ; ui:label "Podz" ;
+  schema:url <https://pod.example/plugins/podz/dk-podz.esm.js> ;
   ui:region ui:Modal ;
   acl:mode acl:Write .
 
 <#Sub> a ui:Menu ; ui:label "More" ; ui:parts <#sl1> .
 <#sl1> rdf:first <#Faq> ; rdf:rest rdf:nil .
-<#Faq> a ui:Link ; ui:label "FAQ" ; ui:href "https://solidproject.org/FAQ" .
+<#Faq> a ui:Link ; ui:label "FAQ" ; schema:url "https://solidproject.org/FAQ" .
 
-<#Forum> a ui:Component ; ui:label "Forum" ; ui:name "iframe" .
+<#Forum> a ui:Link ; ui:label "Forum" ; schema:url "https://forum.solidproject.org/" .
+
+<#PluginMenu> a ui:Menu ; ui:label "plugins" ; ui:parts <#pl1> .
+<#pl1> rdf:first <#EPenny> ; rdf:rest <#pl2> .
+<#pl2> rdf:first <#ECal> ; rdf:rest <#pl3> .
+<#pl3> rdf:first <#ETheme> ; rdf:rest rdf:nil .
+
+<#EPenny> a ui:Plugin ; schema:additionalType ui:Link ;
+  ui:label "Penny" ; schema:url "https://penny.example/" ;
+  schema:description "Pod browser." .
+
+<#ECal> a ui:Plugin ; schema:additionalType ui:Component ;
+  ui:label "Calendar" ;
+  schema:url <https://pod.example/web/sol-calendar.esm.js> ;
+  ui:attribute <#eRegion> , <#eHide> .
+<#eRegion> schema:name "region" ; schema:value "dropdown" .
+<#eHide>   schema:name "hide-header" ; schema:value "" .
+
+<#ETheme> a ui:Plugin ; schema:additionalType ui:Command ;
+  ui:label "Theme" ; schema:url <https://pod.example/ui-data/commands.ttl#toggleTheme> .
 `;
 
 const DOC_URL = 'https://pod.example/menu.ttl';
@@ -158,7 +177,7 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     expect(home.id).toBe('Home');                   // IRI fragment is the id
     expect(home.name).toBe('Home');
     expect(home.icon).toBe('🏠');
-    expect(home.tag).toBe('sol-include');           // from ui:name
+    expect(home.tag).toBe('sol-include');           // derived from schema:url
     // params come from the ui:attribute schema:name/value pairs
     const asObj = Object.fromEntries(home.params);
     expect(asObj.source).toBe('pages/home.html');
@@ -183,6 +202,32 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     // legacy ui:region triple still reads
     const podz = items.find((i) => i.id === 'Podz');
     expect(podz.region).toBe('modal');
+  });
+
+  test('ui:Plugin entries parse into legacy-shaped descriptions with an entry marker', async () => {
+    global.fetch = turtleFetchStub();
+    const { items } = await loadMenuFromUri(DOC_URL + '#PluginMenu');
+    expect(items).toHaveLength(3);
+    const [penny, cal, theme] = items;
+    // Link kind → a link description; blurb comes from schema:description
+    expect(penny.type).toBe('link');
+    expect(penny.href).toBe('https://penny.example/');
+    expect(penny.comment).toBe('Pod browser.');
+    expect(penny.entry).toBe(DOC_URL + '#EPenny');
+    expect(penny.manifest).toBe(DOC_URL + '#EPenny');   // identity defaults to the entry IRI
+    // Component kind → tag DERIVED from the module filename (no ui:name),
+    // region lifted out of params into the field
+    expect(cal.type).toBe('component');
+    expect(cal.tag).toBe('sol-calendar');
+    expect(cal.module).toBe('https://pod.example/web/sol-calendar.esm.js');
+    expect(cal.region).toBe('dropdown');
+    expect(cal.params).toEqual([['hide-header', '']]);
+    expect(cal.entry).toBe(DOC_URL + '#ECal');
+    // Command kind → component-shaped desc whose tag IS the key, no module
+    expect(theme.type).toBe('component');
+    expect(theme.tag).toBe('toggleTheme');
+    expect(theme.module).toBe(null);
+    expect(theme.entry).toBe(DOC_URL + '#ETheme');
   });
 
   test('an EMPTY if-logged-in attribute gates; the valued form does not', async () => {
@@ -244,14 +289,14 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
  * loader walks, so the parsing logic exercised here is the production logic.
  */
 
-describe('ui:module on component items', () => {
-  test('parseMenuItems surfaces ui:module as `module` (absolute IRI)', async () => {
+describe('module urls on component items', () => {
+  test('parseMenuItems surfaces schema:url as `module` (absolute IRI)', async () => {
     global.fetch = turtleFetchStub();
     const { loadMenuFromUri } = await import('../../core/menu-rdf.js');
     const menu = await loadMenuFromUri(DOC_URL + '#Main');
     const podz = menu.items.find((i) => i.name === 'Podz');
     expect(podz.module).toBe('https://pod.example/plugins/podz/dk-podz.esm.js');
     const home = menu.items.find((i) => i.name === 'Home');
-    expect(home.module).toBeNull();                 // absent stays null
+    expect(home.module).toBe('https://pod.example/web/sol-include.js');
   });
 });

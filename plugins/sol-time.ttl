@@ -4,10 +4,9 @@
 
 <>
   a ui:Component ;
-  ui:name "sol-time" ;
   ui:label "Clock" ;
   ui:icon "🕐" ;
   schema:description "Clock widget (timezone in its settings file)." ;
-  ui:module <../web/sol-time.js> ;
+  schema:url <../web/sol-time.js> ;
   dct:conformsTo <../shapes/time-settings.shacl> ;
   dct:references <../data/time-settings.ttl> .

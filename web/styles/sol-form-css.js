@@ -396,6 +396,25 @@ export const CSS = `
     display: contents;
   }
 
+  /* Guard-railed static rows (readOnlyKeys) — the value is shown, never
+     an input. Same two-column rhythm as the multi rows below. */
+  .sol-form-shape-static-label {
+    grid-column: 1;
+    justify-self: end;
+    text-align: right;
+    color: var(--accent, #1F618D);
+    font-weight: 500;
+    padding-top: 0.4em;
+  }
+  .sol-form-shape-static-value {
+    grid-column: 2;
+    justify-self: stretch;
+    min-width: 0;
+    padding-top: 0.4em;
+    overflow-wrap: anywhere;
+    opacity: 0.85;
+  }
+
   /* Multi-valued primitive rows (workaround for solid-ui basicField in
      Multiple). Label takes column 1, the value box (list of inputs +
      add button) takes column 2. */

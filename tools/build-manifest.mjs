@@ -11,8 +11,10 @@
  * shapes/menu.shacl). The manifest `components` entry it produces carries the
  * ci meta contract: label / icon / description verbatim, shape / data / help
  * as dist-relative paths (plugins/ and dist/ are siblings, so the ttl's
- * ../-relative IRIs translate 1:1). ui:name keys the entry; ui:module stays
- * RDF-side (the stages block carries the loader's module URLs, as before).
+ * ../-relative IRIs translate 1:1). The entry key is the element tag,
+ * derived from the seed's schema:url module filename (the single payload
+ * predicate — ui:name is retired); the stages block carries the loader's
+ * module URLs, as before.
  */
 
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
@@ -46,8 +48,10 @@ for (const f of files) {
   const ttl = readFileSync(resolve(root, 'plugins', f), 'utf8');
   const store = new Store(new Parser({ baseIRI: `${PKG}plugins/${f}` }).parse(ttl));
   const subj = namedNode(`${PKG}plugins/${f}`);
-  const name = one(store, subj, UI + 'name')?.value;
-  if (!name) { console.error(`[build-manifest] ${f}: no ui:name — skipped`); continue; }
+  const moduleUrl = one(store, subj, 'http://schema.org/url')?.value;
+  const base = moduleUrl ? moduleUrl.split('/').pop().split('?')[0].split('#')[0] : '';
+  const name = base.replace(/\.js$/i, '').replace(/\.(esm|min)$/i, '');
+  if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)+$/.test(name)) { console.error(`[build-manifest] ${f}: no tag-shaped schema:url — skipped`); continue; }
 
   const entry = {};
   const label = one(store, subj, UI + 'label');

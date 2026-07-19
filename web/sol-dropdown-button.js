@@ -21,7 +21,7 @@
  *     </menu>
  *   </sol-dropdown-button>
  *
- * Command items (a ui:Component whose ui:name is a bare registry key) dispatch
+ * Command items (a ui:Command whose schema:url fragment is the registry key) dispatch
  * `sol-command` for the host app to resolve — see core/rdf-render.js. Link /
  * component items render via the region= cascade (e.g. region="modal"); set a
  * region on the element if you want them surfaced somewhere.

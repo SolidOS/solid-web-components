@@ -4002,7 +4002,7 @@ rendering of the calendar-id or the URL host.</p>
 
 <div class="description">
     <p>Dispatch a menu/button/tab command. <code>command</code> is the registry key (from a
-ui:Component <code>ui:name</code> or a bare <code>data-handler</code>); <code>params</code> is the
+component tag or a bare <code>data-handler</code>); <code>params</code> is the
 args object. Bubbling + composed so one document-level listener in the host
 app catches it.</p>
 <p>The detail carries <code>place(output)</code> — a lazy helper the app's handler calls
@@ -4204,7 +4204,7 @@ pane (passed as <code>regionCtx.fallbackEl</code>).</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line68">line 68</a>
+        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line69">line 69</a>
     </li></ul></dd>
     
 
@@ -5618,7 +5618,7 @@ don't have to <script> every component a declared item references.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line91">line 91</a>
+        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line92">line 92</a>
     </li></ul></dd>
     
 
@@ -6024,7 +6024,7 @@ Browser/jsdom only (uses DOMParser). Returns <code>{ tabs, bar }</code> (empty i
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-html.js.html">core/menu-html.js</a>, <a href="core_menu-html.js.html#line159">line 159</a>
+        <a href="core_menu-html.js.html">core/menu-html.js</a>, <a href="core_menu-html.js.html#line180">line 180</a>
     </li></ul></dd>
     
 
@@ -6183,7 +6183,7 @@ generator to preserve verbatim.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-html.js.html">core/menu-html.js</a>, <a href="core_menu-html.js.html#line122">line 122</a>
+        <a href="core_menu-html.js.html">core/menu-html.js</a>, <a href="core_menu-html.js.html#line138">line 138</a>
     </li></ul></dd>
     
 
@@ -7607,7 +7607,7 @@ subjects the shape covers.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line264">line 264</a>
+        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line318">line 318</a>
     </li></ul></dd>
     
 
@@ -8138,7 +8138,7 @@ the event was a DATE-only DTSTART.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line35">line 35</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line36">line 36</a>
     </li></ul></dd>
     
 
@@ -8452,7 +8452,7 @@ or the marker block is missing, so callers can refuse to clobber a shell.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-generate.js.html">core/menu-generate.js</a>, <a href="core_menu-generate.js.html#line113">line 113</a>
+        <a href="core_menu-generate.js.html">core/menu-generate.js</a>, <a href="core_menu-generate.js.html#line138">line 138</a>
     </li></ul></dd>
     
 
@@ -9710,7 +9710,8 @@ because the formatter consults the OS / browser's IANA database.</p>
 
 
 <div class="description">
-    <p>A ui:Component's <code>ui:name</code> is either a custom-element tag (render that
+    <p>A component desc's tag (derived from its schema:url module filename) is
+either a custom-element tag (render that
 component) or a <em>command</em> — an opaque registry key the host app resolves.
 Custom-element names must contain a hyphen (HTML spec), so a bare name that
 isn't a registered element is a command. The name is NOT a tag, a global, or
@@ -9767,7 +9768,7 @@ unregistered key is a no-op. Bounded entirely by the app's registry.</p>
 
             
 
-            <td class="description last"><p>a ui:Component ui:name value</p></td>
+            <td class="description last"><p>an item's tag / command key</p></td>
         </tr>
 
     
@@ -9808,7 +9809,7 @@ unregistered key is a no-op. Bounded entirely by the app's registry.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line30">line 30</a>
+        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line31">line 31</a>
     </li></ul></dd>
     
 
@@ -10675,7 +10676,8 @@ flat JS object keyed by predicate URI.</p>
 
 <div class="description">
     <p>Resolve <code>uri</code> (optionally relative to <code>baseUri</code>), fetch the RDF doc,
-locate the menu root (by fragment or by ui:Menu type), and parse it.</p>
+locate the menu root (by fragment or by ui:Menu type), pull in any docs
+its parts reference (ui:Plugin entries), and parse it.</p>
 </div>
 
 
@@ -10719,7 +10721,7 @@ locate the menu root (by fragment or by ui:Menu type), and parse it.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-rdf.js.html">core/menu-rdf.js</a>, <a href="core_menu-rdf.js.html#line170">line 170</a>
+        <a href="core_menu-rdf.js.html">core/menu-rdf.js</a>, <a href="core_menu-rdf.js.html#line340">line 340</a>
     </li></ul></dd>
     
 
@@ -10766,6 +10768,99 @@ locate the menu root (by fragment or by ui:Menu type), and parse it.</p>
 </dl>
 
     
+
+
+
+
+
+        
+            
+
+    
+
+    
+    <h4 class="name" id="loadReferencedDocs"><span class="type-signature"></span>loadReferencedDocs<span class="signature">()</span><span class="type-signature"></span></h4>
+    
+
+    
+
+
+
+<div class="description">
+    <p>A reference-style menu's parts point at ui:Plugin entries that may live in
+OTHER documents (the catalog doc, per plugin-manifest-unification). Fetch
+every referenced doc the store doesn't already describe, parsing each into
+the SAME store under its own graph name — so per-doc serialization stays
+clean. Turtle is the entries' format; failures are warn-and-continue (the
+parse then skips the unreadable entry, it doesn't sink the whole menu).</p>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<dl class="details">
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+
+    
+    <dt class="tag-source">Source:</dt>
+    <dd class="tag-source"><ul class="dummy"><li>
+        <a href="core_menu-rdf.js.html">core/menu-rdf.js</a>, <a href="core_menu-rdf.js.html#line285">line 285</a>
+    </li></ul></dd>
+    
+
+    
+
+    
+
+    
+</dl>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -11006,7 +11101,7 @@ datatype URI when typing literal values.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line40">line 40</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line41">line 41</a>
     </li></ul></dd>
     
 
@@ -12485,7 +12580,7 @@ through and open the link the normal way.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line45">line 45</a>
+        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line46">line 46</a>
     </li></ul></dd>
     
 
@@ -13187,7 +13282,7 @@ item's IRI fragment, the join key an HTML region uses to claim it.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-rdf.js.html">core/menu-rdf.js</a>, <a href="core_menu-rdf.js.html#line117">line 117</a>
+        <a href="core_menu-rdf.js.html">core/menu-rdf.js</a>, <a href="core_menu-rdf.js.html#line156">line 156</a>
     </li></ul></dd>
     
 
@@ -14872,7 +14967,7 @@ shapes (e.g. a list of schema:PropertyValue pairs).</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line162">line 162</a>
+        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line212">line 212</a>
     </li></ul></dd>
     
 
@@ -15412,7 +15507,7 @@ Collection-valued and rdf:first/rest-chained forms).</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line73">line 73</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line74">line 74</a>
     </li></ul></dd>
     
 
@@ -15502,7 +15597,7 @@ when several statements share a subject.)</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line65">line 65</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line66">line 66</a>
     </li></ul></dd>
     
 
@@ -16344,7 +16439,7 @@ Components default to keep-alive.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line125">line 125</a>
+        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line126">line 126</a>
     </li></ul></dd>
     
 
@@ -16395,7 +16490,7 @@ Components default to keep-alive.</p>
 
 <div class="description">
     <p>Build a render closure for a ui:Link part. A <code>ui:contents</code> literal is
-injected as HTML; otherwise the <code>ui:href</code> is rendered by the origin-inferred
+injected as HTML; otherwise the link's schema:url is rendered by the origin-inferred
 element (same-origin → trusted <code>sol-include</code>, external → <code>iframe</code>). A
 non-default viewer is expressed as a <code>ui:Component</code>, not a handler.
 Placement is resolved from the HTML by the dispatcher (region= / data-for).</p>
@@ -16514,7 +16609,7 @@ Placement is resolved from the HTML by the dispatcher (region= / data-for).</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line153">line 153</a>
+        <a href="core_rdf-render.js.html">core/rdf-render.js</a>, <a href="core_rdf-render.js.html#line154">line 154</a>
     </li></ul></dd>
     
 
@@ -16881,6 +16976,42 @@ detaches the rendered widget.</p>
         </tr>
 
     
+
+        <tr>
+            
+                <td class="name"><code>readOnlyKeys</code></td>
+            
+
+            <td class="type">
+            
+                
+<span class="param-type">Array.&lt;string></span>
+
+
+            
+            </td>
+
+            
+                <td class="attributes">
+                
+                    &lt;optional><br>
+                
+
+                
+
+                
+                </td>
+            
+
+            
+
+            <td class="description last"><p>descriptor keys rendered as static
+label+value rows (consumer guard
+rails, e.g. a plugin's module url —
+shown, never editable)</p></td>
+        </tr>
+
+    
     </tbody>
 </table>
 
@@ -16925,7 +17056,7 @@ detaches the rendered widget.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line295">line 295</a>
+        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line353">line 353</a>
     </li></ul></dd>
     
 
@@ -17861,7 +17992,7 @@ the whole document (pantry subjects included).
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line204">line 204</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line236">line 236</a>
     </li></ul></dd>
     
 
@@ -18131,7 +18262,7 @@ losing its layout slot.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line194">line 194</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line226">line 226</a>
     </li></ul></dd>
     
 
@@ -20308,7 +20439,10 @@ from the master.</p>
 
 <div class="description">
     <p>Collect the item nodes a tree references (recursively), so their old
-statements can be cleared before re-emit.</p>
+statements can be cleared before re-emit. ui:Plugin ENTRIES (item.entry —
+plugin-manifest-unification stage 2) are excluded: the menu doc only holds
+a REFERENCE to them; their bodies live in the catalog doc and must never
+be cleared or re-emitted by a menu save.</p>
 </div>
 
 
@@ -20352,7 +20486,7 @@ statements can be cleared before re-emit.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line91">line 91</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line95">line 95</a>
     </li></ul></dd>
     
 
@@ -20812,7 +20946,7 @@ longer referenced stay as pantry. Mutates the store.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line168">line 168</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line200">line 200</a>
     </li></ul></dd>
     
 
@@ -20900,7 +21034,7 @@ longer referenced stay as pantry. Mutates the store.</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line50">line 50</a>
+        <a href="core_menu-serialize.js.html">core/menu-serialize.js</a>, <a href="core_menu-serialize.js.html#line51">line 51</a>
     </li></ul></dd>
     
 
@@ -22229,7 +22363,7 @@ ImageItem        — one picture (<code>schema:ImageObject</code>)</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line729">line 729</a>
+        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line802">line 802</a>
     </li></ul></dd>
     
 
@@ -22395,7 +22529,7 @@ ImageItem        — one picture (<code>schema:ImageObject</code>)</p>
     
     <dt class="tag-source">Source:</dt>
     <dd class="tag-source"><ul class="dummy"><li>
-        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line722">line 722</a>
+        <a href="core_shape-to-form.js.html">core/shape-to-form.js</a>, <a href="core_shape-to-form.js.html#line795">line 795</a>
     </li></ul></dd>
     
 
@@ -22425,13 +22559,13 @@ ImageItem        — one picture (<code>schema:ImageObject</code>)</p>
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#loadReferencedDocs">loadReferencedDocs</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Tue Jul 14 2026 15:58:03 GMT-0700 (Pacific Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Sun Jul 19 2026 14:18:00 GMT-0700 (Pacific Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

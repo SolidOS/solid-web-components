@@ -17,14 +17,15 @@ import { siblingUrl } from './here.js';
 import { displayItem, contentForHref, placeOutput } from './display-target.js';
 
 /**
- * A ui:Component's `ui:name` is either a custom-element tag (render that
+ * A component desc's tag (derived from its schema:url module filename) is
+ * either a custom-element tag (render that
  * component) or a *command* — an opaque registry key the host app resolves.
  * Custom-element names must contain a hyphen (HTML spec), so a bare name that
  * isn't a registered element is a command. The name is NOT a tag, a global, or
  * a script: clicking it dispatches `sol-command` for the app to map; an
  * unregistered key is a no-op. Bounded entirely by the app's registry.
  *
- * @param {string} name  a ui:Component ui:name value
+ * @param {string} name  an item's tag / command key
  * @returns {boolean}    true when it should be treated as a command
  */
 export function isCommandName(name) {
@@ -48,7 +49,7 @@ export function paramsToObject(params) {
 
 /**
  * Dispatch a menu/button/tab command. `command` is the registry key (from a
- * ui:Component `ui:name` or a bare `data-handler`); `params` is the
+ * component tag or a bare `data-handler`); `params` is the
  * args object. Bubbling + composed so one document-level listener in the host
  * app catches it.
  *
@@ -98,11 +99,11 @@ export function ensureHandler(tag, host, baseUrl, sourceName, moduleUrl = null) 
       detail: { source: sourceName, kind: 'handler-load', tag, message: err.message },
     }));
   };
-  // ui:module — an installable component names its own ES module; import it
+  // schema:url — an installable component names its own ES module; import it
   // for ANY tag. http(s) only: the page's CSP decides which origins may run.
   if (moduleUrl) {
     if (!/^https?:/.test(moduleUrl)) {
-      fail(new Error(`ui:module must be an http(s) URL, got ${moduleUrl}`));
+      fail(new Error(`a component module url must be http(s), got ${moduleUrl}`));
       return;
     }
     import(/* webpackIgnore: true */ moduleUrl).catch(fail);
@@ -126,7 +127,7 @@ export function renderComponentItem(desc, ctx) {
   return (body) => {
     const { id, name, tag, params } = desc;
     if (!tag) return;
-    // desc.module (ui:module) rides along so an installable component's own
+    // desc.module (its schema:url) rides along so an installable component's own
     // ES module is imported on first mount — no import-map entry needed.
     const ensure = (t) => ensureHandler(t, ctx.host, ctx.baseUrl, ctx.sourceName,
                                         t === tag ? desc.module : null);
@@ -141,7 +142,7 @@ export function renderComponentItem(desc, ctx) {
 
 /**
  * Build a render closure for a ui:Link part. A `ui:contents` literal is
- * injected as HTML; otherwise the `ui:href` is rendered by the origin-inferred
+ * injected as HTML; otherwise the link's schema:url is rendered by the origin-inferred
  * element (same-origin → trusted `sol-include`, external → `iframe`). A
  * non-default viewer is expressed as a `ui:Component`, not a handler.
  * Placement is resolved from the HTML by the dispatcher (region= / data-for).

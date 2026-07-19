@@ -4,10 +4,9 @@
 
 <>
   a ui:Component ;
-  ui:name "sol-weather" ;
   ui:label "Weather" ;
   ui:icon "🌤" ;
   schema:description "Weather widget (location and units in its settings file)." ;
-  ui:module <../web/sol-weather.js> ;
+  schema:url <../web/sol-weather.js> ;
   dct:conformsTo <../shapes/weather-settings.shacl> ;
   dct:references <../data/weather-settings.ttl> .

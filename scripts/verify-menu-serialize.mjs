@@ -64,6 +64,7 @@ const edited = JSON.parse(JSON.stringify(tree1));
 edited[0].name = 'Start';                       // rename Home → Start
 edited.reverse();                               // reorder
 edited.push({ type: 'component', name: 'Music', tag: 'ia-player',
+  module: 'https://example.org/dist/ia-player.esm.js',
   params: [['source', './plugins/ia-player/libraries/internet_archive_music/index.ttl']] });
 const dropped = edited.findIndex((i) => i.name === 'Podz');
 const [podz] = edited.splice(dropped, 1);       // drop Podz from the menu

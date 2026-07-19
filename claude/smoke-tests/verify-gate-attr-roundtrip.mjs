@@ -16,20 +16,20 @@ const TTL = `
 
 <#Main> a ui:Menu ; ui:label "m" ; ui:parts ( <#Customize> <#Legacy> <#Help> <#Ext> ) .
 
-<#Customize> a ui:Component ; ui:label "Customize" ; ui:name "sol-include" ;
+<#Customize> a ui:Component ; ui:label "Customize" ; schema:url <https://pod.example/web/sol-include.js> ;
   ui:attribute
     [ schema:name "if-logged-in" ; schema:value "" ] ,
     [ schema:name "region" ; schema:value "dropdown" ] ,
     [ schema:name "source" ; schema:value "pages/customize.html" ] .
 
-<#Legacy> a ui:Component ; ui:label "Old" ; ui:name "x-old" ;
+<#Legacy> a ui:Component ; ui:label "Old" ; schema:url <https://pod.example/web/x-old.js> ;
   ui:region ui:Modal ;
   acl:mode acl:Write .
 
-<#Ext> a ui:Link ; ui:label "Ext" ; ui:href "https://example.org/app" ;
+<#Ext> a ui:Link ; ui:label "Ext" ; schema:url "https://example.org/app" ;
   ui:region ui:Window .
 
-<#Help> a ui:Component ; ui:label "Help" ; ui:name "sol-include" ;
+<#Help> a ui:Component ; ui:label "Help" ; schema:url <https://pod.example/web/sol-include.js> ;
   ui:attribute
     [ schema:name "if-logged-in" ; schema:value "help/owner.html" ] ,
     [ schema:name "source" ; schema:value "help/guest.html" ] .

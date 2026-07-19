@@ -29,7 +29,7 @@ test('the shipped manifest matches what build-manifest derives from plugins/*.tt
   expect(shipped).toEqual(derived);
 });
 
-test('every plugin ttl produced a manifest entry keyed by its ui:name', () => {
+test('every plugin ttl produced a manifest entry keyed by its module-derived tag', () => {
   const shipped = JSON.parse(readFileSync(join(root, 'dist', 'sol-components.manifest.json'), 'utf8'));
   for (const tag of ['sol-weather', 'sol-time', 'sol-search', 'sol-calendar', 'sol-feed', 'sol-login', 'sol-solidos']) {
     expect(shipped.components[tag]).toBeDefined();

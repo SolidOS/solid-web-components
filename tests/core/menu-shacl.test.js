@@ -11,7 +11,7 @@
  *   - a menu member without ui:label fails (:MenuItemShape via the parts path)
  *   - a free-standing ui:Component without ui:label conforms (labels are only
  *     required in menu context)
- *   - a ui:Link with neither ui:href nor ui:contents fails (the sh:xone)
+ *   - a ui:Link with neither schema:url nor ui:contents fails (the sh:xone)
  */
 
 import { readFileSync } from 'node:fs';
@@ -55,7 +55,7 @@ test('the menu fixture conforms', async () => {
 test('a menu member without ui:label fails', async () => {
   const report = await validate(`
 <#Menu> a ui:Menu ; ui:label "m" ; ui:parts ( <#NoLabel> ) .
-<#NoLabel> a ui:Component ; ui:name "sol-thing" .
+<#NoLabel> a ui:Component ; schema:url <https://example.org/web/sol-thing.js> .
 `);
   expect(report.conforms).toBe(false);
   // The engine surfaces the outer sh:node violation (the parts collection);
@@ -68,12 +68,12 @@ test('a menu member without ui:label fails', async () => {
 test('a free-standing ui:Component without ui:label conforms', async () => {
   // The manifest-entry case: labels are optional outside menu context.
   const report = await validate(`
-<#Card> a ui:Component ; ui:name "sol-feed" ; ui:icon "📰" .
+<#Card> a ui:Component ; schema:url <https://example.org/web/sol-feed.js> ; ui:icon "📰" .
 `);
   expect(report.conforms).toBe(true);
 });
 
-test('a ui:Link with neither ui:href nor ui:contents fails the xone', async () => {
+test('a ui:Link with neither schema:url nor ui:contents fails the xone', async () => {
   const report = await validate(`
 <#Menu> a ui:Menu ; ui:label "m" ; ui:parts ( <#Bad> ) .
 <#Bad> a ui:Link ; ui:label "dangling" .
@@ -81,16 +81,15 @@ test('a ui:Link with neither ui:href nor ui:contents fails the xone', async () =
   expect(report.conforms).toBe(false);
 });
 
-// ── plugin surface (2026-07-14: ui:module + settings pointers on both item
-//    kinds; dct:creator collapsed into dct:publisher) ─────────────────────
+// ── plugin surface (single schema:url payload since 2026-07-19; settings
+//    pointers on both item kinds; dct:creator collapsed into publisher) ────
 
-test('a full plugin doc — Component with ui:module + settings pointers — conforms', async () => {
+test('a full plugin doc — Component with a module url + settings pointers — conforms', async () => {
   const report = await validate(`
 @prefix dcterms: <http://purl.org/dc/terms/> .
 <#Plug> a ui:Component ;
   ui:label "Star Charts" ;
-  ui:name "star-charts" ;
-  ui:module <https://example.org/starcharts/star-charts.esm.js> ;
+  schema:url <https://example.org/starcharts/star-charts.esm.js> ;
   ui:icon "✨" ;
   dcterms:publisher "Someone" ;
   dcterms:conformsTo <https://example.org/starcharts/settings.shacl> ;
@@ -106,7 +105,7 @@ test('a ui:Link carrying the settings pointers conforms too', async () => {
 @prefix dcterms: <http://purl.org/dc/terms/> .
 <#App> a ui:Link ;
   ui:label "Some app" ;
-  ui:href <https://app.example.org/> ;
+  schema:url <https://app.example.org/> ;
   dcterms:publisher "Org" ;
   dcterms:conformsTo <https://app.example.org/settings.shacl> ;
   dcterms:references <https://app.example.org/settings.ttl> ;
@@ -115,9 +114,11 @@ test('a ui:Link carrying the settings pointers conforms too', async () => {
   expect(report.conforms).toBe(true);
 });
 
-test('ui:module must be an IRI', async () => {
-  const report = await validate(`
-<#Plug> a ui:Component ; ui:name "x-y" ; ui:module "not-an-iri" .
+test("a Component's schema:url must be an IRI with a tag-shaped filename", async () => {
+  for (const bad of ['"not-an-iri"', '<https://example.org/dist/bundle.js>']) {
+    const report = await validate(`
+<#Plug> a ui:Component ; schema:url ${bad} .
 `);
-  expect(report.conforms).toBe(false);
+    expect(report.conforms).toBe(false);
+  }
 });

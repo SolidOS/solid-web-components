@@ -71,7 +71,11 @@ export function rdfListElements(store, listNode) {
 // params is [[name, value], ...] from ui:attribute blanks.
 export function rdfComponent(store, node) {
   if (!node) return { tag: null, params: [] };
-  const tag = rdfVal(store, node, 'name') || rdfVal(store, node, 'label');
+  // The element tag derives from the schema:url module filename — inline
+  // items and ui:Plugin entries alike (the ui:name spelling is retired
+  // everywhere, 2026-07-19).
+  const url = (store.any(node, rdf.sym(SCHEMA + 'url')) || {}).value || null;
+  const tag = deriveTagFromModule(url);
   const attrNodes = store.each(node, rdf.sym(UI + 'attribute'), null);
   const params = attrNodes.map(p => [
     (store.any(p, rdf.sym(SCHEMA + 'name'))  || {}).value || '',
@@ -86,6 +90,32 @@ function fragmentOf(node) {
   const v = (node && node.value) || '';
   const i = v.indexOf('#');
   return i >= 0 ? v.slice(i + 1) : null;
+}
+
+// A ui:Plugin entry has ONE payload predicate — schema:url — whose reading
+// depends on the entry's schema:additionalType (2026-07-19, replacing the
+// former ui:href/ui:module/ui:name trio). For a Component the element tag
+// derives from the module URL's filename (filename==tag is a hard
+// convention, enforced by :PluginShape's sh:pattern on the IRI). Strip a
+// query string, then the .js extension, then an .esm/.min infix; the
+// remainder must be a valid custom-element tag (lowercase, hyphenated) or
+// the entry is unusable.
+export function deriveTagFromModule(moduleUrl) {
+  if (!moduleUrl) return null;
+  const base = String(moduleUrl).split('/').pop().split('?')[0].split('#')[0];
+  const tag = base.replace(/\.js$/i, '').replace(/\.(esm|min)$/i, '');
+  return /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/.test(tag) ? tag : null;
+}
+
+// A ui:Command entry's schema:url points into the host app's command
+// registry document — the KEY is the fragment (`…/commands.ttl#restartApp`
+// → "restartApp"), hyphen-free by the same rule that distinguishes command
+// keys from element tags.
+export function commandKeyFromUrl(url) {
+  if (!url) return null;
+  const i = String(url).indexOf('#');
+  const key = i >= 0 ? String(url).slice(i + 1) : null;
+  return key && /^[A-Za-z][A-Za-z0-9]*$/.test(key) ? key : null;
 }
 
 // Normalize a ui:orientation value to the "horizontal"/"vertical" token used
@@ -127,13 +157,13 @@ export function parseMenuItems(store, menuNode) {
   const partsNode = store.any(menuNode, rdf.sym(UI + 'parts'));
   if (!partsNode) return [];
   const parts = rdfListElements(store, partsNode);
-  const menuType      = rdf.sym(UI + 'Menu');
-  const componentType = rdf.sym(UI + 'Component');
-  const typeNode      = rdf.sym(RDF + 'type');
+  const typeNode = rdf.sym(RDF + 'type');
   const items = [];
 
   for (const part of parts) {
-    const partType = store.any(part, typeNode);
+    // A node may carry several rdf:types — test membership, never any().
+    const types  = store.each(part, typeNode, null).map((t) => t.value);
+    const isA    = (local) => types.includes(UI + local);
     const id       = fragmentOf(part);
     const label    = rdfVal(store, part, 'label') || part.value;
     const icon     = rdfVal(store, part, 'icon');
@@ -142,22 +172,87 @@ export function parseMenuItems(store, menuNode) {
     const publisher = dctVal(store, part, 'publisher');
     // dct:source — the chip's MANIFEST IRI (e.g. plugins/music.ttl). This is the
     // chip's stable identity: a chip is a PLUGIN (one manifest), not a component
-    // (one ui:name tag backs many chips). It links a mounted menu item back to
+    // (one element tag backs many chips). It links a mounted menu item back to
     // its catalog entry. NB: distinct from any ui:attribute `source` PARAM, which
     // is the plugin's data source, not its identity.
     const manifest  = dctVal(store, part, 'source');
     const requiresWrite = requiresWriteMode(store, part);
 
-    if (partType && partType.value === menuType.value) {
+    if (isA('Menu')) {
       items.push({ type: 'submenu', id, name: label, comment, requiresWrite, children: parseMenuItems(store, part) });
       continue;
     }
 
-    if (partType && partType.value === componentType.value) {
+    // ── ui:Plugin entry (plugin-manifest-unification stage 2) ──────────────
+    // The part is a REFERENCE to a unified plugin entry (usually in the
+    // catalog doc — the loader pulls referenced docs into the store). The
+    // entry IS the item: no copy exists. schema:additionalType picks the
+    // kind; the in-memory description keeps the exact legacy shape so every
+    // consumer (sol-menu/sol-tabs/managers) works unchanged, plus an `entry`
+    // marker so menu-serialize re-emits the REFERENCE, never a body.
+    const kind = (store.any(part, rdf.sym(SCHEMA + 'additionalType')) || {}).value;
+    if (isA('Plugin') || kind) {
+      const blurb = (store.any(part, rdf.sym(SCHEMA + 'description')) || {}).value || comment;
+      const { params } = rdfComponent(store, part);
+      const paramRegion = (params.find(([k]) => k === 'region') || [])[1];
+      const itemParams = params.filter(([k]) => k !== 'region');
+      const common = { id, name: label, icon, comment: blurb, publisher,
+        region: (paramRegion || '').toLowerCase() || region,
+        requiresWrite: requiresWrite || gatedByParams(params),
+        manifest: manifest || part.value,
+        entry: part.value };
+      // ONE payload predicate — schema:url — read by kind (2026-07-19):
+      //   Link      → the URL to open (href)
+      //   Component → the ES module; the element tag derives from its filename
+      //   Command   → a registry-doc fragment; the KEY is the fragment name
+      const payload = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
+      if (kind === UI + 'Link') {
+        items.push({ ...common, type: 'link', href: payload, contents: null });
+        continue;
+      }
+      const tag = kind === UI + 'Command'
+        ? commandKeyFromUrl(payload)
+        : deriveTagFromModule(payload);
+      if (!tag) {
+        console.warn(`[menu-rdf] skipping ui:Plugin entry ${part.value} — ` +
+          (kind === UI + 'Command'
+            ? `a Command's schema:url needs a hyphen-free #fragment key (got "${payload}")`
+            : `cannot derive a tag from schema:url "${payload}"`));
+        continue;
+      }
+      items.push({ ...common, type: 'component', tag, params: itemParams,
+        module: kind === UI + 'Command' ? null : payload });
+      continue;
+    }
+
+    // Inline `a ui:Command` — same single payload: schema:url is a fragment
+    // IRI whose hyphen-free fragment is the key (component-shaped desc, tag
+    // = key, exactly like a Command entry).
+    if (isA('Command')) {
+      const cmdUrl = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
+      const key = commandKeyFromUrl(cmdUrl);
+      if (!key) {
+        console.warn(`[menu-rdf] skipping ui:Command ${part.value} — schema:url needs a hyphen-free #fragment key`);
+        continue;
+      }
+      const { params } = rdfComponent(store, part);
+      items.push({ type: 'component', id, name: label, icon, comment, publisher,
+        region: null, requiresWrite: requiresWrite || gatedByParams(params),
+        tag: key, params: params.filter(([k]) => k !== 'region'),
+        module: null, command: cmdUrl, manifest });
+      continue;
+    }
+
+    if (isA('Component')) {
+      // The single schema:url payload IS the module; the tag derives from
+      // its filename (rdfComponent). The retired ui:name/ui:module spellings
+      // are no longer read.
       const { tag, params } = rdfComponent(store, part);
-      // ui:module — the ES module that defines the tag; lets a renderer
-      // lazy-import an installable component on first mount.
-      const moduleUrl = rdfVal(store, part, 'module');
+      const moduleUrl = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
+      if (!tag) {
+        console.warn(`[menu-rdf] skipping ui:Component ${part.value} — cannot derive a tag from schema:url "${moduleUrl}"`);
+        continue;
+      }
       // Placement rides the attribute channel (a `region` ui:attribute) —
       // lift it into the structural field, exactly as the HTML harvest does
       // with a region= attribute (menu-html TAB_SKIP). The legacy ui:region
@@ -172,7 +267,7 @@ export function parseMenuItems(store, menuNode) {
       continue;
     }
 
-    const href     = rdfVal(store, part, 'href');
+    const href     = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
     const contents = rdfVal(store, part, 'contents');
     items.push({ type: 'link', id, name: label, icon, region, comment, publisher, requiresWrite, href, contents, manifest });
   }
@@ -180,8 +275,64 @@ export function parseMenuItems(store, menuNode) {
 }
 
 /**
+ * A reference-style menu's parts point at ui:Plugin entries that may live in
+ * OTHER documents (the catalog doc, per plugin-manifest-unification). Fetch
+ * every referenced doc the store doesn't already describe, parsing each into
+ * the SAME store under its own graph name — so per-doc serialization stays
+ * clean. Turtle is the entries' format; failures are warn-and-continue (the
+ * parse then skips the unreadable entry, it doesn't sink the whole menu).
+ */
+export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
+  // Minimal stores (e.g. the jest rdflib mock) can't enumerate statements —
+  // they also only ever hold single-doc menus, so there's nothing to resolve.
+  if (typeof store.statementsMatching !== 'function') return;
+  // Resolve fetch lazily — a bare `fetch` default param THROWS where no
+  // global fetch exists (jsdom), even when this function has nothing to do.
+  if (!fetchFn) fetchFn = (typeof fetch === 'function') ? fetch : null;
+  if (!fetchFn) return;
+  const first = rdf.sym(RDF + 'first');
+  const typeNode = rdf.sym(RDF + 'type');
+  // Members live in ui:parts lists — which rdflib parses as COLLECTION terms
+  // (no rdf:first/rest statements), while hand-chained lists do use
+  // first/rest. Walk BOTH forms. Two rounds: entries fetched in round 1
+  // cannot themselves add parts lists (entries have none), but a nested
+  // submenu doc could — cap the walk.
+  const partsPred = rdf.sym(UI + 'parts');
+  const members = () => {
+    const out = [];
+    for (const st of store.statementsMatching(null, partsPred, null)) {
+      out.push(...rdfListElements(store, st.object));
+    }
+    for (const st of store.statementsMatching(null, first, null)) out.push(st.object);
+    return out;
+  };
+  for (let round = 0; round < 2; round++) {
+    const missing = new Set();
+    for (const member of members()) {
+      if (!member || !member.value || member.termType === 'BlankNode') continue;
+      const doc = member.value.split('#')[0];
+      if (!doc || doc === rootDocUrl) continue;
+      // already have statements about this member → its doc is loaded enough
+      if (store.any(member, typeNode)) continue;
+      missing.add(doc);
+    }
+    if (!missing.size) return;
+    for (const doc of missing) {
+      try {
+        const resp = await fetchFn(doc, { headers: { Accept: 'text/turtle' } });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        rdf.parse(await resp.text(), store, doc, 'text/turtle');
+      } catch (e) {
+        console.warn(`[menu-rdf] could not load referenced doc ${doc}: ${e && e.message}`);
+      }
+    }
+  }
+}
+
+/**
  * Resolve `uri` (optionally relative to `baseUri`), fetch the RDF doc,
- * locate the menu root (by fragment or by ui:Menu type), and parse it.
+ * locate the menu root (by fragment or by ui:Menu type), pull in any docs
+ * its parts reference (ui:Plugin entries), and parse it.
  *
  * @returns {Promise<null | { items, orientation }>}
  *   `null` if no ui:Menu is found in the document.
@@ -208,6 +359,8 @@ export async function loadMenuFromUri(uri, baseUri = null) {
     root = store.each(null, typeNode, menuType)[0];
   }
   if (!root) return null;
+
+  await loadReferencedDocs(store, docUrl);
 
   const orientation = orientationToken(rdfVal(store, root, 'orientation')) || 'horizontal';
   const items       = parseMenuItems(store, root);

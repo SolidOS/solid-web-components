@@ -44,10 +44,10 @@ function buildStore() {
   store.add(b2, s(RDF + 'first'), s(BASE + '#Home'));
   store.add(b2, s(RDF + 'rest'), s(RDF + 'nil'));
 
-  // command (bare ui:name) + params
-  store.add(s(BASE + '#Install'), s(RDF + 'type'), s(UI + 'Component'));
+  // command (ui:Command + registry-fragment schema:url) + params
+  store.add(s(BASE + '#Install'), s(RDF + 'type'), s(UI + 'Command'));
   store.add(s(BASE + '#Install'), s(UI + 'label'), l('Install'));
-  store.add(s(BASE + '#Install'), s(UI + 'name'), l('installPod'));
+  store.add(s(BASE + '#Install'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#installPod'));
   const p = s(BASE + '#_p');
   store.add(s(BASE + '#Install'), s(UI + 'attribute'), p);
   store.add(p, s(SCHEMA + 'name'), l('target'));
@@ -56,7 +56,7 @@ function buildStore() {
   // a plain link
   store.add(s(BASE + '#Home'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Home'), s(UI + 'label'), l('Home'));
-  store.add(s(BASE + '#Home'), s(UI + 'href'), s('http://example.org/home.html'));
+  store.add(s(BASE + '#Home'), s(SCHEMA + 'url'), s('http://example.org/home.html'));
   return store;
 }
 
@@ -140,12 +140,12 @@ function buildGatedStore() {
   store.add(b1, s(RDF + 'rest'), b2);
   store.add(b2, s(RDF + 'first'), s(BASE + '#Secret'));
   store.add(b2, s(RDF + 'rest'), s(RDF + 'nil'));
-  store.add(s(BASE + '#Public'), s(RDF + 'type'), s(UI + 'Component'));
+  store.add(s(BASE + '#Public'), s(RDF + 'type'), s(UI + 'Command'));
   store.add(s(BASE + '#Public'), s(UI + 'label'), l('Public'));
-  store.add(s(BASE + '#Public'), s(UI + 'name'), l('publicCmd'));
-  store.add(s(BASE + '#Secret'), s(RDF + 'type'), s(UI + 'Component'));
+  store.add(s(BASE + '#Public'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#publicCmd'));
+  store.add(s(BASE + '#Secret'), s(RDF + 'type'), s(UI + 'Command'));
   store.add(s(BASE + '#Secret'), s(UI + 'label'), l('Secret'));
-  store.add(s(BASE + '#Secret'), s(UI + 'name'), l('secretCmd'));
+  store.add(s(BASE + '#Secret'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#secretCmd'));
   store.add(s(BASE + '#Secret'), s(ACL + 'mode'), s(ACL + 'Write'));   // requires write
   return store;
 }

@@ -577,11 +577,11 @@ describe('SolPluginManager — _collections', () => {
 // ── _tagsInDoc ───────────────────────────────────────────────────────────────
 
 describe('SolPluginManager — _tagsInDoc', () => {
-  test('collects every ui:name value as a tag', () => {
+  test('collects every schema:url-derived tag', () => {
     const DOC = 'https://pod.example/catalog.ttl';
     const g = store();
-    g.add(S(`${DOC}#a`), S(UI + 'name'), L('sol-a'));
-    g.add(S(`${DOC}#b`), S(UI + 'name'), L('sol-b'));
+    g.add(S(`${DOC}#a`), S(SCHEMA + 'url'), S('https://pod.example/web/sol-a.js'));
+    g.add(S(`${DOC}#b`), S(SCHEMA + 'url'), S('https://pod.example/web/sol-b.js'));
     const el = document.createElement('sol-plugin-manager');
     const tags = el._tagsInDoc(g);
     expect(tags.has('sol-a')).toBe(true);
@@ -597,7 +597,7 @@ describe('SolPluginManager — _findExisting', () => {
 
   test('finds a component subject by tag + identical params', () => {
     const g = store();
-    g.add(S(`${DOC}#node1`), S(UI + 'name'), L('sol-a'));
+    g.add(S(`${DOC}#node1`), S(SCHEMA + 'url'), S('https://pod.example/web/sol-a.js'));
     g.add(S(`${DOC}#node1`), S(UI + 'label'), L('Alpha'));
     const attr = S(`${DOC}#_p1`);
     g.add(S(`${DOC}#node1`), S(UI + 'attribute'), attr);
@@ -614,7 +614,7 @@ describe('SolPluginManager — _findExisting', () => {
 
   test('returns null when params differ', () => {
     const g = store();
-    g.add(S(`${DOC}#node1`), S(UI + 'name'), L('sol-a'));
+    g.add(S(`${DOC}#node1`), S(SCHEMA + 'url'), S('https://pod.example/web/sol-a.js'));
     const el = document.createElement('sol-plugin-manager');
     const found = el._findExisting(g, DOC, { type: 'component', tag: 'sol-a', params: [['source', 'x.ttl']] });
     expect(found).toBeNull();   // node1 has no params, the query wants source=x.ttl
@@ -622,7 +622,7 @@ describe('SolPluginManager — _findExisting', () => {
 
   test('finds a link subject by href', () => {
     const g = store();
-    g.add(S(`${DOC}#L`), S(UI + 'href'), L('https://x.example/'));
+    g.add(S(`${DOC}#L`), S(SCHEMA + 'url'), L('https://x.example/'));
     g.add(S(`${DOC}#L`), S(UI + 'label'), L('Ex'));
     const el = document.createElement('sol-plugin-manager');
     const found = el._findExisting(g, DOC, { type: 'link', href: 'https://x.example/' });

@@ -3,10 +3,10 @@
 // (data-kitchen tools/conversion/generate-html-first.mjs) and the in-app tabs
 // sync, so what regenerates is exactly what the parser/harvester round-trips.
 //
-//   #Tabs → <a> anchors: href=source, id=id, data-handler=ui:name (tag),
+//   #Tabs → <a> anchors: href=source, id=id, data-handler=the item's tag,
 //           region=ui:region, other params data-prefixed (standard <a> attrs
 //           in ANCHOR_ATTRS emitted plain so the anchor stays HTML-valid).
-//   #Bar  → the element named by ui:name with its params verbatim; a sol-button
+//   #Bar  → the element whose tag derives from schema:url, params verbatim; a sol-button
 //           shows its ui:label as text.
 //
 // The opening `<sol-tabs …>` tag and the chrome block (between
@@ -30,7 +30,25 @@ const attrPairs = (item) => new Map((item.params || []).map(([k, v]) => [k, v]))
 // element so the prose round-trips with the data.
 const emitComment = (c) => (c ? `  <!-- ${String(c)} -->\n` : '');
 
-export function emitTab(item, warn = () => {}) {
+// Relativize an entry IRI against the menu doc for readable emitted HTML —
+// same directory collapses to basename#frag; anything else stays absolute.
+function entryHref(entry, docUrl) {
+  const e = String(entry);
+  if (!docUrl) return e;
+  const dir = docUrl.slice(0, docUrl.lastIndexOf('/') + 1);
+  return e.startsWith(dir) ? e.slice(dir.length) : e;
+}
+
+export function emitTab(item, warn = () => {}, docUrl = null) {
+  // A ui:Plugin REFERENCE (plugin-manifest-unification): a bare anchor whose
+  // href is the entry IRI — no data-handler, no target/region, nothing else.
+  // The harvester maps it back only when told the entry doc(s), so plain
+  // hand-authored links can never be mistaken for references.
+  if (item.entry) {
+    let out = emitComment(item.comment);
+    out += `  <a href="${esc(entryHref(item.entry, docUrl))}"\n  >${item.name ?? ''}</a>\n`;
+    return out;
+  }
   // A submenu tab (several plugins on one menu item) emits as a <submenu>
   // block — a <label> plus its child anchors — which sol-tabs harvests back
   // into a nested sub-tabset and menu-html.js extracts back into the model.
@@ -80,7 +98,14 @@ export function emitTab(item, warn = () => {}) {
   return out;
 }
 
-export function emitBarItem(item, warn = () => {}) {
+export function emitBarItem(item, warn = () => {}, docUrl = null) {
+  // Bar-side reference: slot="actions" is what tells the harvester this
+  // anchor belongs to the BAR (tab references are plain anchors).
+  if (item.entry) {
+    let out = emitComment(item.comment);
+    out += `  <a slot="actions" href="${esc(entryHref(item.entry, docUrl))}"\n  >${item.name ?? ''}</a>\n`;
+    return out;
+  }
   if (item.type !== 'component' || !item.tag) {
     warn(`skipping unassigned bar item "${item.name}" — drop a plugin on it first`);
     return '';
@@ -110,7 +135,7 @@ export function emitBarItem(item, warn = () => {}) {
  * @param {string} o.currentHtml the existing html-first.html text
  * @param {(msg:string)=>void} [o.warn]
  */
-export function generateShell({ tabs, bar, chrome, currentHtml, warn = () => {} }) {
+export function generateShell({ tabs, bar, chrome, currentHtml, warn = () => {}, docUrl = null }) {
   const openMatch = currentHtml.match(/<sol-tabs\b[^>]*>/);
   const chromeMatch = currentHtml.match(/([ \t]*<!-- chrome:begin[\s\S]*?<!-- chrome:end -->\n)/);
   if (!openMatch || !chromeMatch) return { html: '', chrome: null };
@@ -120,15 +145,15 @@ export function generateShell({ tabs, bar, chrome, currentHtml, warn = () => {} 
   // the shell never loses its furniture if #Chrome isn't present.
   let chromeBlock;
   if (chrome && chrome.length) {
-    const items = chrome.map((c) => emitBarItem(c, warn)).filter(Boolean).join('\n');
+    const items = chrome.map((c) => emitBarItem(c, warn, docUrl)).filter(Boolean).join('\n');
     chromeBlock = `  <!-- chrome:begin -->\n${items}\n  <!-- chrome:end -->\n`;
   } else {
     chromeBlock = chromeMatch[1];
   }
 
   const blocks = [
-    ...(tabs || []).map((t) => emitTab(t, warn)),
-    ...(bar || []).map((b) => emitBarItem(b, warn)),
+    ...(tabs || []).map((t) => emitTab(t, warn, docUrl)),
+    ...(bar || []).map((b) => emitBarItem(b, warn, docUrl)),
   ].filter(Boolean);
 
   let html = `${openMatch[0]}\n\n`;

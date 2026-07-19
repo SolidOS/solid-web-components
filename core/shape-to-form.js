@@ -112,7 +112,57 @@ export async function parseShape(shapeText, baseUri, ctx = {}) {
     const desc = readShapeProperty(shapeStore, prop);
     if (desc) properties.push(desc);
   }
+
+  // sh:xone on the node shape — branch shapes discriminated by data. When the
+  // caller supplies subject + dataStore, pick the branch whose sh:hasValue
+  // discriminators all hold for the subject and merge its EDITABLE properties
+  // in (kind-aware forms: each ui:Plugin kind shows its own constraint on
+  // the single schema:url payload). Skipped from the merge: the discriminator
+  // properties themselves (sh:hasValue — nothing to edit) and forbid stubs
+  // (sh:maxCount 0 — they exist to EXCLUDE the other branches' payloads).
+  // Without a matching branch (or without ctx) the xone contributes nothing —
+  // exactly the pre-xone behavior.
+  const xone = shapeStore.any(nodeShape, rdf.sym(SH + 'xone'));
+  if (xone) {
+    const branch = pickXoneBranch(shapeStore, collectRdfList(shapeStore, xone), ctx);
+    if (branch) {
+      const merged = [];
+      for (const prop of shapeStore.each(branch, rdf.sym(SH + 'property'))) {
+        if (shapeStore.any(prop, rdf.sym(SH + 'hasValue'))) continue;
+        const maxRaw = shapeStore.anyValue(prop, rdf.sym(SH + 'maxCount'));
+        if (maxRaw != null && parseInt(maxRaw, 10) === 0) continue;
+        const desc = readShapeProperty(shapeStore, prop);
+        if (desc) { desc.fromXone = true; merged.push(desc); }
+      }
+      // Payload fields read best right after the label field; fall back to
+      // appending when the shape has no property keyed "label".
+      const at = properties.findIndex(d => d.key === 'label');
+      properties.splice(at === -1 ? properties.length : at + 1, 0, ...merged);
+    }
+  }
   return { targets, properties };
+}
+
+// Which sh:xone branch does the subject's data satisfy? A branch QUALIFIES
+// for selection only via its discriminators — properties carrying
+// sh:hasValue — and is picked when every one of them holds in the data
+// graph. Branches without discriminators are never auto-picked (nothing to
+// key on); first match wins.
+function pickXoneBranch(shapeStore, branches, ctx) {
+  if (!ctx.subject || !ctx.dataStore) return null;
+  for (const b of branches) {
+    const discs = [];
+    for (const prop of shapeStore.each(b, rdf.sym(SH + 'property'))) {
+      const path = shapeStore.any(prop, rdf.sym(SH + 'path'));
+      const val  = shapeStore.any(prop, rdf.sym(SH + 'hasValue'));
+      if (path && val) discs.push({ path, val });
+    }
+    if (!discs.length) continue;
+    const holds = discs.every(d =>
+      ctx.dataStore.each(ctx.subject, d.path).some(v => v.value === d.val.value));
+    if (holds) return b;
+  }
+  return null;
 }
 
 // Follow owl:imports declarations in the shape store, fetching each
@@ -200,6 +250,10 @@ export function readShapeProperty(shapeStore, prop) {
   const nk = shapeStore.any(prop, rdf.sym(SH + 'nodeKind'));
   const nodeKind = nk ? nk.value : null;
 
+  // sh:pattern — carried on the descriptor for consumers (rendering doesn't
+  // enforce it yet; SHACL validation at save time remains the authority).
+  const pattern = shapeStore.anyValue(prop, rdf.sym(SH + 'pattern')) ?? null;
+
   // sh:class — values must be instances of this class. shape-to-form
   // emits ui:from on the synthesized ui:Choice, leaving the runtime
   // enumeration to solid-ui (it walks `kb.each(null, rdf:type, X)`).
@@ -230,7 +284,7 @@ export function readShapeProperty(shapeStore, prop) {
   return {
     path, key, datatype, enumOpts, enumLabels, nodeKind, classNode,
     minCount, maxCount, label, description, nestedProperties, reverse,
-    sortBy,
+    sortBy, pattern,
   };
 }
 
@@ -290,12 +344,17 @@ export function findSubjects(store, targets, baseDoc = null) {
  * @param {Object?}     [opts.doc]       named-graph for the data (NamedNode)
  * @param {Function}    [opts.onChange]  called with (subject) after every mutation
  * @param {boolean}     [opts.readOnly]  render via solid-ui's read-only path
+ * @param {string[]}    [opts.readOnlyKeys]  descriptor keys rendered as static
+ *                                       label+value rows (consumer guard
+ *                                       rails, e.g. a plugin's module url —
+ *                                       shown, never editable)
  * @returns {Function}                   cleanup
  */
 export function renderRecordForm(container, store, subject, properties, opts = {}) {
   const doc = opts.doc ?? null;
   const onChange = typeof opts.onChange === 'function' ? opts.onChange : () => {};
   const readOnly = !!opts.readOnly;
+  const readOnlyKeys = new Set(opts.readOnlyKeys || []);
 
   const inner = document.createElement('div');
   inner.className = 'sol-form-shape-fields';
@@ -341,6 +400,20 @@ export function renderRecordForm(container, store, subject, properties, opts = {
     const cb = (ok /*, msg */) => {
       if (ok) onChange(subject);
     };
+
+    // Guard-railed field: show the current value(s), never an input.
+    if (readOnlyKeys.has(desc.key)) {
+      const lab = document.createElement('label');
+      lab.className = 'sol-form-shape-static-label';
+      lab.textContent = desc.label || desc.key;
+      row.appendChild(lab);
+      const val = document.createElement('span');
+      val.className = 'sol-form-shape-static-value';
+      const values = store.each(subject, desc.path, null, doc);
+      val.textContent = values.length ? values.map(v => v.value).join(', ') : '—';
+      row.appendChild(val);
+      continue;
+    }
 
     // Multi-valued primitive (no sh:node, no sh:in) → render rows
     // ourselves. Workaround for a solid-ui basicField limitation: when
