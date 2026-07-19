@@ -1,0 +1,31 @@
+@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Preset layout: a vertical menu in a sidebar, opening items into the main
+# pane beside it. The menu's region attribute names the pane by CSS selector
+# (the author-placed persistent pane pattern — core/display-target.js).
+
+:Layout a ui:Layout ;
+  ui:label "Sidebar" ;
+  ui:orientation ui:Horizontal ;
+  ui:parts ( :Side :Main ) .
+
+:Side a ui:Layout ;
+  ui:label "Sidebar" ;
+  schema:additionalType schema:WPSideBar ;
+  ui:attribute [ schema:name "class" ; schema:value "app-side" ] ;
+  ui:parts ( :menu ) .
+
+:menu a ui:Component ;
+  ui:label "Menu" ;
+  rdfs:comment "Items open into the main pane named by the region selector" ;
+  schema:url </node_modules/sol-components/web/sol-menu.js> ;
+  ui:attribute [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Menu" ] ,
+               [ schema:name "region" ; schema:value ".app-main" ] .
+
+:Main a ui:Layout ;
+  ui:label "Content" ;
+  rdfs:comment "Empty placeholder pane the sidebar menu renders into" ;
+  ui:attribute [ schema:name "class" ; schema:value "app-main" ] .

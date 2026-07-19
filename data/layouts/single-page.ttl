@@ -1,0 +1,25 @@
+@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Preset layout: one content region rendering the app's own content.html —
+# a kiosk / single-purpose page. The builder seeds content.html beside the
+# generated index.html.
+
+:Layout a ui:Layout ;
+  ui:label "Single page" ;
+  ui:orientation ui:Vertical ;
+  ui:parts ( :Main ) .
+
+:Main a ui:Layout ;
+  ui:label "Content" ;
+  ui:attribute [ schema:name "class" ; schema:value "app-panels" ] ;
+  ui:parts ( :content ) .
+
+:content a ui:Component ;
+  ui:label "Page content" ;
+  rdfs:comment "The page body, loaded from the app's own content.html" ;
+  schema:url </node_modules/sol-components/web/sol-include.js> ;
+  ui:attribute [ schema:name "source" ; schema:value "content.html" ] ,
+               [ schema:name "trusted" ; schema:value "" ] .

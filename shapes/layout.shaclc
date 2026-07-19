@@ -1,0 +1,27 @@
+
+PREFIX schema: <http://schema.org/>
+PREFIX ui: <http://www.w3.org/ns/ui#>
+
+shape <#LayoutShape> -> ui:Layout {
+    ui:label xsd:string [0..1] % sh:name "label" ; sh:description "Display name for this region (builder UI only — not emitted)" % .
+    ui:orientation [0..1] in=[ui:Horizontal ui:Vertical] % sh:name "orientation" ; sh:description "Flow axis for the parts: ui:Vertical (default — a page stacks) or ui:Horizontal" % .
+    ui:columns xsd:integer [0..1] minInclusive=1 maxInclusive=6 % sh:name "columns" ; sh:description "Render the parts as a grid with this many columns (overrides orientation flow)" % .
+    schema:additionalType [0..1] in=[schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar] % sh:name "semantic role" ; sh:description "Optional schema.org web-page-element class selecting the emitted semantic tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Unmarked regions emit div (the root's primary-content child emits main)." % .
+    ui:parts [0..1] @<#LayoutPartsCollectionShape> % sh:name "parts" ; sh:description "Ordered collection of nested ui:Layout regions and/or ui:Component leaves. Optional: an empty region is a placeholder pane other items can target (region= selector)." % .
+    ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs" % .
+    rdfs:comment xsd:string % sh:description "Documentary note (round-tripped by the generator as an HTML comment)" % .
+}
+shape <#LayoutPartsCollectionShape> {
+    rdf:rest* hasValue=rdf:nil .
+    rdf:rest*/rdf:first ui:Layout|ui:Component .
+}
+shape <#PropertyValueShape> {
+    schema:name xsd:string [1..1] % sh:name "name" ; sh:description "Attribute name" % .
+    schema:value [1..1] % sh:name "value" ; sh:description "Attribute value" % .
+}
+shape <#AppShape> -> schema:WebApplication {
+    schema:name xsd:string [1..1] % sh:name "name" ; sh:description "The app's name (the generated page title)" % .
+    ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) used as the favicon, or an emoji string" % .
+    ui:layout IRI [1..1] % sh:name "layout" ; sh:description "The app's root ui:Layout" % .
+    rdfs:comment xsd:string % sh:description "Documentary note" % .
+}

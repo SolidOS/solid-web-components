@@ -1,0 +1,137 @@
+@prefix : <#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+
+# App-layout shapes (app-builder, 2026-07-19). A ui:Layout is a page
+# arrangement whose parts render SIMULTANEOUSLY (a ui:Menu's parts are
+# alternatives); the tree compiles at save time into readable HTML
+# (core/layout-generate.js) — the RDF is the model, the emitted markup is the
+# artifact. Component leaves are ordinary ui:Component nodes and validate
+# against menu.shacl's :ComponentShape — validators compose the two files
+# into one shapes graph (binding via sh:targetClass), the same pattern
+# menu.shacl documents for component-interop's manifest envelope.
+# Property order here IS the edit-form field order (shape-driven <sol-form>
+# is the custom-layout editor — there is no bespoke one).
+
+:LayoutShape
+  a sh:NodeShape ;
+  sh:targetClass ui:Layout ;
+  sh:property [
+    sh:path ui:label ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "label" ;
+    sh:description "Display name for this region (builder UI only — not emitted)" ;
+  ] ;
+  sh:property [
+    sh:path ui:orientation ;
+    sh:maxCount 1 ;
+    sh:in ( ui:Horizontal ui:Vertical ) ;
+    sh:name "orientation" ;
+    sh:description "Flow axis for the parts: ui:Vertical (default — a page stacks) or ui:Horizontal" ;
+  ] ;
+  sh:property [
+    sh:path ui:columns ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:integer ;
+    sh:minInclusive 1 ;
+    sh:maxInclusive 6 ;
+    sh:name "columns" ;
+    sh:description "Render the parts as a grid with this many columns (overrides orientation flow)" ;
+  ] ;
+  sh:property [
+    sh:path schema:additionalType ;
+    sh:maxCount 1 ;
+    sh:in ( schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar ) ;
+    sh:name "semantic role" ;
+    sh:description "Optional schema.org web-page-element class selecting the emitted semantic tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Unmarked regions emit div (the root's primary-content child emits main)." ;
+  ] ;
+  sh:property [
+    sh:path ui:parts ;
+    sh:maxCount 1 ;
+    sh:name "parts" ;
+    sh:description "Ordered collection of nested ui:Layout regions and/or ui:Component leaves. Optional: an empty region is a placeholder pane other items can target (region= selector)." ;
+    sh:node :LayoutPartsCollectionShape ;
+  ] ;
+  sh:property [
+    sh:path ui:attribute ;
+    sh:node :PropertyValueShape ;
+    sh:name "attribute" ;
+    sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs" ;
+  ] ;
+  sh:property [
+    sh:path rdfs:comment ;
+    sh:datatype xsd:string ;
+    sh:description "Documentary note (round-tripped by the generator as an HTML comment)" ;
+  ] .
+
+:LayoutPartsCollectionShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path [ sh:zeroOrMorePath rdf:rest ] ;
+    sh:hasValue rdf:nil ;
+  ] ;
+  sh:property [
+    sh:path ( [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
+    sh:or (
+      [ sh:class ui:Layout ]
+      [ sh:class ui:Component ]
+    ) ;
+  ] .
+
+# The app's own metadata node — plain schema:WebApplication, no new class.
+:AppShape
+  a sh:NodeShape ;
+  sh:targetClass schema:WebApplication ;
+  sh:property [
+    sh:path schema:name ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "name" ;
+    sh:description "The app's name (the generated page title)" ;
+  ] ;
+  sh:property [
+    sh:path ui:icon ;
+    sh:maxCount 1 ;
+    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
+    sh:name "icon" ;
+    sh:description "Icon: a URL (IRI or string) used as the favicon, or an emoji string" ;
+  ] ;
+  sh:property [
+    sh:path ui:layout ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:name "layout" ;
+    sh:description "The app's root ui:Layout" ;
+  ] ;
+  sh:property [
+    sh:path rdfs:comment ;
+    sh:datatype xsd:string ;
+    sh:description "Documentary note" ;
+  ] .
+
+# Same contract as menu.shacl's :PropertyValueShape (kept local so this file
+# stays self-contained, like every shapes/*.shacl).
+:PropertyValueShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:name ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "name" ;
+    sh:description "Attribute name" ;
+  ] ;
+  sh:property [
+    sh:path schema:value ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:name "value" ;
+    sh:description "Attribute value" ;
+  ] .

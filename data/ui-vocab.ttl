@@ -130,7 +130,24 @@ ui:hoverTitle a rdf:Property ; rdfs:label "hover title" ; rdfs:isDefinedBy <> ;
   rdfs:range   xsd:string .
 
 ui:attribute a rdf:Property ; rdfs:label "attribute" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "An attribute passed to a ui:Component's element, given as a schema:PropertyValue (schema:name + schema:value)." ;
+  rdfs:comment "An attribute passed to a ui:Component's element (or emitted on a ui:Layout region's element), given as a schema:PropertyValue (schema:name + schema:value)." ;
   rdfs:range   schema:PropertyValue .
+
+################
+# LAYOUT TERMS #
+################
+
+ui:Layout a rdfs:Class ; rdfs:label "Layout" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "A rectangular page/screen arrangement whose ui:parts render SIMULTANEOUSLY — stacked or side by side per ui:orientation — unlike a ui:Menu, whose parts are alternatives the user switches between. Parts are nested ui:Layout regions and/or ui:Component leaves; an empty layout is a placeholder pane other items can target. May carry ui:attribute pairs (class, aria-label, id) emitted on the region's element, and a schema:additionalType naming a schema.org web-page-element class (e.g. schema:SiteNavigationElement) that selects the emitted semantic HTML tag." .
+
+ui:layout a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "layout" ;
+  rdfs:comment "Links a thing (e.g. a schema:WebApplication) to its root ui:Layout." ;
+  rdfs:range   ui:Layout .
+
+ui:columns a rdf:Property ; rdfs:isDefinedBy <> ;
+  rdfs:label   "columns" ;
+  rdfs:comment "On a ui:Layout: render the parts as a grid with this many columns instead of a single flex row/column." ;
+  rdfs:range   xsd:integer .
 
 

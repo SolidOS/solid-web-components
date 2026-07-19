@@ -1,0 +1,38 @@
+@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Preset layout: a controls bar above a tabbed main area — the Data Kitchen /
+# open-media-player shape. Copied into an app folder as layout.ttl; the
+# relative from-rdf / module URLs resolve against the app's own folder and
+# origin, so no rewriting is needed.
+
+:Layout a ui:Layout ;
+  ui:label "Classic shell" ;
+  ui:orientation ui:Vertical ;
+  ui:parts ( :Chrome :Main ) .
+
+:Chrome a ui:Layout ;
+  ui:label "Controls bar" ;
+  schema:additionalType schema:SiteNavigationElement ;
+  ui:orientation ui:Horizontal ;
+  ui:attribute [ schema:name "class" ; schema:value "app-chrome-bar" ] ,
+               [ schema:name "aria-label" ; schema:value "Controls" ] ;
+  ui:parts ( :login ) .
+
+:login a ui:Component ;
+  ui:label "Sign in" ;
+  schema:url </node_modules/sol-components/web/sol-login.js> .
+
+:Main a ui:Layout ;
+  ui:label "Content" ;
+  ui:attribute [ schema:name "class" ; schema:value "app-panels" ] ;
+  ui:parts ( :tabs ) .
+
+:tabs a ui:Component ;
+  ui:label "Tabs" ;
+  rdfs:comment "The whole app body: a tabset built from the app's own menu doc" ;
+  schema:url </node_modules/sol-components/web/sol-tabs.js> ;
+  ui:attribute [ schema:name "keep-alive" ; schema:value "" ] ,
+               [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Tabs" ] .

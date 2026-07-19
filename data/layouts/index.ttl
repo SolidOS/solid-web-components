@@ -1,0 +1,35 @@
+@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+
+# The preset-layout index: a ui:Menu of ui:Link entries, one per preset doc.
+# The app builder enumerates presets from THIS doc (RDF, not directory
+# listing); each link's schema:url is the layout doc to copy into a new app.
+
+:Presets a ui:Menu ;
+  ui:label "Layout presets" ;
+  ui:parts ( :classic-shell :single-page :sidebar :dashboard-grid ) .
+
+:classic-shell a ui:Link ;
+  ui:label "Classic shell" ;
+  ui:icon "🗂️" ;
+  schema:url <classic-shell.ttl> ;
+  schema:description "A controls bar above a tabbed main area — the Data Kitchen / media-player shape." .
+
+:single-page a ui:Link ;
+  ui:label "Single page" ;
+  ui:icon "📄" ;
+  schema:url <single-page.ttl> ;
+  schema:description "One content region rendering the app's own content.html — a kiosk page." .
+
+:sidebar a ui:Link ;
+  ui:label "Sidebar" ;
+  ui:icon "📑" ;
+  schema:url <sidebar.ttl> ;
+  schema:description "A vertical menu beside a main pane; items open into the pane." .
+
+:dashboard-grid a ui:Link ;
+  ui:label "Dashboard grid" ;
+  ui:icon "🧩" ;
+  schema:url <dashboard-grid.ttl> ;
+  schema:description "A header above a two-column widget grid." .

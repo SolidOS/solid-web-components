@@ -1,0 +1,40 @@
+@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Preset layout: a header above a two-column widget grid. Starter widgets are
+# a clock and a calendar — swap in your own via the builder.
+
+:Layout a ui:Layout ;
+  ui:label "Dashboard grid" ;
+  ui:orientation ui:Vertical ;
+  ui:parts ( :Header :Main ) .
+
+:Header a ui:Layout ;
+  ui:label "Header" ;
+  schema:additionalType schema:WPHeader ;
+  ui:orientation ui:Horizontal ;
+  ui:attribute [ schema:name "class" ; schema:value "app-header" ] ;
+  ui:parts ( :clock ) .
+
+:clock a ui:Component ;
+  ui:label "Clock" ;
+  schema:url </node_modules/sol-components/web/sol-time.js> .
+
+:Main a ui:Layout ;
+  ui:label "Widgets" ;
+  ui:columns 2 ;
+  ui:attribute [ schema:name "class" ; schema:value "app-widgets" ] ;
+  ui:parts ( :calendar :notes ) .
+
+:calendar a ui:Component ;
+  ui:label "Calendar" ;
+  schema:url </node_modules/sol-components/web/sol-calendar.js> .
+
+:notes a ui:Component ;
+  ui:label "Notes" ;
+  rdfs:comment "A starter panel loaded from the app's own content.html" ;
+  schema:url </node_modules/sol-components/web/sol-include.js> ;
+  ui:attribute [ schema:name "source" ; schema:value "content.html" ] ,
+               [ schema:name "trusted" ; schema:value "" ] .

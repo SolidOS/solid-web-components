@@ -12,6 +12,7 @@
     "rdf-validate-shacl": "https://esm.sh/rdf-validate-shacl@0.6",
     "menu-from-rdf": "https://esm.sh/sol-components/web/menu-from-rdf.js",
     "sol-accordion": "https://esm.sh/sol-components/web/sol-accordion.js",
+    "sol-app-builder": "https://esm.sh/sol-components/web/sol-app-builder.js",
     "sol-basic": "https://esm.sh/sol-components/web/sol-basic.js",
     "sol-breadcrumb": "https://esm.sh/sol-components/web/sol-breadcrumb.js",
     "sol-button-bar-manager": "https://esm.sh/sol-components/web/sol-button-bar-manager.js",

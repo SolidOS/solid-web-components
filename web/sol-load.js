@@ -50,6 +50,7 @@
       "rdf-validate-shacl": "dist/vendor/rdf-validate-shacl.js",
       "menu-from-rdf": "web/menu-from-rdf.js",
       "sol-accordion": "web/sol-accordion.js",
+      "sol-app-builder": "web/sol-app-builder.js",
       "sol-basic": "web/sol-basic.js",
       "sol-breadcrumb": "web/sol-breadcrumb.js",
       "sol-button-bar-manager": "web/sol-button-bar-manager.js",
