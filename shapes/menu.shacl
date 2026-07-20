@@ -81,6 +81,13 @@
     sh:description "Display name for menus, buttons, etc." ;
   ] ;
   sh:property [
+    sh:path ui:region ;
+    sh:maxCount 1 ;
+    sh:in ( ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown ) ;
+    sh:name "region" ;
+    sh:description "Where the plugin's content is placed — a ui:Region instance, e.g. ui:Tab or ui:Modal." ;
+  ] ;
+  sh:property [
     sh:path dcterms:source ;
     sh:maxCount 1 ;
     sh:nodeKind sh:IRI ;

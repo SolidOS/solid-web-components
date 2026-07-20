@@ -61,6 +61,9 @@ shape <#PluginShape> -> ui:Plugin ;
     ui:label xsd:string [1..1] %
         sh:name "label" ; sh:description "Display name for menus, buttons, etc."
     % .
+    ui:region [0..1] in=[ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown] %
+        sh:name "region" ; sh:description "Where the plugin's content is placed — a ui:Region instance, e.g. ui:Tab or ui:Modal."
+    % .
     dcterms:source IRI [0..1] %
         sh:name "manifest" ; sh:description "Provenance: the flat manifest doc this entry was generated from."
     % .

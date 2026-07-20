@@ -61,6 +61,7 @@ test('a Component entry conforms: schema:url is the module (tag derives from the
 <#Calendar> a ui:Plugin ;
   schema:additionalType ui:Component ;
   ui:label "Calendar" ;
+  ui:region ui:Dropdown ;
   schema:url </node_modules/sol-components/web/sol-calendar.js> ;
   ui:attribute
     [ schema:name "region" ; schema:value "dropdown" ] ,
@@ -106,6 +107,14 @@ test('an entry without schema:additionalType fails', async () => {
 test('an unknown additionalType fails (sh:in)', async () => {
   const report = await validate(`
 <#X> a ui:Plugin ; schema:additionalType ui:Menu ; ui:label "X" ; schema:url <https://example.org/> .
+`);
+  expect(report.conforms).toBe(false);
+});
+
+test('an unknown ui:region fails (sh:in)', async () => {
+  const report = await validate(`
+<#X> a ui:Plugin ; schema:additionalType ui:Link ; ui:label "X" ;
+  schema:url <https://example.org/> ; ui:region ui:Sidebar .
 `);
   expect(report.conforms).toBe(false);
 });
