@@ -10,12 +10,14 @@
 :Layout a ui:Layout ;
   ui:label "Single page" ;
   ui:orientation ui:Vertical ;
-  ui:parts ( :Main ) .
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Layout-Main .
 
 :Main a ui:Layout ;
   ui:label "Content" ;
   ui:attribute [ schema:name "class" ; schema:value "app-panels" ] ;
-  ui:parts ( :content ) .
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Main-content .
 
 :content a ui:Component ;
   ui:label "Page content" ;
@@ -23,3 +25,7 @@
   schema:url </node_modules/sol-components/web/sol-include.js> ;
   ui:attribute [ schema:name "source" ; schema:value "content.html" ] ,
                [ schema:name "trusted" ; schema:value "" ] .
+
+:Layout-Main a schema:ListItem; schema:item :Main; schema:position 1.
+
+:Main-content a schema:ListItem; schema:item :content; schema:position 1.

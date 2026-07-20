@@ -11,7 +11,8 @@
 :Layout a ui:Layout ;
   ui:label "Classic shell" ;
   ui:orientation ui:Vertical ;
-  ui:parts ( :Chrome :Main ) .
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Layout-Chrome, :Layout-Main .
 
 :Chrome a ui:Layout ;
   ui:label "Controls bar" ;
@@ -19,7 +20,8 @@
   ui:orientation ui:Horizontal ;
   ui:attribute [ schema:name "class" ; schema:value "app-chrome-bar" ] ,
                [ schema:name "aria-label" ; schema:value "Controls" ] ;
-  ui:parts ( :login ) .
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Chrome-login .
 
 :login a ui:Component ;
   ui:label "Sign in" ;
@@ -28,7 +30,8 @@
 :Main a ui:Layout ;
   ui:label "Content" ;
   ui:attribute [ schema:name "class" ; schema:value "app-panels" ] ;
-  ui:parts ( :tabs ) .
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Main-tabs .
 
 :tabs a ui:Component ;
   ui:label "Tabs" ;
@@ -36,3 +39,10 @@
   schema:url </node_modules/sol-components/web/sol-tabs.js> ;
   ui:attribute [ schema:name "keep-alive" ; schema:value "" ] ,
                [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Tabs" ] .
+
+:Layout-Chrome a schema:ListItem; schema:item :Chrome; schema:position 1.
+:Layout-Main a schema:ListItem; schema:item :Main; schema:position 2.
+
+:Chrome-login a schema:ListItem; schema:item :login; schema:position 1.
+
+:Main-tabs a schema:ListItem; schema:item :tabs; schema:position 1.

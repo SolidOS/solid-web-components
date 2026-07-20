@@ -43,32 +43,31 @@ installFromRdfLoader(loadMenuFromUri);
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-// #Main → ( #Home #Settings #Table #About )
+// #Main → members #Home #Settings #Table #About (positioned ListItem wrappers)
 //   #Home     ui:Link      href + icon
-//   #Settings ui:Menu      nested: ( #Light #Dark ) both ui:contents links
+//   #Settings ui:Menu      nested members: #Light #Dark, both ui:contents links
 //   #Table    ui:Component schema:url …/sol-query.js + ui:attribute endpoint
 //   #About    ui:Component schema:url …/sol-query.js + ui:attribute pattern
 function buildStore() {
   const store = rdflib.graph();
   const s = (v) => rdflib.sym(v);
   const l = (v) => rdflib.literal(v);
+  // menu → positioned schema:ListItem wrapper → member
+  const addMember = (menuFrag, itemFrag, pos) => {
+    const wrap = s(`${BASE}#${menuFrag.slice(1)}-${itemFrag.slice(1)}`);
+    store.add(s(BASE + menuFrag), s(SCHEMA + 'itemListElement'), wrap);
+    store.add(wrap, s(RDF + 'type'), s(SCHEMA + 'ListItem'));
+    store.add(wrap, s(SCHEMA + 'item'), s(BASE + itemFrag));
+    store.add(wrap, s(SCHEMA + 'position'), l(String(pos)));
+  };
 
   store.add(s(BASE + '#Main'), s(RDF + 'type'), s(UI + 'Menu'));
   store.add(s(BASE + '#Main'), s(UI + 'label'), l('main'));
 
-  const b1 = s(BASE + '#_l1');
-  const b2 = s(BASE + '#_l2');
-  const b3 = s(BASE + '#_l3');
-  const b4 = s(BASE + '#_l4');
-  store.add(s(BASE + '#Main'), s(UI + 'parts'), b1);
-  store.add(b1, s(RDF + 'first'), s(BASE + '#Home'));
-  store.add(b1, s(RDF + 'rest'), b2);
-  store.add(b2, s(RDF + 'first'), s(BASE + '#Settings'));
-  store.add(b2, s(RDF + 'rest'), b3);
-  store.add(b3, s(RDF + 'first'), s(BASE + '#Table'));
-  store.add(b3, s(RDF + 'rest'), b4);
-  store.add(b4, s(RDF + 'first'), s(BASE + '#About'));
-  store.add(b4, s(RDF + 'rest'), s(RDF + 'nil'));
+  addMember('#Main', '#Home', 1);
+  addMember('#Main', '#Settings', 2);
+  addMember('#Main', '#Table', 3);
+  addMember('#Main', '#About', 4);
 
   store.add(s(BASE + '#Home'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Home'), s(UI + 'label'), l('Home'));
@@ -77,13 +76,8 @@ function buildStore() {
 
   store.add(s(BASE + '#Settings'), s(RDF + 'type'), s(UI + 'Menu'));
   store.add(s(BASE + '#Settings'), s(UI + 'label'), l('Settings'));
-  const sb1 = s(BASE + '#_s1');
-  const sb2 = s(BASE + '#_s2');
-  store.add(s(BASE + '#Settings'), s(UI + 'parts'), sb1);
-  store.add(sb1, s(RDF + 'first'), s(BASE + '#Light'));
-  store.add(sb1, s(RDF + 'rest'), sb2);
-  store.add(sb2, s(RDF + 'first'), s(BASE + '#Dark'));
-  store.add(sb2, s(RDF + 'rest'), s(RDF + 'nil'));
+  addMember('#Settings', '#Light', 1);
+  addMember('#Settings', '#Dark', 2);
 
   store.add(s(BASE + '#Light'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Light'), s(UI + 'label'), l('Light'));
@@ -466,19 +460,17 @@ describe('SolTabs — nested ui:Menu', () => {
     mockStore = buildStore();
     mockStore.add(s(BASE + '#StackMain'), s(RDF + 'type'), s(UI + 'Menu'));
     mockStore.add(s(BASE + '#StackMain'), s(UI + 'label'), l('stackmain'));
-    const m1 = s(BASE + '#_m1');
-    mockStore.add(s(BASE + '#StackMain'), s(UI + 'parts'), m1);
-    mockStore.add(m1, s(RDF + 'first'), s(BASE + '#Tools'));
-    mockStore.add(m1, s(RDF + 'rest'), s(RDF + 'nil'));
+    const member = (menuFrag, itemFrag, pos) => {
+      const wrap = s(`${BASE}#${menuFrag}-${itemFrag}`);
+      mockStore.add(s(`${BASE}#${menuFrag}`), s(SCHEMA + 'itemListElement'), wrap);
+      mockStore.add(wrap, s(SCHEMA + 'item'), s(`${BASE}#${itemFrag}`));
+      mockStore.add(wrap, s(SCHEMA + 'position'), l(String(pos)));
+    };
+    member('StackMain', 'Tools', 1);
     mockStore.add(s(BASE + '#Tools'), s(RDF + 'type'), s(UI + 'Menu'));
     mockStore.add(s(BASE + '#Tools'), s(UI + 'label'), l('Tools'));
-    const t1 = s(BASE + '#_t1');
-    const t2 = s(BASE + '#_t2');
-    mockStore.add(s(BASE + '#Tools'), s(UI + 'parts'), t1);
-    mockStore.add(t1, s(RDF + 'first'), s(BASE + '#Table'));
-    mockStore.add(t1, s(RDF + 'rest'), t2);
-    mockStore.add(t2, s(RDF + 'first'), s(BASE + '#About'));
-    mockStore.add(t2, s(RDF + 'rest'), s(RDF + 'nil'));
+    member('Tools', 'Table', 1);
+    member('Tools', 'About', 2);
 
     const el = attached(document.createElement('sol-tabs'));
     el.setAttribute('from-rdf', BASE + '#StackMain');
@@ -553,10 +545,10 @@ describe('SolTabs — attributeChangedCallback', () => {
     const l = (v) => rdflib.literal(v);
     const B2 = 'http://example.org/other.ttl';
     store2.add(s(B2 + '#M'), s(RDF + 'type'), s(UI + 'Menu'));
-    const lb = s(B2 + '#_lb1');
-    store2.add(s(B2 + '#M'), s(UI + 'parts'), lb);
-    store2.add(lb, s(RDF + 'first'), s(B2 + '#One'));
-    store2.add(lb, s(RDF + 'rest'), s(RDF + 'nil'));
+    const lb = s(B2 + '#M-One');
+    store2.add(s(B2 + '#M'), s(SCHEMA + 'itemListElement'), lb);
+    store2.add(lb, s(SCHEMA + 'item'), s(B2 + '#One'));
+    store2.add(lb, s(SCHEMA + 'position'), l('1'));
     store2.add(s(B2 + '#One'), s(RDF + 'type'), s(UI + 'Link'));
     store2.add(s(B2 + '#One'), s(UI + 'label'), l('Only'));
     store2.add(s(B2 + '#One'), s(UI + 'contents'), l('only content'));
@@ -813,12 +805,13 @@ describe('SolTabs — command items', () => {
     const l = (v) => rdflib.literal(v);
     store.add(s(BASE + '#M'), s(RDF + 'type'), s(UI + 'Menu'));
     store.add(s(BASE + '#M'), s(UI + 'label'), l('m'));
-    const b1 = s(BASE + '#_x1'), b2 = s(BASE + '#_x2');
-    store.add(s(BASE + '#M'), s(UI + 'parts'), b1);
-    store.add(b1, s(RDF + 'first'), s(BASE + '#Table'));
-    store.add(b1, s(RDF + 'rest'), b2);
-    store.add(b2, s(RDF + 'first'), s(BASE + '#Run'));
-    store.add(b2, s(RDF + 'rest'), s(RDF + 'nil'));
+    const b1 = s(BASE + '#M-Table'), b2 = s(BASE + '#M-Run');
+    store.add(s(BASE + '#M'), s(SCHEMA + 'itemListElement'), b1);
+    store.add(b1, s(SCHEMA + 'item'), s(BASE + '#Table'));
+    store.add(b1, s(SCHEMA + 'position'), l('1'));
+    store.add(s(BASE + '#M'), s(SCHEMA + 'itemListElement'), b2);
+    store.add(b2, s(SCHEMA + 'item'), s(BASE + '#Run'));
+    store.add(b2, s(SCHEMA + 'position'), l('2'));
     store.add(s(BASE + '#Table'), s(RDF + 'type'), s(UI + 'Component'));
     store.add(s(BASE + '#Table'), s(UI + 'label'), l('Table'));
     store.add(s(BASE + '#Table'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));

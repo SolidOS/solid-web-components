@@ -7,7 +7,7 @@
 @prefix schema: <http://schema.org/> .
 
 # App-layout shapes (app-builder, 2026-07-19). A ui:Layout is a page
-# arrangement whose parts render SIMULTANEOUSLY (a ui:Menu's parts are
+# arrangement whose members render SIMULTANEOUSLY (a ui:Menu's members are
 # alternatives); the tree compiles at save time into readable HTML
 # (core/layout-generate.js) — the RDF is the model, the emitted markup is the
 # artifact. Component leaves are ordinary ui:Component nodes and validate
@@ -51,11 +51,18 @@
     sh:description "Optional schema.org web-page-element class selecting the emitted semantic tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Unmarked regions emit div (the root's primary-content child emits main)." ;
   ] ;
   sh:property [
-    sh:path ui:parts ;
+    sh:path schema:itemListElement ;
+    sh:nodeKind sh:IRI ;
+    sh:name "entries" ;
+    sh:description "Region membership — one triple per positioned schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order). Optional: an empty region is a placeholder pane other items can target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)." ;
+    sh:node :LayoutEntryShape ;
+  ] ;
+  sh:property [
+    sh:path schema:itemListOrder ;
     sh:maxCount 1 ;
-    sh:name "parts" ;
-    sh:description "Ordered collection of nested ui:Layout regions and/or ui:Component leaves. Optional: an empty region is a placeholder pane other items can target (region= selector)." ;
-    sh:node :LayoutPartsCollectionShape ;
+    sh:in ( schema:ItemListOrderAscending ) ;
+    sh:name "order" ;
+    sh:description "Declares that members render sorted by their wrappers' schema:position, ascending." ;
   ] ;
   sh:property [
     sh:path ui:attribute ;
@@ -69,18 +76,30 @@
     sh:description "Documentary note (round-tripped by the generator as an HTML comment)" ;
   ] .
 
-:LayoutPartsCollectionShape
+# A placement wrapper: WHERE one member sits in ONE region — the same
+# schema:ListItem idiom as menu.shacl's :MenuEntryShape.
+:LayoutEntryShape
   a sh:NodeShape ;
+  sh:class schema:ListItem ;
   sh:property [
-    sh:path [ sh:zeroOrMorePath rdf:rest ] ;
-    sh:hasValue rdf:nil ;
-  ] ;
-  sh:property [
-    sh:path ( [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
+    sh:path schema:item ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
     sh:or (
       [ sh:class ui:Layout ]
       [ sh:class ui:Component ]
     ) ;
+    sh:name "item" ;
+    sh:description "The nested ui:Layout region or ui:Component leaf this placement mounts." ;
+  ] ;
+  sh:property [
+    sh:path schema:position ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:integer ;
+    sh:name "position" ;
+    sh:description "Visual order within this region (ascending; sequential 1..n by convention)." ;
   ] .
 
 # The app's own metadata node — plain schema:WebApplication, no new class.

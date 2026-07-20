@@ -30,9 +30,9 @@ const layoutsDir = join(here, '..', '..', 'data', 'layouts');
 const BASE = 'http://layout.test/layout.ttl';
 
 // Jest maps rdflib to a minimal mock whose turtle tokenizer has no blank
-// nodes or collections, so parse real Turtle with n3 and feed the quads into
-// the mock store (term matching is by .value; lists arrive as first/rest
-// triples, the walk path rdfListElements already handles).
+// nodes, so parse real Turtle with n3 and feed the quads into the mock store
+// (term matching is by .value; membership arrives as plain
+// schema:itemListElement wrapper triples, the walk path menuMembers handles).
 function parseInto(text, base) {
   const g = rdf.graph();
   const conv = (t) =>
@@ -106,8 +106,10 @@ test('a foreign (non sol-*) leaf loads via its own visible module script', () =>
 @prefix : <#> .
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
-:Layout a ui:Layout ; ui:parts ( :Main ) .
-:Main a ui:Layout ; ui:parts ( :player ) .
+:Layout a ui:Layout ; schema:itemListElement :Layout-Main .
+:Layout-Main a schema:ListItem ; schema:item :Main ; schema:position 1 .
+:Main a ui:Layout ; schema:itemListElement :Main-player .
+:Main-player a schema:ListItem ; schema:item :player ; schema:position 1 .
 :player a ui:Component ; ui:label "Player" ;
   schema:url <https://example.org/dist/ia-player.esm.js> ;
   ui:attribute [ schema:name "source" ; schema:value "lib.ttl" ] .
@@ -123,10 +125,10 @@ test('attribute values are escaped in emitted markup', () => {
 @prefix : <#> .
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
-:Layout a ui:Layout ; ui:parts ( :Main ) .
+:Layout a ui:Layout ; schema:itemListElement :Layout-Main .
+:Layout-Main a schema:ListItem ; schema:item :Main ; schema:position 1 .
 :Main a ui:Layout ;
-  ui:attribute [ schema:name "aria-label" ; schema:value "Tom & \\"Jerry\\" <3" ] ;
-  ui:parts ( ) .
+  ui:attribute [ schema:name "aria-label" ; schema:value "Tom & \\"Jerry\\" <3" ] .
 `, BASE);
   const html = generateAppHtml({ store: g, layoutNode: rdf.sym(`${BASE}#Layout`) });
   expect(html).toContain('aria-label="Tom &amp; &quot;Jerry&quot; &lt;3"');
@@ -148,5 +150,7 @@ test('seedAppMenu emits a parseable newborn menu doc', () => {
   const UI = 'http://www.w3.org/ns/ui#';
   expect(g.any(menu, rdf.sym(`${UI}label`)).value).toBe('Menu');
   expect(g.any(menu, rdf.sym(`${UI}orientation`)).value).toBe(`${UI}Vertical`);
-  expect(g.any(menu, rdf.sym(`${UI}parts`))).toBeTruthy();
+  // a newborn menu has NO membership triples yet — members arrive as
+  // positioned wrappers when the managers add them
+  expect(g.any(menu, rdf.sym('http://schema.org/itemListElement'))).toBeFalsy();
 });

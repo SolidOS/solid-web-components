@@ -51,7 +51,9 @@ export function rdfVal(store, subject, localName) {
   return node ? node.value : null;
 }
 
-// Walk an rdf:List, returning its elements as an array.
+// Walk an rdf:List, returning its elements as an array. Menus no longer use
+// rdf:Collections (schema:itemListElement membership since 2026-07-19); this
+// stays for ui:Layout parts and other list-valued vocab.
 export function rdfListElements(store, listNode) {
   if (listNode.elements) return listNode.elements;
   const items = [];
@@ -65,6 +67,24 @@ export function rdfListElements(store, listNode) {
     cur = store.any(cur, rest);
   }
   return items;
+}
+
+// Resolve a menu's schema:itemListElement membership into member nodes.
+// A member reached through a schema:ListItem placement wrapper (it carries
+// schema:item) sorts by the wrapper's schema:position — the curated-menu
+// form. A direct member (unordered sets like the catalog #Available) has no
+// wrapper and keeps document order after any positioned members (the sort is
+// stable). Replaces the retired ui:parts rdf:Collection walk (2026-07-19).
+export function menuMembers(store, menuNode) {
+  const entries = store.each(menuNode, rdf.sym(SCHEMA + 'itemListElement'), null);
+  const members = entries.map((entry) => {
+    const target = store.any(entry, rdf.sym(SCHEMA + 'item'));
+    if (!target) return { member: entry, pos: Infinity };
+    const pos = store.any(entry, rdf.sym(SCHEMA + 'position'));
+    return { member: target, pos: pos ? Number(pos.value) : Infinity };
+  });
+  members.sort((x, y) => x.pos - y.pos);
+  return members.map((m) => m.member);
 }
 
 // Read a ui:Component (or handler) node into { tag, params } where
@@ -140,7 +160,8 @@ function regionToken(v) {
 }
 
 /**
- * Parse a ui:Menu's parts into a tree of plain item descriptions.
+ * Parse a ui:Menu's members (schema:itemListElement, wrapper-aware and
+ * position-sorted — see menuMembers) into a tree of plain item descriptions.
  *
  * Each description has one of these shapes (no functions, no DOM):
  *
@@ -154,9 +175,7 @@ function regionToken(v) {
  * item's IRI fragment, the join key an HTML region uses to claim it.
  */
 export function parseMenuItems(store, menuNode) {
-  const partsNode = store.any(menuNode, rdf.sym(UI + 'parts'));
-  if (!partsNode) return [];
-  const parts = rdfListElements(store, partsNode);
+  const parts = menuMembers(store, menuNode);
   const typeNode = rdf.sym(RDF + 'type');
   const items = [];
 
@@ -275,12 +294,12 @@ export function parseMenuItems(store, menuNode) {
 }
 
 /**
- * A reference-style menu's parts point at ui:Plugin entries that may live in
- * OTHER documents (the catalog doc, per plugin-manifest-unification). Fetch
- * every referenced doc the store doesn't already describe, parsing each into
- * the SAME store under its own graph name — so per-doc serialization stays
- * clean. Turtle is the entries' format; failures are warn-and-continue (the
- * parse then skips the unreadable entry, it doesn't sink the whole menu).
+ * A reference-style menu's members point at ui:Plugin entries that may live
+ * in OTHER documents (the catalog doc, per plugin-manifest-unification).
+ * Fetch every referenced doc the store doesn't already describe, parsing each
+ * into the SAME store under its own graph name — so per-doc serialization
+ * stays clean. Turtle is the entries' format; failures are warn-and-continue
+ * (the parse then skips the unreadable entry, it doesn't sink the whole menu).
  */
 export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
   // Minimal stores (e.g. the jest rdflib mock) can't enumerate statements —
@@ -290,26 +309,27 @@ export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
   // global fetch exists (jsdom), even when this function has nothing to do.
   if (!fetchFn) fetchFn = (typeof fetch === 'function') ? fetch : null;
   if (!fetchFn) return;
-  const first = rdf.sym(RDF + 'first');
   const typeNode = rdf.sym(RDF + 'type');
-  // Members live in ui:parts lists — which rdflib parses as COLLECTION terms
-  // (no rdf:first/rest statements), while hand-chained lists do use
-  // first/rest. Walk BOTH forms. Two rounds: entries fetched in round 1
-  // cannot themselves add parts lists (entries have none), but a nested
-  // submenu doc could — cap the walk.
-  const partsPred = rdf.sym(UI + 'parts');
+  // Members hang off schema:itemListElement triples — either directly
+  // (unordered sets) or behind a schema:ListItem wrapper whose schema:item is
+  // the real member (curated menus); collect BOTH the entry and its target.
+  // Two rounds: entries fetched in round 1 cannot themselves add membership
+  // (plugin entries have none), but a nested submenu doc could — cap the walk.
+  const elemPred = rdf.sym(SCHEMA + 'itemListElement');
+  const itemPred = rdf.sym(SCHEMA + 'item');
   const members = () => {
     const out = [];
-    for (const st of store.statementsMatching(null, partsPred, null)) {
-      out.push(...rdfListElements(store, st.object));
+    for (const st of store.statementsMatching(null, elemPred, null)) {
+      out.push(st.object);
+      const target = store.any(st.object, itemPred);
+      if (target) out.push(target);
     }
-    for (const st of store.statementsMatching(null, first, null)) out.push(st.object);
     return out;
   };
   for (let round = 0; round < 2; round++) {
     const missing = new Set();
     for (const member of members()) {
-      if (!member || !member.value || member.termType === 'BlankNode') continue;
+      if (!member || !member.value || member.termType !== 'NamedNode') continue;
       const doc = member.value.split('#')[0];
       if (!doc || doc === rootDocUrl) continue;
       // already have statements about this member → its doc is loaded enough
@@ -332,7 +352,7 @@ export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
 /**
  * Resolve `uri` (optionally relative to `baseUri`), fetch the RDF doc,
  * locate the menu root (by fragment or by ui:Menu type), pull in any docs
- * its parts reference (ui:Plugin entries), and parse it.
+ * its members reference (ui:Plugin entries), and parse it.
  *
  * @returns {Promise<null | { items, orientation }>}
  *   `null` if no ui:Menu is found in the document.

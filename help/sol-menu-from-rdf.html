@@ -67,9 +67,12 @@ one) — in that region instead.
 
 <div class="tab-panel" id="tab-vocab">
 <pre><b>ui:Menu</b>
-  ui:label       # (required) display name
-  ui:parts       # (required) ordered rdf:Collection of ui:Link, ui:Component, and/or ui:Menu items
-  ui:orientation # (optional) ui:Horizontal (default) or ui:Vertical
+  ui:label               # (required) display name
+  schema:itemListElement # membership — one triple per positioned schema:ListItem
+                         # wrapper (schema:item → the ui:Link/ui:Component/ui:Menu
+                         # member, schema:position → its order, sorted ascending)
+  schema:itemListOrder   # (optional) schema:ItemListOrderAscending on curated menus
+  ui:orientation         # (optional) ui:Horizontal (default) or ui:Vertical
 
 <b>ui:Link</b>
   ui:label       # (required) display name

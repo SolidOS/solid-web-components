@@ -10,8 +10,8 @@
  *   1. The activation contract — importing the module installs THE loader on the
  *      Symbol.for() registry and wires every registered + pending consumer.
  *   2. The loader it installs — loadMenuFromUri fetched-and-parsed end to end
- *      through the mocked rdflib (Turtle written with explicit rdf:first/rest
- *      triples, which the mock parser handles; see note at bottom).
+ *      through the mocked rdflib (plain schema:itemListElement membership
+ *      triples — no list syntax, no blanks; see note at bottom).
  */
 
 window.__SolSuppressDefineWarn = true;
@@ -21,11 +21,12 @@ import { registerMenuConsumer, deferUntilLoader } from '../../core/menu-consumer
 // The registry the add-on writes to is a cross-bundle Symbol.for() singleton.
 const REG_KEY = Symbol.for('sol-components.menu-consumers');
 
-// A turtle doc that uses ONLY constructs the jest rdflib mock parses: explicit
-// rdf:first / rdf:rest / rdf:nil triples (not `( … )` list syntax) and named
-// attribute nodes (not `[ … ]` blanks). It models a horizontal menu with a
-// component (two ui:attribute params), an acl-gated component, a nested submenu
-// holding a link, plus a PANTRY subject (#Forum) reachable from no ui:parts.
+// A turtle doc that uses ONLY constructs the jest rdflib mock parses: plain
+// triples and named attribute nodes (not `[ … ]` blanks). Membership is the
+// real model — positioned schema:ListItem wrappers per member. It models a
+// horizontal menu with a component (two ui:attribute params), an acl-gated
+// component, a nested submenu holding a link, plus a PANTRY subject (#Forum)
+// reachable from no menu's membership.
 const MENU_TTL = `
 @prefix ui:     <http://www.w3.org/ns/ui#> .
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
@@ -34,12 +35,13 @@ const MENU_TTL = `
 
 <#Main> a ui:Menu ; ui:label "data-kitchen" ;
   ui:orientation ui:Horizontal ;
-  ui:parts <#l1> .
-<#l1> rdf:first <#Home> ; rdf:rest <#l2> .
-<#l2> rdf:first <#Podz> ; rdf:rest <#l3> .
-<#l3> rdf:first <#Sub>  ; rdf:rest <#l4> .
-<#l4> rdf:first <#Customize> ; rdf:rest <#l5> .
-<#l5> rdf:first <#Help> ; rdf:rest rdf:nil .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#Main-Home> , <#Main-Podz> , <#Main-Sub> , <#Main-Customize> , <#Main-Help> .
+<#Main-Home> a schema:ListItem ; schema:item <#Home> ; schema:position 1 .
+<#Main-Podz> a schema:ListItem ; schema:item <#Podz> ; schema:position 2 .
+<#Main-Sub>  a schema:ListItem ; schema:item <#Sub>  ; schema:position 3 .
+<#Main-Customize> a schema:ListItem ; schema:item <#Customize> ; schema:position 4 .
+<#Main-Help> a schema:ListItem ; schema:item <#Help> ; schema:position 5 .
 
 <#Customize> a ui:Component ; ui:label "Customize" ; schema:url <https://pod.example/web/sol-include.js> ;
   ui:attribute <#cGate> , <#cSource> , <#cRegion> .
@@ -62,16 +64,20 @@ const MENU_TTL = `
   ui:region ui:Modal ;
   acl:mode acl:Write .
 
-<#Sub> a ui:Menu ; ui:label "More" ; ui:parts <#sl1> .
-<#sl1> rdf:first <#Faq> ; rdf:rest rdf:nil .
+<#Sub> a ui:Menu ; ui:label "More" ;
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#Sub-Faq> .
+<#Sub-Faq> a schema:ListItem ; schema:item <#Faq> ; schema:position 1 .
 <#Faq> a ui:Link ; ui:label "FAQ" ; schema:url "https://solidproject.org/FAQ" .
 
 <#Forum> a ui:Link ; ui:label "Forum" ; schema:url "https://forum.solidproject.org/" .
 
-<#PluginMenu> a ui:Menu ; ui:label "plugins" ; ui:parts <#pl1> .
-<#pl1> rdf:first <#EPenny> ; rdf:rest <#pl2> .
-<#pl2> rdf:first <#ECal> ; rdf:rest <#pl3> .
-<#pl3> rdf:first <#ETheme> ; rdf:rest rdf:nil .
+<#PluginMenu> a ui:Menu ; ui:label "plugins" ;
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#PluginMenu-EPenny> , <#PluginMenu-ECal> , <#PluginMenu-ETheme> .
+<#PluginMenu-EPenny> a schema:ListItem ; schema:item <#EPenny> ; schema:position 1 .
+<#PluginMenu-ECal>   a schema:ListItem ; schema:item <#ECal>   ; schema:position 2 .
+<#PluginMenu-ETheme> a schema:ListItem ; schema:item <#ETheme> ; schema:position 3 .
 
 <#EPenny> a ui:Plugin ; schema:additionalType ui:Link ;
   ui:label "Penny" ; schema:url "https://penny.example/" ;
@@ -262,9 +268,9 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     expect(menu.items.length).toBeGreaterThan(0);
   });
 
-  test('returns null when the named fragment is not a menu (no parts)', async () => {
+  test('returns null when the named fragment is not a menu (no members)', async () => {
     global.fetch = turtleFetchStub();
-    // #Faq exists but has no ui:parts → parseMenuItems yields [], items empty,
+    // #Faq exists but has no membership → parseMenuItems yields [], items empty,
     // and the root resolves to the fragment, so we get a menu with no items.
     const menu = await loadMenuFromUri(DOC_URL + '#Faq');
     expect(menu).not.toBeNull();
@@ -282,11 +288,10 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
 /*
  * Deliberately NOT tested: the components' own `from-rdf` *render* path
  * (sol-tabs/sol-menu actually mounting these items into the DOM) and Turtle
- * written with `( … )` rdf:List sugar or `[ … ]` blank attribute nodes — the
- * jest rdflib mock's parser handles neither collection syntax nor blank-node
- * brackets, so the fixtures above use the equivalent explicit triples. The real
- * rdflib in the browser parses both forms identically into the same triples the
- * loader walks, so the parsing logic exercised here is the production logic.
+ * written with `[ … ]` blank attribute nodes — the jest rdflib mock's parser
+ * doesn't handle blank-node brackets, so the fixtures above use named
+ * attribute nodes. Menu MEMBERSHIP needs no workaround: positioned
+ * schema:ListItem wrappers are plain triples, which is the production form.
  */
 
 describe('module urls on component items', () => {

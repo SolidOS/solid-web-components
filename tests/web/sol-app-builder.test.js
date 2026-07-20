@@ -94,7 +94,7 @@ beforeEach(() => {
     docs[`http://pod.test/layouts/${f}`] = readFileSync(join(layoutsDir, f), 'utf8');
   }
   docs['http://pod.test/catalog.ttl'] = `@prefix ui: <http://www.w3.org/ns/ui#> .
-<#Available> a ui:Menu ; ui:label "Available" ; ui:parts ( ) .
+<#Available> a ui:Menu ; ui:label "Available" .
 `;
 });
 afterEach(() => { document.body.innerHTML = ''; });

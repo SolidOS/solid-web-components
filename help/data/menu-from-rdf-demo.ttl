@@ -1,19 +1,29 @@
 @prefix ui:     <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
 
-# A ui:Menu drives <sol-menu from-rdf>. ui:parts is an ordered list of items;
-# a `ui:Command` item's schema:url is a fragment IRI whose hyphen-free
+# A ui:Menu drives <sol-menu from-rdf>. Membership is schema:itemListElement —
+# one positioned schema:ListItem wrapper per member, sorted by schema:position.
+# A `ui:Command` item's schema:url is a fragment IRI whose hyphen-free
 # fragment is the command key (clicking fires `sol-command`) — this demo doc
 # doubles as its own registry. A nested ui:Menu becomes a fly-out submenu.
 
 <#MainMenu> a ui:Menu ; ui:label "Demo" ;
-  ui:parts ( <#New> <#Open> <#Tools> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#MainMenu-New>, <#MainMenu-Open>, <#MainMenu-Tools> .
+
+<#MainMenu-New>   a schema:ListItem ; schema:item <#New>   ; schema:position 1 .
+<#MainMenu-Open>  a schema:ListItem ; schema:item <#Open>  ; schema:position 2 .
+<#MainMenu-Tools> a schema:ListItem ; schema:item <#Tools> ; schema:position 3 .
 
 <#New>  a ui:Command ; ui:label "New"  ; schema:url <#newItem> .
 <#Open> a ui:Command ; ui:label "Open" ; schema:url <#openItem> .
 
 <#Tools> a ui:Menu ; ui:label "Tools" ;
-  ui:parts ( <#Export> <#Settings> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#Tools-Export>, <#Tools-Settings> .
+
+<#Tools-Export>   a schema:ListItem ; schema:item <#Export>   ; schema:position 1 .
+<#Tools-Settings> a schema:ListItem ; schema:item <#Settings> ; schema:position 2 .
 
 <#Export> a ui:Command ; ui:label "Export" ; schema:url <#export> ;
   ui:attribute [ schema:name "format" ; schema:value "csv" ] .

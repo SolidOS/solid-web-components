@@ -1,13 +1,25 @@
 @prefix : <#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix skos: <http://www.w3.org/2004/02/skos/core#> .
-@prefix acl: <http://www.w3.org/ns/auth/acl#> .
+
+# Menu + plugin-entry shapes (mixin rewrite, 2026-07-19). Design rules:
+#   - card/settings metadata lives ONLY on the ui:Plugin catalog entry; a
+#     bare ui:Link / ui:Component inline item carries just its working
+#     fields (retired spellings — acl:mode, ui:region, ui:hoverTitle,
+#     ui:contents, per-class metadata copies — are GONE from the contract)
+#   - each item kind owns its complete schema:url definition, REQUIRED;
+#     :PluginShape's sh:xone discriminates on schema:additionalType and
+#     DELEGATES to the kind shape via sh:node
+#   - :CommandShape has no sh:targetClass on purpose: registry fragments
+#     (data-kitchen-commands.ttl) are bare `a ui:Command` documentation and
+#     must never meet the strict entry contract
+#   - shared blocks are node-level mixins (:IconMixin, :AttributedMixin) —
+#     the forms resolver expands node-level sh:node refs (dedup by path)
+#   - property order here IS the edit-form field order
 
 :MenuShape
   a sh:NodeShape ;
@@ -21,12 +33,21 @@
     sh:description "The display label for the menu" ;
   ] ;
   sh:property [
-    sh:path ui:parts ;
-    sh:minCount 1 ;
+    sh:path schema:itemListElement ;
+    sh:nodeKind sh:IRI ;
+    sh:name "entries" ;
+    sh:description "Menu membership — one triple per member. A CURATED menu points at positioned schema:ListItem placement wrappers; an unordered SET (e.g. the catalog #Available) points straight at the members." ;
+    sh:or (
+      [ sh:node :OrderedItemShape ]
+      [ sh:node :UnorderedItemShape ]
+    ) ;
+  ] ;
+  sh:property [
+    sh:path schema:itemListOrder ;
     sh:maxCount 1 ;
-    sh:name "parts" ;
-    sh:description "Ordered collection of ui:Link, ui:Component, and/or ui:Menu items" ;
-    sh:node :MenuPartsCollectionShape ;
+    sh:in ( schema:ItemListOrderAscending ) ;
+    sh:name "order" ;
+    sh:description "Declares that entries render sorted by their wrappers' schema:position, ascending. Present on curated menus; absent on unordered sets." ;
   ] ;
   sh:property [
     sh:path ui:orientation ;
@@ -34,303 +55,16 @@
     sh:in ( ui:Horizontal ui:Vertical ) ;
     sh:name "orientation" ;
     sh:description "Layout orientation: ui:Horizontal (default) or ui:Vertical" ;
-  ] ;
-  sh:property [
-    sh:path acl:mode ;
-    sh:nodeKind sh:IRI ;
-    sh:in ( acl:Read acl:Write acl:Append acl:Control ) ;
-    sh:name "access mode" ;
-    sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." ;
   ] .
 
-:MenuPartsCollectionShape
-  a sh:NodeShape ;
-  sh:property [
-    sh:path [ sh:zeroOrMorePath rdf:rest ] ;
-    sh:hasValue rdf:nil ;
-  ] ;
-  sh:property [
-    sh:path ( [ sh:zeroOrMorePath rdf:rest ] rdf:first ) ;
-    sh:or (
-      [ sh:class ui:Plugin ]
-      [ sh:class ui:Link ]
-      [ sh:class ui:Component ]
-      [ sh:class ui:Command ]
-      [ sh:class ui:Menu ]
-    ) ;
-    sh:node :MenuItemShape ;
-  ] .
-
-# Menu-context strictness: bound only via the parts path above (no
-# targetClass), so it applies to every member REACHABLE from a ui:Menu but
-# never to free-standing ui:Component/ui:Link nodes (e.g. manifest entries,
-# where ui:label is optional — see :ComponentShape).
-:MenuItemShape
-  a sh:NodeShape ;
-  sh:property [
-    sh:path ui:label ;
-    sh:minCount 1 ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "label" ;
-    sh:description "Display label — required for every item reachable from a ui:Menu" ;
-    sh:message "Every menu item (ui:Link, ui:Component, nested ui:Menu) must have a ui:label" ;
-  ] .
-
-:LinkShape
-  a sh:NodeShape ;
-  sh:targetClass ui:Link ;
-  sh:property [
-    sh:path ui:label ;
-    sh:minCount 1 ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "label" ;
-    sh:description "The display label for the link" ;
-  ] ;
-  sh:property [
-    sh:path schema:url ;
-    sh:maxCount 1 ;
-    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
-    sh:name "url" ;
-    sh:description "URL to load (via handler component if present) — an IRI or a URL string" ;
-  ] ;
-  sh:property [
-    sh:path ui:contents ;
-    sh:maxCount 1 ;
-    sh:datatype rdf:HTML ;
-    sh:name "contents" ;
-    sh:description "Literal HTML rendered inline (sanitized by default)" ;
-  ] ;
-  sh:property [
-    sh:path ui:icon ;
-    sh:maxCount 1 ;
-    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
-    sh:name "icon" ;
-    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
-  ] ;
-  sh:property [
-    sh:path rdfs:comment ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:description "Description of the Link" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:subject ;
-    sh:or ( [ sh:datatype xsd:string ] [ sh:class skos:Concept ] ) ;
-    sh:description "Categories associated with the Link — plain string topics or skos:Concept nodes" ;
-  ] ;
-  sh:property [
-    sh:path acl:mode ;
-    sh:nodeKind sh:IRI ;
-    sh:in ( acl:Read acl:Write acl:Append acl:Control ) ;
-    sh:name "access mode" ;
-    sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." ;
-  ] ;
-  sh:property [
-    sh:path ui:region ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:name "region" ;
-    sh:description "Where the item mounts (e.g. ui:Tab, ui:Dropdown)" ;
-  ] ;
-  sh:property [
-    sh:path ui:hoverTitle ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "hover title" ;
-    sh:description "Hover / advisory text (HTML title semantics)" ;
-  ] ;
-  sh:property [
-    sh:path schema:description ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "description" ;
-    sh:description "One-sentence user-facing description" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:conformsTo ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:name "shape" ;
-    sh:description "SHACL shape the item's settings/data conform to" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:references ;
-    sh:nodeKind sh:IRI ;
-    sh:name "data" ;
-    sh:description "The data document(s) it reads/writes" ;
-  ] ;
-  sh:property [
-    sh:path schema:softwareHelp ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:name "help" ;
-    sh:description "USER online help (not developer docs)" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:publisher ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "publisher" ;
-    sh:description "Who publishes the linked resource" ;
-  ] ;
-  sh:xone (
-    [ sh:property [ sh:path schema:url ; sh:minCount 1 ] ]
-    [ sh:property [ sh:path ui:contents ; sh:minCount 1 ] ]
-  ) ;
-  sh:message "A ui:Link must have either schema:url or ui:contents" .
-
-# `a ui:Command` covers TWO node roles: a fragment in the host's command
-# REGISTRY doc (the command itself — no payload, just documentation) and an
-# INLINE menu item pointing at one (schema:url = the registry fragment IRI,
-# whose hyphen-free fragment is the dispatched key). The url is therefore
-# optional here — pattern-constrained when present; a menu item without one
-# is skipped by the parser with a warning.
-:CommandShape
-  a sh:NodeShape ;
-  sh:targetClass ui:Command ;
-  sh:property [
-    sh:path schema:url ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:pattern "#[A-Za-z][A-Za-z0-9]*$" ;
-    sh:name "command URL" ;
-    sh:description "A fragment IRI in the host app's command registry document; the hyphen-free fragment is the command key." ;
-  ] ;
-  sh:property [
-    sh:path ui:attribute ;
-    sh:node :PropertyValueShape ;
-    sh:name "attribute" ;
-    sh:description "Args for the command as schema:PropertyValue pairs" ;
-  ] ;
-  sh:property [
-    sh:path ui:icon ;
-    sh:maxCount 1 ;
-    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
-    sh:name "icon" ;
-    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
-  ] .
-
-# THE shared ui:Component shape: a menu/tab item, a palette card source, and
-# a component-interop manifest entry are all this one shape. Manifest-only
-# plumbing (ci:module) stays in component-interop's manifest shape; validators
-# compose the two files into one shapes graph (binding via sh:targetClass).
-:ComponentShape
-  a sh:NodeShape ;
-  sh:targetClass ui:Component ;
-  sh:property [
-    sh:path ui:label ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "label" ;
-    sh:description "Display name shown in the menu / palette. Optional here (manifest entries may omit it); items reachable from a ui:Menu must have one (see :MenuItemShape)" ;
-  ] ;
-  sh:property [
-    sh:path schema:url ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:pattern "/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$" ;
-    sh:name "module URL" ;
-    sh:description "The ES module that defines the element; the element tag derives from the filename (a page that preloads the component still names the module — the filename IS the tag). Optional ONLY for component-interop manifest entries, whose loader plumbing is ci:module; an item reachable from a ui:Menu without one is unmountable and skipped by the parser." ;
-  ] ;
-  sh:property [
-    sh:path ui:attribute ;
-    sh:node :PropertyValueShape ;
-    sh:name "attribute" ;
-    sh:description "Attributes passed to the element (or args for a command) as schema:PropertyValue pairs" ;
-  ] ;
-  sh:property [
-    sh:path ui:icon ;
-    sh:maxCount 1 ;
-    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
-    sh:name "icon" ;
-    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
-  ] ;
-  sh:property [
-    sh:path acl:mode ;
-    sh:nodeKind sh:IRI ;
-    sh:in ( acl:Read acl:Write acl:Append acl:Control ) ;
-    sh:name "access mode" ;
-    sh:description "Access mode (WAC) this item requires, e.g. acl:Write. Surfaced as part=\"requires-write\"; the host app decides the policy (hide / disable / …)." ;
-  ] ;
-  # Optional descriptive metadata (shared with manifest entries). Kept last:
-  # property order here IS the edit-form field order.
-  sh:property [
-    sh:path ui:hoverTitle ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "hover title" ;
-    sh:description "Hover / advisory text (HTML title semantics)" ;
-  ] ;
-  sh:property [
-    sh:path ui:region ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:name "region" ;
-    sh:description "LEGACY spelling (still read). Since 2026-07-17 a component's placement is stored as a `region` ui:attribute (e.g. schema:name \"region\"; schema:value \"dropdown\") — the attribute channel the HTML side already uses; serialization writes that form back. The triple remains the spelling for ui:Link items, which have no attribute channel." ;
-  ] ;
-  sh:property [
-    sh:path rdfs:comment ;
-    sh:datatype xsd:string ;
-    sh:description "Documentary note (round-tripped by generators)" ;
-  ] ;
-  sh:property [
-    sh:path schema:description ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "description" ;
-    sh:description "One-sentence user-facing description" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:conformsTo ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:name "shape" ;
-    sh:description "SHACL shape the component's data conforms to" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:references ;
-    sh:nodeKind sh:IRI ;
-    sh:name "data" ;
-    sh:description "The data document(s) it reads/writes" ;
-  ] ;
-  sh:property [
-    sh:path schema:softwareHelp ;
-    sh:maxCount 1 ;
-    sh:nodeKind sh:IRI ;
-    sh:name "help" ;
-    sh:description "USER online help (not developer docs)" ;
-  ] ;
-  sh:property [
-    sh:path dcterms:publisher ;
-    sh:maxCount 1 ;
-    sh:datatype xsd:string ;
-    sh:name "publisher" ;
-    sh:description "Who publishes the component" ;
-  ] .
-
-# THE unified plugin entry (2026-07-18 plugin-manifest-unification, stage 1):
-# one editable ui:Plugin node is the manifest, the catalog/pantry card, AND —
-# once menus become reference lists (later stages) — the mounted item; in-use
-# is derived from being referenced. A REQUIRED schema:additionalType picks
-# the kind, and every kind carries the SAME single payload predicate,
-# schema:url (2026-07-19, replacing the former ui:href/ui:module/ui:name
-# trio) — the sh:xone branches differ only in how they CONSTRAIN it:
-#   ui:Link      → the URL the link opens
-#   ui:Component → the ES module URL (the element tag derives from the
-#                  basename — strip .esm/.min then .js; filename==tag is a
-#                  HARD convention, enforced by the sh:pattern on the IRI)
-#   ui:Command   → a fragment IRI in the host app's command registry doc;
-#                  the hyphen-free fragment is the key dispatched as a
-#                  sol-command event (the host registry is an allow-list, so
-#                  an unregistered key is a no-op — no code comes from RDF)
-# The payload deliberately appears ONLY in the xone branches (no top-level
-# stub); shape-driven forms surface the branch field matching the entry's
-# kind — see the plugin-manifest-unification plan, refinement 10.
+# THE unified catalog entry: one editable ui:Plugin node is the manifest,
+# the catalog/pantry card, AND the mounted item (menus reference it). The
+# REQUIRED schema:additionalType picks the kind; the payload contract is
+# DELEGATED to the matching kind shape, which owns its schema:url in full.
 :PluginShape
   a sh:NodeShape ;
   sh:targetClass ui:Plugin ;
+  sh:node :IconMixin, :AttributedMixin ;
   sh:property [
     sh:path schema:additionalType ;
     sh:minCount 1 ;
@@ -347,63 +81,19 @@
     sh:name "label" ;
     sh:description "Display name — the card title AND the menu entry text (one label everywhere)." ;
   ] ;
-  sh:xone (
-    [
-      sh:property [ sh:path schema:additionalType ; sh:hasValue ui:Link ] ;
-      sh:property [
-        sh:path schema:url ;
-        sh:minCount 1 ;
-        sh:maxCount 1 ;
-        sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
-        sh:name "app URL" ;
-        sh:description "The URL the link opens." ;
-      ] ;
-    ]
-    [
-      sh:property [ sh:path schema:additionalType ; sh:hasValue ui:Component ] ;
-      sh:property [
-        sh:path schema:url ;
-        sh:minCount 1 ;
-        sh:maxCount 1 ;
-        sh:nodeKind sh:IRI ;
-        sh:pattern "/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$" ;
-        sh:name "module URL" ;
-        sh:description "The ES module defining the element; the element tag derives from the filename." ;
-      ] ;
-    ]
-    [
-      sh:property [ sh:path schema:additionalType ; sh:hasValue ui:Command ] ;
-      sh:property [
-        sh:path schema:url ;
-        sh:minCount 1 ;
-        sh:maxCount 1 ;
-        sh:nodeKind sh:IRI ;
-        sh:pattern "#[A-Za-z][A-Za-z0-9]*$" ;
-        sh:name "command URL" ;
-        sh:description "A fragment IRI in the host app's command registry document; the hyphen-free fragment is the command key." ;
-      ] ;
-    ]
-  ) ;
-  sh:message "A ui:Plugin carries ONE schema:url payload, constrained by its kind: the URL a Link opens, an ES module with a tag-shaped filename (Component), or a registry fragment IRI with a hyphen-free key (Command)" ;
   sh:property [
-    sh:path ui:attribute ;
-    sh:node :PropertyValueShape ;
-    sh:name "attribute" ;
-    sh:description "Attributes for the element (or args for the command) as schema:PropertyValue pairs, incl. the deployment conventions: region (placement keyword) and if-logged-in \"\" (owner gate)" ;
-  ] ;
-  sh:property [
-    sh:path ui:icon ;
+    sh:path dcterms:source ;
     sh:maxCount 1 ;
-    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
-    sh:name "icon" ;
-    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
+    sh:nodeKind sh:IRI ;
+    sh:name "manifest" ;
+    sh:description "Provenance: the flat manifest doc this entry was generated from (Customize's delete removes it too)." ;
   ] ;
   sh:property [
     sh:path schema:description ;
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "description" ;
-    sh:description "User-facing card blurb (deliberately schema:description, NOT rdfs:comment — which stays a documentary note outside the contract)" ;
+    sh:description "User-facing card blurb" ;
   ] ;
   sh:property [
     sh:path dcterms:publisher ;
@@ -437,6 +127,144 @@
     sh:nodeKind sh:IRI ;
     sh:name "help" ;
     sh:description "USER online help (not developer docs)" ;
+  ] ;
+  sh:xone (
+    [
+      sh:property [ sh:path schema:additionalType ; sh:hasValue ui:Link ] ;
+      sh:node :LinkShape ;
+    ]
+    [
+      sh:property [ sh:path schema:additionalType ; sh:hasValue ui:Component ] ;
+      sh:node :ComponentShape ;
+    ]
+    [
+      sh:property [ sh:path schema:additionalType ; sh:hasValue ui:Command ] ;
+      sh:node :CommandShape ;
+    ]
+  ) ;
+  sh:message "A ui:Plugin's payload is its kind shape's schema:url: the URL a Link opens, an ES module with a tag-shaped filename (Component), or a registry fragment IRI with a hyphen-free key (Command)" .
+
+# A placement wrapper: WHERE one member sits in ONE menu — position lives on
+# the placement, never the shared member. Reorder = swap two positions.
+:OrderedItemShape
+  a sh:NodeShape ;
+  sh:class schema:ListItem ;
+  sh:property [
+    sh:path schema:item ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:node :UnorderedItemShape ;
+    sh:name "item" ;
+    sh:description "The member this placement mounts — a ui:Plugin entry, an inline item, or a nested ui:Menu." ;
+  ] ;
+  sh:property [
+    sh:path schema:position ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:integer ;
+    sh:name "position" ;
+    sh:description "Sort key within this menu (ascending; sequential 1..n by convention)." ;
+  ] .
+
+# A direct member (unordered sets), and the target of every wrapper's
+# schema:item. No targetClass: bound only via the membership paths, so the
+# label rule applies to members REACHABLE from a menu but never to
+# free-standing nodes (e.g. ci manifest entries, whose label is optional).
+:UnorderedItemShape
+  a sh:NodeShape ;
+  sh:or (
+    [ sh:class ui:Plugin ]
+    [ sh:class ui:Link ]
+    [ sh:class ui:Component ]
+    [ sh:class ui:Command ]
+    [ sh:class ui:Menu ]
+  ) ;
+  sh:property [
+    sh:path ui:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "label" ;
+    sh:message "Every menu member must have a ui:label" ;
+    sh:description "Display label — required for every member reachable from a ui:Menu" ;
+  ] .
+
+:LinkShape
+  a sh:NodeShape ;
+  sh:targetClass ui:Link ;
+  sh:node :IconMixin ;
+  sh:property [
+    sh:path ui:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "label" ;
+    sh:description "The display label for the link" ;
+  ] ;
+  sh:property [
+    sh:path schema:url ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
+    sh:name "url" ;
+    sh:description "The URL the link opens — an IRI or a URL string" ;
+  ] .
+
+:ComponentShape
+  a sh:NodeShape ;
+  sh:targetClass ui:Component ;
+  sh:node :IconMixin, :AttributedMixin ;
+  sh:property [
+    sh:path ui:label ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "label" ;
+    sh:description "Display name. Optional here (manifest entries may omit it); members reachable from a ui:Menu must have one (:UnorderedItemShape)" ;
+  ] ;
+  sh:property [
+    sh:path schema:url ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:pattern "/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$" ;
+    sh:name "module URL" ;
+    sh:description "The ES module that defines the element; the element tag derives from the filename (filename IS the tag)." ;
+  ] .
+
+# NO sh:targetClass on purpose (see header): this is the ENTRY contract for
+# kind-Command plugins, reached only through :PluginShape's sh:xone. Bare
+# `a ui:Command` registry fragments are documentation and stay unbound.
+:CommandShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:url ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:pattern "#[A-Za-z][A-Za-z0-9]*$" ;
+    sh:name "command URL" ;
+    sh:description "A fragment IRI in the host app's command registry document; the hyphen-free fragment is the command key." ;
+  ] .
+
+# ── mixins ────────────────────────────────────────────────────────────────
+:IconMixin
+  a sh:NodeShape ;
+  sh:property [
+    sh:path ui:icon ;
+    sh:maxCount 1 ;
+    sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
+    sh:name "icon" ;
+    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
+  ] .
+
+:AttributedMixin
+  a sh:NodeShape ;
+  sh:property [
+    sh:path ui:attribute ;
+    sh:node :PropertyValueShape ;
+    sh:name "attribute" ;
+    sh:description "Attributes for the element (or args for the command) as schema:PropertyValue pairs, incl. the deployment conventions: region (placement keyword) and if-logged-in \"\" (owner gate)" ;
   ] .
 
 :PropertyValueShape

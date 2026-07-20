@@ -58,14 +58,15 @@ test('every shipped preset conforms (layout.shacl + menu.shacl composed)', async
 
 test('ui:columns outside 1..6 fails', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; ui:columns 9 ; ui:parts ( ) .
+<#Layout> a ui:Layout ; ui:columns 9 .
 `);
   expect(report.conforms).toBe(false);
 });
 
-test('a ui:Link in layout parts fails — parts are Layout|Component only', async () => {
+test('a ui:Link in layout members fails — members are Layout|Component only', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; ui:parts ( <#Bad> ) .
+<#Layout> a ui:Layout ; schema:itemListElement <#Layout-Bad> .
+<#Layout-Bad> a schema:ListItem ; schema:item <#Bad> ; schema:position 1 .
 <#Bad> a ui:Link ; ui:label "nope" ; schema:url <https://example.org/> .
 `);
   expect(report.conforms).toBe(false);

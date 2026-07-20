@@ -7,13 +7,15 @@ shape <#LayoutShape> -> ui:Layout {
     ui:orientation [0..1] in=[ui:Horizontal ui:Vertical] % sh:name "orientation" ; sh:description "Flow axis for the parts: ui:Vertical (default — a page stacks) or ui:Horizontal" % .
     ui:columns xsd:integer [0..1] minInclusive=1 maxInclusive=6 % sh:name "columns" ; sh:description "Render the parts as a grid with this many columns (overrides orientation flow)" % .
     schema:additionalType [0..1] in=[schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar] % sh:name "semantic role" ; sh:description "Optional schema.org web-page-element class selecting the emitted semantic tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Unmarked regions emit div (the root's primary-content child emits main)." % .
-    ui:parts [0..1] @<#LayoutPartsCollectionShape> % sh:name "parts" ; sh:description "Ordered collection of nested ui:Layout regions and/or ui:Component leaves. Optional: an empty region is a placeholder pane other items can target (region= selector)." % .
+    schema:itemListElement IRI @<#LayoutEntryShape> % sh:name "entries" ; sh:description "Region membership — one triple per positioned schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order). Optional: an empty region is a placeholder pane other items can target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)." % .
+    schema:itemListOrder [0..1] in=[schema:ItemListOrderAscending] % sh:name "order" ; sh:description "Declares that members render sorted by their wrappers' schema:position, ascending." % .
     ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs" % .
     rdfs:comment xsd:string % sh:description "Documentary note (round-tripped by the generator as an HTML comment)" % .
 }
-shape <#LayoutPartsCollectionShape> {
-    rdf:rest* hasValue=rdf:nil .
-    rdf:rest*/rdf:first ui:Layout|ui:Component .
+shape <#LayoutEntryShape> {
+    class=schema:ListItem .
+    schema:item IRI [1..1] ui:Layout|ui:Component % sh:name "item" ; sh:description "The nested ui:Layout region or ui:Component leaf this placement mounts." % .
+    schema:position xsd:integer [1..1] % sh:name "position" ; sh:description "Visual order within this region (ascending; sequential 1..n by convention)." % .
 }
 shape <#PropertyValueShape> {
     schema:name xsd:string [1..1] % sh:name "name" ; sh:description "Attribute name" % .

@@ -37,12 +37,13 @@ function buildStore() {
 
   store.add(s(BASE + '#More'), s(RDF + 'type'), s(UI + 'Menu'));
   store.add(s(BASE + '#More'), s(UI + 'label'), l('More'));
-  const b1 = s(BASE + '#_m1'), b2 = s(BASE + '#_m2');
-  store.add(s(BASE + '#More'), s(UI + 'parts'), b1);
-  store.add(b1, s(RDF + 'first'), s(BASE + '#Install'));
-  store.add(b1, s(RDF + 'rest'), b2);
-  store.add(b2, s(RDF + 'first'), s(BASE + '#Home'));
-  store.add(b2, s(RDF + 'rest'), s(RDF + 'nil'));
+  const b1 = s(BASE + '#More-Install'), b2 = s(BASE + '#More-Home');
+  store.add(s(BASE + '#More'), s(SCHEMA + 'itemListElement'), b1);
+  store.add(b1, s(SCHEMA + 'item'), s(BASE + '#Install'));
+  store.add(b1, s(SCHEMA + 'position'), l('1'));
+  store.add(s(BASE + '#More'), s(SCHEMA + 'itemListElement'), b2);
+  store.add(b2, s(SCHEMA + 'item'), s(BASE + '#Home'));
+  store.add(b2, s(SCHEMA + 'position'), l('2'));
 
   // command (ui:Command + registry-fragment schema:url) + params
   store.add(s(BASE + '#Install'), s(RDF + 'type'), s(UI + 'Command'));
@@ -134,12 +135,13 @@ function buildGatedStore() {
   const l = (v) => rdflib.literal(v);
   store.add(s(BASE + '#G'), s(RDF + 'type'), s(UI + 'Menu'));
   store.add(s(BASE + '#G'), s(UI + 'label'), l('G'));
-  const b1 = s(BASE + '#_g1'), b2 = s(BASE + '#_g2');
-  store.add(s(BASE + '#G'), s(UI + 'parts'), b1);
-  store.add(b1, s(RDF + 'first'), s(BASE + '#Public'));
-  store.add(b1, s(RDF + 'rest'), b2);
-  store.add(b2, s(RDF + 'first'), s(BASE + '#Secret'));
-  store.add(b2, s(RDF + 'rest'), s(RDF + 'nil'));
+  const b1 = s(BASE + '#G-Public'), b2 = s(BASE + '#G-Secret');
+  store.add(s(BASE + '#G'), s(SCHEMA + 'itemListElement'), b1);
+  store.add(b1, s(SCHEMA + 'item'), s(BASE + '#Public'));
+  store.add(b1, s(SCHEMA + 'position'), l('1'));
+  store.add(s(BASE + '#G'), s(SCHEMA + 'itemListElement'), b2);
+  store.add(b2, s(SCHEMA + 'item'), s(BASE + '#Secret'));
+  store.add(b2, s(SCHEMA + 'position'), l('2'));
   store.add(s(BASE + '#Public'), s(RDF + 'type'), s(UI + 'Command'));
   store.add(s(BASE + '#Public'), s(UI + 'label'), l('Public'));
   store.add(s(BASE + '#Public'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#publicCmd'));

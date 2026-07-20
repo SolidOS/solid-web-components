@@ -54,16 +54,17 @@ function buildStore() {
   store.add(s(BASE + '#Main'), s(RDF + 'type'), s(UI + 'Menu'));
   store.add(s(BASE + '#Main'), s(UI + 'label'), l('main'));
 
-  const b1 = s(BASE + '#_list1');
-  const b2 = s(BASE + '#_list2');
-  const b3 = s(BASE + '#_list3');
-  store.add(s(BASE + '#Main'), s(UI + 'parts'), b1);
-  store.add(b1, s(RDF + 'first'), s(BASE + '#Home'));
-  store.add(b1, s(RDF + 'rest'), b2);
-  store.add(b2, s(RDF + 'first'), s(BASE + '#Sub'));
-  store.add(b2, s(RDF + 'rest'), b3);
-  store.add(b3, s(RDF + 'first'), s(BASE + '#About'));
-  store.add(b3, s(RDF + 'rest'), s(RDF + 'nil'));
+  // menu → positioned schema:ListItem wrapper → member
+  const addMember = (menuFrag, itemFrag, pos) => {
+    const wrap = s(`${BASE}#${menuFrag.slice(1)}-${itemFrag.slice(1)}`);
+    store.add(s(BASE + menuFrag), s(SCHEMA + 'itemListElement'), wrap);
+    store.add(wrap, s(RDF + 'type'), s(SCHEMA + 'ListItem'));
+    store.add(wrap, s(SCHEMA + 'item'), s(BASE + itemFrag));
+    store.add(wrap, s(SCHEMA + 'position'), l(String(pos)));
+  };
+  addMember('#Main', '#Home', 1);
+  addMember('#Main', '#Sub', 2);
+  addMember('#Main', '#About', 3);
 
   store.add(s(BASE + '#Home'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Home'), s(UI + 'label'), l('Home'));
@@ -72,10 +73,7 @@ function buildStore() {
 
   store.add(s(BASE + '#Sub'), s(RDF + 'type'), s(UI + 'Menu'));
   store.add(s(BASE + '#Sub'), s(UI + 'label'), l('Settings'));
-  const sb1 = s(BASE + '#_sublist1');
-  store.add(s(BASE + '#Sub'), s(UI + 'parts'), sb1);
-  store.add(sb1, s(RDF + 'first'), s(BASE + '#Light'));
-  store.add(sb1, s(RDF + 'rest'), s(RDF + 'nil'));
+  addMember('#Sub', '#Light', 1);
 
   store.add(s(BASE + '#Light'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Light'), s(UI + 'label'), l('Light'));
@@ -585,10 +583,10 @@ describe('SolMenu — attributeChangedCallback', () => {
     const base2 = 'http://example.org/other.ttl';
     store2.add(s(base2 + '#M'), s(RDF + 'type'), s(UI + 'Menu'));
     store2.add(s(base2 + '#M'), s(UI + 'label'), l('other'));
-    const lb = s(base2 + '#_l1');
-    store2.add(s(base2 + '#M'), s(UI + 'parts'), lb);
-    store2.add(lb, s(RDF + 'first'), s(base2 + '#Only'));
-    store2.add(lb, s(RDF + 'rest'), s(RDF + 'nil'));
+    const lb = s(base2 + '#M-Only');
+    store2.add(s(base2 + '#M'), s(SCHEMA + 'itemListElement'), lb);
+    store2.add(lb, s(SCHEMA + 'item'), s(base2 + '#Only'));
+    store2.add(lb, s(SCHEMA + 'position'), l('1'));
     store2.add(s(base2 + '#Only'), s(RDF + 'type'), s(UI + 'Link'));
     store2.add(s(base2 + '#Only'), s(UI + 'label'), l('Only Item'));
     store2.add(s(base2 + '#Only'), s(UI + 'contents'), l('only content'));
@@ -766,10 +764,10 @@ describe('SolMenu — handler fallback (no ui:handler)', () => {
     const base = 'http://example.org/simple.ttl';
     store.add(s(base + '#M'), s(RDF + 'type'), s(UI + 'Menu'));
     store.add(s(base + '#M'), s(UI + 'label'), l('simple'));
-    const lb = s(base + '#_l1');
-    store.add(s(base + '#M'), s(UI + 'parts'), lb);
-    store.add(lb, s(RDF + 'first'), s(base + '#Item'));
-    store.add(lb, s(RDF + 'rest'), s(RDF + 'nil'));
+    const lb = s(base + '#M-Item');
+    store.add(s(base + '#M'), s(SCHEMA + 'itemListElement'), lb);
+    store.add(lb, s(SCHEMA + 'item'), s(base + '#Item'));
+    store.add(lb, s(SCHEMA + 'position'), l('1'));
     store.add(s(base + '#Item'), s(UI + 'label'), l('Page'));
     store.add(s(base + '#Item'), s(SCHEMA + 'url'), s('http://example.org/page.html'));
     mockStore = store;
@@ -855,13 +853,14 @@ describe('SolMenu — edge cases', () => {
     const l = (v) => rdflib.literal(v);
     store.add(s(BASE + '#M'), s(RDF + 'type'), s(UI + 'Menu'));
     store.add(s(BASE + '#M'), s(UI + 'label'), l('m'));
-    const lb = s(BASE + '#_l1');
-    const lb2 = s(BASE + '#_l2');
-    store.add(s(BASE + '#M'), s(UI + 'parts'), lb);
-    store.add(lb, s(RDF + 'first'), s(BASE + '#A'));
-    store.add(lb, s(RDF + 'rest'), lb2);
-    store.add(lb2, s(RDF + 'first'), s(BASE + '#B'));
-    store.add(lb2, s(RDF + 'rest'), s(RDF + 'nil'));
+    const lb = s(BASE + '#M-A');
+    const lb2 = s(BASE + '#M-B');
+    store.add(s(BASE + '#M'), s(SCHEMA + 'itemListElement'), lb);
+    store.add(lb, s(SCHEMA + 'item'), s(BASE + '#A'));
+    store.add(lb, s(SCHEMA + 'position'), l('1'));
+    store.add(s(BASE + '#M'), s(SCHEMA + 'itemListElement'), lb2);
+    store.add(lb2, s(SCHEMA + 'item'), s(BASE + '#B'));
+    store.add(lb2, s(SCHEMA + 'position'), l('2'));
     store.add(s(BASE + '#A'), s(UI + 'label'), l('Empty'));
     store.add(s(BASE + '#B'), s(UI + 'label'), l('Also'));
     mockStore = store;
@@ -1030,12 +1029,13 @@ function buildCommandStore() {
 
   store.add(s(BASE + '#Main'), s(RDF + 'type'), s(UI + 'Menu'));
   store.add(s(BASE + '#Main'), s(UI + 'label'), l('main'));
-  const b1 = s(BASE + '#_c1'), b2 = s(BASE + '#_c2');
-  store.add(s(BASE + '#Main'), s(UI + 'parts'), b1);
-  store.add(b1, s(RDF + 'first'), s(BASE + '#Home'));
-  store.add(b1, s(RDF + 'rest'), b2);
-  store.add(b2, s(RDF + 'first'), s(BASE + '#Install'));
-  store.add(b2, s(RDF + 'rest'), s(RDF + 'nil'));
+  const b1 = s(BASE + '#Main-Home'), b2 = s(BASE + '#Main-Install');
+  store.add(s(BASE + '#Main'), s(SCHEMA + 'itemListElement'), b1);
+  store.add(b1, s(SCHEMA + 'item'), s(BASE + '#Home'));
+  store.add(b1, s(SCHEMA + 'position'), l('1'));
+  store.add(s(BASE + '#Main'), s(SCHEMA + 'itemListElement'), b2);
+  store.add(b2, s(SCHEMA + 'item'), s(BASE + '#Install'));
+  store.add(b2, s(SCHEMA + 'position'), l('2'));
 
   store.add(s(BASE + '#Home'), s(RDF + 'type'), s(UI + 'Link'));
   store.add(s(BASE + '#Home'), s(UI + 'label'), l('Home'));

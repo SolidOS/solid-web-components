@@ -33,8 +33,8 @@ const CATALOG_TTL = `
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix schema: <http://schema.org/> .
 
-<#Available> a ui:Menu ; ui:label "Plugins Available" ; ui:parts <#al1> .
-<#al1> rdf:first <#Clock> ; rdf:rest rdf:nil .
+<#Available> a ui:Menu ; ui:label "Plugins Available" ;
+  schema:itemListElement <#Clock> .
 <#Clock> a ui:Plugin ; schema:additionalType ui:Component ;
   ui:label "Clock" ; schema:url <http://slots.test/web/sol-time.js> .
 `;
@@ -49,21 +49,27 @@ const MENUS_TTL = `
 @prefix schema: <http://schema.org/> .
 
 <#Tabs> a ui:Menu ; ui:label "Menu Tabs" ; ui:orientation ui:Horizontal ;
-  ui:parts <#tl1> .
-<#tl1> rdf:first <#Media> ; rdf:rest rdf:nil .
-<#Media> a ui:Menu ; ui:label "Media" ; ui:parts <#ml1> .
-<#ml1> rdf:first <#News> ; rdf:rest rdf:nil .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#Tabs-Media> .
+<#Tabs-Media> a schema:ListItem ; schema:item <#Media> ; schema:position 1 .
+<#Media> a ui:Menu ; ui:label "Media" ;
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#Media-News> .
+<#Media-News> a schema:ListItem ; schema:item <#News> ; schema:position 1 .
 <#News> a ui:Plugin ; schema:additionalType ui:Component ;
   ui:label "News" ; schema:url <http://slots.test/web/sol-feed.js> .
 
 <#Bar> a ui:Menu ; ui:label "Top Row Buttons" ; ui:orientation ui:Horizontal ;
-  ui:parts <#bl1> .
-<#bl1> rdf:first <#Search> ; rdf:rest rdf:nil .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#Bar-Search> .
+<#Bar-Search> a schema:ListItem ; schema:item <#Search> ; schema:position 1 .
 <#Search> a ui:Plugin ; schema:additionalType ui:Component ;
   ui:label "Search" ; schema:url <http://slots.test/web/sol-search.js> .
 
-<#Chrome> a ui:Menu ; ui:label "chrome" ; ui:parts <#cl1> .
-<#cl1> rdf:first <#Help> ; rdf:rest rdf:nil .
+<#Chrome> a ui:Menu ; ui:label "chrome" ;
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#Chrome-Help> .
+<#Chrome-Help> a schema:ListItem ; schema:item <#Help> ; schema:position 1 .
 <#Help> a ui:Component ; ui:label "?" ; schema:url <http://slots.test/web/sol-button.js> .
 `;
 
@@ -72,8 +78,9 @@ const LEGACY_TTL = `
 @prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix schema: <http://schema.org/> .
 
-<#Tabs> a ui:Menu ; ui:label "Old Tabs" ; ui:parts <#l1> .
-<#l1> rdf:first <#Item> ; rdf:rest rdf:nil .
+<#Tabs> a ui:Menu ; ui:label "Old Tabs" ;
+  schema:itemListElement <#Tabs-Item> .
+<#Tabs-Item> a schema:ListItem ; schema:item <#Item> ; schema:position 1 .
 <#Item> a ui:Component ; ui:label "Old" ; schema:url <http://slots.test/web/sol-thing.js> .
 `;
 

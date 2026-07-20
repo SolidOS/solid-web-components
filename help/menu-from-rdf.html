@@ -67,8 +67,11 @@
   </script>
 
   <h2>3 · The <code>ui:Menu</code> shape</h2>
-  <p>A <code>ui:Menu</code> has a <code>ui:label</code> and a <code>ui:parts</code> list of
-  items. Each item is a <code>ui:Link</code> (a URL to load), a <code>ui:Component</code>
+  <p>A <code>ui:Menu</code> has a <code>ui:label</code> and its members as
+  <code>schema:itemListElement</code> triples — one positioned
+  <code>schema:ListItem</code> wrapper per member (<code>schema:item</code>
+  names the member, <code>schema:position</code> its order). Each member is a
+  <code>ui:Link</code> (a URL to load), a <code>ui:Component</code>
   (a custom element — the tag derives from its module's filename), a
   <code>ui:Command</code> (a host command), or a nested <code>ui:Menu</code> (a submenu).
   Every kind carries the SAME single payload predicate, <code>schema:url</code>.</p>
@@ -76,14 +79,23 @@
 @prefix schema: &lt;http://schema.org/&gt; .
 
 &lt;#MainMenu&gt; a ui:Menu ; ui:label "Demo" ;
-  ui:parts ( &lt;#New&gt; &lt;#Open&gt; &lt;#Tools&gt; ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement &lt;#MainMenu-New&gt;, &lt;#MainMenu-Open&gt;, &lt;#MainMenu-Tools&gt; .
+
+&lt;#MainMenu-New&gt;   a schema:ListItem ; schema:item &lt;#New&gt;   ; schema:position 1 .
+&lt;#MainMenu-Open&gt;  a schema:ListItem ; schema:item &lt;#Open&gt;  ; schema:position 2 .
+&lt;#MainMenu-Tools&gt; a schema:ListItem ; schema:item &lt;#Tools&gt; ; schema:position 3 .
 
 # commands: schema:url is a fragment IRI; the hyphen-free fragment is the key
 &lt;#New&gt;  a ui:Command ; ui:label "New"  ; schema:url &lt;#newItem&gt; .
 &lt;#Open&gt; a ui:Command ; ui:label "Open" ; schema:url &lt;#openItem&gt; .
 
 &lt;#Tools&gt; a ui:Menu ; ui:label "Tools" ;                          # submenu
-  ui:parts ( &lt;#Export&gt; &lt;#Settings&gt; ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement &lt;#Tools-Export&gt;, &lt;#Tools-Settings&gt; .
+
+&lt;#Tools-Export&gt;   a schema:ListItem ; schema:item &lt;#Export&gt;   ; schema:position 1 .
+&lt;#Tools-Settings&gt; a schema:ListItem ; schema:item &lt;#Settings&gt; ; schema:position 2 .
 
 &lt;#Export&gt; a ui:Command ; ui:label "Export" ; schema:url &lt;#export&gt; ;
   ui:attribute [ schema:name "format" ; schema:value "csv" ] .   # → params
@@ -93,8 +105,11 @@
     <thead><tr><th>Term</th><th>On</th><th>Meaning</th></tr></thead>
     <tbody>
       <tr><td><code>ui:label</code></td><td>any item</td><td>Display text.</td></tr>
-      <tr><td><code>ui:parts</code></td><td><code>ui:Menu</code></td>
-          <td>Ordered list (an RDF Collection) of the menu's items.</td></tr>
+      <tr><td><code>schema:itemListElement</code></td><td><code>ui:Menu</code></td>
+          <td>Membership — one triple per member. A curated menu points at
+          <code>schema:ListItem</code> wrappers (<code>schema:item</code> +
+          <code>schema:position</code>, sorted ascending); an unordered set
+          points straight at the members.</td></tr>
       <tr><td><code>ui:orientation</code></td><td><code>ui:Menu</code></td>
           <td><code>ui:Horizontal</code> (default) or <code>ui:Vertical</code>.</td></tr>
       <tr><td><code>schema:url</code></td><td>any leaf item</td>
@@ -131,7 +146,13 @@
 @prefix data:   &lt;plugins-catalog.ttl#&gt; .
 
 &lt;#Menu&gt; a ui:Menu ; ui:label "Apps" ;
-  ui:parts ( data:Clock data:Penny data:Restart ) .   # references only
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement &lt;#Menu-Clock&gt;, &lt;#Menu-Penny&gt;, &lt;#Menu-Restart&gt; .
+
+# placement wrappers — position lives HERE, never on the shared entry
+&lt;#Menu-Clock&gt;   a schema:ListItem ; schema:item data:Clock   ; schema:position 1 .
+&lt;#Menu-Penny&gt;   a schema:ListItem ; schema:item data:Penny   ; schema:position 2 .
+&lt;#Menu-Restart&gt; a schema:ListItem ; schema:item data:Restart ; schema:position 3 .
 
 # …and in plugins-catalog.ttl — one entry per capability, ONE payload
 # predicate (schema:url) the kind interprets:

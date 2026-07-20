@@ -108,7 +108,7 @@ ui:proxy a rdf:Property ; rdfs:isDefinedBy <> ;
 ##############
 
 ui:Menu a rdfs:Class ; rdfs:label "Menu" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A navigable menu or tab set; its ui:parts is an ordered list of references to ui:Plugin entries (or nested ui:Menus). Menus may also inline ui:Link/ui:Component/ui:Command items directly." .
+  rdfs:comment "A navigable menu or tab set; its members are schema:itemListElement triples — a curated menu points at positioned schema:ListItem wrappers (schema:item names a ui:Plugin entry, nested ui:Menu, or inline ui:Link/ui:Component/ui:Command; schema:position orders them), while an unordered membership set points straight at the members. Replaces the retired ui:parts rdf:Collection (2026-07-19)." .
 
 ui:Link a rdfs:Class ; rdfs:label "Link" ; rdfs:isDefinedBy <> ;
   rdfs:comment "An external app/URL. As a schema:additionalType value it marks the kind of a ui:Plugin entry; as an rdf:type it is the inline menu-item form. Either way the single schema:url payload is the URL to open (ui:contents may replace it with inline HTML)." .
@@ -138,7 +138,7 @@ ui:attribute a rdf:Property ; rdfs:label "attribute" ; rdfs:isDefinedBy <> ;
 ################
 
 ui:Layout a rdfs:Class ; rdfs:label "Layout" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A rectangular page/screen arrangement whose ui:parts render SIMULTANEOUSLY — stacked or side by side per ui:orientation — unlike a ui:Menu, whose parts are alternatives the user switches between. Parts are nested ui:Layout regions and/or ui:Component leaves; an empty layout is a placeholder pane other items can target. May carry ui:attribute pairs (class, aria-label, id) emitted on the region's element, and a schema:additionalType naming a schema.org web-page-element class (e.g. schema:SiteNavigationElement) that selects the emitted semantic HTML tag." .
+  rdfs:comment "A rectangular page/screen arrangement whose members render SIMULTANEOUSLY — stacked or side by side per ui:orientation — unlike a ui:Menu, whose members are alternatives the user switches between. Membership is the same positioned schema:itemListElement wrappers as menus; members are nested ui:Layout regions and/or ui:Component leaves, and an empty layout is a placeholder pane other items can target. May carry ui:attribute pairs (class, aria-label, id) emitted on the region's element, and a schema:additionalType naming a schema.org web-page-element class (e.g. schema:SiteNavigationElement) that selects the emitted semantic HTML tag." .
 
 ui:layout a rdf:Property ; rdfs:isDefinedBy <> ;
   rdfs:label   "layout" ;

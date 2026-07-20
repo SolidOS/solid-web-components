@@ -8,7 +8,8 @@
 
 :Presets a ui:Menu ;
   ui:label "Layout presets" ;
-  ui:parts ( :classic-shell :single-page :sidebar :dashboard-grid ) .
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Presets-classic-shell, :Presets-single-page, :Presets-sidebar, :Presets-dashboard-grid .
 
 :classic-shell a ui:Link ;
   ui:label "Classic shell" ;
@@ -33,3 +34,8 @@
   ui:icon "🧩" ;
   schema:url <dashboard-grid.ttl> ;
   schema:description "A header above a two-column widget grid." .
+
+:Presets-classic-shell a schema:ListItem; schema:item :classic-shell; schema:position 1.
+:Presets-single-page a schema:ListItem; schema:item :single-page; schema:position 2.
+:Presets-sidebar a schema:ListItem; schema:item :sidebar; schema:position 3.
+:Presets-dashboard-grid a schema:ListItem; schema:item :dashboard-grid; schema:position 4.

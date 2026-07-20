@@ -107,33 +107,33 @@ export async function parseShape(shapeText, baseUri, ctx = {}) {
     subjectsOf: shapeStore.each(nodeShape, rdf.sym(SH + 'targetSubjectsOf')),
   };
 
-  const properties = [];
-  for (const prop of shapeStore.each(nodeShape, rdf.sym(SH + 'property'))) {
-    const desc = readShapeProperty(shapeStore, prop);
-    if (desc) properties.push(desc);
-  }
+  // Effective properties: own sh:property entries plus node-level sh:node
+  // mixins (menu.shacl's :IconMixin / :AttributedMixin), deduped by path.
+  // `taken` is shared with the xone merge below so a kind shape's ui:label
+  // never doubles the outer shape's.
+  const taken = new Set();
+  const properties = effectiveProperties(shapeStore, nodeShape, { taken });
 
   // sh:xone on the node shape — branch shapes discriminated by data. When the
   // caller supplies subject + dataStore, pick the branch whose sh:hasValue
   // discriminators all hold for the subject and merge its EDITABLE properties
-  // in (kind-aware forms: each ui:Plugin kind shows its own constraint on
-  // the single schema:url payload). Skipped from the merge: the discriminator
+  // in (kind-aware forms: a ui:Plugin's payload contract is DELEGATED to its
+  // kind shape via the branch's node-level sh:node, which the effective-
+  // properties walk expands). Skipped from the merge: the discriminator
   // properties themselves (sh:hasValue — nothing to edit) and forbid stubs
-  // (sh:maxCount 0 — they exist to EXCLUDE the other branches' payloads).
-  // Without a matching branch (or without ctx) the xone contributes nothing —
-  // exactly the pre-xone behavior.
+  // (sh:maxCount 0). Without a matching branch (or without ctx) the xone
+  // contributes nothing — exactly the pre-xone behavior.
   const xone = shapeStore.any(nodeShape, rdf.sym(SH + 'xone'));
   if (xone) {
     const branch = pickXoneBranch(shapeStore, collectRdfList(shapeStore, xone), ctx);
     if (branch) {
-      const merged = [];
-      for (const prop of shapeStore.each(branch, rdf.sym(SH + 'property'))) {
-        if (shapeStore.any(prop, rdf.sym(SH + 'hasValue'))) continue;
+      const skip = (prop) => {
+        if (shapeStore.any(prop, rdf.sym(SH + 'hasValue'))) return true;
         const maxRaw = shapeStore.anyValue(prop, rdf.sym(SH + 'maxCount'));
-        if (maxRaw != null && parseInt(maxRaw, 10) === 0) continue;
-        const desc = readShapeProperty(shapeStore, prop);
-        if (desc) { desc.fromXone = true; merged.push(desc); }
-      }
+        return maxRaw != null && parseInt(maxRaw, 10) === 0;
+      };
+      const merged = effectiveProperties(shapeStore, branch, { skip, taken });
+      for (const d of merged) d.fromXone = true;
       // Payload fields read best right after the label field; fall back to
       // appending when the shape has no property keyed "label".
       const at = properties.findIndex(d => d.key === 'label');
@@ -141,6 +141,34 @@ export async function parseShape(shapeText, baseUri, ctx = {}) {
     }
   }
   return { targets, properties };
+}
+
+/**
+ * Resolve a node shape's EFFECTIVE property descriptors: its own
+ * sh:property entries plus those contributed by node-level sh:node
+ * references (the mixin approach — menu.shacl 2026-07-19), recursively.
+ * Dedup is by sh:path — the outermost/first definition wins, so a shape's
+ * own field overrides a mixin's and nothing renders twice. Order: own
+ * properties first (statement order — the form-field-order contract), then
+ * each mixin's, in sh:node listing order. `skip(propNode)` lets callers
+ * drop raw property nodes before reading (xone discriminators, forbid
+ * stubs); `seen`/`taken` guard cycles and cross-list dedup.
+ */
+export function effectiveProperties(shapeStore, nodeShape, { skip = null, seen = new Set(), taken = new Set() } = {}) {
+  if (!nodeShape || seen.has(nodeShape.value)) return [];
+  seen.add(nodeShape.value);
+  const out = [];
+  for (const prop of shapeStore.each(nodeShape, rdf.sym(SH + 'property'))) {
+    if (skip && skip(prop)) continue;
+    const desc = readShapeProperty(shapeStore, prop);
+    if (!desc || taken.has(desc.path.value)) continue;
+    taken.add(desc.path.value);
+    out.push(desc);
+  }
+  for (const mixin of shapeStore.each(nodeShape, rdf.sym(SH + 'node'))) {
+    out.push(...effectiveProperties(shapeStore, mixin, { skip, seen, taken }));
+  }
+  return out;
 }
 
 // Which sh:xone branch does the subject's data satisfy? A branch QUALIFIES

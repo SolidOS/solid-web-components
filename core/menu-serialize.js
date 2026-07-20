@@ -8,13 +8,18 @@
 // `region` is the lowercase ui:Region token (e.g. "modal"), written as
 // ui:region ui:Modal — the one display property stored in the RDF.
 //
-// The WHOLE document is rewritten on save (rdf:Lists are miserable to PATCH
-// in place), with one preservation rule: every subject in the original store
-// that is NOT part of the rebuilt menu tree is re-emitted untouched. That
-// keeps "pantry" items — subjects defined in the doc but not referenced from
-// any ui:parts list — across edits, and means removing an item from a menu
-// parks it in the pantry rather than destroying it (callers wanting a hard
-// delete remove the subject's statements themselves before serializing).
+// Membership is positioned schema:ListItem wrappers (2026-07-19, replacing
+// ui:parts rdf:Collections): the menu carries one schema:itemListElement
+// triple per member, each pointing at a wrapper with schema:item +
+// schema:position. Statement-level PATCHes (swap two positions, insert/delete
+// one wrapper) are now possible; this module still rewrites the WHOLE
+// document on editor saves, with one preservation rule: every subject in the
+// original store that is NOT part of the rebuilt menu tree is re-emitted
+// untouched. That keeps "pantry" items — subjects defined in the doc but not
+// referenced from any menu's membership — across edits, and means removing an
+// item from a menu parks it in the pantry rather than destroying it (callers
+// wanting a hard delete remove the subject's statements themselves before
+// serializing).
 
 import { rdf } from './rdf.js';
 import { gatedByParams } from './menu-rdf.js';
@@ -25,6 +30,7 @@ const RDFS   = 'http://www.w3.org/2000/01/rdf-schema#';
 const SCHEMA = 'http://schema.org/';
 const ACL    = 'http://www.w3.org/ns/auth/acl#';
 const DCT    = 'http://purl.org/dc/terms/';
+const XSD    = 'http://www.w3.org/2001/XMLSchema#';
 
 const ui   = (l) => rdf.sym(UI + l);
 const rdfs = (l) => rdf.sym(RDFS + l);
@@ -35,6 +41,13 @@ const a   = rdf.sym(RDF + 'type');
 /** Fragment → full IRI node in `docUrl`. */
 function fragNode(docUrl, fragment) {
   return rdf.sym(docUrl.split('#')[0] + '#' + fragment);
+}
+
+/** The fragment of a node's IRI, or null. */
+function fragOf(node) {
+  const v = (node && node.value) || '';
+  const i = v.indexOf('#');
+  return i >= 0 ? v.slice(i + 1) : null;
 }
 
 /** Slugify a label into a fragment id; `taken` is a Set of used fragments. */
@@ -69,20 +82,13 @@ function removeSubject(store, node) {
   store.removeMatches(node, null, null);
 }
 
-/** Remove a menu node's own triples incl. its parts list cells (both
- *  Collection-valued and rdf:first/rest-chained forms). */
+/** Remove a node's own triples incl. its placement wrappers: any
+ *  schema:itemListElement member that carries schema:item is a wrapper this
+ *  node owns (direct members are references, not ours to clear). No-op loop
+ *  for non-menu nodes, so this is safe to call on every tree node. */
 function removeMenuNode(store, menuNode) {
-  const partsNode = store.any(menuNode, ui('parts'));
-  if (partsNode && !partsNode.elements) {
-    // first/rest chain — collect the cells, then drop them
-    const nil = RDF + 'nil';
-    const cells = [];
-    let cur = partsNode;
-    while (cur && cur.value !== nil) {
-      cells.push(cur);
-      cur = store.any(cur, rdf.sym(RDF + 'rest'));
-    }
-    for (const cell of cells) store.removeMatches(cell, null, null);
+  for (const entry of store.each(menuNode, sch('itemListElement'), null)) {
+    if (store.any(entry, sch('item'))) store.removeMatches(entry, null, null);
   }
   removeSubject(store, menuNode);
 }
@@ -184,7 +190,25 @@ function emitMenu(store, docUrl, doc, menuNode, { label, orientation, items, req
   }
   if (requiresWrite) store.add(menuNode, acl('mode'), acl('Write'), doc);
   const nodes = (items || []).map((item) => emitItem(store, docUrl, doc, item, taken));
-  store.add(menuNode, ui('parts'), new rdf.Collection(nodes), doc);
+  // Membership: one positioned schema:ListItem wrapper per member. Wrapper
+  // fragments are DETERMINISTIC (`<menuFrag>-<memberFrag>`) so an unchanged
+  // menu serializes identically across saves; the old wrappers were cleared
+  // by removeMenuNode before this re-emit, so reusing the names is safe.
+  if (!nodes.length) return;
+  store.add(menuNode, sch('itemListOrder'), sch('ItemListOrderAscending'), doc);
+  const menuFrag = fragOf(menuNode) || 'menu';
+  const local = new Set();
+  nodes.forEach((node, i) => {
+    const base = `${menuFrag}-${fragOf(node) || `item-${i + 1}`}`;
+    let frag = base, n = 2;
+    while (local.has(frag) || store.any(fragNode(docUrl, frag), null, null)) frag = `${base}-${n++}`;
+    local.add(frag);
+    const wrap = fragNode(docUrl, frag);
+    store.add(menuNode, sch('itemListElement'), wrap, doc);
+    store.add(wrap, a, sch('ListItem'), doc);
+    store.add(wrap, sch('item'), node, doc);
+    store.add(wrap, sch('position'), rdf.literal(String(i + 1), rdf.sym(XSD + 'integer')), doc);
+  });
 }
 
 /**
@@ -209,11 +233,11 @@ export function updateMenuInStore(store, docUrl, menuIri, menu) {
     const src = store.any(node, rdf.sym(DCT + 'source'));
     if (src) provenance.set(node.value, src);
   }
-  // Clear what's being rebuilt: the menu node (and its old list), every item
-  // the NEW tree references, and any old SUBMENU nodes the new tree carries.
+  // Clear what's being rebuilt: the menu node (and its old wrappers), every
+  // item the NEW tree references, and any old SUBMENU nodes (plus THEIR
+  // wrappers) the new tree carries.
   for (const node of treeNodes(store, docUrl, menu.items)) {
-    if (store.any(node, ui('parts'))) removeMenuNode(store, node);
-    else removeSubject(store, node);
+    removeMenuNode(store, node);
   }
   removeMenuNode(store, menuNode);
   emitMenu(store, docUrl, doc, menuNode, menu, taken);

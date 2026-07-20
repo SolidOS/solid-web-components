@@ -50,9 +50,10 @@ function st(s, p, o, g) { return new Statement(s, p, o, g); }
 
 function parse(text, store, base, format) {
   const prefixes = {};
-  // Tokenize: URIs, strings, prefixed names, punctuation (. ; ,), 'a' keyword
+  // Tokenize: URIs, strings, numbers (schema:position), prefixed names,
+  // punctuation (. ; ,), 'a' keyword.
   // Prefixed names must not end with '.' (that's a statement terminator).
-  const TOKEN_RE = /<[^>]+>|"[^"]*"|@prefix|[A-Za-z_][\w.-]*:[A-Za-z_][\w#/-]*(?:\.[\w#/-]+)*|[A-Za-z_][\w.-]*:|[.;,]|\ba\b/g;
+  const TOKEN_RE = /<[^>]+>|"[^"]*"|@prefix|\d+(?:\.\d+)?|[A-Za-z_][\w.-]*:[A-Za-z_][\w#/-]*(?:\.[\w#/-]+)*|[A-Za-z_][\w.-]*:|[.;,]|\ba\b/g;
   const tokens = [];
   for (const m of text.matchAll(TOKEN_RE)) tokens.push(m[0]);
 
@@ -85,8 +86,11 @@ function parse(text, store, base, format) {
     }
     return tok;
   };
-  const toNode = (tok) =>
-    tok.startsWith('"') ? literal(tok.slice(1, -1)) : sym(resolve(tok));
+  const toNode = (tok) => {
+    if (tok.startsWith('"')) return literal(tok.slice(1, -1));
+    if (/^\d/.test(tok)) return literal(tok);
+    return sym(resolve(tok));
+  };
 
   // Second pass: parse triples (skip @prefix tokens)
   let subject = null, predicate = null;

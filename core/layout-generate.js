@@ -12,7 +12,8 @@
 // LAYOUT change does.
 //
 // Tree semantics (see data/ui-vocab.ttl + shapes/layout.shacl):
-//   ui:Layout  — a region whose ui:parts render SIMULTANEOUSLY; nested
+//   ui:Layout  — a region whose members (positioned schema:itemListElement
+//                wrappers, same idiom as menus) render SIMULTANEOUSLY; nested
 //                layouts split it, ui:Component leaves are the content.
 //                Absent ui:orientation defaults to VERTICAL (a page stacks;
 //                menus default horizontal — different medium, different
@@ -25,7 +26,7 @@
 //                merges with the structural app-row/app-col/app-grid-N).
 
 import { rdf } from './rdf.js';
-import { rdfListElements, rdfVal, rdfComponent, deriveTagFromModule } from './menu-rdf.js';
+import { menuMembers, rdfVal, rdfComponent, deriveTagFromModule } from './menu-rdf.js';
 import { emitBarItem, esc } from './menu-generate.js';
 
 const UI     = 'http://www.w3.org/ns/ui#';
@@ -79,7 +80,6 @@ export function parseLayoutTree(store, node) {
   }
   const orientationIri = rdfVal(store, node, 'orientation');
   const columns = rdfVal(store, node, 'columns');
-  const partsNode = store.any(node, sym(UI + 'parts'));
   const attrNodes = store.each(node, sym(UI + 'attribute'), null);
   return {
     kind: 'region',
@@ -96,9 +96,7 @@ export function parseLayoutTree(store, node) {
         (store.any(p, sym(SCHEMA + 'value')) || {}).value || '',
       ])
       .filter(([k]) => k),
-    parts: partsNode
-      ? rdfListElements(store, partsNode).map((el) => parseLayoutTree(store, el))
-      : [],
+    parts: menuMembers(store, node).map((el) => parseLayoutTree(store, el)),
   };
 }
 
@@ -271,10 +269,11 @@ export function seedAppMenu({ label = 'Tabs', fragment = 'Tabs', orientation = '
 @prefix ui: <http://www.w3.org/ns/ui#> .
 
 # The app's menu — edit via the builder's menu step (or any sol-menu-manager).
+# Members arrive as positioned schema:ListItem wrappers (schema:itemListElement);
+# a newborn menu simply has none yet.
 :${fragment} a ui:Menu ;
   ui:label "${label.replace(/"/g, '\\"')}" ;
-  ui:orientation ui:${orientation} ;
-  ui:parts ( ) .
+  ui:orientation ui:${orientation} .
 `;
 }
 

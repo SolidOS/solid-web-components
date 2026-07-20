@@ -727,8 +727,9 @@ class SolMenuManager extends HTMLElement {
   }
 
   // A card that carries its catalog identity (manifest = the ui:Plugin entry
-  // IRI) becomes a REFERENCE item: it serializes as a bare entry in ui:parts,
-  // never an inline copy — the unified model's menus are reference lists.
+  // IRI) becomes a REFERENCE item: its placement wrapper's schema:item points
+  // at the bare entry, never an inline copy — the unified model's menus are
+  // reference lists.
   // Payload details (label/icon/…) still render the row until the next parse
   // resolves them from the catalog. Manifest-less payloads (hand-entered
   // URLs, legacy docs) keep the old inline form.

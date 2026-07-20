@@ -8,13 +8,22 @@
 
 <#MainTabs> a ui:Menu; ui:label "demo-tabs" ;
   ui:orientation ui:Horizontal ;
-  ui:parts ( <#Overview> <#DataGroup> <#About> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#MainTabs-Overview>, <#MainTabs-DataGroup>, <#MainTabs-About> .
+
+<#MainTabs-Overview>  a schema:ListItem ; schema:item <#Overview>  ; schema:position 1 .
+<#MainTabs-DataGroup> a schema:ListItem ; schema:item <#DataGroup> ; schema:position 2 .
+<#MainTabs-About>     a schema:ListItem ; schema:item <#About>     ; schema:position 3 .
 
 <#Overview> a ui:Link; ui:label "Overview" ;
   ui:contents "<h2>Overview</h2><p>These tabs were generated from RDF via the <code>from-rdf</code> attribute, using the same <code>ui:Menu</code> vocabulary <code>&lt;sol-menu&gt;</code> uses.</p>" .
 
 <#DataGroup> a ui:Menu; ui:label "Data" ;
-  ui:parts ( <#SampleTable> <#SampleTriples> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#DataGroup-SampleTable>, <#DataGroup-SampleTriples> .
+
+<#DataGroup-SampleTable>   a schema:ListItem ; schema:item <#SampleTable>   ; schema:position 1 .
+<#DataGroup-SampleTriples> a schema:ListItem ; schema:item <#SampleTriples> ; schema:position 2 .
 
 <#SampleTable> a ui:Component; ui:label "Table" ;
   schema:url <../../web/sol-query.js> ;

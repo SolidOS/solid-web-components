@@ -40,7 +40,7 @@ import { define } from '../core/define.js';
 import { ensureDocStyle } from '../core/adopt.js';
 import { rdf } from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
-import { rdfVal, rdfListElements } from '../core/menu-rdf.js';
+import { rdfVal, menuMembers } from '../core/menu-rdf.js';
 import { mintFragment } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
 import { fetchContainer } from '../core/pod-ops.js';
@@ -187,8 +187,7 @@ class SolAppBuilder extends HTMLElement {
   async _loadPresets() {
     try {
       const store = await loadRdfStore(this.presetsUrl, freshFetch);
-      const partsNode = store.any(rdf.sym(`${this.presetsUrl}#Presets`), rdf.sym(UI + 'parts'));
-      const entries = partsNode ? rdfListElements(store, partsNode) : [];
+      const entries = menuMembers(store, rdf.sym(`${this.presetsUrl}#Presets`));
       this._presets = entries.map((e) => ({
         label: rdfVal(store, e, 'label') || e.value.split('#').pop(),
         icon: rdfVal(store, e, 'icon') || '',

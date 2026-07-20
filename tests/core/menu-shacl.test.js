@@ -54,15 +54,18 @@ test('the menu fixture conforms', async () => {
 
 test('a menu member without ui:label fails', async () => {
   const report = await validate(`
-<#Menu> a ui:Menu ; ui:label "m" ; ui:parts ( <#NoLabel> ) .
+<#Menu> a ui:Menu ; ui:label "m" ;
+  schema:itemListElement <#Menu-NoLabel> .
+<#Menu-NoLabel> a schema:ListItem ; schema:item <#NoLabel> ; schema:position 1 .
 <#NoLabel> a ui:Component ; schema:url <https://example.org/web/sol-thing.js> .
 `);
   expect(report.conforms).toBe(false);
-  // The engine surfaces the outer sh:node violation (the parts collection);
-  // the nested label sh:message stays inside the shape. Paired with the
-  // free-standing-conforms test below, this proves labels bind via menus only.
-  const text = report.results.flatMap((r) => r.message.map((m) => m.value)).join('\n');
-  expect(text).toMatch(/MenuPartsCollectionShape/);
+  // The engine surfaces the outer sh:or violation on the membership property
+  // (message-less — sh:or has no default text); the nested label sh:message
+  // stays inside the shape. Paired with the free-standing-conforms test
+  // below, this proves labels bind via menus only.
+  const paths = report.results.map((r) => r.path && r.path.value).filter(Boolean);
+  expect(paths).toContain('http://schema.org/itemListElement');
 });
 
 test('a free-standing ui:Component without ui:label conforms', async () => {
@@ -75,7 +78,9 @@ test('a free-standing ui:Component without ui:label conforms', async () => {
 
 test('a ui:Link with neither schema:url nor ui:contents fails the xone', async () => {
   const report = await validate(`
-<#Menu> a ui:Menu ; ui:label "m" ; ui:parts ( <#Bad> ) .
+<#Menu> a ui:Menu ; ui:label "m" ;
+  schema:itemListElement <#Menu-Bad> .
+<#Menu-Bad> a schema:ListItem ; schema:item <#Bad> ; schema:position 1 .
 <#Bad> a ui:Link ; ui:label "dangling" .
 `);
   expect(report.conforms).toBe(false);

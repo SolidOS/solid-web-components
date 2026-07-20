@@ -5,11 +5,16 @@
 # Fixture for scripts/verify-menu-serialize.mjs — a copy of data-kitchen's
 # real menu shape: a menu with components, a nested submenu, an acl-gated
 # item, and PANTRY subjects (#Forum, #Chat) defined but referenced from no
-# ui:parts list. The pantry must survive every rewrite.
+# menu's membership. The pantry must survive every rewrite.
 
 <#MainMenu> a ui:Menu ; ui:label "data-kitchen" ;
   ui:orientation ui:Horizontal ;
-  ui:parts ( <#Home> <#Podz> <#SolidResources> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#MainMenu-Home>, <#MainMenu-Podz>, <#MainMenu-SolidResources> .
+
+<#MainMenu-Home> a schema:ListItem ; schema:item <#Home> ; schema:position 1 .
+<#MainMenu-Podz> a schema:ListItem ; schema:item <#Podz> ; schema:position 2 .
+<#MainMenu-SolidResources> a schema:ListItem ; schema:item <#SolidResources> ; schema:position 3 .
 
 <#Home> a ui:Component ; ui:label "Home" ;
   schema:url <web/sol-include.js> ;
@@ -22,7 +27,11 @@
   acl:mode acl:Write .
 
 <#SolidResources> a ui:Menu ; ui:label "SolidResources" ;
-  ui:parts ( <#Website> <#Faq> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#SolidResources-Website>, <#SolidResources-Faq> .
+
+<#SolidResources-Website> a schema:ListItem ; schema:item <#Website> ; schema:position 1 .
+<#SolidResources-Faq> a schema:ListItem ; schema:item <#Faq> ; schema:position 2 .
 
 <#Website> a ui:Link ; ui:label "Website" ;
   schema:url "https://solidproject.org" .

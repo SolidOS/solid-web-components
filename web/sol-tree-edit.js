@@ -22,8 +22,10 @@
  *   head-shape       — URI of the head SHACL shape file.
  *   item-shape       — URI of the item shapes file (multiple NodeShapes,
  *                      each with sh:targetClass).
- *   parts            — predicate URI linking container → ordered list of
- *                      items. Default: http://www.w3.org/ns/ui#parts.
+ *   parts            — membership predicate URI: container → one triple per
+ *                      member, either a positioned schema:ListItem wrapper
+ *                      (schema:item + schema:position) or the member itself.
+ *                      Default: http://schema.org/itemListElement.
  *   drill-when-type  — rdf:type URI(s), space-separated. Items of these
  *                      types render an "Open →" affordance instead of an
  *                      inline form panel. Default: http://www.w3.org/ns/ui#Menu.
@@ -45,15 +47,14 @@
 import { define } from '../core/define.js';
 import { ensureDocStyle } from '../core/adopt.js';
 import { rdf } from '../core/rdf.js';
-import { parseShape, renderRecordForm, readShapeProperty } from '../core/shape-to-form.js';
+import { parseShape, renderRecordForm, effectiveProperties } from '../core/shape-to-form.js';
 
 const RDF_TYPE  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
-const UI_PARTS  = 'http://www.w3.org/ns/ui#parts';
 const UI_LABEL  = 'http://www.w3.org/ns/ui#label';
 const UI_MENU   = 'http://www.w3.org/ns/ui#Menu';
-const RDF_FIRST = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#first';
-const RDF_REST  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#rest';
-const RDF_NIL   = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#nil';
+const SCHEMA_ELEM = 'http://schema.org/itemListElement';
+const SCHEMA_ITEM = 'http://schema.org/item';
+const SCHEMA_POS  = 'http://schema.org/position';
 
 const CSS = `
 sol-tree-edit {
@@ -230,16 +231,10 @@ class SolTreeEdit extends HTMLElement {
     for (const ns of store.each(null, rdf.sym(RDF_TYPE), rdf.sym(SH + 'NodeShape'))) {
       const target = store.any(ns, rdf.sym(SH + 'targetClass'));
       if (!target) continue;
-      // Reuse parseShape's property walker by feeding the same text +
-      // pulling the properties off the matching NodeShape. parseShape
-      // returns the FIRST NodeShape's properties; instead, we walk
-      // manually here to get a per-shape parse.
-      const props = [];
-      for (const p of store.each(ns, rdf.sym(SH + 'property'))) {
-        const desc = readShapeProperty(store, p);
-        if (desc) props.push(desc);
-      }
-      out.push({ nodeShape: ns, target, properties: props });
+      // Per-shape effective properties: own sh:property entries plus
+      // node-level sh:node mixins (menu.shacl's :IconMixin etc.), so
+      // mixed-in fields render in item forms too.
+      out.push({ nodeShape: ns, target, properties: effectiveProperties(store, ns) });
     }
     return out;
   }
@@ -254,7 +249,7 @@ class SolTreeEdit extends HTMLElement {
   }
 
   _partsPredicate() {
-    return rdf.sym(this.getAttribute('parts') || UI_PARTS);
+    return rdf.sym(this.getAttribute('parts') || SCHEMA_ELEM);
   }
 
   _fatal(err) {
@@ -305,10 +300,11 @@ class SolTreeEdit extends HTMLElement {
     const headAccordion = document.createElement('sol-accordion');
     const headPanel = this._buildAccordionPanel(headLabel, () => {
       const body = document.createElement('div');
-      // The items predicate (ui:parts) is the tree's own list, edited as the
-      // item panels below — not a scalar head field. Drop it so a combined
-      // shape (e.g. menu.shacl, whose ui:Menu NodeShape includes ui:parts)
-      // can serve as both head- and item-shape.
+      // The membership predicate (schema:itemListElement) is the tree's own
+      // list, edited as the item panels below — not a scalar head field. Drop
+      // it so a combined shape (e.g. menu.shacl, whose ui:Menu NodeShape
+      // includes the membership property) can serve as both head- and
+      // item-shape.
       const partsPred = this._partsPredicate().value;
       const headProps = (this._headParsed.properties || [])
         .filter((p) => !(p.path && p.path.value === partsPred));
@@ -438,23 +434,18 @@ class SolTreeEdit extends HTMLElement {
   }
 
   _currentItems(subject) {
+    // Membership triples: an entry carrying schema:item is a positioned
+    // ListItem wrapper (sort by schema:position); otherwise the entry IS the
+    // member (unordered sets), kept in document order after positioned ones.
     const partsPred = this._partsPredicate();
-    const head = rdf.store.any(subject, partsPred);
-    if (!head) return [];
-    // ui:parts is an rdf:List; rdflib parses turtle list syntax into a
-    // Collection node (.elements). For an in-graph first/rest list,
-    // walk the chain.
-    if (head.termType === 'Collection' && Array.isArray(head.elements)) {
-      return head.elements;
-    }
-    const out = [];
-    let node = head;
-    while (node && node.value !== RDF_NIL) {
-      const first = rdf.store.any(node, rdf.sym(RDF_FIRST));
-      if (first) out.push(first);
-      node = rdf.store.any(node, rdf.sym(RDF_REST));
-    }
-    return out;
+    const members = rdf.store.each(subject, partsPred, null).map((entry) => {
+      const target = rdf.store.any(entry, rdf.sym(SCHEMA_ITEM));
+      if (!target) return { member: entry, pos: Infinity };
+      const pos = rdf.store.any(entry, rdf.sym(SCHEMA_POS));
+      return { member: target, pos: pos ? Number(pos.value) : Infinity };
+    });
+    members.sort((a, b) => a.pos - b.pos);
+    return members.map((m) => m.member);
   }
 
   _matchItemShape(item) {

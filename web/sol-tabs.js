@@ -233,11 +233,12 @@ class SolTabs extends HTMLElement {
     }
   }
 
-  // Fetch a ui:Menu RDF document and render its parts as tabs. This is the
-  // exact shape <sol-menu> consumes — ui:parts of ui:Link / ui:Component
-  // with ui:label / schema:url / ui:contents — so a single RDF
-  // document can drive either element. A nested ui:Menu becomes a tab whose
-  // body holds a slimmer <sol-tabs variant="sub"> strip of its children.
+  // Fetch a ui:Menu RDF document and render its members as tabs. This is the
+  // exact shape <sol-menu> consumes — schema:itemListElement membership of
+  // ui:Link / ui:Component members with ui:label / schema:url / ui:contents —
+  // so a single RDF document can drive either element. A nested ui:Menu
+  // becomes a tab whose body holds a slimmer <sol-tabs variant="sub"> strip
+  // of its children.
   async _loadFromRdf(uri) {
     const load = this.constructor.fromRdfLoader;
     if (!load) { deferUntilLoader(this); return; }   // wait for the menu-from-rdf add-on

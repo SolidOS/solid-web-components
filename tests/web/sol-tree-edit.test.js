@@ -3,13 +3,14 @@
  *
  * Tests for <sol-tree-edit> — the drill-down editor for tree-shaped data.
  * It composes <sol-breadcrumb> + <sol-accordion> + shape-to-form's record
- * forms, navigating a container's head fields plus an ordered ui:parts list.
+ * forms, navigating a container's head fields plus its positioned
+ * schema:itemListElement membership.
  *
  * What's exercised here (the deterministic seams):
  *   - custom-element registration
  *   - a missing `root` attribute renders the inline error path
  *   - building the level from RDF: head accordion always; an Items divider
- *     + items accordion only when ui:parts has members
+ *     + items accordion only when the membership has members
  *   - item rows label from label-property + a ▸ marker on drillable types,
  *     with an "Open →" affordance present for drillable items
  *   - a drilled level (depth > 1) renders a breadcrumb of the stack labels,
@@ -26,9 +27,9 @@
  * breadcrumb + navigate behaviour, which is wired on the breadcrumb element that
  * sol-tree-edit appends directly (outside any accordion, so its listener is intact).
  *
- * The data graph is seeded straight into rdf.store (the mock rdflib parser
- * doesn't grok Turtle list `( )` or blank-node `[ ]` sugar, so an rdf:parts
- * rdf:first/rest chain is built from triples instead). The two SHACL files
+ * The data graph is seeded straight into rdf.store — positioned
+ * schema:ListItem wrapper triples, the production membership form, which
+ * needs no parser sugar at all. The two SHACL files
  * are served through a stubbed global.fetch. solid-ui is absent, so the inner
  * renderRecordForm falls back to its "solid-ui is not loaded" notice rather
  * than mounting real widgets — exactly the seam we want: we assert structure,
@@ -59,10 +60,9 @@ if (!ProtoStore.statementsMatching) {
 // ── fixtures ─────────────────────────────────────────────────────────────────
 
 const RDF_TYPE  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
-const RDF_FIRST = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#first';
-const RDF_REST  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#rest';
-const RDF_NIL   = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#nil';
-const UI_PARTS  = 'http://www.w3.org/ns/ui#parts';
+const SCHEMA_ELEM = 'http://schema.org/itemListElement';
+const SCHEMA_ITEM = 'http://schema.org/item';
+const SCHEMA_POS  = 'http://schema.org/position';
 const UI_LABEL  = 'http://www.w3.org/ns/ui#label';
 const UI_MENU   = 'http://www.w3.org/ns/ui#Menu';
 const UI_LINK   = 'http://www.w3.org/ns/ui#Link';
@@ -104,25 +104,19 @@ const ITEM_SHAPE = `
 
 // ── store + fetch seeding ────────────────────────────────────────────────────
 
-/** Append a NamedNode-celled rdf:first/rest list to the store, returning the
- *  head cell (or rdf:nil for an empty list). The mock parser can't read `( )`
- *  syntax, so we materialise the cons cells as plain triples. */
-function seedList(store, base, members) {
-  if (!members.length) return rdf.sym(RDF_NIL);
-  let head = null, prevCell = null;
+/** Seed positioned schema:ListItem wrapper triples linking `container` to
+ *  each member in order — the production membership form. */
+function seedMembers(store, container, members) {
   members.forEach((m, i) => {
-    const cell = rdf.sym(`${base}#cell-${i}`);
-    if (i === 0) head = cell;
-    if (prevCell) store.add(prevCell, rdf.sym(RDF_REST), cell);
-    store.add(cell, rdf.sym(RDF_FIRST), m);
-    prevCell = cell;
+    const wrap = rdf.sym(`${container}-entry-${i + 1}`);
+    store.add(rdf.sym(container), rdf.sym(SCHEMA_ELEM), wrap);
+    store.add(wrap, rdf.sym(SCHEMA_ITEM), m);
+    store.add(wrap, rdf.sym(SCHEMA_POS), rdf.literal(String(i + 1)));
   });
-  store.add(prevCell, rdf.sym(RDF_REST), rdf.sym(RDF_NIL));
-  return head;
 }
 
-/** Seed a ui:Menu root whose ui:parts holds the given item subjects, each of
- *  the given rdf:type with a ui:label. Returns nothing; mutates rdf.store. */
+/** Seed a ui:Menu root whose membership holds the given item subjects, each
+ *  of the given rdf:type with a ui:label. Returns nothing; mutates rdf.store. */
 function seedMenu({ items = [] } = {}) {
   const store = rdf.store;
   store.add(rdf.sym(ROOT), rdf.sym(RDF_TYPE), rdf.sym(UI_MENU));
@@ -131,12 +125,10 @@ function seedMenu({ items = [] } = {}) {
     store.add(rdf.sym(it.uri), rdf.sym(RDF_TYPE), rdf.sym(it.type));
     store.add(rdf.sym(it.uri), rdf.sym(UI_LABEL), rdf.literal(it.label));
     if (it.parts) {
-      const head = seedList(store, it.uri, it.parts.map(u => rdf.sym(u)));
-      store.add(rdf.sym(it.uri), rdf.sym(UI_PARTS), head);
+      seedMembers(store, it.uri, it.parts.map(u => rdf.sym(u)));
     }
   }
-  const head = seedList(store, ROOT, items.map(it => rdf.sym(it.uri)));
-  store.add(rdf.sym(ROOT), rdf.sym(UI_PARTS), head);
+  seedMembers(store, ROOT, items.map(it => rdf.sym(it.uri)));
 }
 
 /** A fetch stub: serves the two shape URLs by suffix, an empty body for the

@@ -3,13 +3,22 @@
 
 <#MainMenu> a ui:Menu; ui:label "demo-menu" ;
   ui:orientation ui:Horizontal ;
-  ui:parts ( <#Home> <#DataMenu> <#About> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#MainMenu-Home>, <#MainMenu-DataMenu>, <#MainMenu-About> .
+
+<#MainMenu-Home> a schema:ListItem ; schema:item <#Home> ; schema:position 1 .
+<#MainMenu-DataMenu> a schema:ListItem ; schema:item <#DataMenu> ; schema:position 2 .
+<#MainMenu-About> a schema:ListItem ; schema:item <#About> ; schema:position 3 .
 
 <#Home> a ui:Link; ui:label "Home" ;
   ui:contents "<h2>Welcome</h2><p>This is the home page, rendered from a <code>ui:contents</code> literal.</p>" .
 
 <#DataMenu> a ui:Menu; ui:label "Data" ;
-  ui:parts ( <#SampleTable> <#SampleTriples> ) .
+  schema:itemListOrder schema:ItemListOrderAscending ;
+  schema:itemListElement <#DataMenu-SampleTable>, <#DataMenu-SampleTriples> .
+
+<#DataMenu-SampleTable> a schema:ListItem ; schema:item <#SampleTable> ; schema:position 1 .
+<#DataMenu-SampleTriples> a schema:ListItem ; schema:item <#SampleTriples> ; schema:position 2 .
 
 <#SampleTable> a ui:Component; ui:label "People (table)" ;
   schema:url <../../web/sol-query.js> ;
