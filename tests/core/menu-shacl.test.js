@@ -52,6 +52,26 @@ test('the menu fixture conforms', async () => {
   expect(report.conforms).toBe(true);
 });
 
+test('a menu with a ui:region default conforms', async () => {
+  const report = await validate(`
+<#Menu> a ui:Menu ; ui:label "m" ; ui:region ui:Modal ;
+  schema:itemListElement <#A> .
+<#A> a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+`);
+  const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
+  expect(messages).toEqual([]);
+  expect(report.conforms).toBe(true);
+});
+
+test('a menu with an unknown ui:region fails (sh:in)', async () => {
+  const report = await validate(`
+<#Menu> a ui:Menu ; ui:label "m" ; ui:region ui:Sidebar ;
+  schema:itemListElement <#A> .
+<#A> a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+`);
+  expect(report.conforms).toBe(false);
+});
+
 test('a menu member without ui:label fails', async () => {
   const report = await validate(`
 <#Menu> a ui:Menu ; ui:label "m" ;

@@ -135,7 +135,10 @@ function emitItem(store, docUrl, doc, item, taken) {
   // written only for links, which have no attribute channel. Parsing strips
   // `region` from params into the structural field, so re-adding it here is
   // the write half of that round trip.
-  if (item.region && item.type !== 'component') {
+  // An inherited region (filled in from the menu's ui:region default at
+  // parse) is never written back onto the item — the default stays on the
+  // menu; only an item's OWN placement is materialized.
+  if (item.region && !item.regionInherited && item.type !== 'component') {
     const local = item.region[0].toUpperCase() + item.region.slice(1).toLowerCase();
     store.add(node, ui('region'), ui(local), doc);
   }
@@ -163,8 +166,10 @@ function emitItem(store, docUrl, doc, item, taken) {
     }
     // region re-joins the attribute list on write (deduped — in-memory params
     // are region-free after parse, but be safe against hand-built items).
+    // Inherited menu-default regions are skipped (see writeItem's region
+    // block above).
     const params = (item.params || []).filter(([k]) => k !== 'region');
-    if (item.region) params.push(['region', String(item.region).toLowerCase()]);
+    if (item.region && !item.regionInherited) params.push(['region', String(item.region).toLowerCase()]);
     for (const [k, v] of params) {
       if (!k) continue;
       const b = rdf.blankNode();
@@ -180,13 +185,19 @@ function emitItem(store, docUrl, doc, item, taken) {
   return node;
 }
 
-function emitMenu(store, docUrl, doc, menuNode, { label, orientation, items, requiresWrite, comment }, taken) {
+function emitMenu(store, docUrl, doc, menuNode, { label, orientation, region, items, requiresWrite, comment }, taken) {
   store.add(menuNode, a, ui('Menu'), doc);
   if (label != null) store.add(menuNode, ui('label'), rdf.literal(String(label)), doc);
   if (comment) store.add(menuNode, rdfs('comment'), rdf.literal(String(comment)), doc);
   if (orientation) {
     const local = orientation[0].toUpperCase() + orientation.slice(1).toLowerCase();
     store.add(menuNode, ui('orientation'), ui(local), doc);
+  }
+  // Menu-level default placement (ui:region on the MENU) round-trips like
+  // orientation; members that inherit it carry no region of their own.
+  if (region) {
+    const local = region[0].toUpperCase() + region.slice(1).toLowerCase();
+    store.add(menuNode, ui('region'), ui(local), doc);
   }
   if (requiresWrite) store.add(menuNode, acl('mode'), acl('Write'), doc);
   const nodes = (items || []).map((item) => emitItem(store, docUrl, doc, item, taken));
@@ -219,7 +230,7 @@ function emitMenu(store, docUrl, doc, menuNode, { label, orientation, items, req
  * @param store rdflib store holding the parsed original document
  * @param docUrl the document URL (graph name)
  * @param menuIri full IRI of the menu root (e.g. `${docUrl}#Tabs`)
- * @param menu   { label, orientation, items }
+ * @param menu   { label, orientation, region, items }
  */
 export function updateMenuInStore(store, docUrl, menuIri, menu) {
   const doc = rdf.sym(docUrl.split('#')[0]);
@@ -255,7 +266,7 @@ export async function serializeMenuDocument(store, docUrl) {
 /**
  * Convenience: apply edits for one or more menus and return the Turtle for
  * the whole document (pantry subjects included).
- * `menus` = [{ iri, label, orientation, items }]
+ * `menus` = [{ iri, label, orientation, region, items }]
  */
 export async function rewriteMenuDocument(store, docUrl, menus) {
   for (const m of menus) updateMenuInStore(store, docUrl, m.iri, m);

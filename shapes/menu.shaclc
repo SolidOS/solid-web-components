@@ -15,6 +15,9 @@ shape <#MenuShape> -> ui:Menu {
     ui:orientation [0..1] in=[ui:Horizontal ui:Vertical] %
         sh:name "orientation" ; sh:description "ui:Horizontal or ui:Vertical menu layout"
     % .
+    ui:region [0..1] in=[ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown] %
+        sh:name "region" ; sh:description "Default placement for members that carry no region of their own — a ui:Region instance; submenus inherit it unless they set their own."
+    % .
 }
 
 shape <#OrderedItemShape> {

@@ -89,7 +89,7 @@ class SolMenuManager extends HTMLElement {
     // the loaded doc — a save must never inject an orientation the doc didn't
     // declare (a flat menu that gains ui:Horizontal would reclassify as a
     // button bar in sol-plugin-manager's slot discovery).
-    this._meta = { label: null, orientation: null };
+    this._meta = { label: null, orientation: null, region: null };
     this._dirty = false;
   }
 
@@ -275,6 +275,8 @@ class SolMenuManager extends HTMLElement {
       this._meta.label = label ? label.value : (this.source.split('#')[1] || 'menu');
       const orient = store.any(menuNode, rdf.sym('http://www.w3.org/ns/ui#orientation'));
       if (orient) this._meta.orientation = orient.value.split('#').pop().toLowerCase();
+      const region = store.any(menuNode, rdf.sym('http://www.w3.org/ns/ui#region'));
+      if (region) this._meta.region = region.value.split('#').pop().toLowerCase();
     } catch (e) {
       // A 404 just means "new document" — start empty.
       this._items = [];
@@ -804,7 +806,8 @@ class SolMenuManager extends HTMLElement {
       try { store = await loadRdfStore(this._docUrl(), freshFetch); }
       catch { store = rdf.graph(); }
       updateMenuInStore(store, this._docUrl(), this._menuIri(), {
-        label: this._meta.label, orientation: this._meta.orientation, items: this._items,
+        label: this._meta.label, orientation: this._meta.orientation,
+        region: this._meta.region, items: this._items,
       });
       const turtle = await serializeMenuDocument(store, this._docUrl());
       const res = await solFetch(this._docUrl(), {

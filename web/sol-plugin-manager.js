@@ -521,17 +521,19 @@ class SolPluginManager extends HTMLElement {
   }
 
   // A ui:Menu as the description rewriteMenuDocument takes: {iri, label,
-  // comment, orientation, items}.
+  // comment, orientation, region, items}.
   _menuDesc(store, iri) {
     const node = rdf.sym(iri);
     const label = rdfVal(store, node, 'label');
     const commentNode = store.any(node, rdf.sym(RDFS + 'comment'));
     const orient = rdfVal(store, node, 'orientation');
+    const region = rdfVal(store, node, 'region');
     return {
       iri,
       label: label || iri.split('#')[1] || 'plugins',
       comment: commentNode ? commentNode.value : null,
       orientation: orient ? orient.split('#').pop().toLowerCase() : null,
+      region: region ? region.split('#').pop().toLowerCase() : null,
       items: parseMenuItems(store, node),
     };
   }

@@ -173,10 +173,15 @@ function regionToken(v) {
  * token). `how/lifetime` and the resolution of `region` are still done from the
  * HTML at render time (region= cascade, data-for, surface keywords). `id` is the
  * item's IRI fragment, the join key an HTML region uses to claim it.
+ *
+ * A ui:region ON THE MENU is the default for members that carry none of their
+ * own (item region — entry triple or `region` attribute pair — always wins).
+ * Submenus inherit the default until one sets its own ui:region.
  */
-export function parseMenuItems(store, menuNode) {
+export function parseMenuItems(store, menuNode, inheritedRegion = null) {
   const parts = menuMembers(store, menuNode);
   const typeNode = rdf.sym(RDF + 'type');
+  const menuRegion = regionToken(rdfVal(store, menuNode, 'region')) || inheritedRegion;
   const items = [];
 
   for (const part of parts) {
@@ -186,7 +191,11 @@ export function parseMenuItems(store, menuNode) {
     const id       = fragmentOf(part);
     const label    = rdfVal(store, part, 'label') || part.value;
     const icon     = rdfVal(store, part, 'icon');
-    const region   = regionToken(rdfVal(store, part, 'region'));
+    const ownRegion = regionToken(rdfVal(store, part, 'region'));
+    // Resolved placement: the item's own region, else the menu default. The
+    // regionInherited flag marks the latter so serialization never
+    // materializes an inherited default onto the item.
+    const region   = ownRegion || menuRegion;
     const comment  = rdfsComment(store, part);
     const publisher = dctVal(store, part, 'publisher');
     // dct:source — the chip's MANIFEST IRI (e.g. plugins/music.ttl). This is the
@@ -198,7 +207,7 @@ export function parseMenuItems(store, menuNode) {
     const requiresWrite = requiresWriteMode(store, part);
 
     if (isA('Menu')) {
-      items.push({ type: 'submenu', id, name: label, comment, requiresWrite, children: parseMenuItems(store, part) });
+      items.push({ type: 'submenu', id, name: label, comment, requiresWrite, children: parseMenuItems(store, part, menuRegion) });
       continue;
     }
 
@@ -217,6 +226,7 @@ export function parseMenuItems(store, menuNode) {
       const itemParams = params.filter(([k]) => k !== 'region');
       const common = { id, name: label, icon, comment: blurb, publisher,
         region: (paramRegion || '').toLowerCase() || region,
+        regionInherited: !paramRegion && !ownRegion && !!menuRegion,
         requiresWrite: requiresWrite || gatedByParams(params),
         manifest: manifest || part.value,
         entry: part.value };
@@ -281,6 +291,7 @@ export function parseMenuItems(store, menuNode) {
       const itemParams = params.filter(([k]) => k !== 'region');
       items.push({ type: 'component', id, name: label, icon, comment, publisher,
         region: (paramRegion || '').toLowerCase() || region,
+        regionInherited: !paramRegion && !ownRegion && !!menuRegion,
         requiresWrite: requiresWrite || gatedByParams(params),
         tag, params: itemParams, module: moduleUrl, manifest });
       continue;
@@ -288,7 +299,9 @@ export function parseMenuItems(store, menuNode) {
 
     const href     = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
     const contents = rdfVal(store, part, 'contents');
-    items.push({ type: 'link', id, name: label, icon, region, comment, publisher, requiresWrite, href, contents, manifest });
+    items.push({ type: 'link', id, name: label, icon, region,
+      regionInherited: !ownRegion && !!menuRegion,
+      comment, publisher, requiresWrite, href, contents, manifest });
   }
   return items;
 }
