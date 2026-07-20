@@ -1,13 +1,23 @@
-
 PREFIX schema: <http://schema.org/>
 PREFIX ui: <http://www.w3.org/ns/ui#>
 
 shape <#IssuerListShape> -> schema:ItemList {
-    schema:name xsd:string [0..1] % sh:name "List label" % .
-    schema:itemListElement schema:ListItem [1..*] @<#IssuerShape> % sh:name "Sign-in issuers" ; sh:description "Solid OIDC issuers offered on sign-in; position 1 is the default." ; ui:sortBy schema:position % .
+    schema:name xsd:string [0..1] %
+        sh:name "List label"
+    % .
+    schema:itemListElement schema:ListItem [1..*] @<#IssuerShape> %
+        sh:name "Sign-in issuers" ; sh:description "Solid OIDC issuers offered on sign-in; position 1 is the default." ; ui:sortBy schema:position
+    % .
 }
+
 shape <#IssuerShape> {
-    schema:name xsd:string [0..1] % sh:name "Label" % .
-    schema:item IRI [1..1] % sh:name "Issuer URL" ; sh:description "The Solid OIDC issuer (identity provider) URL." % .
-    schema:position xsd:integer [1..1] % sh:name "Position" ; sh:description "Display order (1=first, the default issuer)" % .
+    schema:name xsd:string [0..1] %
+        sh:name "Label"
+    % .
+    schema:item IRI [1..1] %
+        sh:name "Issuer URL" ; sh:description "The Solid OIDC issuer (identity provider) URL."
+    % .
+    schema:position xsd:integer [1..1] %
+        sh:name "Position" ; sh:description "Display order (1=first, the default issuer)"
+    % .
 }

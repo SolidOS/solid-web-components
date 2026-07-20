@@ -4,7 +4,6 @@
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
-@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
 
 # Menu + plugin-entry shapes (mixin rewrite, 2026-07-19). Design rules:
 #   - card/settings metadata lives ONLY on the ui:Plugin catalog entry; a
@@ -35,8 +34,8 @@
   sh:property [
     sh:path schema:itemListElement ;
     sh:nodeKind sh:IRI ;
-    sh:name "entries" ;
-    sh:description "Menu membership — one triple per member. A CURATED menu points at positioned schema:ListItem placement wrappers; an unordered SET (e.g. the catalog #Available) points straight at the members." ;
+    sh:name "menu items" ;
+    sh:description "An ordered or unordered list of menu items." ;
     sh:or (
       [ sh:node :OrderedItemShape ]
       [ sh:node :UnorderedItemShape ]
@@ -47,14 +46,14 @@
     sh:maxCount 1 ;
     sh:in ( schema:ItemListOrderAscending ) ;
     sh:name "order" ;
-    sh:description "Declares that entries render sorted by their wrappers' schema:position, ascending. Present on curated menus; absent on unordered sets." ;
+    sh:description "If present, the list is ordered." ;
   ] ;
   sh:property [
     sh:path ui:orientation ;
     sh:maxCount 1 ;
     sh:in ( ui:Horizontal ui:Vertical ) ;
     sh:name "orientation" ;
-    sh:description "Layout orientation: ui:Horizontal (default) or ui:Vertical" ;
+    sh:description "ui:Horizontal or ui:Vertical menu layout" ;
   ] .
 
 # THE unified catalog entry: one editable ui:Plugin node is the manifest,
@@ -70,8 +69,8 @@
     sh:minCount 1 ;
     sh:maxCount 1 ;
     sh:in ( ui:Link ui:Component ui:Command ) ;
-    sh:name "kind" ;
-    sh:description "REQUIRED discriminator: what kind of capability this entry describes — ui:Link (external URL), ui:Component (custom element), ui:Command (host command key)." ;
+    sh:name "menu item kind" ;
+    sh:description "ui:Link (external URL), ui:Component (custom element), or ui:Command (host command key)." ;
   ] ;
   sh:property [
     sh:path ui:label ;
@@ -79,54 +78,54 @@
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "label" ;
-    sh:description "Display name — the card title AND the menu entry text (one label everywhere)." ;
+    sh:description "Display name for menus, buttons, etc." ;
   ] ;
   sh:property [
     sh:path dcterms:source ;
     sh:maxCount 1 ;
     sh:nodeKind sh:IRI ;
     sh:name "manifest" ;
-    sh:description "Provenance: the flat manifest doc this entry was generated from (Customize's delete removes it too)." ;
+    sh:description "Provenance: the flat manifest doc this entry was generated from." ;
   ] ;
   sh:property [
     sh:path schema:description ;
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "description" ;
-    sh:description "User-facing card blurb" ;
+    sh:description "User-facing plugin description." ;
   ] ;
   sh:property [
     sh:path dcterms:publisher ;
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "publisher" ;
-    sh:description "Who publishes the plugin (card byline)" ;
+    sh:description "Publisher/maintainer of the plugin." ;
   ] ;
   sh:property [
-    sh:path dcterms:subject ;
-    sh:or ( [ sh:datatype xsd:string ] [ sh:class skos:Concept ] ) ;
+    sh:path schema:keywords ;
+    sh:datatype xsd:string ;
     sh:name "topics" ;
-    sh:description "Topic categories (Customize tabs) — plain strings or skos:Concept nodes" ;
+    sh:description "Topic categories (Customize tabs) — one string per topic" ;
   ] ;
   sh:property [
     sh:path dcterms:conformsTo ;
     sh:maxCount 1 ;
     sh:nodeKind sh:IRI ;
     sh:name "shape" ;
-    sh:description "SHACL shape the plugin's settings/data conform to" ;
+    sh:description "SHACL shape the plugin's settings/data conform to. Used to auto-generate forms." ;
   ] ;
   sh:property [
     sh:path dcterms:references ;
     sh:nodeKind sh:IRI ;
     sh:name "data" ;
-    sh:description "Default/seed data document(s) the plugin starts from" ;
+    sh:description "Plugin's data/settings document." ;
   ] ;
   sh:property [
     sh:path schema:softwareHelp ;
     sh:maxCount 1 ;
     sh:nodeKind sh:IRI ;
     sh:name "help" ;
-    sh:description "USER online help (not developer docs)" ;
+    sh:description "Plugin help page." ;
   ] ;
   sh:xone (
     [
@@ -141,8 +140,7 @@
       sh:property [ sh:path schema:additionalType ; sh:hasValue ui:Command ] ;
       sh:node :CommandShape ;
     ]
-  ) ;
-  sh:message "A ui:Plugin's payload is its kind shape's schema:url: the URL a Link opens, an ES module with a tag-shaped filename (Component), or a registry fragment IRI with a hyphen-free key (Command)" .
+  ) .
 
 # A placement wrapper: WHERE one member sits in ONE menu — position lives on
 # the placement, never the shared member. Reorder = swap two positions.
@@ -156,7 +154,7 @@
     sh:nodeKind sh:IRI ;
     sh:node :UnorderedItemShape ;
     sh:name "item" ;
-    sh:description "The member this placement mounts — a ui:Plugin entry, an inline item, or a nested ui:Menu." ;
+    sh:description "An ordered menu item." ;
   ] ;
   sh:property [
     sh:path schema:position ;
@@ -164,7 +162,7 @@
     sh:maxCount 1 ;
     sh:datatype xsd:integer ;
     sh:name "position" ;
-    sh:description "Sort key within this menu (ascending; sequential 1..n by convention)." ;
+    sh:description "Sort order number within this menu." ;
   ] .
 
 # A direct member (unordered sets), and the target of every wrapper's
@@ -186,8 +184,7 @@
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "label" ;
-    sh:message "Every menu member must have a ui:label" ;
-    sh:description "Display label — required for every member reachable from a ui:Menu" ;
+    sh:description "Display label" ;
   ] .
 
 :LinkShape
@@ -220,7 +217,7 @@
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "label" ;
-    sh:description "Display name. Optional here (manifest entries may omit it); members reachable from a ui:Menu must have one (:UnorderedItemShape)" ;
+    sh:description "Display name for menus, buttons etc." ;
   ] ;
   sh:property [
     sh:path schema:url ;
@@ -229,7 +226,7 @@
     sh:nodeKind sh:IRI ;
     sh:pattern "/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$" ;
     sh:name "module URL" ;
-    sh:description "The ES module that defines the element; the element tag derives from the filename (filename IS the tag)." ;
+    sh:description "The ES module that defines the custom element." ;
   ] .
 
 # NO sh:targetClass on purpose (see header): this is the ENTRY contract for
@@ -244,7 +241,7 @@
     sh:nodeKind sh:IRI ;
     sh:pattern "#[A-Za-z][A-Za-z0-9]*$" ;
     sh:name "command URL" ;
-    sh:description "A fragment IRI in the host app's command registry document; the hyphen-free fragment is the command key." ;
+    sh:description "A fragment IRI in the host app's command registry document which points to one of the app's commands." ;
   ] .
 
 # ── mixins ────────────────────────────────────────────────────────────────
@@ -255,7 +252,7 @@
     sh:maxCount 1 ;
     sh:or ( [ sh:nodeKind sh:IRI ] [ sh:datatype xsd:string ] ) ;
     sh:name "icon" ;
-    sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" ;
+    sh:description "URL of an image or emoji/text string" ;
   ] .
 
 :AttributedMixin
@@ -264,7 +261,7 @@
     sh:path ui:attribute ;
     sh:node :PropertyValueShape ;
     sh:name "attribute" ;
-    sh:description "Attributes for the element (or args for the command) as schema:PropertyValue pairs, incl. the deployment conventions: region (placement keyword) and if-logged-in \"\" (owner gate)" ;
+    sh:description "plugin parameter key/value pairs" ;
   ] .
 
 :PropertyValueShape
@@ -282,5 +279,5 @@
     sh:minCount 1 ;
     sh:maxCount 1 ;
     sh:name "value" ;
-    sh:description "Attribute value (datatype-free; JSON-LD manifests always emit strings)" ;
+    sh:description "Attribute value" ;
   ] .

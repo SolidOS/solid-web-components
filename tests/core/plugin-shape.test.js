@@ -50,7 +50,7 @@ test('a Link entry conforms: additionalType + label + schema:url', async () => {
   schema:url <https://penny.vincenttunru.com/> ;
   schema:description "Browse and manage everything in your pod." ;
   dcterms:publisher "Vincent Tunru" ;
-  dcterms:subject "Pods" .
+  schema:keywords "Pods" .
 `);
   expect(report.results.map((r) => r.message.map((m) => m.value).join('; '))).toEqual([]);
   expect(report.conforms).toBe(true);

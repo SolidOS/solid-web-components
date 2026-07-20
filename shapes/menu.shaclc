@@ -1,24 +1,39 @@
-
 PREFIX dcterms: <http://purl.org/dc/terms/>
 PREFIX schema: <http://schema.org/>
-PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX ui: <http://www.w3.org/ns/ui#>
 
 shape <#MenuShape> -> ui:Menu {
-    ui:label xsd:string [1..1] % sh:name "label" ; sh:description "The display label for the menu" % .
-    schema:itemListElement IRI @<#OrderedItemShape>|@<#UnorderedItemShape> % sh:name "entries" ; sh:description "Menu membership — one triple per member. A CURATED menu points at positioned schema:ListItem placement wrappers; an unordered SET (e.g. the catalog #Available) points straight at the members." % .
-    schema:itemListOrder [0..1] in=[schema:ItemListOrderAscending] % sh:name "order" ; sh:description "Declares that entries render sorted by their wrappers' schema:position, ascending. Present on curated menus; absent on unordered sets." % .
-    ui:orientation [0..1] in=[ui:Horizontal ui:Vertical] % sh:name "orientation" ; sh:description "Layout orientation: ui:Horizontal (default) or ui:Vertical" % .
+    ui:label xsd:string [1..1] %
+        sh:name "label" ; sh:description "The display label for the menu"
+    % .
+    schema:itemListElement IRI @<#OrderedItemShape>|@<#UnorderedItemShape> %
+        sh:name "menu items" ; sh:description "An ordered or unordered list of menu items."
+    % .
+    schema:itemListOrder [0..1] in=[schema:ItemListOrderAscending] %
+        sh:name "order" ; sh:description "If present, the list is ordered."
+    % .
+    ui:orientation [0..1] in=[ui:Horizontal ui:Vertical] %
+        sh:name "orientation" ; sh:description "ui:Horizontal or ui:Vertical menu layout"
+    % .
 }
+
 shape <#OrderedItemShape> {
     class=schema:ListItem .
-    schema:item IRI [1..1] @<#UnorderedItemShape> % sh:name "item" ; sh:description "The member this placement mounts — a ui:Plugin entry, an inline item, or a nested ui:Menu." % .
-    schema:position xsd:integer [1..1] % sh:name "position" ; sh:description "Sort key within this menu (ascending; sequential 1..n by convention)." % .
+    schema:item IRI [1..1] @<#UnorderedItemShape> %
+        sh:name "item" ; sh:description "An ordered menu item."
+    % .
+    schema:position xsd:integer [1..1] %
+        sh:name "position" ; sh:description "Sort order number within this menu."
+    % .
 }
+
 shape <#UnorderedItemShape> {
     class=ui:Plugin|class=ui:Link|class=ui:Component|class=ui:Command|class=ui:Menu .
-    ui:label xsd:string [1..1] message="Every menu member must have a ui:label" % sh:name "label" ; sh:description "Display label — required for every member reachable from a ui:Menu" % .
+    ui:label xsd:string [1..1] %
+        sh:name "label" ; sh:description "Display label"
+    % .
 }
+
 shape <#PluginShape> -> ui:Plugin ;
     sh:node <#IconMixin>, <#AttributedMixin> ;
     sh:xone ([
@@ -40,37 +55,78 @@ shape <#PluginShape> -> ui:Plugin ;
         ] ;
         sh:node <#CommandShape>
     ]) {
-    message="A ui:Plugin's payload is its kind shape's schema:url: the URL a Link opens, an ES module with a tag-shaped filename (Component), or a registry fragment IRI with a hyphen-free key (Command)" .
-    schema:additionalType [1..1] in=[ui:Link ui:Component ui:Command] % sh:name "kind" ; sh:description "REQUIRED discriminator: what kind of capability this entry describes — ui:Link (external URL), ui:Component (custom element), ui:Command (host command key)." % .
-    ui:label xsd:string [1..1] % sh:name "label" ; sh:description "Display name — the card title AND the menu entry text (one label everywhere)." % .
-    dcterms:source IRI [0..1] % sh:name "manifest" ; sh:description "Provenance: the flat manifest doc this entry was generated from (Customize's delete removes it too)." % .
-    schema:description xsd:string [0..1] % sh:name "description" ; sh:description "User-facing card blurb" % .
-    dcterms:publisher xsd:string [0..1] % sh:name "publisher" ; sh:description "Who publishes the plugin (card byline)" % .
-    dcterms:subject xsd:string|skos:Concept % sh:name "topics" ; sh:description "Topic categories (Customize tabs) — plain strings or skos:Concept nodes" % .
-    dcterms:conformsTo IRI [0..1] % sh:name "shape" ; sh:description "SHACL shape the plugin's settings/data conform to" % .
-    dcterms:references IRI % sh:name "data" ; sh:description "Default/seed data document(s) the plugin starts from" % .
-    schema:softwareHelp IRI [0..1] % sh:name "help" ; sh:description "USER online help (not developer docs)" % .
+    schema:additionalType [1..1] in=[ui:Link ui:Component ui:Command] %
+        sh:name "menu item kind" ; sh:description "ui:Link (external URL), ui:Component (custom element), or ui:Command (host command key)."
+    % .
+    ui:label xsd:string [1..1] %
+        sh:name "label" ; sh:description "Display name for menus, buttons, etc."
+    % .
+    dcterms:source IRI [0..1] %
+        sh:name "manifest" ; sh:description "Provenance: the flat manifest doc this entry was generated from."
+    % .
+    schema:description xsd:string [0..1] %
+        sh:name "description" ; sh:description "User-facing plugin description."
+    % .
+    dcterms:publisher xsd:string [0..1] %
+        sh:name "publisher" ; sh:description "Publisher/maintainer of the plugin."
+    % .
+    schema:keywords xsd:string %
+        sh:name "topics" ; sh:description "Topic categories (Customize tabs) — one string per topic"
+    % .
+    dcterms:conformsTo IRI [0..1] %
+        sh:name "shape" ; sh:description "SHACL shape the plugin's settings/data conform to. Used to auto-generate forms."
+    % .
+    dcterms:references IRI %
+        sh:name "data" ; sh:description "Plugin's data/settings document."
+    % .
+    schema:softwareHelp IRI [0..1] %
+        sh:name "help" ; sh:description "Plugin help page."
+    % .
 }
+
 shape <#IconMixin> {
-    ui:icon [0..1] IRI|xsd:string % sh:name "icon" ; sh:description "Icon: a URL (IRI or string) painted as an image, or an emoji/text string" % .
+    ui:icon [0..1] IRI|xsd:string %
+        sh:name "icon" ; sh:description "URL of an image or emoji/text string"
+    % .
 }
+
 shape <#AttributedMixin> {
-    ui:attribute @<#PropertyValueShape> % sh:name "attribute" ; sh:description "Attributes for the element (or args for the command) as schema:PropertyValue pairs, incl. the deployment conventions: region (placement keyword) and if-logged-in \"\" (owner gate)" % .
+    ui:attribute @<#PropertyValueShape> %
+        sh:name "attribute" ; sh:description "plugin parameter key/value pairs"
+    % .
 }
+
 shape <#LinkShape> -> ui:Link ;
     sh:node <#IconMixin> {
-    ui:label xsd:string [1..1] % sh:name "label" ; sh:description "The display label for the link" % .
-    schema:url [1..1] IRI|xsd:string % sh:name "url" ; sh:description "The URL the link opens — an IRI or a URL string" % .
+    ui:label xsd:string [1..1] %
+        sh:name "label" ; sh:description "The display label for the link"
+    % .
+    schema:url [1..1] IRI|xsd:string %
+        sh:name "url" ; sh:description "The URL the link opens — an IRI or a URL string"
+    % .
 }
+
 shape <#ComponentShape> -> ui:Component ;
     sh:node <#IconMixin>, <#AttributedMixin> {
-    ui:label xsd:string [0..1] % sh:name "label" ; sh:description "Display name. Optional here (manifest entries may omit it); members reachable from a ui:Menu must have one (:UnorderedItemShape)" % .
-    schema:url IRI [1..1] pattern="/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$" % sh:name "module URL" ; sh:description "The ES module that defines the element; the element tag derives from the filename (filename IS the tag)." % .
+    ui:label xsd:string [0..1] %
+        sh:name "label" ; sh:description "Display name for menus, buttons etc."
+    % .
+    schema:url IRI [1..1] pattern="/[a-z][a-z0-9]*(-[a-z0-9]+)+(\\.esm|\\.min)?\\.js$" %
+        sh:name "module URL" ; sh:description "The ES module that defines the custom element."
+    % .
 }
+
 shape <#CommandShape> {
-    schema:url IRI [1..1] pattern="#[A-Za-z][A-Za-z0-9]*$" % sh:name "command URL" ; sh:description "A fragment IRI in the host app's command registry document; the hyphen-free fragment is the command key." % .
+    schema:url IRI [1..1] pattern="#[A-Za-z][A-Za-z0-9]*$" %
+        sh:name "command URL" ; sh:description "A fragment IRI in the host app's command registry document which points to one of the app's commands."
+    % .
 }
+
 shape <#PropertyValueShape> {
-    schema:name xsd:string [1..1] % sh:name "name" ; sh:description "Attribute name" % .
-    schema:value [1..1] % sh:name "value" ; sh:description "Attribute value (datatype-free; JSON-LD manifests always emit strings)" % .
+    schema:name xsd:string [1..1] %
+        sh:name "name" ; sh:description "Attribute name"
+    % .
+    schema:value [1..1] %
+        sh:name "value" ; sh:description "Attribute value"
+    % .
 }

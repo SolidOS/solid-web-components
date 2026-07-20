@@ -44,7 +44,7 @@
  *     dragged from another window) → import: the manifest must offer
  *     `<> a ui:Component ; schema:url <module>` (tag ← filename) or a
  *     ui:Plugin entry; its ui:label / ui:icon /
- *     ui:attribute defaults become the entry, and its dct:subject literal
+ *     ui:attribute defaults become the entry, and its schema:keywords literal
  *     (the plugin's CATEGORY) files the entry into the matching
  *     skos:Collection — created on the fly for a new category. Typing the
  *     URL in the box's input row does the same.
@@ -972,7 +972,7 @@ class SolPluginManager extends HTMLElement {
   // manifest. Dedup: an identical entry anywhere in the document (components
   // by tag+params, links by href) either reports where it already is, or (if
   // it's only pantry) re-lists it here. entry.categories (a manifest's
-  // dct:subject literals) file the entry into the matching skos:Collections
+  // schema:keywords literals) file the entry into the matching skos:Collections
   // — created when a category is new.
   async _addEntry(entry) {
     const docUrl = this._docUrl();
@@ -1101,7 +1101,7 @@ class SolPluginManager extends HTMLElement {
   //   tag derives from the filename; ui:label / ui:icon / ui:attribute
   //   defaults flesh out the entry);
   //   `<> a ui:Link ; schema:url <url>` — an external app.
-  // dct:subject literals are the categories the entry files under.
+  // schema:keywords literals are the categories the entry files under.
   async _importManifest(input) {
     let url;
     try { url = new URL(String(input), document.baseURI); }
@@ -1113,7 +1113,7 @@ class SolPluginManager extends HTMLElement {
     const hasType = (local) => mStore.statementsMatching(
       subj, rdf.sym(RDF + 'type'), rdf.sym(UI + local),
     ).length > 0;
-    const categories = mStore.each(subj, rdf.sym(DCT + 'subject'), null).map((n) => n.value);
+    const categories = mStore.each(subj, rdf.sym(SCHEMA + 'keywords'), null).map((n) => n.value);
     // ONE payload predicate — schema:url — for manifests too; the kind
     // (rdf:type or a ui:Plugin's schema:additionalType) says how to read it.
     const payload = (mStore.any(subj, rdf.sym(SCHEMA + 'url')) || {}).value || null;
