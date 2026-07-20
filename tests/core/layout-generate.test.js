@@ -89,7 +89,8 @@ test('dashboard grid emits app-grid-2 markup and CSS', () => {
   const css = generateAppCss(store, layoutNode);
   expect(css).toContain('.app-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));');
   // scaffolding: page never scrolls, the pane does
-  expect(css).toContain('body { margin: 0; min-height: 100dvh; overflow: hidden; }');
+  expect(css).toContain('body { margin: 0; min-height: 100dvh; overflow: hidden;');
+  expect(css).toContain('html { background: var(--bg); color: var(--text); }');
   expect(css).toContain('main { flex: 1 1 auto; min-height: 0; overflow: auto; }');
 });
 

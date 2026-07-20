@@ -5,37 +5,51 @@
 # The preset-layout index: a ui:Menu of ui:Link entries, one per preset doc.
 # The app builder enumerates presets from THIS doc (RDF, not directory
 # listing); each link's schema:url is the layout doc to copy into a new app.
+# Presets are structural arrangements that ship with their theme chrome
+# (banner ☰ menu, sidebar menu, content include) already in place — the
+# builder's element step shows those as ordinary removable elements.
+# The pre-2026-07-20 starter presets (classic-shell, single-page, sidebar,
+# dashboard-grid) remain on disk beside this index for existing apps.
 
 :Presets a ui:Menu ;
   ui:label "Layout presets" ;
   schema:itemListOrder schema:ItemListOrderAscending;
-    schema:itemListElement :Presets-classic-shell, :Presets-single-page, :Presets-sidebar, :Presets-dashboard-grid .
+    schema:itemListElement :Presets-banner-main, :Presets-banner-left-sidebar,
+      :Presets-banner-right-sidebar, :Presets-banner-two-sidebars,
+      :Presets-banner-main-footer .
 
-:classic-shell a ui:Link ;
-  ui:label "Classic shell" ;
-  ui:icon "🗂️" ;
-  schema:url <classic-shell.ttl> ;
-  schema:description "A controls bar above a tabbed main area — the Data Kitchen / media-player shape." .
-
-:single-page a ui:Link ;
-  ui:label "Single page" ;
+:banner-main a ui:Link ;
+  ui:label "Banner + main" ;
   ui:icon "📄" ;
-  schema:url <single-page.ttl> ;
-  schema:description "One content region rendering the app's own content.html — a kiosk page." .
+  schema:url <banner-main.ttl> ;
+  schema:description "A banner across the top, your content below." .
 
-:sidebar a ui:Link ;
-  ui:label "Sidebar" ;
+:banner-left-sidebar a ui:Link ;
+  ui:label "Banner + left sidebar" ;
   ui:icon "📑" ;
-  schema:url <sidebar.ttl> ;
-  schema:description "A vertical menu beside a main pane; items open into the pane." .
+  schema:url <banner-left-sidebar.ttl> ;
+  schema:description "Banner on top; a sidebar menu on the left opens items into the main pane." .
 
-:dashboard-grid a ui:Link ;
-  ui:label "Dashboard grid" ;
-  ui:icon "🧩" ;
-  schema:url <dashboard-grid.ttl> ;
-  schema:description "A header above a two-column widget grid." .
+:banner-right-sidebar a ui:Link ;
+  ui:label "Banner + right sidebar" ;
+  ui:icon "🔖" ;
+  schema:url <banner-right-sidebar.ttl> ;
+  schema:description "Banner on top; the main pane with a sidebar menu on the right." .
 
-:Presets-classic-shell a schema:ListItem; schema:item :classic-shell; schema:position 1.
-:Presets-single-page a schema:ListItem; schema:item :single-page; schema:position 2.
-:Presets-sidebar a schema:ListItem; schema:item :sidebar; schema:position 3.
-:Presets-dashboard-grid a schema:ListItem; schema:item :dashboard-grid; schema:position 4.
+:banner-two-sidebars a ui:Link ;
+  ui:label "Banner + two sidebars" ;
+  ui:icon "📚" ;
+  schema:url <banner-two-sidebars.ttl> ;
+  schema:description "Banner on top; sidebars either side of the main pane." .
+
+:banner-main-footer a ui:Link ;
+  ui:label "Banner + main + footer" ;
+  ui:icon "📰" ;
+  schema:url <banner-main-footer.ttl> ;
+  schema:description "Banner, your content, and a footer along the bottom." .
+
+:Presets-banner-main a schema:ListItem; schema:item :banner-main; schema:position 1.
+:Presets-banner-left-sidebar a schema:ListItem; schema:item :banner-left-sidebar; schema:position 2.
+:Presets-banner-right-sidebar a schema:ListItem; schema:item :banner-right-sidebar; schema:position 3.
+:Presets-banner-two-sidebars a schema:ListItem; schema:item :banner-two-sidebars; schema:position 4.
+:Presets-banner-main-footer a schema:ListItem; schema:item :banner-main-footer; schema:position 5.

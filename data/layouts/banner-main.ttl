@@ -1,0 +1,49 @@
+@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Structural layout: a banner across the top, content below. Ships with its
+# theme chrome — the banner's ☰ menu (Help / Theme / Text size) — and a
+# page-content include; both are ordinary removable elements in the builder.
+
+:Layout a ui:Layout ;
+  ui:label "Banner + main" ;
+  ui:orientation ui:Vertical ;
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Layout-Banner, :Layout-Main .
+
+:Banner a ui:Layout ;
+  ui:label "Banner" ;
+  schema:additionalType schema:WPHeader ;
+  ui:orientation ui:Horizontal ;
+  ui:attribute [ schema:name "class" ; schema:value "app-banner" ] ;
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Banner-more .
+
+:more a ui:Component ;
+  ui:label "☰ menu" ;
+  rdfs:comment "Theme chrome: Help / Theme / Text size from the app's More menu" ;
+  schema:url </node_modules/sol-components/web/sol-dropdown-button.js> ;
+  ui:attribute [ schema:name "label" ; schema:value "☰" ] ,
+               [ schema:name "from-rdf" ; schema:value "app-menu.ttl#More" ] .
+
+:Main a ui:Layout ;
+  ui:label "Content" ;
+  ui:attribute [ schema:name "class" ; schema:value "app-panels" ] ;
+  schema:itemListOrder schema:ItemListOrderAscending;
+    schema:itemListElement :Main-content .
+
+:content a ui:Component ;
+  ui:label "Page content" ;
+  rdfs:comment "The page body, loaded from the app's own content.html" ;
+  schema:url </node_modules/sol-components/web/sol-include.js> ;
+  ui:attribute [ schema:name "source" ; schema:value "content.html" ] ,
+               [ schema:name "trusted" ; schema:value "" ] .
+
+:Layout-Banner a schema:ListItem; schema:item :Banner; schema:position 1.
+:Layout-Main a schema:ListItem; schema:item :Main; schema:position 2.
+
+:Banner-more a schema:ListItem; schema:item :more; schema:position 1.
+
+:Main-content a schema:ListItem; schema:item :content; schema:position 1.
