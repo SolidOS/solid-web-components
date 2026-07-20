@@ -60,7 +60,7 @@
     sh:maxCount 1 ;
     sh:in ( ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown ) ;
     sh:name "region" ;
-    sh:description "Default placement for members that carry no region of their own — a ui:Region instance; submenus inherit it unless they set their own." ;
+    sh:description "Default placement for items that carry no region of their own." ;
   ] .
 
 # THE unified catalog entry: one editable ui:Plugin node is the manifest,
