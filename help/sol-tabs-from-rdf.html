@@ -76,7 +76,6 @@ tab can't "run" something; put commands in a <i>&lt;sol-menu&gt;</i> /
   schema:itemListElement # membership — one triple per positioned schema:ListItem
                          # wrapper (schema:item → the ui:Link/ui:Component/ui:Menu
                          # member, schema:position → its order, sorted ascending)
-  schema:itemListOrder   # (optional) schema:ItemListOrderAscending on curated menus
   ui:orientation         # (optional) ui:Horizontal (default) or ui:Vertical
 
 <b>ui:Link</b>
@@ -91,7 +90,7 @@ tab can't "run" something; put commands in a <i>&lt;sol-menu&gt;</i> /
   ui:label       # (required) display name shown on the tab
   schema:url     # (required) the ES module; its filename IS the element tag
                  # (a hyphen-free name is a command — skipped by sol-tabs)
-  ui:attribute   # (optional) schema:PropertyValue pairs passed as element attributes
+  schema:additionalProperty   # (optional) schema:PropertyValue pairs passed as element attributes
                  # e.g. [ schema:name "sparql" ; schema:value "SELECT ..." ]
   ui:icon        # (optional) icon URL
   acl:mode       # (optional) access mode, e.g. acl:Write (used by menus, not tabs)

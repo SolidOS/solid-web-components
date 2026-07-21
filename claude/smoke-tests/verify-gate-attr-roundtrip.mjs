@@ -1,5 +1,5 @@
 // Round-trip check for the if-logged-in gate migration (2026-07-17):
-// parse a menu whose item is gated by an EMPTY if-logged-in ui:attribute,
+// parse a menu whose item is gated by an EMPTY if-logged-in schema:additionalProperty,
 // serialize it back, and assert (1) requiresWrite was surfaced, (2) NO
 // acl:mode triple got emitted (the attribute itself round-trips), (3) a
 // legacy acl-only item still round-trips its triple. Run from sc root:
@@ -17,7 +17,7 @@ const TTL = `
 <#Main> a ui:Menu ; ui:label "m" ; ui:parts ( <#Customize> <#Legacy> <#Help> <#Ext> ) .
 
 <#Customize> a ui:Component ; ui:label "Customize" ; schema:url <https://pod.example/web/sol-include.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "if-logged-in" ; schema:value "" ] ,
     [ schema:name "region" ; schema:value "dropdown" ] ,
     [ schema:name "source" ; schema:value "pages/customize.html" ] .
@@ -30,7 +30,7 @@ const TTL = `
   ui:region ui:Window .
 
 <#Help> a ui:Component ; ui:label "Help" ; schema:url <https://pod.example/web/sol-include.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "if-logged-in" ; schema:value "help/owner.html" ] ,
     [ schema:name "source" ; schema:value "help/guest.html" ] .
 `;

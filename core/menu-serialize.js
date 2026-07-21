@@ -77,7 +77,7 @@ function usedFragments(store, docUrl) {
  *  (removeMatches, not remove(st)-in-a-loop — rdflib's remove() skips entries
  *  when several statements share a subject.) */
 function removeSubject(store, node) {
-  const blanks = store.each(node, ui('attribute'), null);
+  const blanks = store.each(node, sch('additionalProperty'), null);
   for (const blank of blanks) store.removeMatches(blank, null, null);
   store.removeMatches(node, null, null);
 }
@@ -130,7 +130,7 @@ function emitItem(store, docUrl, doc, item, taken) {
   // lets the pantry know a chip is in use without guessing from tag+params.
   if (item.manifest) store.add(node, rdf.sym(DCT + 'source'), rdf.sym(String(item.manifest)), doc);
   if (item.icon) store.add(node, ui('icon'), rdf.literal(String(item.icon)), doc);
-  // Placement: a COMPONENT stores region as a `region` ui:attribute (the
+  // Placement: a COMPONENT stores region as a `region` schema:additionalProperty (the
   // attribute channel — see the params loop below); the ui:region triple is
   // written only for links, which have no attribute channel. Parsing strips
   // `region` from params into the structural field, so re-adding it here is
@@ -175,7 +175,7 @@ function emitItem(store, docUrl, doc, item, taken) {
       const b = rdf.blankNode();
       store.add(b, sch('name'), rdf.literal(String(k)), doc);
       store.add(b, sch('value'), rdf.literal(String(v ?? '')), doc);
-      store.add(node, ui('attribute'), b, doc);
+      store.add(node, sch('additionalProperty'), b, doc);
     }
   } else {
     store.add(node, a, ui('Link'), doc);
@@ -206,7 +206,6 @@ function emitMenu(store, docUrl, doc, menuNode, { label, orientation, region, it
   // menu serializes identically across saves; the old wrappers were cleared
   // by removeMenuNode before this re-emit, so reusing the names is safe.
   if (!nodes.length) return;
-  store.add(menuNode, sch('itemListOrder'), sch('ItemListOrderAscending'), doc);
   const menuFrag = fragOf(menuNode) || 'menu';
   const local = new Set();
   nodes.forEach((node, i) => {

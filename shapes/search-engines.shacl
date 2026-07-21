@@ -41,5 +41,5 @@
     sh:path schema:position ;
     sh:datatype xsd:integer ; sh:maxCount 1 ;
     sh:name "Position" ;
-    sh:description "Display order (lower first). Used with schema:itemListOrder on the list." ;
+    sh:description "Display order (lower first)." ;
   ] .

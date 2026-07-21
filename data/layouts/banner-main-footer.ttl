@@ -10,49 +10,45 @@
 :Layout a ui:Layout ;
   ui:label "Banner + main + footer" ;
   ui:orientation ui:Vertical ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Layout-Banner, :Layout-Main, :Layout-Footer .
 
 :Banner a ui:Layout ;
   ui:label "Banner" ;
   schema:additionalType schema:WPHeader ;
   ui:orientation ui:Horizontal ;
-  ui:attribute [ schema:name "class" ; schema:value "app-banner" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-banner" ] ;
     schema:itemListElement :Banner-more .
 
 :more a ui:Component ;
   ui:label "☰ menu" ;
   rdfs:comment "Theme chrome: Help / Theme / Text size from the app's More menu" ;
   schema:url </node_modules/sol-components/web/sol-dropdown-button.js> ;
-  ui:attribute [ schema:name "label" ; schema:value "☰" ] ,
+  schema:additionalProperty [ schema:name "label" ; schema:value "☰" ] ,
                [ schema:name "from-rdf" ; schema:value "app-menu.ttl#More" ] .
 
 :Main a ui:Layout ;
   ui:label "Content" ;
-  ui:attribute [ schema:name "class" ; schema:value "app-panels" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-panels" ] ;
     schema:itemListElement :Main-content .
 
 :content a ui:Component ;
   ui:label "Page content" ;
   rdfs:comment "The page body, loaded from the app's own content.html" ;
   schema:url </node_modules/sol-components/web/sol-include.js> ;
-  ui:attribute [ schema:name "source" ; schema:value "content.html" ] ,
+  schema:additionalProperty [ schema:name "source" ; schema:value "content.html" ] ,
                [ schema:name "trusted" ; schema:value "" ] .
 
 :Footer a ui:Layout ;
   ui:label "Footer" ;
   schema:additionalType schema:WPFooter ;
-  ui:attribute [ schema:name "class" ; schema:value "app-footer" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-footer" ] ;
     schema:itemListElement :Footer-footer-content .
 
 :footer-content a ui:Component ;
   ui:label "Footer content" ;
   rdfs:comment "The footer, loaded from the app's own footer.html" ;
   schema:url </node_modules/sol-components/web/sol-include.js> ;
-  ui:attribute [ schema:name "source" ; schema:value "footer.html" ] ,
+  schema:additionalProperty [ schema:name "source" ; schema:value "footer.html" ] ,
                [ schema:name "trusted" ; schema:value "" ] .
 
 :Layout-Banner a schema:ListItem; schema:item :Banner; schema:position 1.

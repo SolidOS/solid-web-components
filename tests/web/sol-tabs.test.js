@@ -46,8 +46,8 @@ installFromRdfLoader(loadMenuFromUri);
 // #Main → members #Home #Settings #Table #About (positioned ListItem wrappers)
 //   #Home     ui:Link      href + icon
 //   #Settings ui:Menu      nested members: #Light #Dark, both ui:contents links
-//   #Table    ui:Component schema:url …/sol-query.js + ui:attribute endpoint
-//   #About    ui:Component schema:url …/sol-query.js + ui:attribute pattern
+//   #Table    ui:Component schema:url …/sol-query.js + schema:additionalProperty endpoint
+//   #About    ui:Component schema:url …/sol-query.js + schema:additionalProperty pattern
 function buildStore() {
   const store = rdflib.graph();
   const s = (v) => rdflib.sym(v);
@@ -91,7 +91,7 @@ function buildStore() {
   store.add(s(BASE + '#Table'), s(UI + 'label'), l('Data Table'));
   store.add(s(BASE + '#Table'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));
   const attr1 = s(BASE + '#_a1');
-  store.add(s(BASE + '#Table'), s(UI + 'attribute'), attr1);
+  store.add(s(BASE + '#Table'), s(SCHEMA + 'additionalProperty'), attr1);
   store.add(attr1, s(SCHEMA + 'name'), l('endpoint'));
   store.add(attr1, s(SCHEMA + 'value'), s('http://example.org/data.ttl'));
 
@@ -99,7 +99,7 @@ function buildStore() {
   store.add(s(BASE + '#About'), s(UI + 'label'), l('About'));
   store.add(s(BASE + '#About'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));
   const param1 = s(BASE + '#_p1');
-  store.add(s(BASE + '#About'), s(UI + 'attribute'), param1);
+  store.add(s(BASE + '#About'), s(SCHEMA + 'additionalProperty'), param1);
   store.add(param1, s(SCHEMA + 'name'), l('pattern'));
   store.add(param1, s(SCHEMA + 'value'), l('?s ?p ?o'));
 

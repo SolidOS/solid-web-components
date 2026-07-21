@@ -113,7 +113,7 @@ test('a foreign (non sol-*) leaf loads via its own visible module script', () =>
 :Main-player a schema:ListItem ; schema:item :player ; schema:position 1 .
 :player a ui:Component ; ui:label "Player" ;
   schema:url <https://example.org/dist/ia-player.esm.js> ;
-  ui:attribute [ schema:name "source" ; schema:value "lib.ttl" ] .
+  schema:additionalProperty [ schema:name "source" ; schema:value "lib.ttl" ] .
 `, BASE);
   const html = generateAppHtml({ store: g, layoutNode: rdf.sym(`${BASE}#Layout`) });
   expect(html).toContain('<script type="module" src="https://example.org/dist/ia-player.esm.js"></script>');
@@ -129,7 +129,7 @@ test('attribute values are escaped in emitted markup', () => {
 :Layout a ui:Layout ; schema:itemListElement :Layout-Main .
 :Layout-Main a schema:ListItem ; schema:item :Main ; schema:position 1 .
 :Main a ui:Layout ;
-  ui:attribute [ schema:name "aria-label" ; schema:value "Tom & \\"Jerry\\" <3" ] .
+  schema:additionalProperty [ schema:name "aria-label" ; schema:value "Tom & \\"Jerry\\" <3" ] .
 `, BASE);
   const html = generateAppHtml({ store: g, layoutNode: rdf.sym(`${BASE}#Layout`) });
   expect(html).toContain('aria-label="Tom &amp; &quot;Jerry&quot; &lt;3"');

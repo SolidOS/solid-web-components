@@ -11,7 +11,7 @@
 
 <#MyComponentItem> a **ui:Component**;  ui:label "sample data table" ;
   **ui:name** "sol-table" ;
-  **ui:attribute** [ schema:name "source" ; schema:value "./data/sample-data.ttl" ] .
+  **schema:additionalProperty** [ schema:name "source" ; schema:value "./data/sample-data.ttl" ] .
 
 # A command: ui:name with no hyphen isn't an element tag — it's a key dispatched
 # as a `sol-command` event for the host app to handle. `acl:mode acl:Write` marks

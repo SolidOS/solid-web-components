@@ -17,10 +17,7 @@ shape <#LayoutShape> -> ui:Layout {
     schema:itemListElement IRI @<#LayoutEntryShape> %
         sh:name "entries" ; sh:description "Region membership — one triple per positioned schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order). Optional: an empty region is a placeholder pane other items can target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)."
     % .
-    schema:itemListOrder [0..1] in=[schema:ItemListOrderAscending] %
-        sh:name "order" ; sh:description "Declares that members render sorted by their wrappers' schema:position, ascending."
-    % .
-    ui:attribute @<#PropertyValueShape> %
+    schema:additionalProperty @<#PropertyValueShape> %
         sh:name "attribute" ; sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs"
     % .
     rdfs:comment xsd:string %

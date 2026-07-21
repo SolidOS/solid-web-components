@@ -58,14 +58,7 @@
     sh:node :LayoutEntryShape ;
   ] ;
   sh:property [
-    sh:path schema:itemListOrder ;
-    sh:maxCount 1 ;
-    sh:in ( schema:ItemListOrderAscending ) ;
-    sh:name "order" ;
-    sh:description "Declares that members render sorted by their wrappers' schema:position, ascending." ;
-  ] ;
-  sh:property [
-    sh:path ui:attribute ;
+    sh:path schema:additionalProperty ;
     sh:node :PropertyValueShape ;
     sh:name "attribute" ;
     sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs" ;

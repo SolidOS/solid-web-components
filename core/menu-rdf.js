@@ -36,7 +36,7 @@ function requiresWriteMode(store, subject) {
     .some(m => m.value === ACL + 'Write');
 }
 
-// The attribute spelling of the same gate: a ui:attribute named `if-logged-in`
+// The attribute spelling of the same gate: a schema:additionalProperty named `if-logged-in`
 // (or `requires-write`) with an EMPTY value — the boolean form. Mirrors the
 // HTML path's isGated (sol-menu). A NON-empty `if-logged-in` is sol-include's
 // alternate-source switch, NOT a gate, so it must not match here.
@@ -88,7 +88,7 @@ export function menuMembers(store, menuNode) {
 }
 
 // Read a ui:Component (or handler) node into { tag, params } where
-// params is [[name, value], ...] from ui:attribute blanks.
+// params is [[name, value], ...] from schema:additionalProperty blanks.
 export function rdfComponent(store, node) {
   if (!node) return { tag: null, params: [] };
   // The element tag derives from the schema:url module filename — inline
@@ -96,7 +96,7 @@ export function rdfComponent(store, node) {
   // everywhere, 2026-07-19).
   const url = (store.any(node, rdf.sym(SCHEMA + 'url')) || {}).value || null;
   const tag = deriveTagFromModule(url);
-  const attrNodes = store.each(node, rdf.sym(UI + 'attribute'), null);
+  const attrNodes = store.each(node, rdf.sym(SCHEMA + 'additionalProperty'), null);
   const params = attrNodes.map(p => [
     (store.any(p, rdf.sym(SCHEMA + 'name'))  || {}).value || '',
     (store.any(p, rdf.sym(SCHEMA + 'value')) || {}).value || '',
@@ -201,7 +201,7 @@ export function parseMenuItems(store, menuNode, inheritedRegion = null) {
     // dct:source — the chip's MANIFEST IRI (e.g. plugins/music.ttl). This is the
     // chip's stable identity: a chip is a PLUGIN (one manifest), not a component
     // (one element tag backs many chips). It links a mounted menu item back to
-    // its catalog entry. NB: distinct from any ui:attribute `source` PARAM, which
+    // its catalog entry. NB: distinct from any schema:additionalProperty `source` PARAM, which
     // is the plugin's data source, not its identity.
     const manifest  = dctVal(store, part, 'source');
     const requiresWrite = requiresWriteMode(store, part);
@@ -282,7 +282,7 @@ export function parseMenuItems(store, menuNode, inheritedRegion = null) {
         console.warn(`[menu-rdf] skipping ui:Component ${part.value} — cannot derive a tag from schema:url "${moduleUrl}"`);
         continue;
       }
-      // Placement rides the attribute channel (a `region` ui:attribute) —
+      // Placement rides the attribute channel (a `region` schema:additionalProperty) —
       // lift it into the structural field, exactly as the HTML harvest does
       // with a region= attribute (menu-html TAB_SKIP). The legacy ui:region
       // triple is still READ for third-party data; menu-serialize writes the

@@ -11,16 +11,14 @@
 :Layout a ui:Layout ;
   ui:label "Classic shell" ;
   ui:orientation ui:Vertical ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Layout-Chrome, :Layout-Main .
 
 :Chrome a ui:Layout ;
   ui:label "Controls bar" ;
   schema:additionalType schema:SiteNavigationElement ;
   ui:orientation ui:Horizontal ;
-  ui:attribute [ schema:name "class" ; schema:value "app-chrome-bar" ] ,
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-chrome-bar" ] ,
                [ schema:name "aria-label" ; schema:value "Controls" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Chrome-login .
 
 :login a ui:Component ;
@@ -29,15 +27,14 @@
 
 :Main a ui:Layout ;
   ui:label "Content" ;
-  ui:attribute [ schema:name "class" ; schema:value "app-panels" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-panels" ] ;
     schema:itemListElement :Main-tabs .
 
 :tabs a ui:Component ;
   ui:label "Tabs" ;
   rdfs:comment "The whole app body: a tabset built from the app's own menu doc" ;
   schema:url </node_modules/sol-components/web/sol-tabs.js> ;
-  ui:attribute [ schema:name "keep-alive" ; schema:value "" ] ,
+  schema:additionalProperty [ schema:name "keep-alive" ; schema:value "" ] ,
                [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Tabs" ] .
 
 :Layout-Chrome a schema:ListItem; schema:item :Chrome; schema:position 1.

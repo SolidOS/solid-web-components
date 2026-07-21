@@ -91,7 +91,7 @@ let _solTabsUid = 0;
 // rename keeps its pane — but submenu children (names included) are in, so
 // any structural change re-renders. Params are SORTED first: attribute order
 // carries no meaning, and the builder's document rewrite is free to reorder
-// ui:attribute entries on every save. Items emitTab skips (links,
+// schema:additionalProperty entries on every save. Items emitTab skips (links,
 // unassigned) fall back to a JSON shape of the same normalized fields.
 const sigNorm = (item, top) => ({
   ...item,
@@ -273,7 +273,7 @@ class SolTabs extends HTMLElement {
   }
 
   // Build a toolbar launcher element from an RDF action descriptor (tag =
-  // tag, ui:label → text, ui:attribute → attributes; the slot="actions" marker
+  // tag, ui:label → text, schema:additionalProperty → attributes; the slot="actions" marker
   // is dropped). Mirrors an inline non-anchor launcher.
   _buildLauncher(desc) {
     // A link part has no component tag — render it as a bar button that opens

@@ -11,55 +11,51 @@
 :Layout a ui:Layout ;
   ui:label "Banner + two sidebars" ;
   ui:orientation ui:Vertical ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Layout-Banner, :Layout-Middle .
 
 :Banner a ui:Layout ;
   ui:label "Banner" ;
   schema:additionalType schema:WPHeader ;
   ui:orientation ui:Horizontal ;
-  ui:attribute [ schema:name "class" ; schema:value "app-banner" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-banner" ] ;
     schema:itemListElement :Banner-more .
 
 :more a ui:Component ;
   ui:label "☰ menu" ;
   rdfs:comment "Theme chrome: Help / Theme / Text size from the app's More menu" ;
   schema:url </node_modules/sol-components/web/sol-dropdown-button.js> ;
-  ui:attribute [ schema:name "label" ; schema:value "☰" ] ,
+  schema:additionalProperty [ schema:name "label" ; schema:value "☰" ] ,
                [ schema:name "from-rdf" ; schema:value "app-menu.ttl#More" ] .
 
 :Middle a ui:Layout ;
   ui:label "Middle" ;
   rdfs:comment "Left sidebar, main pane, right sidebar" ;
   ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Middle-Left, :Middle-Main, :Middle-Right .
 
 :Left a ui:Layout ;
   ui:label "Left sidebar" ;
   schema:additionalType schema:WPSideBar ;
-  ui:attribute [ schema:name "class" ; schema:value "app-side" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-side" ] ;
     schema:itemListElement :Left-menu .
 
 :menu a ui:Component ;
   ui:label "Menu" ;
   rdfs:comment "Items open into the main pane named by the region selector" ;
   schema:url </node_modules/sol-components/web/sol-menu.js> ;
-  ui:attribute [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Menu" ] ,
+  schema:additionalProperty [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Menu" ] ,
                [ schema:name "region" ; schema:value ".app-main" ] .
 
 :Main a ui:Layout ;
   ui:label "Content" ;
   rdfs:comment "Empty placeholder pane the left menu renders into" ;
-  ui:attribute [ schema:name "class" ; schema:value "app-main" ] .
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-main" ] .
 
 :Right a ui:Layout ;
   ui:label "Right sidebar" ;
   rdfs:comment "Empty placeholder pane — add widgets to it in the builder" ;
   schema:additionalType schema:WPSideBar ;
-  ui:attribute [ schema:name "class" ; schema:value "app-side" ] .
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-side" ] .
 
 :Layout-Banner a schema:ListItem; schema:item :Banner; schema:position 1.
 :Layout-Middle a schema:ListItem; schema:item :Middle; schema:position 2.

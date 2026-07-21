@@ -117,8 +117,7 @@ const MORE_MENU_TTL = `@prefix : <#> .
 :More a ui:Menu ;
   ui:label "☰" ;
   ui:orientation ui:Vertical ;
-  schema:itemListOrder schema:ItemListOrderAscending;
-    schema:itemListElement :More-Help, :More-Theme, :More-Text-size .
+  schema:itemListElement :More-Help, :More-Theme, :More-Text-size .
 
 :Help a ui:Link ;
   ui:label "Help" ;

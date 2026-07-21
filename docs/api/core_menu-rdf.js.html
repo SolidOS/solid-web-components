@@ -64,7 +64,7 @@ function requiresWriteMode(store, subject) {
     .some(m => m.value === ACL + 'Write');
 }
 
-// The attribute spelling of the same gate: a ui:attribute named `if-logged-in`
+// The attribute spelling of the same gate: a schema:additionalProperty named `if-logged-in`
 // (or `requires-write`) with an EMPTY value — the boolean form. Mirrors the
 // HTML path's isGated (sol-menu). A NON-empty `if-logged-in` is sol-include's
 // alternate-source switch, NOT a gate, so it must not match here.
@@ -79,7 +79,9 @@ export function rdfVal(store, subject, localName) {
   return node ? node.value : null;
 }
 
-// Walk an rdf:List, returning its elements as an array.
+// Walk an rdf:List, returning its elements as an array. Menus no longer use
+// rdf:Collections (schema:itemListElement membership since 2026-07-19); this
+// stays for ui:Layout parts and other list-valued vocab.
 export function rdfListElements(store, listNode) {
   if (listNode.elements) return listNode.elements;
   const items = [];
@@ -95,8 +97,26 @@ export function rdfListElements(store, listNode) {
   return items;
 }
 
+// Resolve a menu's schema:itemListElement membership into member nodes.
+// A member reached through a schema:ListItem placement wrapper (it carries
+// schema:item) sorts by the wrapper's schema:position — the curated-menu
+// form. A direct member (unordered sets like the catalog #Available) has no
+// wrapper and keeps document order after any positioned members (the sort is
+// stable). Replaces the retired ui:parts rdf:Collection walk (2026-07-19).
+export function menuMembers(store, menuNode) {
+  const entries = store.each(menuNode, rdf.sym(SCHEMA + 'itemListElement'), null);
+  const members = entries.map((entry) => {
+    const target = store.any(entry, rdf.sym(SCHEMA + 'item'));
+    if (!target) return { member: entry, pos: Infinity };
+    const pos = store.any(entry, rdf.sym(SCHEMA + 'position'));
+    return { member: target, pos: pos ? Number(pos.value) : Infinity };
+  });
+  members.sort((x, y) => x.pos - y.pos);
+  return members.map((m) => m.member);
+}
+
 // Read a ui:Component (or handler) node into { tag, params } where
-// params is [[name, value], ...] from ui:attribute blanks.
+// params is [[name, value], ...] from schema:additionalProperty blanks.
 export function rdfComponent(store, node) {
   if (!node) return { tag: null, params: [] };
   // The element tag derives from the schema:url module filename — inline
@@ -104,7 +124,7 @@ export function rdfComponent(store, node) {
   // everywhere, 2026-07-19).
   const url = (store.any(node, rdf.sym(SCHEMA + 'url')) || {}).value || null;
   const tag = deriveTagFromModule(url);
-  const attrNodes = store.each(node, rdf.sym(UI + 'attribute'), null);
+  const attrNodes = store.each(node, rdf.sym(SCHEMA + 'additionalProperty'), null);
   const params = attrNodes.map(p => [
     (store.any(p, rdf.sym(SCHEMA + 'name'))  || {}).value || '',
     (store.any(p, rdf.sym(SCHEMA + 'value')) || {}).value || '',
@@ -168,7 +188,8 @@ function regionToken(v) {
 }
 
 /**
- * Parse a ui:Menu's parts into a tree of plain item descriptions.
+ * Parse a ui:Menu's members (schema:itemListElement, wrapper-aware and
+ * position-sorted — see menuMembers) into a tree of plain item descriptions.
  *
  * Each description has one of these shapes (no functions, no DOM):
  *
@@ -180,12 +201,15 @@ function regionToken(v) {
  * token). `how/lifetime` and the resolution of `region` are still done from the
  * HTML at render time (region= cascade, data-for, surface keywords). `id` is the
  * item's IRI fragment, the join key an HTML region uses to claim it.
+ *
+ * A ui:region ON THE MENU is the default for members that carry none of their
+ * own (item region — entry triple or `region` attribute pair — always wins).
+ * Submenus inherit the default until one sets its own ui:region.
  */
-export function parseMenuItems(store, menuNode) {
-  const partsNode = store.any(menuNode, rdf.sym(UI + 'parts'));
-  if (!partsNode) return [];
-  const parts = rdfListElements(store, partsNode);
+export function parseMenuItems(store, menuNode, inheritedRegion = null) {
+  const parts = menuMembers(store, menuNode);
   const typeNode = rdf.sym(RDF + 'type');
+  const menuRegion = regionToken(rdfVal(store, menuNode, 'region')) || inheritedRegion;
   const items = [];
 
   for (const part of parts) {
@@ -195,19 +219,23 @@ export function parseMenuItems(store, menuNode) {
     const id       = fragmentOf(part);
     const label    = rdfVal(store, part, 'label') || part.value;
     const icon     = rdfVal(store, part, 'icon');
-    const region   = regionToken(rdfVal(store, part, 'region'));
+    const ownRegion = regionToken(rdfVal(store, part, 'region'));
+    // Resolved placement: the item's own region, else the menu default. The
+    // regionInherited flag marks the latter so serialization never
+    // materializes an inherited default onto the item.
+    const region   = ownRegion || menuRegion;
     const comment  = rdfsComment(store, part);
     const publisher = dctVal(store, part, 'publisher');
     // dct:source — the chip's MANIFEST IRI (e.g. plugins/music.ttl). This is the
     // chip's stable identity: a chip is a PLUGIN (one manifest), not a component
     // (one element tag backs many chips). It links a mounted menu item back to
-    // its catalog entry. NB: distinct from any ui:attribute `source` PARAM, which
+    // its catalog entry. NB: distinct from any schema:additionalProperty `source` PARAM, which
     // is the plugin's data source, not its identity.
     const manifest  = dctVal(store, part, 'source');
     const requiresWrite = requiresWriteMode(store, part);
 
     if (isA('Menu')) {
-      items.push({ type: 'submenu', id, name: label, comment, requiresWrite, children: parseMenuItems(store, part) });
+      items.push({ type: 'submenu', id, name: label, comment, requiresWrite, children: parseMenuItems(store, part, menuRegion) });
       continue;
     }
 
@@ -226,6 +254,7 @@ export function parseMenuItems(store, menuNode) {
       const itemParams = params.filter(([k]) => k !== 'region');
       const common = { id, name: label, icon, comment: blurb, publisher,
         region: (paramRegion || '').toLowerCase() || region,
+        regionInherited: !paramRegion &amp;&amp; !ownRegion &amp;&amp; !!menuRegion,
         requiresWrite: requiresWrite || gatedByParams(params),
         manifest: manifest || part.value,
         entry: part.value };
@@ -281,7 +310,7 @@ export function parseMenuItems(store, menuNode) {
         console.warn(`[menu-rdf] skipping ui:Component ${part.value} — cannot derive a tag from schema:url "${moduleUrl}"`);
         continue;
       }
-      // Placement rides the attribute channel (a `region` ui:attribute) —
+      // Placement rides the attribute channel (a `region` schema:additionalProperty) —
       // lift it into the structural field, exactly as the HTML harvest does
       // with a region= attribute (menu-html TAB_SKIP). The legacy ui:region
       // triple is still READ for third-party data; menu-serialize writes the
@@ -290,6 +319,7 @@ export function parseMenuItems(store, menuNode) {
       const itemParams = params.filter(([k]) => k !== 'region');
       items.push({ type: 'component', id, name: label, icon, comment, publisher,
         region: (paramRegion || '').toLowerCase() || region,
+        regionInherited: !paramRegion &amp;&amp; !ownRegion &amp;&amp; !!menuRegion,
         requiresWrite: requiresWrite || gatedByParams(params),
         tag, params: itemParams, module: moduleUrl, manifest });
       continue;
@@ -297,18 +327,20 @@ export function parseMenuItems(store, menuNode) {
 
     const href     = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
     const contents = rdfVal(store, part, 'contents');
-    items.push({ type: 'link', id, name: label, icon, region, comment, publisher, requiresWrite, href, contents, manifest });
+    items.push({ type: 'link', id, name: label, icon, region,
+      regionInherited: !ownRegion &amp;&amp; !!menuRegion,
+      comment, publisher, requiresWrite, href, contents, manifest });
   }
   return items;
 }
 
 /**
- * A reference-style menu's parts point at ui:Plugin entries that may live in
- * OTHER documents (the catalog doc, per plugin-manifest-unification). Fetch
- * every referenced doc the store doesn't already describe, parsing each into
- * the SAME store under its own graph name — so per-doc serialization stays
- * clean. Turtle is the entries' format; failures are warn-and-continue (the
- * parse then skips the unreadable entry, it doesn't sink the whole menu).
+ * A reference-style menu's members point at ui:Plugin entries that may live
+ * in OTHER documents (the catalog doc, per plugin-manifest-unification).
+ * Fetch every referenced doc the store doesn't already describe, parsing each
+ * into the SAME store under its own graph name — so per-doc serialization
+ * stays clean. Turtle is the entries' format; failures are warn-and-continue
+ * (the parse then skips the unreadable entry, it doesn't sink the whole menu).
  */
 export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
   // Minimal stores (e.g. the jest rdflib mock) can't enumerate statements —
@@ -318,26 +350,27 @@ export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
   // global fetch exists (jsdom), even when this function has nothing to do.
   if (!fetchFn) fetchFn = (typeof fetch === 'function') ? fetch : null;
   if (!fetchFn) return;
-  const first = rdf.sym(RDF + 'first');
   const typeNode = rdf.sym(RDF + 'type');
-  // Members live in ui:parts lists — which rdflib parses as COLLECTION terms
-  // (no rdf:first/rest statements), while hand-chained lists do use
-  // first/rest. Walk BOTH forms. Two rounds: entries fetched in round 1
-  // cannot themselves add parts lists (entries have none), but a nested
-  // submenu doc could — cap the walk.
-  const partsPred = rdf.sym(UI + 'parts');
+  // Members hang off schema:itemListElement triples — either directly
+  // (unordered sets) or behind a schema:ListItem wrapper whose schema:item is
+  // the real member (curated menus); collect BOTH the entry and its target.
+  // Two rounds: entries fetched in round 1 cannot themselves add membership
+  // (plugin entries have none), but a nested submenu doc could — cap the walk.
+  const elemPred = rdf.sym(SCHEMA + 'itemListElement');
+  const itemPred = rdf.sym(SCHEMA + 'item');
   const members = () => {
     const out = [];
-    for (const st of store.statementsMatching(null, partsPred, null)) {
-      out.push(...rdfListElements(store, st.object));
+    for (const st of store.statementsMatching(null, elemPred, null)) {
+      out.push(st.object);
+      const target = store.any(st.object, itemPred);
+      if (target) out.push(target);
     }
-    for (const st of store.statementsMatching(null, first, null)) out.push(st.object);
     return out;
   };
   for (let round = 0; round &lt; 2; round++) {
     const missing = new Set();
     for (const member of members()) {
-      if (!member || !member.value || member.termType === 'BlankNode') continue;
+      if (!member || !member.value || member.termType !== 'NamedNode') continue;
       const doc = member.value.split('#')[0];
       if (!doc || doc === rootDocUrl) continue;
       // already have statements about this member → its doc is loaded enough
@@ -360,7 +393,7 @@ export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
 /**
  * Resolve `uri` (optionally relative to `baseUri`), fetch the RDF doc,
  * locate the menu root (by fragment or by ui:Menu type), pull in any docs
- * its parts reference (ui:Plugin entries), and parse it.
+ * its members reference (ui:Plugin entries), and parse it.
  *
  * @returns {Promise&lt;null | { items, orientation }>}
  *   `null` if no ui:Menu is found in the document.
@@ -404,13 +437,13 @@ export async function loadMenuFromUri(uri, baseUri = null) {
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#loadReferencedDocs">loadReferencedDocs</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addLeaf">addLeaf</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#effectiveProperties">effectiveProperties</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findParentOf">findParentOf</a></li><li><a href="global.html#findRegion">findRegion</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#fragOf">fragOf</a></li><li><a href="global.html#generateAppCss">generateAppCss</a></li><li><a href="global.html#generateAppHtml">generateAppHtml</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#loadReferencedDocs">loadReferencedDocs</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#moveLeaf">moveLeaf</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseLayoutTree">parseLayoutTree</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeLeaf">removeLeaf</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#seedAppMenu">seedAppMenu</a></li><li><a href="global.html#serializeLayout">serializeLayout</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#usedTreeFragments">usedTreeFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Sun Jul 19 2026 14:18:00 GMT-0700 (Pacific Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Jul 20 2026 15:16:02 GMT-0700 (Pacific Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>

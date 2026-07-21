@@ -9,7 +9,6 @@
 
 <#MainMenu> a ui:Menu ; ui:label "data-kitchen" ;
   ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#MainMenu-Home>, <#MainMenu-Podz>, <#MainMenu-SolidResources> .
 
 <#MainMenu-Home> a schema:ListItem ; schema:item <#Home> ; schema:position 1 .
@@ -18,7 +17,7 @@
 
 <#Home> a ui:Component ; ui:label "Home" ;
   schema:url <web/sol-include.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "source"  ; schema:value "pages/home.html" ] ,
     [ schema:name "trusted" ; schema:value "true" ] .
 
@@ -27,7 +26,6 @@
   acl:mode acl:Write .
 
 <#SolidResources> a ui:Menu ; ui:label "SolidResources" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#SolidResources-Website>, <#SolidResources-Faq> .
 
 <#SolidResources-Website> a schema:ListItem ; schema:item <#Website> ; schema:position 1 .

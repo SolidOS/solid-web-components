@@ -42,13 +42,6 @@
     ) ;
   ] ;
   sh:property [
-    sh:path schema:itemListOrder ;
-    sh:maxCount 1 ;
-    sh:in ( schema:ItemListOrderAscending ) ;
-    sh:name "order" ;
-    sh:description "If present, the list is ordered." ;
-  ] ;
-  sh:property [
     sh:path ui:orientation ;
     sh:maxCount 1 ;
     sh:in ( ui:Horizontal ui:Vertical ) ;
@@ -272,7 +265,7 @@
 :AttributedMixin
   a sh:NodeShape ;
   sh:property [
-    sh:path ui:attribute ;
+    sh:path schema:additionalProperty ;
     sh:node :PropertyValueShape ;
     sh:name "attribute" ;
     sh:description "plugin parameter key/value pairs" ;

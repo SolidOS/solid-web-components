@@ -79,7 +79,6 @@
 @prefix schema: &lt;http://schema.org/&gt; .
 
 &lt;#MainMenu&gt; a ui:Menu ; ui:label "Demo" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement &lt;#MainMenu-New&gt;, &lt;#MainMenu-Open&gt;, &lt;#MainMenu-Tools&gt; .
 
 &lt;#MainMenu-New&gt;   a schema:ListItem ; schema:item &lt;#New&gt;   ; schema:position 1 .
@@ -91,14 +90,13 @@
 &lt;#Open&gt; a ui:Command ; ui:label "Open" ; schema:url &lt;#openItem&gt; .
 
 &lt;#Tools&gt; a ui:Menu ; ui:label "Tools" ;                          # submenu
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement &lt;#Tools-Export&gt;, &lt;#Tools-Settings&gt; .
 
 &lt;#Tools-Export&gt;   a schema:ListItem ; schema:item &lt;#Export&gt;   ; schema:position 1 .
 &lt;#Tools-Settings&gt; a schema:ListItem ; schema:item &lt;#Settings&gt; ; schema:position 2 .
 
 &lt;#Export&gt; a ui:Command ; ui:label "Export" ; schema:url &lt;#export&gt; ;
-  ui:attribute [ schema:name "format" ; schema:value "csv" ] .   # → params
+  schema:additionalProperty [ schema:name "format" ; schema:value "csv" ] .   # → params
 &lt;#Settings&gt; a ui:Command ; ui:label "Settings" ; schema:url &lt;#settings&gt; .</code></pre>
 
   <table class="attr-table">
@@ -120,7 +118,7 @@
               the key — click → <code>sol-command</code>).</td></tr>
       <tr><td><code>ui:contents</code></td><td><code>ui:Link</code></td>
           <td>Literal HTML rendered inline (in place of a URL).</td></tr>
-      <tr><td><code>ui:attribute</code></td><td>component / command</td>
+      <tr><td><code>schema:additionalProperty</code></td><td>component / command</td>
           <td><code>schema:name</code>/<code>schema:value</code> pairs — element
               attributes, or a command's <code>params</code>.</td></tr>
       <tr><td><code>ui:icon</code></td><td>any leaf item</td><td>Icon URL.</td></tr>
@@ -146,7 +144,6 @@
 @prefix data:   &lt;plugins-catalog.ttl#&gt; .
 
 &lt;#Menu&gt; a ui:Menu ; ui:label "Apps" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement &lt;#Menu-Clock&gt;, &lt;#Menu-Penny&gt;, &lt;#Menu-Restart&gt; .
 
 # placement wrappers — position lives HERE, never on the shared entry
@@ -176,7 +173,7 @@
   instance such as <code>ui:Tab</code>; a <code>ui:region</code> on the
   <em>menu</em> is the default for members that carry none of their own,
   inherited by submenus until one sets its own),
-  <code>ui:icon</code>, <code>ui:attribute</code> pairs, and
+  <code>ui:icon</code>, <code>schema:additionalProperty</code> pairs, and
   settings pointers (<code>dcterms:conformsTo</code> /
   <code>dcterms:references</code> / <code>schema:softwareHelp</code>).
   <code>&lt;sol-menu&gt;</code>, the managers, and

@@ -4,6 +4,28 @@
 @prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
 @prefix schema: <http://schema.org/> .
 
+##############
+# MENU TERMS #
+##############
+
+ui:Menu a rdfs:Class ; rdfs:label "Menu" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "A collection of named actions which may be displayed as a visual menu or set of tabs or other UI." .
+
+ui:Plugin a rdfs:Class ; rdfs:label "Plugin" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "A plugin is a widget or app that can be called from a host app either by importing an external URL, by running an internal command, or by adding a custom element (web component) to the DOM." .
+
+ui:Link a rdfs:Class ; rdfs:label "Link" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "A plugin that loads by including an external IRI e.g. in an iframe or via transclusion." .
+
+ui:Component a rdfs:Class ; rdfs:label "Component" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "A plugin that loads by including a custom-element web component." .
+
+ui:Command a rdfs:Class ; rdfs:label "Command" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "A plugin that loads by executing a command in the host script." .
+
+ui:icon a rdf:Property ; rdfs:label "icon" ; rdfs:isDefinedBy <> ;
+  rdfs:comment "Optional icon URL shown for a menu item." .
+
 ##########################
 # UI Configuration Terms #
 ##########################
@@ -40,7 +62,7 @@ ui:Horizontal a ui:Orientation ; rdfs:label "Horizontal" .
 ui:Vertical   a ui:Orientation ; rdfs:label "Vertical"   .
 ui:orientation a rdf:Property ; rdfs:isDefinedBy <> ;
   rdfs:label   "orientation" ;
-  rdfs:comment "Menu layout direction; the value is a ui:Orientation instance (ui:Horizontal default, or ui:Vertical)." ;
+  rdfs:comment "The orientation of the menu; a ui:Orientation instance e.g. ui:Horizontal." ;
   rdfs:range   ui:Orientation .
 
 ui:windowX a rdf:Property ; rdfs:isDefinedBy <> ;
@@ -68,7 +90,7 @@ ui:Tab      a ui:Region ; rdfs:label "Tab"      .
 ui:Dropdown a ui:Region ; rdfs:label "Dropdown" .
 ui:region a rdf:Property ; rdfs:isDefinedBy <> ;
   rdfs:label   "region" ;
-  rdfs:comment "Where an item's rendered content is placed; the value is a ui:Region instance e.g. ui:Modal." ;
+  rdfs:comment "The default target for menu items; a ui:Region instance e.g. ui:Modal." ;
   rdfs:range   ui:Region .
 
 ###############################
@@ -80,7 +102,7 @@ ui:Fahrenheit a ui:TemperatureUnit ; rdfs:label "Fahrenheit" .
 ui:Celsius    a ui:TemperatureUnit ; rdfs:label "Celsius"    .
 ui:temperatureUnit a rdf:Property ; rdfs:isDefinedBy <> ;
   rdfs:label   "temperature unit" ;
-  rdfs:comment "Display unit(s) for temperature; repeatable, each value a ui:TemperatureUnit instance. Listing both ui:Fahrenheit and ui:Celsius shows both." ;
+  rdfs:comment "Display unit(s) for temperature, each a ui:TemperatureUnit instance, e.g. ui:Celsius" ;
   rdfs:range   ui:TemperatureUnit .
 
 ui:publicPort a rdf:Property ; rdfs:isDefinedBy <> ;
@@ -103,51 +125,25 @@ ui:proxy a rdf:Property ; rdfs:isDefinedBy <> ;
   rdfs:comment "URL prefix that wraps a target URL for CORS proxying; the target is URI-encoded onto the end." ;
   rdfs:range   xsd:string .
 
-##############
-# MENU TERMS #
-##############
-
-ui:Menu a rdfs:Class ; rdfs:label "Menu" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A navigable menu or tab set; its members are schema:itemListElement triples — a curated menu points at positioned schema:ListItem wrappers (schema:item names a ui:Plugin entry, nested ui:Menu, or inline ui:Link/ui:Component/ui:Command; schema:position orders them), while an unordered membership set points straight at the members. Replaces the retired ui:parts rdf:Collection (2026-07-19)." .
-
-ui:Link a rdfs:Class ; rdfs:label "Link" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "An external app/URL. As a schema:additionalType value it marks the kind of a ui:Plugin entry; as an rdf:type it is the inline menu-item form. Either way the single schema:url payload is the URL to open (ui:contents may replace it with inline HTML)." .
-
-ui:Component a rdfs:Class ; rdfs:label "Component" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A mountable custom element, configured with ui:attribute pairs. As a schema:additionalType value it marks the kind of a ui:Plugin entry; as an rdf:type it is the inline menu-item form. Either way the single schema:url payload is the defining ES module — the element tag derives from its filename." .
-
-ui:Plugin a rdfs:Class ; rdfs:label "Plugin" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "One editable plugin entry: the description of an available capability — an external app (ui:Link), a mountable custom element (ui:Component), or a host command (ui:Command) — discriminated by a REQUIRED schema:additionalType, with a single schema:url payload the kind interprets. The same node is the catalog card and, when referenced from a ui:Menu's parts list, the mounted item; being referenced is what makes it in use." .
-
-ui:Command a rdfs:Class ; rdfs:label "Command" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A host-app command. Its entry's schema:url is a fragment IRI in the host's command registry document; the hyphen-free fragment (the spelling that distinguishes a key from a custom-element tag) is dispatched as a sol-command event. The registry is an allow-list, so an unregistered key is a no-op. No code is loaded or executed from RDF." .
-
-ui:icon a rdf:Property ; rdfs:label "icon" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "Optional icon URL shown for a menu item." .
-
-ui:hoverTitle a rdf:Property ; rdfs:label "hover title" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "Optional hover/advisory text for a menu item or component, with HTML title-attribute semantics." ;
-  rdfs:range   xsd:string .
-
-ui:attribute a rdf:Property ; rdfs:label "attribute" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "An attribute passed to a ui:Component's element (or emitted on a ui:Layout region's element), given as a schema:PropertyValue (schema:name + schema:value)." ;
-  rdfs:range   schema:PropertyValue .
-
 ################
 # LAYOUT TERMS #
 ################
 
-ui:Layout a rdfs:Class ; rdfs:label "Layout" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "A rectangular page/screen arrangement whose members render SIMULTANEOUSLY — stacked or side by side per ui:orientation — unlike a ui:Menu, whose members are alternatives the user switches between. Membership is the same positioned schema:itemListElement wrappers as menus; members are nested ui:Layout regions and/or ui:Component leaves, and an empty layout is a placeholder pane other items can target. May carry ui:attribute pairs (class, aria-label, id) emitted on the region's element, and a schema:additionalType naming a schema.org web-page-element class (e.g. schema:SiteNavigationElement) that selects the emitted semantic HTML tag." .
+ui:Layout a rdfs:Class ;
+  rdfs:label "Layout" ;
+  rdfs:isDefinedBy <> ;
+  rdfs:comment "A rectangular page/screen container whose contained elements render stacked or side by side as determined by its ui:orientation." .
 
-ui:layout a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:layout a rdf:Property ;
   rdfs:label   "layout" ;
+  rdfs:isDefinedBy <> ;
   rdfs:comment "Links a thing (e.g. a schema:WebApplication) to its root ui:Layout." ;
   rdfs:range   ui:Layout .
 
-ui:columns a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:columns a rdf:Property ;
   rdfs:label   "columns" ;
-  rdfs:comment "On a ui:Layout: render the parts as a grid with this many columns instead of a single flex row/column." ;
+  rdfs:isDefinedBy <> ;
+  rdfs:comment "On a ui:Layout: render the parts as a grid with this many columns." ;
   rdfs:range   xsd:integer .
 
 

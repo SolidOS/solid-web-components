@@ -49,25 +49,21 @@ const MENUS_TTL = `
 @prefix schema: <http://schema.org/> .
 
 <#Tabs> a ui:Menu ; ui:label "Menu Tabs" ; ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#Tabs-Media> .
 <#Tabs-Media> a schema:ListItem ; schema:item <#Media> ; schema:position 1 .
 <#Media> a ui:Menu ; ui:label "Media" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#Media-News> .
 <#Media-News> a schema:ListItem ; schema:item <#News> ; schema:position 1 .
 <#News> a ui:Plugin ; schema:additionalType ui:Component ;
   ui:label "News" ; schema:url <http://slots.test/web/sol-feed.js> .
 
 <#Bar> a ui:Menu ; ui:label "Top Row Buttons" ; ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#Bar-Search> .
 <#Bar-Search> a schema:ListItem ; schema:item <#Search> ; schema:position 1 .
 <#Search> a ui:Plugin ; schema:additionalType ui:Component ;
   ui:label "Search" ; schema:url <http://slots.test/web/sol-search.js> .
 
 <#Chrome> a ui:Menu ; ui:label "chrome" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#Chrome-Help> .
 <#Chrome-Help> a schema:ListItem ; schema:item <#Help> ; schema:position 1 .
 <#Help> a ui:Component ; ui:label "?" ; schema:url <http://slots.test/web/sol-button.js> .

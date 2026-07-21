@@ -10,27 +10,25 @@
 :Layout a ui:Layout ;
   ui:label "Sidebar" ;
   ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Layout-Side, :Layout-Main .
 
 :Side a ui:Layout ;
   ui:label "Sidebar" ;
   schema:additionalType schema:WPSideBar ;
-  ui:attribute [ schema:name "class" ; schema:value "app-side" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-side" ] ;
     schema:itemListElement :Side-menu .
 
 :menu a ui:Component ;
   ui:label "Menu" ;
   rdfs:comment "Items open into the main pane named by the region selector" ;
   schema:url </node_modules/sol-components/web/sol-menu.js> ;
-  ui:attribute [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Menu" ] ,
+  schema:additionalProperty [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Menu" ] ,
                [ schema:name "region" ; schema:value ".app-main" ] .
 
 :Main a ui:Layout ;
   ui:label "Content" ;
   rdfs:comment "Empty placeholder pane the sidebar menu renders into" ;
-  ui:attribute [ schema:name "class" ; schema:value "app-main" ] .
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-main" ] .
 
 :Layout-Side a schema:ListItem; schema:item :Side; schema:position 1.
 :Layout-Main a schema:ListItem; schema:item :Main; schema:position 2.

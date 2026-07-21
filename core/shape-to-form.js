@@ -705,7 +705,7 @@ function buildFieldNode(store, desc, synthesized, doc) {
 
 // sh:node nested shape → ui:Group of sub-fields (wrapped in ui:Multiple
 // when the outer property is multi-valued, matching menu-form.ttl's
-// ui:attribute → :attrForm pattern). Each sub-property is built via the
+// schema:additionalProperty → :attrForm pattern). Each sub-property is built via the
 // regular buildFieldNode so nesting can chain arbitrarily deep.
 function buildNestedFieldNode(store, desc, synthesized, doc) {
   const groupNode = rdf.blankNode();

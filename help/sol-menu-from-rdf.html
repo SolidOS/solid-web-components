@@ -71,7 +71,6 @@ one) — in that region instead.
   schema:itemListElement # membership — one triple per positioned schema:ListItem
                          # wrapper (schema:item → the ui:Link/ui:Component/ui:Menu
                          # member, schema:position → its order, sorted ascending)
-  schema:itemListOrder   # (optional) schema:ItemListOrderAscending on curated menus
   ui:orientation         # (optional) ui:Horizontal (default) or ui:Vertical
 
 <b>ui:Link</b>
@@ -86,7 +85,7 @@ one) — in that region instead.
   ui:label       # (required) display name shown in the menu
   schema:url     # (required) the ES module; its FILENAME is the element tag
                  #            OR a hyphen-free command key (e.g. "installPod")
-  ui:attribute   # (optional) schema:PropertyValue pairs — element attributes,
+  schema:additionalProperty   # (optional) schema:PropertyValue pairs — element attributes,
                  #            or, for a command, args carried in the event detail
                  # e.g. [ schema:name "sparql" ; schema:value "SELECT ..." ]
   ui:icon        # (optional) icon URL

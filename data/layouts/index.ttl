@@ -13,7 +13,6 @@
 
 :Presets a ui:Menu ;
   ui:label "Layout presets" ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Presets-banner-main, :Presets-banner-left-sidebar,
       :Presets-banner-right-sidebar, :Presets-banner-two-sidebars,
       :Presets-banner-main-footer .

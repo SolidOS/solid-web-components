@@ -9,15 +9,13 @@
 :Layout a ui:Layout ;
   ui:label "Dashboard grid" ;
   ui:orientation ui:Vertical ;
-  schema:itemListOrder schema:ItemListOrderAscending;
     schema:itemListElement :Layout-Header, :Layout-Main .
 
 :Header a ui:Layout ;
   ui:label "Header" ;
   schema:additionalType schema:WPHeader ;
   ui:orientation ui:Horizontal ;
-  ui:attribute [ schema:name "class" ; schema:value "app-header" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-header" ] ;
     schema:itemListElement :Header-clock .
 
 :clock a ui:Component ;
@@ -27,8 +25,7 @@
 :Main a ui:Layout ;
   ui:label "Widgets" ;
   ui:columns 2 ;
-  ui:attribute [ schema:name "class" ; schema:value "app-widgets" ] ;
-  schema:itemListOrder schema:ItemListOrderAscending;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-widgets" ] ;
     schema:itemListElement :Main-calendar, :Main-notes .
 
 :calendar a ui:Component ;
@@ -39,7 +36,7 @@
   ui:label "Notes" ;
   rdfs:comment "A starter panel loaded from the app's own content.html" ;
   schema:url </node_modules/sol-components/web/sol-include.js> ;
-  ui:attribute [ schema:name "source" ; schema:value "content.html" ] ,
+  schema:additionalProperty [ schema:name "source" ; schema:value "content.html" ] ,
                [ schema:name "trusted" ; schema:value "" ] .
 
 :Layout-Header a schema:ListItem; schema:item :Header; schema:position 1.

@@ -50,7 +50,7 @@ function buildStore() {
   store.add(s(BASE + '#Install'), s(UI + 'label'), l('Install'));
   store.add(s(BASE + '#Install'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#installPod'));
   const p = s(BASE + '#_p');
-  store.add(s(BASE + '#Install'), s(UI + 'attribute'), p);
+  store.add(s(BASE + '#Install'), s(SCHEMA + 'additionalProperty'), p);
   store.add(p, s(SCHEMA + 'name'), l('target'));
   store.add(p, s(SCHEMA + 'value'), l('pod'));
 

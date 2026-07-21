@@ -9,9 +9,6 @@ shape <#MenuShape> -> ui:Menu {
     schema:itemListElement IRI @<#OrderedItemShape>|@<#UnorderedItemShape> %
         sh:name "menu items" ; sh:description "An ordered or unordered list of menu items."
     % .
-    schema:itemListOrder [0..1] in=[schema:ItemListOrderAscending] %
-        sh:name "order" ; sh:description "If present, the list is ordered."
-    % .
     ui:orientation [0..1] in=[ui:Horizontal ui:Vertical] %
         sh:name "orientation" ; sh:description "ui:Horizontal or ui:Vertical menu layout"
     % .
@@ -97,7 +94,7 @@ shape <#IconMixin> {
 }
 
 shape <#AttributedMixin> {
-    ui:attribute @<#PropertyValueShape> %
+    schema:additionalProperty @<#PropertyValueShape> %
         sh:name "attribute" ; sh:description "plugin parameter key/value pairs"
     % .
 }

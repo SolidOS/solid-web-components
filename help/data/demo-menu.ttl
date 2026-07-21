@@ -3,7 +3,6 @@
 
 <#MainMenu> a ui:Menu; ui:label "demo-menu" ;
   ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#MainMenu-Home>, <#MainMenu-DataMenu>, <#MainMenu-About> .
 
 <#MainMenu-Home> a schema:ListItem ; schema:item <#Home> ; schema:position 1 .
@@ -14,7 +13,6 @@
   ui:contents "<h2>Welcome</h2><p>This is the home page, rendered from a <code>ui:contents</code> literal.</p>" .
 
 <#DataMenu> a ui:Menu; ui:label "Data" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#DataMenu-SampleTable>, <#DataMenu-SampleTriples> .
 
 <#DataMenu-SampleTable> a schema:ListItem ; schema:item <#SampleTable> ; schema:position 1 .
@@ -22,7 +20,7 @@
 
 <#SampleTable> a ui:Component; ui:label "People (table)" ;
   schema:url <../../web/sol-query.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "endpoint" ; schema:value <./sample-data.ttl> ] ,
     [ schema:name "sparql" ; schema:value """PREFIX schema: <http://schema.org/>
       SELECT ?name ?gender ?location WHERE {
@@ -38,6 +36,6 @@
 
 <#About> a ui:Component; ui:label "About" ;
   schema:url <../../web/sol-include.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "source" ; schema:value "./sample-buttons.html" ] ,
     [ schema:name "trusted" ; schema:value "" ] .

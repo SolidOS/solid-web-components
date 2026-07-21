@@ -31,7 +31,7 @@
  *   - ＋ item appends; ✕ removes from the menu (the item's RDF stays in
  *     the document as "pantry" — recoverable)
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
- *     that row's component (its module url + ui:attribute set); dropped between
+ *     that row's component (its module url + schema:additionalProperty set); dropped between
  *     rows it inserts a new, fully-assigned item there
  *   - a SECOND plugin dropped on an assigned menu item turns it into a
  *     submenu holding both (one plugin = the item opens it directly;
@@ -231,7 +231,7 @@ class SolMenuManager extends HTMLElement {
         if (href) byHref.set(href, label);
         if (tag) {
           let source = null;
-          for (const b of store.each(subj, rdf.sym(UI + 'attribute'), null)) {
+          for (const b of store.each(subj, rdf.sym(SCHEMA + 'additionalProperty'), null)) {
             const k = (store.any(b, rdf.sym('http://schema.org/name')) || {}).value;
             if (k === 'source') source = (store.any(b, rdf.sym('http://schema.org/value')) || {}).value || null;
           }

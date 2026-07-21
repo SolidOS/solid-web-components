@@ -63,7 +63,7 @@ test('a Component entry conforms: schema:url is the module (tag derives from the
   ui:label "Calendar" ;
   ui:region ui:Dropdown ;
   schema:url </node_modules/sol-components/web/sol-calendar.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "region" ; schema:value "dropdown" ] ,
     [ schema:name "hide-header" ; schema:value "" ] ;
   dcterms:conformsTo </shapes/calendar-settings.shacl> .

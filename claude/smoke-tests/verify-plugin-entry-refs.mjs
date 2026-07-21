@@ -26,7 +26,7 @@ const CATALOG_TTL = `
 <#Calendar> a ui:Plugin ; schema:additionalType ui:Component ;
   ui:label "Calendar" ;
   schema:url <https://pod.example/web/sol-calendar.esm.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "region" ; schema:value "dropdown" ] ,
     [ schema:name "hide-header" ; schema:value "" ] .
 

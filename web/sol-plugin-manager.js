@@ -44,7 +44,7 @@
  *     dragged from another window) → import: the manifest must offer
  *     `<> a ui:Component ; schema:url <module>` (tag ← filename) or a
  *     ui:Plugin entry; its ui:label / ui:icon /
- *     ui:attribute defaults become the entry, and its schema:keywords literal
+ *     schema:additionalProperty defaults become the entry, and its schema:keywords literal
  *     (the plugin's CATEGORY) files the entry into the matching
  *     skos:Collection — created on the fly for a new category. Typing the
  *     URL in the box's input row does the same.
@@ -154,7 +154,7 @@ const DCT  = 'http://purl.org/dc/terms/';
 const SCHEMA = 'http://schema.org/';
 
 // A chip's identity among entries that share a component tag is its DATA SOURCE
-// (the `source` ui:attribute — the doc/library the chip opens). Every OTHER
+// (the `source` schema:additionalProperty — the doc/library the chip opens). Every OTHER
 // attribute (id, class, title, defer, storage-ns, view, reader, …) is render
 // decoration a menu/bar adds and the catalog entry lacks, so none of them may
 // enter the match key — otherwise a mounted chip's signature never equals its
@@ -1100,7 +1100,7 @@ class SolPluginManager extends HTMLElement {
 
   // Fetch + parse a manifest and add it as an entry. Two kinds:
   //   `<> a ui:Component ; schema:url <module>` — a mountable plugin (the
-  //   tag derives from the filename; ui:label / ui:icon / ui:attribute
+  //   tag derives from the filename; ui:label / ui:icon / schema:additionalProperty
   //   defaults flesh out the entry);
   //   `<> a ui:Link ; schema:url <url>` — an external app.
   // schema:keywords literals are the categories the entry files under.

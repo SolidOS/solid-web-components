@@ -104,7 +104,7 @@ ui:Vertical   a ui:Orientation ; rdfs:label "Vertical"   .
   ui:label "Icon URL" .
 
 :attributesMultiple a ui:Multiple ;
-  ui:property ui:attribute ;
+  ui:property schema:additionalProperty ;
   ui:label "Attributes" ;
   ui:part :attrForm .
 

@@ -505,7 +505,7 @@ class SolForm extends HTMLElement {
     // `recordMode` (JS property, set by an embedding component such as
     // sol-plugin-manager's entry editor) opts OUT of the container pattern:
     // the subject is one record whose multi-valued nested property (e.g. a
-    // plugin's ui:attribute pairs) is just one field among its scalars, not
+    // plugin's schema:additionalProperty pairs) is just one field among its scalars, not
     // the collection the whole form should pivot on.
     const containerProp = this.recordMode ? null : parsed.properties.find(p =>
       (p.maxCount === Infinity || p.maxCount > 1) && p.nestedProperties);

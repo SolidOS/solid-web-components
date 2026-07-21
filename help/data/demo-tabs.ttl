@@ -8,7 +8,6 @@
 
 <#MainTabs> a ui:Menu; ui:label "demo-tabs" ;
   ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#MainTabs-Overview>, <#MainTabs-DataGroup>, <#MainTabs-About> .
 
 <#MainTabs-Overview>  a schema:ListItem ; schema:item <#Overview>  ; schema:position 1 .
@@ -19,7 +18,6 @@
   ui:contents "<h2>Overview</h2><p>These tabs were generated from RDF via the <code>from-rdf</code> attribute, using the same <code>ui:Menu</code> vocabulary <code>&lt;sol-menu&gt;</code> uses.</p>" .
 
 <#DataGroup> a ui:Menu; ui:label "Data" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#DataGroup-SampleTable>, <#DataGroup-SampleTriples> .
 
 <#DataGroup-SampleTable>   a schema:ListItem ; schema:item <#SampleTable>   ; schema:position 1 .
@@ -27,7 +25,7 @@
 
 <#SampleTable> a ui:Component; ui:label "Table" ;
   schema:url <../../web/sol-query.js> ;
-  ui:attribute
+  schema:additionalProperty
     [ schema:name "endpoint" ; schema:value <./sample-data.ttl> ] ,
     [ schema:name "sparql" ; schema:value "SELECT ?s ?p ?o WHERE { ?s ?p ?o . }" ] ,
     [ schema:name "view" ; schema:value "table" ] .

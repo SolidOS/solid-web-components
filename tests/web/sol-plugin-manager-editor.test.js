@@ -80,7 +80,7 @@ test('✎ opens the overlay with a shape-driven sol-form over the entry', async 
   // guard rails: a Component/Command entry's schema:url is contract — a
   // static row, not an input (a Link's url would be editable: [])
   expect(form.readOnlyKeys).toEqual(['url']);
-  // one record — the multi-valued ui:attribute must NOT pivot a rolodex
+  // one record — the multi-valued schema:additionalProperty must NOT pivot a rolodex
   expect(form.recordMode).toBe(true);
   expect(ov.querySelector('.editor-head').textContent).toContain('Edit “Clock”');
 });

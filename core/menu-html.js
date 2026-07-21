@@ -27,7 +27,7 @@ function targetToRegion(v) {
   return null;
 }
 
-// Anchor attributes consumed structurally, not captured as a ui:attribute param.
+// Anchor attributes consumed structurally, not captured as a schema:additionalProperty param.
 const TAB_SKIP = new Set(['href', 'id', 'data-handler', 'region', 'target', 'data-tab-id']);
 
 // Exported singly (besides extractShell) so sol-tabs can normalize a live

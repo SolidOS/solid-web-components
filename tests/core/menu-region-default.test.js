@@ -58,7 +58,7 @@ test('a region attribute pair beats the menu default', () => {
   schema:itemListElement :C .
 :C a ui:Plugin ; schema:additionalType ui:Component ; ui:label "C" ;
   schema:url <http://region.test/web/sol-thing.js> ;
-  ui:attribute [ schema:name "region" ; schema:value "dropdown" ] .
+  schema:additionalProperty [ schema:name "region" ; schema:value "dropdown" ] .
 `);
   const [c] = parseMenuItems(store, sym(BASE + '#Menu'));
   expect(c.region).toBe('dropdown');

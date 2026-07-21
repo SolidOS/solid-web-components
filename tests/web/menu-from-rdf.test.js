@@ -24,7 +24,7 @@ const REG_KEY = Symbol.for('sol-components.menu-consumers');
 // A turtle doc that uses ONLY constructs the jest rdflib mock parses: plain
 // triples and named attribute nodes (not `[ … ]` blanks). Membership is the
 // real model — positioned schema:ListItem wrappers per member. It models a
-// horizontal menu with a component (two ui:attribute params), an acl-gated
+// horizontal menu with a component (two schema:additionalProperty params), an acl-gated
 // component, a nested submenu holding a link, plus a PANTRY subject (#Forum)
 // reachable from no menu's membership.
 const MENU_TTL = `
@@ -35,7 +35,6 @@ const MENU_TTL = `
 
 <#Main> a ui:Menu ; ui:label "data-kitchen" ;
   ui:orientation ui:Horizontal ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#Main-Home> , <#Main-Podz> , <#Main-Sub> , <#Main-Customize> , <#Main-Help> .
 <#Main-Home> a schema:ListItem ; schema:item <#Home> ; schema:position 1 .
 <#Main-Podz> a schema:ListItem ; schema:item <#Podz> ; schema:position 2 .
@@ -44,18 +43,18 @@ const MENU_TTL = `
 <#Main-Help> a schema:ListItem ; schema:item <#Help> ; schema:position 5 .
 
 <#Customize> a ui:Component ; ui:label "Customize" ; schema:url <https://pod.example/web/sol-include.js> ;
-  ui:attribute <#cGate> , <#cSource> , <#cRegion> .
+  schema:additionalProperty <#cGate> , <#cSource> , <#cRegion> .
 <#cGate>   schema:name "if-logged-in" ; schema:value "" .
 <#cSource> schema:name "source" ; schema:value "pages/customize.html" .
 <#cRegion> schema:name "region" ; schema:value "Dropdown" .
 
 <#Help> a ui:Component ; ui:label "Help" ; schema:url <https://pod.example/web/sol-include.js> ;
-  ui:attribute <#hAlt> , <#hSource> .
+  schema:additionalProperty <#hAlt> , <#hSource> .
 <#hAlt>    schema:name "if-logged-in" ; schema:value "help/owner.html" .
 <#hSource> schema:name "source" ; schema:value "help/guest.html" .
 
 <#Home> a ui:Component ; ui:label "Home" ; ui:icon "🏠" ; schema:url <https://pod.example/web/sol-include.js> ;
-  ui:attribute <#aSource> , <#aTrusted> .
+  schema:additionalProperty <#aSource> , <#aTrusted> .
 <#aSource>  schema:name "source"  ; schema:value "pages/home.html" .
 <#aTrusted> schema:name "trusted" ; schema:value "true" .
 
@@ -65,7 +64,6 @@ const MENU_TTL = `
   acl:mode acl:Write .
 
 <#Sub> a ui:Menu ; ui:label "More" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#Sub-Faq> .
 <#Sub-Faq> a schema:ListItem ; schema:item <#Faq> ; schema:position 1 .
 <#Faq> a ui:Link ; ui:label "FAQ" ; schema:url "https://solidproject.org/FAQ" .
@@ -73,7 +71,6 @@ const MENU_TTL = `
 <#Forum> a ui:Link ; ui:label "Forum" ; schema:url "https://forum.solidproject.org/" .
 
 <#PluginMenu> a ui:Menu ; ui:label "plugins" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#PluginMenu-EPenny> , <#PluginMenu-ECal> , <#PluginMenu-ETheme> .
 <#PluginMenu-EPenny> a schema:ListItem ; schema:item <#EPenny> ; schema:position 1 .
 <#PluginMenu-ECal>   a schema:ListItem ; schema:item <#ECal>   ; schema:position 2 .
@@ -86,7 +83,7 @@ const MENU_TTL = `
 <#ECal> a ui:Plugin ; schema:additionalType ui:Component ;
   ui:label "Calendar" ;
   schema:url <https://pod.example/web/sol-calendar.esm.js> ;
-  ui:attribute <#eRegion> , <#eHide> .
+  schema:additionalProperty <#eRegion> , <#eHide> .
 <#eRegion> schema:name "region" ; schema:value "dropdown" .
 <#eHide>   schema:name "hide-header" ; schema:value "" .
 
@@ -175,7 +172,7 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     expect(menu.items).toHaveLength(5);             // Home, Podz, Sub, Customize, Help (pantry #Forum excluded)
   });
 
-  test('parses a component item: tag, label, icon, and ui:attribute params', async () => {
+  test('parses a component item: tag, label, icon, and schema:additionalProperty params', async () => {
     global.fetch = turtleFetchStub();
     const { items } = await loadMenuFromUri(DOC_URL + '#Main');
     const home = items[0];
@@ -184,7 +181,7 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     expect(home.name).toBe('Home');
     expect(home.icon).toBe('🏠');
     expect(home.tag).toBe('sol-include');           // derived from schema:url
-    // params come from the ui:attribute schema:name/value pairs
+    // params come from the schema:additionalProperty schema:name/value pairs
     const asObj = Object.fromEntries(home.params);
     expect(asObj.source).toBe('pages/home.html');
     expect(asObj.trusted).toBe('true');
@@ -199,7 +196,7 @@ describe('loadMenuFromUri (the loader the add-on installs)', () => {
     expect(items[0].requiresWrite).toBe(false);
   });
 
-  test('a region ui:attribute lifts into desc.region (lowercased) and leaves params', async () => {
+  test('a region schema:additionalProperty lifts into desc.region (lowercased) and leaves params', async () => {
     global.fetch = turtleFetchStub();
     const { items } = await loadMenuFromUri(DOC_URL + '#Main');
     const customize = items.find((i) => i.id === 'Customize');

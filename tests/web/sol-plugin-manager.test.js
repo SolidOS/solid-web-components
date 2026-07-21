@@ -600,7 +600,7 @@ describe('SolPluginManager — _findExisting', () => {
     g.add(S(`${DOC}#node1`), S(SCHEMA + 'url'), S('https://pod.example/web/sol-a.js'));
     g.add(S(`${DOC}#node1`), S(UI + 'label'), L('Alpha'));
     const attr = S(`${DOC}#_p1`);
-    g.add(S(`${DOC}#node1`), S(UI + 'attribute'), attr);
+    g.add(S(`${DOC}#node1`), S(SCHEMA + 'additionalProperty'), attr);
     g.add(attr, S(SCHEMA + 'name'), L('source'));
     g.add(attr, S(SCHEMA + 'value'), L('x.ttl'));
 

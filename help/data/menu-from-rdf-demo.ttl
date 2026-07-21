@@ -8,7 +8,6 @@
 # doubles as its own registry. A nested ui:Menu becomes a fly-out submenu.
 
 <#MainMenu> a ui:Menu ; ui:label "Demo" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#MainMenu-New>, <#MainMenu-Open>, <#MainMenu-Tools> .
 
 <#MainMenu-New>   a schema:ListItem ; schema:item <#New>   ; schema:position 1 .
@@ -19,12 +18,11 @@
 <#Open> a ui:Command ; ui:label "Open" ; schema:url <#openItem> .
 
 <#Tools> a ui:Menu ; ui:label "Tools" ;
-  schema:itemListOrder schema:ItemListOrderAscending ;
   schema:itemListElement <#Tools-Export>, <#Tools-Settings> .
 
 <#Tools-Export>   a schema:ListItem ; schema:item <#Export>   ; schema:position 1 .
 <#Tools-Settings> a schema:ListItem ; schema:item <#Settings> ; schema:position 2 .
 
 <#Export> a ui:Command ; ui:label "Export" ; schema:url <#export> ;
-  ui:attribute [ schema:name "format" ; schema:value "csv" ] .
+  schema:additionalProperty [ schema:name "format" ; schema:value "csv" ] .
 <#Settings> a ui:Command ; ui:label "Settings" ; schema:url <#settings> .

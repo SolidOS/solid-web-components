@@ -13,7 +13,7 @@
  *   - Keyboard navigation (arrow keys, Home, End, Escape)
  *   - Declarative HTML API (_harvestItems)
  *   - Imperative items setter API
- *   - Multiple ui:attribute on a ui:Component
+ *   - Multiple schema:additionalProperty on a ui:Component
  *   - Link href defaults to sol-include (origin-inferred)
  *   - Edge cases (select non-existent, empty RDF, single item hides nav)
  *   - disconnectedCallback cleanup
@@ -83,7 +83,7 @@ function buildStore() {
   store.add(s(BASE + '#About'), s(UI + 'label'), l('About'));
   store.add(s(BASE + '#About'), s(SCHEMA + 'url'), s('http://example.org/web/sol-query.js'));
   const param1 = s(BASE + '#_param1');
-  store.add(s(BASE + '#About'), s(UI + 'attribute'), param1);
+  store.add(s(BASE + '#About'), s(SCHEMA + 'additionalProperty'), param1);
   store.add(param1, s(SCHEMA + 'name'), l('pattern'));
   store.add(param1, s(SCHEMA + 'value'), l('?s ?p ?o'));
 
@@ -730,16 +730,16 @@ describe('SolMenu — imperative items setter', () => {
   });
 });
 
-// ── Multiple ui:attribute on a ui:Component ──────────────────────────────────
+// ── Multiple schema:additionalProperty on a ui:Component ──────────────────────────────────
 
-describe('SolMenu — multiple ui:attribute', () => {
+describe('SolMenu — multiple schema:additionalProperty', () => {
   beforeEach(() => { mockStore = buildStore(); });
 
   test('all attributes set on the component element', async () => {
     const s = (v) => rdflib.sym(v);
     const l = (v) => rdflib.literal(v);
     const param2 = s(BASE + '#_param2');
-    mockStore.add(s(BASE + '#About'), s(UI + 'attribute'), param2);
+    mockStore.add(s(BASE + '#About'), s(SCHEMA + 'additionalProperty'), param2);
     mockStore.add(param2, s(SCHEMA + 'name'), l('view'));
     mockStore.add(param2, s(SCHEMA + 'value'), l('table'));
 
@@ -1046,7 +1046,7 @@ function buildCommandStore() {
   store.add(s(BASE + '#Install'), s(UI + 'label'), l('Install on my Pod'));
   store.add(s(BASE + '#Install'), s(SCHEMA + 'url'), s(BASE + '-commands.ttl#installPod'));
   const p = s(BASE + '#_p');
-  store.add(s(BASE + '#Install'), s(UI + 'attribute'), p);
+  store.add(s(BASE + '#Install'), s(SCHEMA + 'additionalProperty'), p);
   store.add(p, s(SCHEMA + 'name'), l('target'));
   store.add(p, s(SCHEMA + 'value'), l('pod'));
   return store;

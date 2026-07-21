@@ -42,7 +42,7 @@ export function isCommandName(name) {
   return true;
 }
 
-/** ui:attribute/ui:parameter pairs [[k,v],…] → { k: v, … } command args. */
+/** schema:additionalProperty/ui:parameter pairs [[k,v],…] → { k: v, … } command args. */
 export function paramsToObject(params) {
   return Object.fromEntries(params || []);
 }

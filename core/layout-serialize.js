@@ -6,14 +6,14 @@
 // Emission is a string template in the exact idiom of the authored presets
 // (data/layouts/*.ttl): prefixed Turtle, positioned schema:ListItem wrappers
 // with DETERMINISTIC `<parentFrag>-<childFrag>` fragments (menu-serialize's
-// wrapper convention), ui:attribute blank-node pairs. Same-origin module
+// wrapper convention), schema:additionalProperty blank-node pairs. Same-origin module
 // URLs relativize to path form (</node_modules/…>) so a saved layout stays
 // portable across hosts.
 //
 // LIMITATION (by design): this round-trips exactly what parseLayoutTree
 // reads — a hand-added triple outside that model is dropped on the next
 // builder save. layout.ttl is builder-owned; hand-edit freely, but know a
-// save rewrites the whole document. Saves go by whole-doc PUT: ui:attribute
+// save rewrites the whole document. Saves go by whole-doc PUT: schema:additionalProperty
 // pairs are blank nodes, which a SPARQL DELETE can't address cleanly.
 
 import { mintFragment } from './menu-serialize.js';
@@ -64,7 +64,7 @@ function emitLeaf(leaf, docUrl) {
   if (leaf.item.comment) lines.push(`  rdfs:comment ${lit(leaf.item.comment)}`);
   if (leaf.url) lines.push(`  schema:url <${relativizeUrl(leaf.url, docUrl)}>`);
   const params = (leaf.item.params || []).filter(([k]) => k);
-  if (params.length) lines.push(`  ui:attribute ${attrList(params)}`);
+  if (params.length) lines.push(`  schema:additionalProperty ${attrList(params)}`);
   return lines.join(' ;\n') + ' .\n';
 }
 
@@ -80,7 +80,7 @@ function emitRegion(region, docUrl, blocks, wrappers, wrapperTaken, isRoot = fal
   else if (isRoot) lines.push('  ui:orientation ui:Vertical'); // root declares its axis
   if (region.columns) lines.push(`  ui:columns ${region.columns}`);
   const params = (region.params || []).filter(([k]) => k);
-  if (params.length) lines.push(`  ui:attribute ${attrList(params)}`);
+  if (params.length) lines.push(`  schema:additionalProperty ${attrList(params)}`);
 
   if (region.parts.length) {
     const memberFrags = [];
@@ -94,10 +94,7 @@ function emitRegion(region, docUrl, blocks, wrappers, wrapperTaken, isRoot = fal
       memberFrags.push(`:${wrap}`);
       lineGroup.push(`:${wrap} a schema:ListItem; schema:item :${childFrag}; schema:position ${i + 1}.`);
     });
-    lines.push(
-      '  schema:itemListOrder schema:ItemListOrderAscending;\n'
-      + `    schema:itemListElement ${memberFrags.join(', ')}`,
-    );
+    lines.push(`  schema:itemListElement ${memberFrags.join(', ')}`);
     wrappers.push(lineGroup.join('\n'));
   }
   blocks.push(lines.join(' ;\n') + ' .\n');

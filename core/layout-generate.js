@@ -22,7 +22,7 @@
 //                SiteNavigationElement→nav, WPHeader→header, WPFooter→
 //                footer, WPSideBar→aside; the root's first unmarked
 //                ui:Layout child emits <main>; everything else <div>.
-//   ui:attribute — pairs emitted verbatim on the region's element (class
+//   schema:additionalProperty — pairs emitted verbatim on the region's element (class
 //                merges with the structural app-row/app-col/app-grid-N).
 
 import { rdf } from './rdf.js';
@@ -81,7 +81,7 @@ export function parseLayoutTree(store, node) {
   }
   const orientationIri = rdfVal(store, node, 'orientation');
   const columns = rdfVal(store, node, 'columns');
-  const attrNodes = store.each(node, sym(UI + 'attribute'), null);
+  const attrNodes = store.each(node, sym(SCHEMA + 'additionalProperty'), null);
   const additionalTypeIri = val(store, node, SCHEMA + 'additionalType');
   return {
     kind: 'region',
