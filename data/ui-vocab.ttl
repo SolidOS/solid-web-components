@@ -8,79 +8,79 @@
 # MENU TERMS #
 ##############
 
-ui:Menu a rdfs:Class ; rdfs:label "Menu" ; rdfs:isDefinedBy <> ;
+ui:Menu a rdfs:Class ; rdfs:label "Menu" ;
   rdfs:comment "A collection of named actions which may be displayed as a visual menu or set of tabs or other UI." .
 
-ui:Plugin a rdfs:Class ; rdfs:label "Plugin" ; rdfs:isDefinedBy <> ;
+ui:Plugin a rdfs:Class ; rdfs:label "Plugin" ;
   rdfs:comment "A plugin is a widget or app that can be called from a host app either by importing an external URL, by running an internal command, or by adding a custom element (web component) to the DOM." .
 
-ui:Link a rdfs:Class ; rdfs:label "Link" ; rdfs:isDefinedBy <> ;
+ui:Link a rdfs:Class ; rdfs:label "Link" ;
   rdfs:comment "A plugin that loads by including an external IRI e.g. in an iframe or via transclusion." .
 
-ui:Component a rdfs:Class ; rdfs:label "Component" ; rdfs:isDefinedBy <> ;
+ui:Component a rdfs:Class ; rdfs:label "Component" ;
   rdfs:comment "A plugin that loads by including a custom-element web component." .
 
-ui:Command a rdfs:Class ; rdfs:label "Command" ; rdfs:isDefinedBy <> ;
+ui:Command a rdfs:Class ; rdfs:label "Command" ;
   rdfs:comment "A plugin that loads by executing a command in the host script." .
 
-ui:icon a rdf:Property ; rdfs:label "icon" ; rdfs:isDefinedBy <> ;
-  rdfs:comment "Optional icon URL shown for a menu item." .
+ui:icon a rdf:Property ; rdfs:label "icon" ;
+  rdfs:comment "Optional icon URL or emoji/text-string shown for a menu item." .
 
 ##########################
 # UI Configuration Terms #
 ##########################
 
-ui:ColorScheme a rdfs:Class ; rdfs:isDefinedBy <> ; rdfs:label "Color scheme" .
+ui:ColorScheme a rdfs:Class ; rdfs:label "Color scheme" .
 ui:LightColorScheme  a ui:ColorScheme ; rdfs:label "Light"  .
 ui:DarkColorScheme   a ui:ColorScheme ; rdfs:label "Dark"   .
 ui:SystemColorScheme a ui:ColorScheme ; rdfs:label "System" .
-ui:colorScheme a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:colorScheme a rdf:Property ;
   rdfs:label   "color scheme" ;
   rdfs:comment "Preferred page color scheme; the value is a ui:ColorScheme instance, e.g. ui:DarkColorScheme." ;
   rdfs:range   ui:ColorScheme .
 
-ui:FontSize a rdfs:Class ; rdfs:isDefinedBy <> ; rdfs:label "Font size" .
+ui:FontSize a rdfs:Class ; rdfs:label "Font size" .
 ui:SmallFont  a ui:FontSize ; rdfs:label "Small"  .
 ui:MediumFont a ui:FontSize ; rdfs:label "Medium" .
 ui:LargeFont  a ui:FontSize ; rdfs:label "Large"  .
-ui:fontSize a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:fontSize a rdf:Property ;
   rdfs:label   "font size" ;
   rdfs:comment "Preferred page font size; the value is a ui:FontSize instance, e.g. ui:SmallFont." ;
   rdfs:range   ui:FontSize .
 
-ui:EditorKeys a rdfs:Class ; rdfs:isDefinedBy <> ; rdfs:label "Editor keys" .
+ui:EditorKeys a rdfs:Class ; rdfs:label "Editor keys" .
 ui:DefaultKeys a ui:EditorKeys ; rdfs:label "Default" .
 ui:EmacsKeys   a ui:EditorKeys ; rdfs:label "Emacs"   .
 ui:VimKeys     a ui:EditorKeys ; rdfs:label "Vim"     .
-ui:editorKeys a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:editorKeys a rdf:Property ;
   rdfs:label   "editor keys" ;
   rdfs:comment "Preferred editor keybindings; the value is a ui:EditorKeys instance, e.g. ui:VimKeys." ;
   rdfs:range   ui:EditorKeys .
 
-ui:Orientation a rdfs:Class ; rdfs:isDefinedBy <> ; rdfs:label "Orientation" .
+ui:Orientation a rdfs:Class ; rdfs:label "Orientation" .
 ui:Horizontal a ui:Orientation ; rdfs:label "Horizontal" .
 ui:Vertical   a ui:Orientation ; rdfs:label "Vertical"   .
-ui:orientation a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:orientation a rdf:Property ;
   rdfs:label   "orientation" ;
   rdfs:comment "The orientation of the menu; a ui:Orientation instance e.g. ui:Horizontal." ;
   rdfs:range   ui:Orientation .
 
-ui:windowX a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:windowX a rdf:Property ;
   rdfs:label   "window x" ;
   rdfs:comment "The x (horizontal) screen coordinate, in pixels, of an element or window's top-left corner." ;
   rdfs:range   xsd:integer .
 
-ui:windowY a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:windowY a rdf:Property ;
   rdfs:label   "window y" ;
   rdfs:comment "The y (vertical) screen coordinate, in pixels, of  an element or window's top-left corner." ;
   rdfs:range   xsd:integer .
 
-ui:ignorePattern a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:ignorePattern a rdf:Property ;
   rdfs:label   "ignore pattern" ;
   rdfs:comment "A filename/path glob pattern hidden from listings (e.g. \"*~\", \".*\"); repeatable." ;
   rdfs:range   xsd:string .
 
-ui:Region a rdfs:Class ; rdfs:isDefinedBy <> ; rdfs:label "Region" .
+ui:Region a rdfs:Class ; rdfs:label "Region" .
 ui:Inline   a ui:Region ; rdfs:label "Inline"   .
 ui:Element  a ui:Region ; rdfs:label "Element"  .
 ui:Modal    a ui:Region ; rdfs:label "Modal"    .
@@ -88,7 +88,7 @@ ui:Floating a ui:Region ; rdfs:label "Floating" .
 ui:Window   a ui:Region ; rdfs:label "Window"   .
 ui:Tab      a ui:Region ; rdfs:label "Tab"      .
 ui:Dropdown a ui:Region ; rdfs:label "Dropdown" .
-ui:region a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:region a rdf:Property ;
   rdfs:label   "region" ;
   rdfs:comment "The default target for menu items; a ui:Region instance e.g. ui:Modal." ;
   rdfs:range   ui:Region .
@@ -97,30 +97,30 @@ ui:region a rdf:Property ; rdfs:isDefinedBy <> ;
 # General Configuration Terms #
 ###############################
 
-ui:TemperatureUnit a rdfs:Class ; rdfs:isDefinedBy <> ; rdfs:label "Temperature unit" .
+ui:TemperatureUnit a rdfs:Class ; rdfs:label "Temperature unit" .
 ui:Fahrenheit a ui:TemperatureUnit ; rdfs:label "Fahrenheit" .
 ui:Celsius    a ui:TemperatureUnit ; rdfs:label "Celsius"    .
-ui:temperatureUnit a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:temperatureUnit a rdf:Property ;
   rdfs:label   "temperature unit" ;
   rdfs:comment "Display unit(s) for temperature, each a ui:TemperatureUnit instance, e.g. ui:Celsius" ;
   rdfs:range   ui:TemperatureUnit .
 
-ui:publicPort a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:publicPort a rdf:Property ;
   rdfs:label   "public port" ;
   rdfs:comment "TCP port the public routing server (the origin clients talk to) listens on." ;
   rdfs:range   xsd:integer .
 
-ui:privatePort a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:privatePort a rdf:Property ;
   rdfs:label   "private port" ;
   rdfs:comment "TCP port the private server, behind the router, listens on." ;
   rdfs:range   xsd:integer .
 
-ui:proxyPort a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:proxyPort a rdf:Property ;
   rdfs:label   "proxy port" ;
   rdfs:comment "TCP port the CORS proxy listens on." ;
   rdfs:range   xsd:integer .
 
-ui:proxy a rdf:Property ; rdfs:isDefinedBy <> ;
+ui:proxy a rdf:Property ;
   rdfs:label   "proxy" ;
   rdfs:comment "URL prefix that wraps a target URL for CORS proxying; the target is URI-encoded onto the end." ;
   rdfs:range   xsd:string .
@@ -131,18 +131,15 @@ ui:proxy a rdf:Property ; rdfs:isDefinedBy <> ;
 
 ui:Layout a rdfs:Class ;
   rdfs:label "Layout" ;
-  rdfs:isDefinedBy <> ;
   rdfs:comment "A rectangular page/screen container whose contained elements render stacked or side by side as determined by its ui:orientation." .
 
 ui:layout a rdf:Property ;
   rdfs:label   "layout" ;
-  rdfs:isDefinedBy <> ;
   rdfs:comment "Links a thing (e.g. a schema:WebApplication) to its root ui:Layout." ;
   rdfs:range   ui:Layout .
 
 ui:columns a rdf:Property ;
   rdfs:label   "columns" ;
-  rdfs:isDefinedBy <> ;
   rdfs:comment "On a ui:Layout: render the parts as a grid with this many columns." ;
   rdfs:range   xsd:integer .
 
