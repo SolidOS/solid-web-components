@@ -171,7 +171,7 @@ export const CSS = `
     display: inline-flex; align-items: center; justify-content: center;
     background: none; border: none; cursor: pointer;
     padding: 4px; border-radius: 4px; color: inherit;
-    font-size: max(16px, 1em); line-height: 1; font-family: inherit;
+    font-size: max(20px, 1.25em); line-height: 1; font-family: inherit;
   }
   sol-tabs > .sol-tabs-bar .sol-bar-link:hover { background: var(--focus-bg, #e3f2fd); }
   sol-tabs > .sol-tabs-bar .sol-bar-link[aria-expanded="true"] {

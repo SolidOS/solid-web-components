@@ -313,6 +313,9 @@ export function parseMenuItems(store, menuNode, inheritedRegion = null) {
  * into the SAME store under its own graph name — so per-doc serialization
  * stays clean. Turtle is the entries' format; failures are warn-and-continue
  * (the parse then skips the unreadable entry, it doesn't sink the whole menu).
+ * Only membership stated in rootDocUrl (or a doc this call fetched) is
+ * followed — the store may be the app-wide singleton, and other docs' lists
+ * (e.g. sign-in issuers) must never be dereferenced by menu machinery.
  */
 export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
   // Minimal stores (e.g. the jest rdflib mock) can't enumerate statements —
@@ -330,21 +333,29 @@ export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
   // (plugin entries have none), but a nested submenu doc could — cap the walk.
   const elemPred = rdf.sym(SCHEMA + 'itemListElement');
   const itemPred = rdf.sym(SCHEMA + 'item');
+  // Only sweep membership stated in THIS call's documents (root doc + docs this
+  // call fetched). The store may be the app-wide singleton, where other docs'
+  // lists are in scope too — e.g. the settings doc's #Issuers, whose members are
+  // login endpoints that must never be dereferenced outside an explicit login.
+  const inDocs = new Set([rootDocUrl]);
   const members = () => {
     const out = [];
     for (const st of store.statementsMatching(null, elemPred, null)) {
+      const graph = st.why && st.why.value;
+      if (graph && !inDocs.has(graph)) continue;
       out.push(st.object);
       const target = store.any(st.object, itemPred);
       if (target) out.push(target);
     }
     return out;
   };
+  const failed = new Set();
   for (let round = 0; round < 2; round++) {
     const missing = new Set();
     for (const member of members()) {
       if (!member || !member.value || member.termType !== 'NamedNode') continue;
       const doc = member.value.split('#')[0];
-      if (!doc || doc === rootDocUrl) continue;
+      if (!doc || inDocs.has(doc) || failed.has(doc)) continue;
       // already have statements about this member → its doc is loaded enough
       if (store.any(member, typeNode)) continue;
       missing.add(doc);
@@ -355,7 +366,9 @@ export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
         const resp = await fetchFn(doc, { headers: { Accept: 'text/turtle' } });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         rdf.parse(await resp.text(), store, doc, 'text/turtle');
+        inDocs.add(doc);
       } catch (e) {
+        failed.add(doc);   // dead refs cost ONE failed fetch, not one per round
         console.warn(`[menu-rdf] could not load referenced doc ${doc}: ${e && e.message}`);
       }
     }

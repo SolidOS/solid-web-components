@@ -405,11 +405,15 @@ class SolPluginManager extends HTMLElement {
       let store;
       try {
         store = await loadRdfStore(docUrl, freshFetch);
-        await loadReferencedDocs(store, docUrl, freshFetch);
       } catch { continue; }
       const menus = store.each(null, rdf.sym(RDF_ + 'type'), rdf.sym(UI_ + 'Menu'))
         .filter((n) => n.value.split('#')[0] === docUrl);
+      // No ui:Menu → not a slot candidate; resolving its references would
+      // dereference non-menu lists (e.g. the settings doc's sign-in issuers).
       if (!menus.length) continue;
+      try {
+        await loadReferencedDocs(store, docUrl, freshFetch);
+      } catch { continue; }
       // roots: menus not inside another menu's parts (in this doc)
       const nested = new Set();
       for (const m of menus) {
