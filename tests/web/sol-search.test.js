@@ -272,11 +272,10 @@ describe('search submit builds the result URL', () => {
 // ── source attribute (rdflib-mock limited) ───────────────────────────────────
 
 describe('source attribute (RDF engine list)', () => {
-  // The rdflib mock store has no statementsMatching, so enginesFromRdf cannot
-  // walk the schema:ItemList; parseEngineList rejects and the component keeps
-  // its default list while logging a warning. We assert that graceful
-  // fallback rather than a parsed RDF list (which the mock can't produce).
-  test('a failing source leaves the default engines in place and warns', async () => {
+  // The rdflib mock store gained statementsMatching (2026-07-20, for the
+  // plugin-creator suite), so enginesFromRdf can now walk the schema:ItemList
+  // and the source REPLACES the default engines.
+  test('a parsable source replaces the default engines', async () => {
     const ITEMLIST_TTL = `
       @prefix schema: <http://schema.org/> .
       @prefix hydra:  <http://www.w3.org/ns/hydra/core#> .
@@ -295,10 +294,8 @@ describe('source attribute (RDF engine list)', () => {
     console.warn = (...a) => warns.push(a.join(' '));
     try {
       const el = await mount('source="engines.ttl#SearchEngines"');
-      // Defaults remain because the mock store can't parse the ItemList.
-      expect(radios(el).map(r => r.value)).toEqual(
-        ['ddg', 'g', 'wp', 'prefix', 'lov', 'ety', 'yt', 'wayback']);
-      expect(warns.some(w => /sol-search] source/.test(w))).toBe(true);
+      expect(radios(el).map(r => r.value)).toEqual(['ddg', 'g']);
+      expect(warns.some(w => /sol-search] source/.test(w))).toBe(false);
     } finally {
       console.warn = origWarn;
       delete global.fetch;

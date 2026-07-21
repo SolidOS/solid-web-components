@@ -27,7 +27,9 @@
  *     as chips on the row itself; chips are draggable, so a plugin can be
  *     dragged off an item — and chips are drop targets, so dropping a chip
  *     on another's left/right half REORDERS the plugins within the item.
- *     "Unassigned" items show a drop hint.
+ *     "Unassigned" items show a drop hint. When a <sol-plugin-manager>
+ *     pairs with this box (it sets `editPlugin`), a reference-style chip
+ *     also carries ✎ — the plugin's populated entry editor.
  *   - ＋ item appends; ✕ removes from the menu (the item's RDF stays in
  *     the document as "pantry" — recoverable)
  *   - a card dragged from <sol-plugin-manager> DROPPED ON a row assigns
@@ -381,6 +383,24 @@ class SolMenuManager extends HTMLElement {
       const text = this._catalogName(it) || it.name || (it.tag && metaLabel(it.tag)) || '';
       return text.trim() === (item.name || '').trim() ? '' : text;
     };
+    // ✎ on a chip: hand the chip's catalog entry to the paired
+    // <sol-plugin-manager> (it sets `editPlugin` on discovery/pairing) —
+    // same populated shape-form its own cards open. Reference-style items
+    // only: the entry IS the config.
+    const chipEdit = (chip, it, text) => {
+      if (typeof this.editPlugin !== 'function' || !it.entry) return;
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'chip-edit';
+      edit.textContent = '✎';
+      edit.title = `Edit “${text}”`;
+      edit.setAttribute('aria-label', edit.title);
+      edit.draggable = false;
+      edit.addEventListener('mousedown', (e) => e.stopPropagation());
+      edit.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+      edit.addEventListener('click', (e) => { e.stopPropagation(); this.editPlugin(it); });
+      chip.appendChild(edit);
+    };
     const chips = [];
     if (item.type === 'submenu') {
       if (!item.children) item.children = [];
@@ -390,6 +410,7 @@ class SolMenuManager extends HTMLElement {
         const chip = document.createElement('span');
         chip.className = 'chip';
         chip.textContent = text;
+        chipEdit(chip, child, text);
         chip.draggable = true;
         chip.addEventListener('dragstart', (e) => {
           this._dragItem = { item: child, siblings: item.children };
@@ -460,6 +481,7 @@ class SolMenuManager extends HTMLElement {
         const chip = document.createElement('span');
         chip.className = 'chip';
         chip.textContent = friendly;
+        chipEdit(chip, item, friendly);
         chips.push(chip);
       }
     } else if (item.tag) {
@@ -471,6 +493,7 @@ class SolMenuManager extends HTMLElement {
         const chip = document.createElement('span');
         chip.className = 'chip';
         chip.textContent = friendly;
+        chipEdit(chip, item, friendly);
         chips.push(chip);
       }
     } else {

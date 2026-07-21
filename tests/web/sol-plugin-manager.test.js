@@ -14,12 +14,14 @@
  * hand-built store.
  *
  * Deliberately NOT covered (see note at end of file): the live save path
- * (_putDoc → serializeMenuDocument → solFetch PUT) and _importManifest, both
- * of which depend on rdflib's serializer / store mutation methods the jest
- * mock does not implement.
+ * (_putDoc → serializeMenuDocument → solFetch PUT), which depends on the
+ * rdflib serializer the jest mock does not implement, and the creator form's
+ * solid-ui field rendering (jsdom has no solid-ui; the creator's data flow —
+ * draft graph → manifest turtle → catalog entry — is covered against
+ * hand-seeded stores instead).
  */
 
-import { SolPluginManager } from '../../web/sol-plugin-manager.js';
+import { SolPluginManager, copyDraftTriples, draftManifestTurtle } from '../../web/sol-plugin-manager.js';
 import { PLUGIN_MIME } from '../../web/sol-menu-manager.js';
 import rdflib from '../__mocks__/rdflib-esm.js';
 
@@ -131,10 +133,12 @@ describe('SolPluginManager — no source', () => {
 // ── empty / 404 list ─────────────────────────────────────────────────────────
 
 describe('SolPluginManager — empty list (404 source)', () => {
-  test('renders the header + url row + the empty hint, no cards', async () => {
+  test('renders the header + ＋ add button + the empty hint, no cards', async () => {
     const el = await mount();
     expect(cardEls(el)).toHaveLength(0);
-    expect(builder(el).querySelector('.url-row')).not.toBeNull();
+    const add = builder(el).querySelector('.builder-head .add-btn');
+    expect(add).not.toBeNull();
+    expect(add.getAttribute('aria-label')).toBe('Add a plugin');
     const hint = builder(el).querySelector('.cards .hint');
     expect(hint).not.toBeNull();
     expect(hint.textContent).toMatch(/empty — drag a plugin here/);
@@ -143,13 +147,6 @@ describe('SolPluginManager — empty list (404 source)', () => {
   test('the title falls back to the fragment name', async () => {
     const el = await mount();
     expect(builder(el).querySelector('.builder-title').textContent).toBe('InUse');
-  });
-
-  test('the URL input carries its manifest-URL placeholder + aria-label', async () => {
-    const el = await mount();
-    const input = builder(el).querySelector('.url-input');
-    expect(input.placeholder).toMatch(/manifest URL/);
-    expect(input.getAttribute('aria-label')).toBe('Manifest URL');
   });
 });
 
@@ -252,6 +249,50 @@ describe('SolPluginManager — delete affordance', () => {
     cardEls(el)[0].querySelector('.card-del').click();
     expect(enq).toHaveLength(1);
     window.confirm = realConfirm;
+  });
+});
+
+// ── _deleteEntry — attribute blank nodes go with the entry ───────────────────
+
+describe('SolPluginManager — _deleteEntry', () => {
+  test('removes the entry, its skos:member refs AND its additionalProperty blanks', async () => {
+    const el = await mount();
+    const docUrl = el._docUrl();
+    // Catalog with two entries; #a carries two attribute blanks, #b one.
+    // Labelled _:blanks (not [ ]) — the jest turtle mock has no [ ] syntax.
+    const ttl = `@prefix schema: <http://schema.org/> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+<#InUse> a ui:Menu ; skos:member <#a> , <#b> .
+<#a> a ui:Component ; schema:name "Alpha" ; schema:additionalProperty _:p1 , _:p2 .
+_:p1 schema:name "region" ; schema:value "main" .
+_:p2 schema:name "mode" ; schema:value "tab" .
+<#b> a ui:Component ; schema:name "Beta" ; schema:additionalProperty _:p3 .
+_:p3 schema:name "region" ; schema:value "aside" .
+`;
+    global.fetch = () => Promise.resolve({
+      ok: true, status: 200,
+      headers: new Map([['content-type', 'text/turtle']]),
+      text: () => Promise.resolve(ttl),
+    });
+
+    // Not under test here: the menu-tree read and the serialized PUT.
+    el._menuDesc = () => ({ items: [{ id: 'a' }, { id: 'b' }] });
+    let captured = null;
+    el._putDoc = async (store) => { captured = store; };
+
+    await el._deleteEntry({ id: 'a', name: 'Alpha' });
+
+    expect(captured).not.toBeNull();
+    const a = S(`${docUrl}#a`);
+    expect(captured.match(a, null, null)).toHaveLength(0);
+    expect(captured.match(null, S(SKOS + 'member'), a)).toHaveLength(0);
+    // The deleted entry's attribute blanks are gone — no orphan top-level blanks.
+    expect(captured.match(S('_:p1'), null, null)).toHaveLength(0);
+    expect(captured.match(S('_:p2'), null, null)).toHaveLength(0);
+    // The surviving entry and ITS blank are untouched.
+    expect(captured.match(S(`${docUrl}#b`), null, null).length).toBeGreaterThan(0);
+    expect(captured.match(S('_:p3'), null, null)).toHaveLength(2);
   });
 });
 
@@ -377,10 +418,6 @@ describe('SolPluginManager — drop routing', () => {
     const data = { [PLUGIN_MIME]: JSON.stringify(payload) };
     return { types, getData: (k) => data[k] || '' };
   }
-  function uriDT(uri) {
-    const data = { 'text/uri-list': uri };
-    return { types: ['text/uri-list'], getData: (k) => data[k] || '' };
-  }
   function drop(el, dt) {
     const e = new Event('drop', { bubbles: true });
     Object.defineProperty(e, 'dataTransfer', { value: dt });
@@ -415,47 +452,209 @@ describe('SolPluginManager — drop routing', () => {
     expect(enq).toHaveLength(0);
   });
 
-  test('a dropped manifest URL (text/uri-list) → import (one enqueue)', async () => {
+  test('a dropped URL (text/uri-list only, no plugin payload) is ignored', async () => {
     const el = await mount();
     const enq = []; el._enqueue = (fn) => { enq.push(fn); return Promise.resolve(); };
-    drop(el, uriDT('plugins/news/manifest.jsonld'));
-    expect(enq).toHaveLength(1);
+    drop(el, { types: ['text/uri-list'], getData: () => 'plugins/news/manifest.jsonld' });
+    expect(enq).toHaveLength(0);
   });
 });
 
-// ── url-row submit ───────────────────────────────────────────────────────────
+// ── the plugin creator (＋ add) ───────────────────────────────────────────────
 
-describe('SolPluginManager — manifest URL input row', () => {
-  test('＋ add with a non-empty URL enqueues an import and clears the input', async () => {
+describe('SolPluginManager — plugin creator', () => {
+  const DRAFT = 'about:sol-plugin-new';
+  const draftDoc = () => S(DRAFT);
+  const draftSubj = () => S(DRAFT + '#new');
+
+  // A draft graph shaped like the creator's: triples in the DRAFT graph.
+  function seedDraft(g, triples) {
+    for (const [p, o] of triples) g.add(draftSubj(), S(p), o, draftDoc());
+  }
+
+  test('＋ add opens the creator overlay; ✕ closes it and drops the draft', async () => {
     const el = await mount();
-    const enq = []; el._enqueue = (fn) => { enq.push(fn); return Promise.resolve(); };
-    // Re-render so the url-row closes over the patched _enqueue.
-    el._render();
-    const input = builder(el).querySelector('.url-input');
-    const add = builder(el).querySelector('.add-btn');
-    input.value = '  plugins/x/manifest.jsonld  ';
-    add.click();
-    expect(enq).toHaveLength(1);
-    expect(input.value).toBe('');
+    builder(el).querySelector('.builder-head .add-btn').click();
+    await settle();
+    const ov = el.shadowRoot.querySelector('.editor-overlay');
+    expect(ov).not.toBeNull();
+    expect(ov.querySelector('.creator-body')).not.toBeNull();
+    expect(ov.querySelector('.creator-create').textContent).toBe('Create');
+    ov.querySelector('.editor-close').click();
+    expect(el.shadowRoot.querySelector('.editor-overlay')).toBeNull();
   });
 
-  test('an empty URL does nothing', async () => {
+  test('Escape closes the creator', async () => {
     const el = await mount();
-    const enq = []; el._enqueue = (fn) => { enq.push(fn); return Promise.resolve(); };
-    el._render();
-    builder(el).querySelector('.url-input').value = '   ';
-    builder(el).querySelector('.add-btn').click();
-    expect(enq).toHaveLength(0);
+    builder(el).querySelector('.builder-head .add-btn').click();
+    await settle();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(el.shadowRoot.querySelector('.editor-overlay')).toBeNull();
   });
 
-  test('Enter in the input submits like the button', async () => {
+  test('_createFromDraft rejects a draft missing label / kind / url', async () => {
     const el = await mount();
-    const enq = []; el._enqueue = (fn) => { enq.push(fn); return Promise.resolve(); };
-    el._render();
-    const input = builder(el).querySelector('.url-input');
-    input.value = 'plugins/y/manifest.jsonld';
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    expect(enq).toHaveLength(1);
+    const g = store();
+    seedDraft(g, [[RDF + 'type', S(UI + 'Plugin')]]);
+    await expect(el._createFromDraft(g, draftSubj(), draftDoc()))
+      .rejects.toThrow(/required: label, menu item kind, url/);
+  });
+
+  test('draftManifestTurtle emits the flat-manifest format', () => {
+    const g = store();
+    const attr = rdflib.blankNode('b1');
+    seedDraft(g, [
+      [RDF + 'type', S(UI + 'Plugin')],
+      [SCHEMA + 'additionalType', S(UI + 'Component')],
+      [UI + 'label', L('My Widget')],
+      [UI + 'icon', L('🧩')],
+      [SCHEMA + 'url', S('https://pod.example/web/sol-widget.js')],
+      [SCHEMA + 'description', L('Does "things".')],
+      [DCT + 'publisher', L('Ada')],
+      [SCHEMA + 'keywords', L('Information')],
+      [SCHEMA + 'additionalProperty', attr],
+    ]);
+    g.add(attr, S(SCHEMA + 'name'), L('source'), draftDoc());
+    g.add(attr, S(SCHEMA + 'value'), L('x.ttl'), draftDoc());
+
+    const ttl = draftManifestTurtle(g, draftSubj(), draftDoc());
+    expect(ttl).toContain('a ui:Plugin');
+    expect(ttl).toContain('schema:additionalType ui:Component');
+    expect(ttl).toContain('ui:label "My Widget"');
+    expect(ttl).toContain('ui:icon "🧩"');
+    expect(ttl).toContain('schema:url <https://pod.example/web/sol-widget.js>');
+    expect(ttl).toContain('schema:description "Does \\"things\\"."');
+    expect(ttl).toContain('dct:publisher "Ada"');
+    expect(ttl).toContain('schema:keywords "Information"');
+    expect(ttl).toContain('[ schema:name "source" ; schema:value "x.ttl" ]');
+    expect(ttl.trim().endsWith('.')).toBe(true);
+  });
+
+  test('copyDraftTriples re-minted attribute blanks land on the target', () => {
+    const g = store();
+    const attr = rdflib.blankNode('b1');
+    seedDraft(g, [
+      [UI + 'label', L('X')],
+      [SCHEMA + 'additionalProperty', attr],
+    ]);
+    g.add(attr, S(SCHEMA + 'name'), L('trusted'), draftDoc());
+    g.add(attr, S(SCHEMA + 'value'), L(''), draftDoc());
+
+    const dst = store();
+    const target = S('https://pod.example/catalog.ttl#X');
+    const dstDoc = S('https://pod.example/catalog.ttl');
+    copyDraftTriples(g, draftSubj(), draftDoc(), dst, target, dstDoc);
+    expect(dst.any(target, S(UI + 'label')).value).toBe('X');
+    const blank = dst.any(target, S(SCHEMA + 'additionalProperty'));
+    expect(blank.termType).toBe('BlankNode');
+    expect(blank.value).not.toBe('b1');            // re-minted, not shared
+    expect(dst.any(blank, S(SCHEMA + 'name')).value).toBe('trusted');
+  });
+
+  test('_createFromDraft PUTs the manifest then writes the catalog entry', async () => {
+    // HEAD → 404 (name free), PUT → ok, GET catalog → 404 (fresh doc).
+    const calls = [];
+    global.fetch = (url, opts = {}) => {
+      calls.push({ url: String(url), method: opts.method || 'GET', body: opts.body });
+      return Promise.resolve({
+        ok: opts.method === 'PUT', status: opts.method === 'PUT' ? 201 : 404,
+        headers: new Map(), text: () => Promise.resolve(''),
+      });
+    };
+    const el = await mount();
+    const puts = [];
+    el._putDoc = (cat, docUrl, menus, flash, after) => {
+      after && after();
+      puts.push({ cat, docUrl, menus, flash });
+      return Promise.resolve();
+    };
+
+    const g = store();
+    seedDraft(g, [
+      [RDF + 'type', S(UI + 'Plugin')],
+      [SCHEMA + 'additionalType', S(UI + 'Link')],
+      [UI + 'label', L('My App')],
+      [SCHEMA + 'url', L('https://x.example/')],
+      [SCHEMA + 'keywords', L('Other Services')],
+    ]);
+    await el._createFromDraft(g, draftSubj(), draftDoc());
+
+    // manifest PUT at plugins/my-app.ttl beside the catalog
+    const put = calls.find((c) => c.method === 'PUT');
+    expect(put.url).toBe(new URL('plugins/my-app.ttl', document.baseURI).href);
+    expect(put.body).toContain('schema:additionalType ui:Link');
+    expect(put.body).toContain('ui:label "My App"');
+    // a Link with no icon defaults to the site favicon
+    expect(put.body).toContain('ui:icon "https://x.example/favicon.ico"');
+
+    // catalog: entry body + provenance + membership + topic filing
+    expect(puts).toHaveLength(1);
+    const { cat, menus } = puts[0];
+    const entry = S(`${el._docUrl()}#My-App`);
+    expect(cat.any(entry, S(UI + 'label')).value).toBe('My App');
+    expect(cat.any(entry, S(DCT + 'source')).value).toBe(put.url);
+    expect(menus[0].items.some((it) => it.entry === entry.value)).toBe(true);
+    const col = cat.each(null, S(RDF + 'type'), S(SKOS + 'Collection'))[0];
+    expect(cat.any(col, S(SKOS + 'prefLabel')).value).toBe('Other Services');
+    expect(cat.any(col, S(SKOS + 'member')).value).toBe(entry.value);
+  });
+
+  test('an explicit icon is never overridden by the favicon default', async () => {
+    global.fetch = (url, opts = {}) => Promise.resolve({
+      ok: opts.method === 'PUT', status: opts.method === 'PUT' ? 201 : 404,
+      headers: new Map(), text: () => Promise.resolve(''),
+    });
+    const el = await mount();
+    el._putDoc = () => Promise.resolve();
+    const g = store();
+    seedDraft(g, [
+      [RDF + 'type', S(UI + 'Plugin')],
+      [SCHEMA + 'additionalType', S(UI + 'Link')],
+      [UI + 'label', L('Iconed')],
+      [UI + 'icon', L('🌍')],
+      [SCHEMA + 'url', L('https://x.example/')],
+    ]);
+    await el._createFromDraft(g, draftSubj(), draftDoc());
+    expect(g.each(draftSubj(), S(UI + 'icon')).map((n) => n.value)).toEqual(['🌍']);
+  });
+
+  test('a Component gets no favicon default', async () => {
+    global.fetch = (url, opts = {}) => Promise.resolve({
+      ok: opts.method === 'PUT', status: opts.method === 'PUT' ? 201 : 404,
+      headers: new Map(), text: () => Promise.resolve(''),
+    });
+    const el = await mount();
+    el._putDoc = () => Promise.resolve();
+    const g = store();
+    seedDraft(g, [
+      [RDF + 'type', S(UI + 'Plugin')],
+      [SCHEMA + 'additionalType', S(UI + 'Component')],
+      [UI + 'label', L('Widget')],
+      [SCHEMA + 'url', S('https://pod.example/web/sol-widget.js')],
+    ]);
+    await el._createFromDraft(g, draftSubj(), draftDoc());
+    expect(g.any(draftSubj(), S(UI + 'icon'))).toBeNull();
+  });
+});
+
+// ── chip ✎ routing (_editFromItem) ───────────────────────────────────────────
+
+describe('SolPluginManager — _editFromItem', () => {
+  test('opens the entry editor for a catalog-entry reference', async () => {
+    const el = await mount();
+    const opened = [];
+    el._openEditor = (p) => opened.push(p);
+    el._editFromItem({ entry: `${el._docUrl()}#Clock`, name: 'Clock', type: 'component', tag: 'sol-clock' });
+    expect(opened).toEqual([{ id: 'Clock', name: 'Clock', type: 'component', tag: 'sol-clock' }]);
+  });
+
+  test('ignores items without an entry, or from another document', async () => {
+    const el = await mount();
+    const opened = [];
+    el._openEditor = (p) => opened.push(p);
+    el._editFromItem({ name: 'X', type: 'component' });
+    el._editFromItem({ entry: 'https://other.example/cat.ttl#Y', name: 'Y' });
+    expect(opened).toHaveLength(0);
   });
 });
 

@@ -40,6 +40,33 @@ class MockStore {
       return st.object;
     });
   }
+
+  anyValue(s, p, o) {
+    const n = this.any(s, p, o);
+    return n ? n.value : null;
+  }
+
+  statementsMatching(s, p, o, g) {
+    return this.match(s, p, o).filter(st =>
+      (!g || (st.graph && st.graph.value === g.value)));
+  }
+
+  remove(stmt) {
+    const i = this.statements.indexOf(stmt);
+    if (i >= 0) this.statements.splice(i, 1);
+    return this;
+  }
+
+  removeMatches(s, p, o) {
+    this.statements = this.statements.filter(st => !(
+      (!s || st.subject.value   === s.value) &&
+      (!p || st.predicate.value === p.value) &&
+      (!o || st.object.value    === o.value)
+    ));
+    return this;
+  }
+
+  holds(s, p, o) { return this.match(s, p, o).length > 0; }
 }
 
 function graph()    { return new MockStore(); }

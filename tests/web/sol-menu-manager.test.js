@@ -355,6 +355,50 @@ describe('SolMenuManager — submenu children render as chips', () => {
   });
 });
 
+// ── chip ✎ (paired plugin editor) ────────────────────────────────────────────
+
+describe('SolMenuManager — chip ✎', () => {
+  test('a reference-style chip gets ✎ when a pantry wired editPlugin', async () => {
+    const el = await mountMenu();
+    const edited = [];
+    el.editPlugin = (it) => edited.push(it);
+    el._items = [{
+      type: 'submenu', name: 'Apps', children: [
+        { type: 'component', name: 'Clock', tag: 'sol-clock', params: [],
+          entry: 'https://pod.example/catalog.ttl#Clock' },
+      ],
+    }];
+    el._render();
+    const edit = rows(el)[0].querySelector('.chip .chip-edit');
+    expect(edit).not.toBeNull();
+    expect(edit.getAttribute('aria-label')).toBe('Edit “Clock”');
+    edit.click();
+    expect(edited).toHaveLength(1);
+    expect(edited[0].entry).toBe('https://pod.example/catalog.ttl#Clock');
+  });
+
+  test('no ✎ without editPlugin, and none on a non-reference chip', async () => {
+    const el = await mountMenu();
+    el._items = [{
+      type: 'submenu', name: 'Apps', children: [
+        { type: 'component', name: 'Clock', tag: 'sol-clock', params: [],
+          entry: 'https://pod.example/catalog.ttl#Clock' },
+      ],
+    }];
+    el._render();   // no editPlugin wired
+    expect(rows(el)[0].querySelector('.chip-edit')).toBeNull();
+
+    el.editPlugin = () => {};
+    el._items = [{
+      type: 'submenu', name: 'Apps', children: [
+        { type: 'component', name: 'Inline', tag: 'sol-x', params: [] },  // no entry
+      ],
+    }];
+    el._render();
+    expect(rows(el)[0].querySelector('.chip-edit')).toBeNull();
+  });
+});
+
 // ── drop machinery shared by the row tests ───────────────────────────────────
 
 // A DataTransfer-like object carrying a plugin payload.

@@ -127,18 +127,17 @@ li.item { margin: .15rem 0; }
 .card-byline { align-self: flex-end; margin-top: auto; padding-top: .15rem; font-style: italic;
                font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
 .card-ghost-note { font-size: max(16px, 1em); font-style: italic; color: var(--text-muted, #7f8c8d); }
-.url-row { display: flex; gap: .4rem; margin-top: .55rem; }
-.url-input { flex: 1 1 auto; min-width: 10rem; font: inherit; font-size: max(16px, 1em);
-             padding: .25rem .5rem; border: 1px solid var(--border, #c0c0c0); border-radius: 6px;
-             background: #d9d9d9; color: #1a1a1a; }
-.url-input::placeholder { color: #555; }
-.url-input:focus { border-color: var(--accent, #3498db); outline: none; }
 
 /* the phone chip ✕ (rendered only on a coarse pointer — see the media block
    below for its touch sizing) */
 .chip-del { border: 0; background: transparent; color: inherit; font: inherit;
             font-size: max(16px, 1em); line-height: 1; padding: 0 .2rem;
             margin-left: .15rem; cursor: pointer; }
+/* the chip ✎ (opens the plugin's entry editor via the paired pantry) */
+.chip-edit { border: 0; background: transparent; color: inherit; font: inherit;
+             font-size: max(16px, 1em); line-height: 1; padding: 0 .2rem;
+             margin-left: .15rem; cursor: pointer; opacity: .55; }
+.chip:hover .chip-edit, .chip-edit:focus { opacity: 1; }
 
 /* ---- Phone (coarse pointer, no hover): tap-first skin — full-width cards,
    a scrolling topic chip strip, 44px rows/buttons/inputs, no drag grip.
@@ -157,15 +156,11 @@ li.item { margin: .15rem 0; }
   .label { flex: 1 1 8ch; min-width: 6rem; padding: .45rem .4rem; }
   .chip { min-height: 44px; display: inline-flex; align-items: center;
           padding: 0 .1rem 0 16px; }
-  .chip:not(:has(.chip-del)) { padding-right: 16px; }
-  .chip-del { min-width: 44px; min-height: 44px; }
-  .adders, .url-row { flex-wrap: wrap; }
-  .add-input, .url-input, .add-btn { min-height: 44px; }
-  /* The manifest-URL import row is a power-user path; measured on-device it
-     cost 94px of a ~175px catalog box and collapsed the card list to 21px —
-     phone drops it (desktop keeps it). The card list keeps at least two
-     row-heights so there is always something to tap; it scrolls for more. */
-  .url-row { display: none; }
+  .chip:not(:has(.chip-del)):not(:has(.chip-edit)) { padding-right: 16px; }
+  .chip-del, .chip-edit { min-width: 44px; min-height: 44px; }
+  .chip-edit { opacity: 1; }
+  .adders { flex-wrap: wrap; }
+  .add-input, .add-btn { min-height: 44px; }
   .cards { min-height: 96px; }
 }
 `;

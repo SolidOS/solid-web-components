@@ -479,6 +479,13 @@ export function renderRecordForm(container, store, subject, properties, opts = {
       // that replaces the predicate's value with the picked URI and
       // PUTs the result through updater.update.
       if (!desc.nestedProperties) wireSingleSelectAutosave(row, store, subject, desc.path, doc, cb);
+      // An OPTIONAL single-valued Choice gets a "default (recommended)"
+      // first row: picking it deletes the triple, so the app's own default
+      // applies (e.g. a plugin region inheriting the menu's ui:region).
+      if (!desc.nestedProperties && desc.minCount === 0 && desc.maxCount === 1
+          && (desc.classNode || (desc.enumOpts && desc.enumOpts[0]?.termType === 'NamedNode'))) {
+        addNoneOption(row, store, subject, desc, doc);
+      }
     } catch (err) {
       row.textContent = err.message;
       console.error('[shape-to-form]', err);
@@ -602,9 +609,27 @@ function renderPrimitiveMulti(row, store, subject, desc, doc, cb, readOnly) {
   }
 }
 
+// The "no value" row an optional single-valued Choice gets — picking it
+// deletes the triple instead of writing one.
+const NONE_LABEL = 'default (recommended)';
+const isNoneOption = (o) => o.value === '' && o.textContent === NONE_LABEL;
+
+// Prepend the "default (recommended)" row to the field's <select> and show
+// it as selected while the subject carries no value.
+function addNoneOption(row, store, subject, desc, doc) {
+  const sel = row.querySelector('select');
+  if (!sel || sel.multiple || [...sel.options].some(isNoneOption)) return;
+  const opt = document.createElement('option');
+  opt.value = '';
+  opt.textContent = NONE_LABEL;
+  sel.insertBefore(opt, sel.firstChild);
+  if (!store.any(subject, desc.path, null, doc)) sel.value = '';
+}
+
 // Find the picker's <select> inside `row` and attach a change handler
 // that swaps the (subject, predicate, *) triples for a single new one
-// pointing at the picked URI. Skipped for multi-select selects (those
+// pointing at the picked URI — or deletes them outright when the pick is
+// the "default (recommended)" row. Skipped for multi-select selects (those
 // go through solid-ui's own update path).
 function wireSingleSelectAutosave(row, store, subject, predicate, doc, cb) {
   // solid-ui's single-select Choice (a) doesn't autosave the chosen value
@@ -617,7 +642,8 @@ function wireSingleSelectAutosave(row, store, subject, predicate, doc, cb) {
     const sel = e.target;
     if (!sel || sel.tagName !== 'SELECT' || sel.multiple) return;
     const newUri = sel.value;
-    if (!newUri || !/^https?:|^urn:|^did:/.test(newUri)) return;
+    const none = newUri === '' && [...sel.options].some(isNoneOption);
+    if (!none && (!newUri || !/^https?:|^urn:|^did:/.test(newUri))) return;
 
     // solid-ui already removed sel from its parent (.choiceBox-selectBox).
     // Put it back so the user keeps seeing the dropdown.
@@ -628,7 +654,8 @@ function wireSingleSelectAutosave(row, store, subject, predicate, doc, cb) {
 
     if (!store.updater) { cb(false); return; }
     const olds = store.statementsMatching(subject, predicate, null, doc).slice();
-    const news = [rdf.st(subject, predicate, rdf.sym(newUri), doc)];
+    if (none && !olds.length) { cb(true); return; }
+    const news = none ? [] : [rdf.st(subject, predicate, rdf.sym(newUri), doc)];
     store.updater.update(olds, news, (_uri, ok) => { cb(!!ok); });
   });
 }

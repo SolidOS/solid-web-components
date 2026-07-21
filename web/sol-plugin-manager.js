@@ -36,18 +36,18 @@
  *      that declares a `label` and whose tag no list in the document uses
  *      yet: a "ghost" card the user drags into a box to adopt it.
  *
- * Drops accepted by a box:
+ * Drops accepted by a box (plugin cards only — no URL import):
  *   - a card from the OTHER list in the same document → MOVE: one atomic
  *     rewrite of both lists (rewriteMenuDocument), one PUT.
  *   - a ghost card (no subject in its payload) → adopt into this list.
- *   - a manifest URL (`text/uri-list` / URL-shaped `text/plain`, e.g. a link
- *     dragged from another window) → import: the manifest must offer
- *     `<> a ui:Component ; schema:url <module>` (tag ← filename) or a
- *     ui:Plugin entry; its ui:label / ui:icon /
- *     schema:additionalProperty defaults become the entry, and its schema:keywords literal
- *     (the plugin's CATEGORY) files the entry into the matching
- *     skos:Collection — created on the fly for a new category. Typing the
- *     URL in the box's input row does the same.
+ *
+ * New plugins: the ＋ add button in the box head opens a shape-driven form
+ * over a local DRAFT ui:Plugin (the same :PluginShape contract the ✎ editor
+ * uses; nothing touches the server until Create). Create writes the flat
+ * manifest to plugins/<label-slug>.ttl beside the catalog's other manifests,
+ * then generates the catalog entry from it (dct:source provenance included)
+ * and files it under its schema:keywords topics — skos:Collections created
+ * on the fly for a new topic.
  *
  * Drag payload: `application/x-sol-plugin` JSON {label, tag, params, icon}
  * plus, on owned cards, {subject, list} — the entry's and origin list's IRIs.
@@ -61,9 +61,8 @@
  * Phone (coarse pointer): tapping a card opens a body-mounted
  * <sol-sheet class="sol-plugin-sheet"> ("Add to…") listing each paired
  * manager and its submenus as rows; a pick calls the manager's addPlugin —
- * the same machinery a drop drives. The manifest-URL row is hidden on phone
- * (it starved the card list on real devices); the sheet is removed when the
- * pointer flips back to fine or the box disconnects.
+ * the same machinery a drop drives. The sheet is removed when the pointer
+ * flips back to fine or the box disconnects.
  */
 
 import { define } from '../core/define.js';
@@ -72,10 +71,12 @@ import { CSS } from './styles/sol-builders-css.js';
 import { rdf } from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
 import { parseMenuItems, rdfVal, rdfComponent, loadReferencedDocs, deriveTagFromModule } from '../core/menu-rdf.js';
-import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
+import { updateMenuInStore, serializeMenuDocument, mintFragment } from '../core/menu-serialize.js';
+import { parseShape, renderRecordForm } from '../core/shape-to-form.js';
 import { solFetch } from '../core/auth-fetch.js';
 import { renderIcon } from '../core/utils.js';
 import { PLUGIN_MIME, isCoarse, COARSE_MQL } from './sol-menu-manager.js';
+import { CSS as FORM_CSS } from './styles/sol-form-css.js';
 import './sol-sheet.js';   // the "Add to…" surface the phone tap flow opens
 
 // The catalog/menu docs are editable, so read them past the renderer's HTTP
@@ -87,7 +88,7 @@ const freshFetch = (url, opts) => solFetch(url, { ...(opts || {}), cache: 'no-st
 // cards (the builder) beside a scrolling column of slot editors. Each box
 // scrolls itself; the host never scrolls.
 const TARGETS_CSS = `
-  :host([has-targets]) { display: flex; align-items: stretch; gap: .8rem; min-height: 0; overflow: hidden; }
+  :host([has-targets]) { display: flex; flex-direction: row; align-items: stretch; gap: .8rem; min-height: 0; overflow: hidden; }
   :host([has-targets]) .builder { flex: 1 1 50%; min-width: 0; min-height: 0; }
   :host([has-targets]) .targets { flex: 1 1 50%; min-width: 0; min-height: 0;
     display: flex; flex-direction: column; gap: .8rem; overflow-y: auto; }
@@ -121,8 +122,24 @@ const EDITOR_CSS = `
     cursor: pointer; font-size: max(14px, .9em); opacity: .55;
     padding: 0 4px; }
   .card:hover .card-edit, .card .card-edit:focus { opacity: 1; }
+  .editor-panel .creator-body { flex: 1 1 auto; min-height: 0;
+    overflow-y: auto; padding: 0 1rem; }
+  .creator-foot { display: flex; align-items: center; gap: .6rem;
+    padding: .7rem 1rem; }
+  .creator-status { font-size: max(16px, 1em); opacity: .85; }
 `;
 const SHEET = sheetFrom(CSS + TARGETS_CSS + EDITOR_CSS);
+
+// The creator's DRAFT graph: a local, never-fetched document the shape-driven
+// fields edit in place. Nothing reaches the server until Create.
+const DRAFT_DOC = 'about:sol-plugin-new';
+const DRAFT_SUBJECT = DRAFT_DOC + '#new';
+
+// sol-form's field styles with its :host block RESCOPED to the creator's
+// form container — adopting the raw sheet put sol-form's flex-direction:
+// column on THIS host and collapsed the cards|targets row (live, 2026-07-20).
+const CREATOR_FORM_CSS = FORM_CSS.replace(/:host\s*\{/, '.creator-body {');
+const CREATOR_FORM_SHEET = sheetFrom(CREATOR_FORM_CSS);
 
 // Light-DOM styles for the phone "Add to…" sheet rows (the sheet is
 // body-mounted, so these are document-level — same recipe as sol-tabs' nav
@@ -168,6 +185,62 @@ const sourceParam = (params) => {
 };
 const usedKey = (tag, params) => tag + '\n' + sourceParam(params);
 
+// Copy a draft plugin's triples onto a new subject in `dst` (graph `dstDoc`);
+// schema:additionalProperty pairs get fresh blank nodes. Pure; exported for
+// unit tests.
+export function copyDraftTriples(src, subject, srcDoc, dst, target, dstDoc) {
+  for (const st of src.statementsMatching(subject, null, null, srcDoc)) {
+    if (st.object.termType === 'BlankNode') {
+      const b = rdf.blankNode();
+      dst.add(target, st.predicate, b, dstDoc);
+      for (const sub of src.statementsMatching(st.object, null, null, srcDoc)) {
+        dst.add(b, sub.predicate, sub.object, dstDoc);
+      }
+    } else {
+      dst.add(target, st.predicate, st.object, dstDoc);
+    }
+  }
+}
+
+// Serialize the draft as a FLAT manifest (the plugins/*.ttl format — the doc
+// itself is the plugin). Predicate order mirrors the shipped manifests. Pure;
+// exported for unit tests.
+export function draftManifestTurtle(store, subject, draftDoc) {
+  const t = (n) => {
+    if (n.termType === 'NamedNode') {
+      return n.value.startsWith(UI) ? 'ui:' + n.value.slice(UI.length) : `<${n.value}>`;
+    }
+    return `"${String(n.value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  };
+  const one = (p) => store.any(subject, rdf.sym(p), null, draftDoc);
+  const each = (p) => store.each(subject, rdf.sym(p), null, draftDoc);
+  const body = ['a ui:Plugin'];
+  const emit = (pred, n) => { if (n) body.push(`${pred} ${t(n)}`); };
+  emit('schema:additionalType', one(SCHEMA + 'additionalType'));
+  emit('ui:label', one(UI + 'label'));
+  emit('ui:icon', one(UI + 'icon'));
+  emit('ui:region', one(UI + 'region'));
+  emit('schema:url', one(SCHEMA + 'url'));
+  emit('dct:conformsTo', one(DCT + 'conformsTo'));
+  for (const n of each(DCT + 'references')) emit('dct:references', n);
+  emit('schema:softwareHelp', one(SCHEMA + 'softwareHelp'));
+  emit('schema:description', one(SCHEMA + 'description'));
+  emit('dct:publisher', one(DCT + 'publisher'));
+  for (const n of each(SCHEMA + 'keywords')) emit('schema:keywords', n);
+  const pairs = each(SCHEMA + 'additionalProperty').map((blank) => {
+    const name = store.any(blank, rdf.sym(SCHEMA + 'name'), null, draftDoc);
+    const value = store.any(blank, rdf.sym(SCHEMA + 'value'), null, draftDoc);
+    return name ? `[ schema:name ${t(name)} ; schema:value ${value ? t(value) : '""'} ]` : null;
+  }).filter(Boolean);
+  if (pairs.length) {
+    body.push('schema:additionalProperty\n    ' + pairs.join(' ,\n    '));
+  }
+  return '@prefix dct:    <http://purl.org/dc/terms/> .\n'
+    + '@prefix ui:     <http://www.w3.org/ns/ui#> .\n'
+    + '@prefix schema: <http://schema.org/> .\n\n'
+    + '<>\n  ' + body.join(' ;\n  ') + ' .\n';
+}
+
 // Exact-params key — a STRICTER check than chip identity, used to detect a
 // duplicate of the very same entry within a single list (two same-tag items
 // with different attributes are distinct list entries). NOT used for in-use.
@@ -212,6 +285,7 @@ class SolPluginManager extends HTMLElement {
     // when its owner goes.
     if (this._sheet) { this._sheet.remove(); this._sheet = null; }
     this._closeEditor({ skipRefresh: true });
+    this._closeCreator();
   }
 
   // ---- the entry editor (✎ on an owned card) ------------------------------
@@ -223,6 +297,7 @@ class SolPluginManager extends HTMLElement {
   // Component's schema:url names the tag, a Command's names the key).
   async _openEditor(p) {
     this._closeEditor({ skipRefresh: true });
+    this._closeCreator();
     try { await import('./sol-form.js'); } catch (_) { /* bundled hosts predefine it */ }
     const ov = document.createElement('div');
     ov.className = 'editor-overlay';
@@ -276,6 +351,219 @@ class SolPluginManager extends HTMLElement {
     this.dispatchEvent(new CustomEvent('sol-menu-built', {
       bubbles: true, composed: true, detail: { source: this.source },
     }));
+  }
+
+  // ---- the plugin creator (＋ add in the box head) -------------------------
+  // Same overlay chrome as the ✎ editor, but the shape-driven form edits a
+  // local DRAFT ui:Plugin (DRAFT_DOC graph in the shared store) — the server
+  // sees nothing until Create, and closing discards the draft. The kind
+  // field re-renders the form when it changes so the picked kind's payload
+  // contract (:PluginShape's sh:xone branch) appears.
+  async _openCreator() {
+    this._closeEditor({ skipRefresh: true });
+    this._closeCreator();
+    this._draftOpen = true;
+    const store = rdf.store;
+    if (!store.updater) { try { store.updater = new (rdf.UpdateManager)(store); } catch (_) { /* mock envs */ } }
+    this._shimDraft(store);
+    // fields render through sol-form's shape CSS, rescoped (see CREATOR_FORM_CSS)
+    if (!this._creatorCssAdopted) {
+      this._creatorCssAdopted = true;
+      adopt(this.shadowRoot, { sheet: CREATOR_FORM_SHEET, css: CREATOR_FORM_CSS });
+    }
+    const doc = rdf.sym(DRAFT_DOC);
+    const subject = rdf.sym(DRAFT_SUBJECT);
+    store.add(subject, rdf.sym(RDF + 'type'), rdf.sym(UI + 'Plugin'), doc);
+
+    const ov = document.createElement('div');
+    ov.className = 'editor-overlay';
+    const panel = document.createElement('div');
+    panel.className = 'editor-panel';
+    const head = document.createElement('div');
+    head.className = 'editor-head';
+    const title = document.createElement('span');
+    title.textContent = 'Add a plugin';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'editor-close';
+    close.textContent = '✕';
+    close.title = 'Close';
+    close.setAttribute('aria-label', 'Close');
+    close.addEventListener('click', () => this._closeCreator());
+    head.append(title, close);
+    const body = document.createElement('div');
+    body.className = 'creator-body';
+    const foot = document.createElement('div');
+    foot.className = 'creator-foot';
+    const create = document.createElement('button');
+    create.type = 'button';
+    create.className = 'add-btn creator-create';
+    create.textContent = 'Create';
+    const status = document.createElement('span');
+    status.className = 'creator-status';
+    foot.append(create, status);
+    create.addEventListener('click', async () => {
+      create.disabled = true;
+      status.textContent = 'creating…';
+      try {
+        await this._createFromDraft(store, subject, doc);
+        this._closeCreator();
+      } catch (err) {
+        status.textContent = err.message;
+        create.disabled = false;
+      }
+    });
+    panel.append(head, body, foot);
+    ov.appendChild(panel);
+    ov.addEventListener('click', (e) => { if (e.target === ov) this._closeCreator(); });
+    this._onCreatorKey = (e) => { if (e.key === 'Escape') this._closeCreator(); };
+    document.addEventListener('keydown', this._onCreatorKey);
+    this.shadowRoot.appendChild(ov);
+    this._creator = ov;
+
+    if (!SolPluginManager._shapeText) {
+      try {
+        const resp = await fetch(EDITOR_SHAPE_URL);
+        SolPluginManager._shapeText = resp.ok ? await resp.text() : null;
+      } catch (_) { SolPluginManager._shapeText = null; }
+    }
+    if (!SolPluginManager._shapeText) {
+      body.textContent = `could not load the plugin shape (${EDITOR_SHAPE_URL})`;
+      return;
+    }
+    await this._renderCreatorForm(body, store, subject, doc);
+    close.focus();
+  }
+
+  // Render (or re-render, after a kind change) the draft's shape-driven form.
+  async _renderCreatorForm(body, store, subject, doc) {
+    this._creatorCleanup?.();
+    body.replaceChildren();
+    const parsed = await parseShape(SolPluginManager._shapeText, EDITOR_SHAPE_URL,
+      { dataStore: store, subject });
+    this._creatorKind = (store.any(subject, rdf.sym(SCHEMA + 'additionalType'), null, doc) || {}).value || '';
+    this._creatorCleanup = renderRecordForm(body, store, subject, parsed.properties, {
+      doc,
+      readOnlyKeys: ['source'],   // provenance — Create fills it in
+      onChange: () => {
+        const kind = (store.any(subject, rdf.sym(SCHEMA + 'additionalType'), null, doc) || {}).value || '';
+        if (kind !== this._creatorKind) this._renderCreatorForm(body, store, subject, doc);
+      },
+    });
+  }
+
+  _closeCreator() {
+    if (!this._draftOpen) return;
+    this._draftOpen = false;
+    if (this._onCreatorKey) {
+      document.removeEventListener('keydown', this._onCreatorKey);
+      this._onCreatorKey = null;
+    }
+    this._creatorCleanup?.();
+    this._creatorCleanup = null;
+    if (this._creator) { this._creator.remove(); this._creator = null; }
+    const store = rdf.store;
+    for (const st of store.statementsMatching(null, null, null, rdf.sym(DRAFT_DOC)).slice()) {
+      store.remove(st);
+    }
+    this._unshimDraft(store);
+  }
+
+  // Route updates aimed at the draft graph back into the local store (the
+  // draft has no server side); everything else keeps the installed updater.
+  // updater.editable must say yes for the draft or fields render read-only.
+  _shimDraft(store) {
+    if (this._draftPrev || !store.updater) return;
+    const prev = { update: store.updater.update, editable: store.updater.editable };
+    this._draftPrev = prev;
+    const draftOf = (sts) => {
+      const s0 = (sts || [])[0];
+      const g = s0 && (s0.why || s0.graph);
+      return !!g && g.value === DRAFT_DOC;
+    };
+    store.updater.update = (deletes, inserts, cb) => {
+      if (draftOf(deletes) || draftOf(inserts)) {
+        for (const s of deletes || []) {
+          for (const m of store.statementsMatching(s.subject, s.predicate, s.object, s.why || s.graph).slice()) store.remove(m);
+        }
+        for (const s of inserts || []) store.add(s.subject, s.predicate, s.object, s.why || s.graph);
+        cb && cb(DRAFT_DOC, true);
+        return;
+      }
+      return prev.update.call(store.updater, deletes, inserts, cb);
+    };
+    store.updater.editable = (uri, kb) => uri === DRAFT_DOC
+      ? 'SPARQL'
+      : (typeof prev.editable === 'function' ? prev.editable.call(store.updater, uri, kb) : prev.editable);
+  }
+
+  _unshimDraft(store) {
+    if (!this._draftPrev || !store.updater) { this._draftPrev = null; return; }
+    store.updater.update = this._draftPrev.update;
+    store.updater.editable = this._draftPrev.editable;
+    this._draftPrev = null;
+  }
+
+  // Create = the draft becomes real: PUT the flat manifest to
+  // plugins/<label-slug>.ttl, then generate the catalog entry from it —
+  // body triples + dct:source provenance + #Available membership + topic
+  // filing — in one catalog PUT (_putDoc announces; _onMenuBuilt reloads).
+  async _createFromDraft(store, subject, draftDoc) {
+    const one = (p) => store.any(subject, rdf.sym(p), null, draftDoc);
+    const label = (one(UI + 'label') || {}).value || '';
+    const missing = [];
+    if (!label) missing.push('label');
+    if (!one(SCHEMA + 'additionalType')) missing.push('menu item kind');
+    if (!one(SCHEMA + 'url')) missing.push('url');
+    if (missing.length) throw new Error(`required: ${missing.join(', ')}`);
+
+    // A Link with no icon defaults to the target site's favicon (the
+    // convention the shipped link manifests follow).
+    const kind = (one(SCHEMA + 'additionalType') || {}).value;
+    if (kind === UI + 'Link' && !one(UI + 'icon')) {
+      try {
+        const origin = new URL((one(SCHEMA + 'url') || {}).value).origin;
+        store.add(subject, rdf.sym(UI + 'icon'), rdf.literal(origin + '/favicon.ico'), draftDoc);
+      } catch (_) { /* unparseable link url — no default icon */ }
+    }
+
+    // first free plugins/<slug>.ttl beside the catalog's other manifests
+    const slug = label.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '') || 'plugin';
+    let manifestUrl = null;
+    for (let n = 1; n <= 20 && !manifestUrl; n++) {
+      const candidate = new URL(`../plugins/${slug}${n > 1 ? '-' + n : ''}.ttl`, this._docUrl()).href;
+      try {
+        const r = await freshFetch(candidate, { method: 'HEAD' });
+        if (!(r && r.ok)) manifestUrl = candidate;
+      } catch { manifestUrl = candidate; }
+    }
+    if (!manifestUrl) throw new Error(`no free name for plugins/${slug}.ttl`);
+    const put = await solFetch(manifestUrl, {
+      method: 'PUT', headers: { 'Content-Type': 'text/turtle' },
+      body: draftManifestTurtle(store, subject, draftDoc),
+    });
+    if (!put || put.ok === false) throw new Error(`PUT ${manifestUrl} → ${put && put.status}`);
+
+    const docUrl = this._docUrl();
+    let cat;
+    try { cat = await loadRdfStore(docUrl, freshFetch); } catch { cat = rdf.graph(); }
+    const catDoc = rdf.sym(docUrl.split('#')[0]);
+    const taken = new Set();
+    for (const st of cat.statementsMatching(null, null, null)) {
+      for (const t of [st.subject, st.object]) {
+        const v = t && t.value;
+        if (typeof v === 'string' && v.startsWith(catDoc.value + '#')) taken.add(v.slice(catDoc.value.length + 1));
+      }
+    }
+    const frag = mintFragment(label, taken);
+    const entry = rdf.sym(`${catDoc.value}#${frag}`);
+    copyDraftTriples(store, subject, draftDoc, cat, entry, catDoc);
+    cat.add(entry, rdf.sym(DCT + 'source'), rdf.sym(manifestUrl), catDoc);
+    const own = this._menuDesc(cat, this._menuIri());
+    own.items.push({ entry: entry.value, id: frag, name: label });
+    const keywords = store.each(subject, rdf.sym(SCHEMA + 'keywords'), null, draftDoc).map((n) => n.value);
+    await this._putDoc(cat, docUrl, [own], `created “${label}” ✓`,
+      () => { for (const k of keywords) this._fileUnderCategory(cat, docUrl, frag, k); });
   }
 
   get source() { return this.getAttribute('source') || ''; }
@@ -444,11 +732,32 @@ class SolPluginManager extends HTMLElement {
       el.setAttribute('heading', `Customize ${t.label}`);
       el.setAttribute('source', t.iri);
       el.setAttribute('catalog', this.source);
+      el.editPlugin = (item) => this._editFromItem(item);
       region.appendChild(el);
       this._targets.push(el);
     }
     this.shadowRoot.appendChild(region);
     this.setAttribute('has-targets', '');
+  }
+
+  // A paired manager's chip ✎: open the entry editor for the chip's catalog
+  // entry — the same populated shape-form this box's own cards open.
+  _editFromItem(item) {
+    const entry = item && item.entry;
+    if (!entry || entry.split('#')[0] !== this._docUrl().split('#')[0]) return;
+    this._openEditor({ id: entry.split('#')[1], name: item.name, type: item.type, tag: item.tag });
+  }
+
+  // Chip ✎ hooks for LEGACY `for` pairing (self-discovered targets get
+  // theirs at creation in _ensureTargets).
+  _wireEditHooks() {
+    const sel = this.getAttribute('for');
+    if (!sel) return;
+    try {
+      for (const el of document.querySelectorAll(sel)) {
+        el.editPlugin = (item) => this._editFromItem(item);
+      }
+    } catch { /* bad selector — no hooks */ }
   }
 
   async _load() {
@@ -458,6 +767,7 @@ class SolPluginManager extends HTMLElement {
     }
     this._loadError = null;
     await this._ensureTargets();
+    this._wireEditHooks();
     await this._loadUsed();
     try {
       const store = await loadRdfStore(this._docUrl(), freshFetch);
@@ -611,7 +921,14 @@ class SolPluginManager extends HTMLElement {
     title.textContent = this._meta.label || '';
     this._status = document.createElement('span');
     this._status.className = 'builder-status';
-    head.append(title, this._status);
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'add-btn';
+    add.textContent = '＋ add';
+    add.title = 'Add a plugin';
+    add.setAttribute('aria-label', 'Add a plugin');
+    add.addEventListener('click', () => this._openCreator());
+    head.append(title, this._status, add);
 
     // Entries are components (mountable plugins) OR links (external apps —
     // a ui:Link with its schema:url; clicking the placed item fires the link).
@@ -679,7 +996,7 @@ class SolPluginManager extends HTMLElement {
           btn.addEventListener('click', () => { this._topicTab = g.label; this._render(); });
           strip.appendChild(btn);
         }
-        this._root.replaceChildren(head, strip, this._cards, this._urlRow());
+        this._root.replaceChildren(head, strip, this._cards);
         if (this._flash) { this._note(this._flash, 'saved'); this._flash = null; }
         return;
       }
@@ -695,11 +1012,11 @@ class SolPluginManager extends HTMLElement {
       empty.className = 'hint';
       empty.textContent = this._loadError
         ? `Could not load list: ${this._loadError.message}`
-        : 'empty — drag a plugin here, or add one by manifest URL';
+        : 'empty — drag a plugin here, or add one with ＋ add';
       this._cards.appendChild(empty);
     }
 
-    this._root.replaceChildren(head, this._cards, this._urlRow());
+    this._root.replaceChildren(head, this._cards);
 
     if (this._flash) { this._note(this._flash, 'saved'); this._flash = null; }
   }
@@ -871,37 +1188,11 @@ class SolPluginManager extends HTMLElement {
     this._sheet.show();
   }
 
-  _urlRow() {
-    const row = document.createElement('div');
-    row.className = 'url-row';
-    const input = document.createElement('input');
-    input.className = 'url-input';
-    input.type = 'text';
-    input.placeholder = 'manifest URL — e.g. plugins/news/manifest.jsonld';
-    input.setAttribute('aria-label', 'Manifest URL');
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'add-btn';
-    add.textContent = '＋ add';
-    const submit = () => {
-      const v = input.value.trim();
-      if (!v) return;
-      input.value = '';
-      this._enqueue(() => this._importManifest(v));
-    };
-    add.addEventListener('click', submit);
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-    row.append(input, add);
-    return row;
-  }
-
   // ---- drops -------------------------------------------------------------
 
   _wireDrop() {
-    const accepts = (e) => {
-      const types = [...((e.dataTransfer && e.dataTransfer.types) || [])];
-      return types.includes(PLUGIN_MIME) || types.includes('text/uri-list') || types.includes('text/plain');
-    };
+    const accepts = (e) =>
+      [...((e.dataTransfer && e.dataTransfer.types) || [])].includes(PLUGIN_MIME);
     this._root.addEventListener('dragover', (e) => {
       if (!accepts(e)) return;
       e.preventDefault();
@@ -920,32 +1211,27 @@ class SolPluginManager extends HTMLElement {
 
   _onDrop(e) {
     const dt = e.dataTransfer;
-    if ([...(dt.types || [])].includes(PLUGIN_MIME)) {
-      let p = null;
-      try { p = JSON.parse(dt.getData(PLUGIN_MIME)); } catch { /* not ours */ }
-      if (!p || (!p.tag && !p.href)) return;
-      if (p.subject && p.list && p.list === this._menuIri()) return; // own card
-      if (p.subject && p.list && p.list.split('#')[0] === this._docUrl().split('#')[0]) {
-        this._enqueue(() => this._moveHere(p));
-      } else {
-        // ghost card, or a card from some other document — add a copy here
-        this._enqueue(() => this._addEntry(p.href
-          ? { type: 'link', id: null,
-              name: p.label || p.href,
-              icon: p.icon || undefined,
-              region: p.region || undefined,
-              href: p.href }
-          : { type: 'component', id: null,
-              name: p.label || p.tag,
-              icon: p.icon || undefined,
-              tag: p.tag,
-              params: (p.params || []).map(([k, v]) => [k, v]) }));
-      }
-      return;
+    if (![...(dt.types || [])].includes(PLUGIN_MIME)) return;
+    let p = null;
+    try { p = JSON.parse(dt.getData(PLUGIN_MIME)); } catch { /* not ours */ }
+    if (!p || (!p.tag && !p.href)) return;
+    if (p.subject && p.list && p.list === this._menuIri()) return; // own card
+    if (p.subject && p.list && p.list.split('#')[0] === this._docUrl().split('#')[0]) {
+      this._enqueue(() => this._moveHere(p));
+    } else {
+      // ghost card, or a card from some other document — add a copy here
+      this._enqueue(() => this._addEntry(p.href
+        ? { type: 'link', id: null,
+            name: p.label || p.href,
+            icon: p.icon || undefined,
+            region: p.region || undefined,
+            href: p.href }
+        : { type: 'component', id: null,
+            name: p.label || p.tag,
+            icon: p.icon || undefined,
+            tag: p.tag,
+            params: (p.params || []).map(([k, v]) => [k, v]) }));
     }
-    const text = dt.getData('text/uri-list') || dt.getData('text/plain') || '';
-    const url = text.split(/\r?\n/).map((l) => l.trim()).find((l) => l && !l.startsWith('#'));
-    if (url) this._enqueue(() => this._importManifest(url));
   }
 
   // ---- mutations (each = fresh parse → rewrite touched lists → one PUT) ---
@@ -1021,6 +1307,11 @@ class SolPluginManager extends HTMLElement {
     const own = this._menuDesc(store, this._menuIri());
     own.items = own.items.filter((it) => it.id !== p.id);
     for (const st of [...store.statementsMatching(null, rdf.sym(SKOS + 'member'), entry)]) store.remove(st);
+    // Attribute blanks hang off the entry — clear them too, or they survive
+    // as orphan top-level blank nodes in the document.
+    for (const blank of store.each(entry, rdf.sym(SCHEMA + 'additionalProperty'), null)) {
+      for (const st of [...store.statementsMatching(blank, null, null)]) store.remove(st);
+    }
     for (const st of [...store.statementsMatching(entry, null, null)]) store.remove(st);
     await this._putDoc(store, docUrl, [own], `removed “${p.name || p.tag}” ✓`);
     if (manifestUrl) {
@@ -1100,62 +1391,6 @@ class SolPluginManager extends HTMLElement {
       }
     }
     return labels;
-  }
-
-  // Fetch + parse a manifest and add it as an entry. Two kinds:
-  //   `<> a ui:Component ; schema:url <module>` — a mountable plugin (the
-  //   tag derives from the filename; ui:label / ui:icon / schema:additionalProperty
-  //   defaults flesh out the entry);
-  //   `<> a ui:Link ; schema:url <url>` — an external app.
-  // schema:keywords literals are the categories the entry files under.
-  async _importManifest(input) {
-    let url;
-    try { url = new URL(String(input), document.baseURI); }
-    catch { throw new Error(`not a URL: ${input}`); }
-    url.hash = '';
-    const manifestUrl = url.href;
-    const mStore = await loadRdfStore(manifestUrl, freshFetch);
-    const subj = rdf.sym(manifestUrl);
-    const hasType = (local) => mStore.statementsMatching(
-      subj, rdf.sym(RDF + 'type'), rdf.sym(UI + local),
-    ).length > 0;
-    const categories = mStore.each(subj, rdf.sym(SCHEMA + 'keywords'), null).map((n) => n.value);
-    // ONE payload predicate — schema:url — for manifests too; the kind
-    // (rdf:type or a ui:Plugin's schema:additionalType) says how to read it.
-    const payload = (mStore.any(subj, rdf.sym(SCHEMA + 'url')) || {}).value || null;
-    const addl = (mStore.any(subj, rdf.sym(SCHEMA + 'additionalType')) || {}).value || '';
-    const isLink = hasType('Link') || addl === UI + 'Link';
-    const isComponent = hasType('Component') || addl === UI + 'Component';
-    const lit = (ns, local) => {
-      const n = mStore.any(subj, rdf.sym(ns + local));
-      return n ? n.value : undefined;
-    };
-    if (isLink && payload) {
-      await this._addEntry({
-        type: 'link', id: null,
-        name: rdfVal(mStore, subj, 'label') || payload,
-        icon: rdfVal(mStore, subj, 'icon') || undefined,
-        region: (rdfVal(mStore, subj, 'region') || '').split('#').pop().toLowerCase() || undefined,
-        publisher: lit(DCT, 'publisher'),
-        href: payload, categories,
-      });
-      return;
-    }
-    const tag = deriveTagFromModule(payload);
-    if (isComponent && tag) {
-      await this._addEntry({
-        type: 'component', id: null,
-        name: rdfVal(mStore, subj, 'label') || tag,
-        icon: rdfVal(mStore, subj, 'icon') || undefined,
-        tag,
-        params: rdfComponent(mStore, subj).params,
-        module: payload,
-        publisher: lit(DCT, 'publisher'),
-        categories,
-      });
-      return;
-    }
-    throw new Error(`${input} is not a plugin manifest (need a ui:Component whose schema:url is a tag-shaped module, or a ui:Link with a schema:url)`);
   }
 
   // Rewrite the given menus in the store, run the optional `after` hook
