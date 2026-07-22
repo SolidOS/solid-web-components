@@ -34,10 +34,10 @@
  * Solid pod — and renders the events as an agenda list that fits
  * whatever container the host page gives it.
  *
- * v1 ships the agenda view only. `mini` (today-only card) and `month`
- * (grid + day popover) are planned and will land as a follow-up; the
- * view dispatch in `connectedCallback` is a switch so adding them is
- * local.
+ * Two views: `agenda` (default) and `month` — a 7-column grid whose
+ * cells carry event chips and open a day popover with the full list.
+ * `mini` (today-only card) is still planned; the dispatch in
+ * `_renderView` is where it lands.
  *
  * Attributes:
  *   source         One or more ICS URLs (whitespace-separated for >1),
@@ -49,9 +49,11 @@
  *   provider       google | apple | outlook | proton | ics  (default: ics)
  *   calendar-id    For provider="google", the calendar email/id; URL is built
  *                  via the public-ICS template. Other providers ignore it.
- *   view           agenda  (only value supported in v1)
- *   start          ISO date YYYY-MM-DD (default: today)
- *   window-days    Agenda lookahead in days (default: 30)
+ *   view           agenda | month  (default: agenda)
+ *   start          ISO date YYYY-MM-DD (default: today). In month view it
+ *                  picks the month the grid opens on.
+ *   window-days    Agenda lookahead in days (default: 30). Ignored by month
+ *                  view, which windows the fetch to the grid it draws.
  *   max-events     Cap on rendered events (default: 100)
  *   proxy          CORS proxy pattern — supports `{url}` token or appended
  *   time-zone      IANA TZ override (default: browser's resolved TZ)
@@ -150,6 +152,37 @@ function formatEventTime(ev, locale) {
   if (endSameMinute) return start;
   const end = `${pad2(ev.end.getHours())}:${pad2(ev.end.getMinutes())}`;
   return `${start}–${end}`;
+}
+
+/** Local YMD key ("2026-07-04") — the month grid buckets events by day. */
+function ymdKey(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** First day of the week for a locale: 1=Mon … 7=Sun, per Intl's weekInfo.
+ *  Falls back to Sunday where the engine doesn't expose it. */
+function firstWeekday(locale) {
+  try {
+    const info = new Intl.Locale(locale || navigator.language).weekInfo;
+    if (info &amp;&amp; info.firstDay) return info.firstDay;
+  } catch { /* no weekInfo in this engine */ }
+  return 7;
+}
+
+/** The cells of a month grid: leading/trailing days pad the first and
+ *  last weeks so every row holds 7. `inMonth` marks the real ones. */
+function monthCells(anchor, locale) {
+  const year = anchor.getFullYear(), month = anchor.getMonth();
+  const start = firstWeekday(locale) % 7;                // 7 (Sun) → 0
+  const lead  = (new Date(year, month, 1).getDay() - start + 7) % 7;
+  const days  = new Date(year, month + 1, 0).getDate();  // day 0 of next month
+  const total = Math.ceil((lead + days) / 7) * 7;
+  const cells = [];
+  for (let i = 0; i &lt; total; i++) {
+    const d = new Date(year, month, i - lead + 1);
+    cells.push({ date: d, inMonth: d.getMonth() === month });
+  }
+  return cells;
 }
 
 /** Pretty header label for the title strip. We don't have the calendar's
@@ -362,13 +395,22 @@ class SolCalendar extends HTMLElement {
       signal,
     };
 
+    // Month view windows the fetch to the grid it's about to draw — the
+    // whole displayed month plus the adjacent-month days padding its first
+    // and last weeks — instead of the agenda's rolling `window-days`.
+    if (this.view === 'month') {
+      const cells = monthCells(this.monthAnchor, this.locale);
+      opts.start = cells[0].date;
+      opts.windowDays = cells.length;
+    }
+
     try {
       if (urls.length > 1) {
         // Amalgamated calendar — Promise.allSettled inside, so a single
         // dead feed doesn't blank the rest. Surface the count of
         // failures in the status strip without overriding the events.
         const { events, errors } = await getMergedCalendarEvents(urls, opts);
-        this._renderAgenda(events);
+        this._renderView(events);
         if (errors.length) {
           this._setStatus(
             `Loaded ${urls.length - errors.length} of ${urls.length} calendars — ${errors.length} failed`,
@@ -385,7 +427,7 @@ class SolCalendar extends HTMLElement {
         }
       } else {
         const events = await getCalendarEvents(urls[0] || '', opts);
-        this._renderAgenda(events);
+        this._renderView(events);
         this._setStatus('');
       }
     } catch (e) {
@@ -393,6 +435,197 @@ class SolCalendar extends HTMLElement {
       this._renderEmpty(`Couldn't load calendar: ${e.message}`);
       this._setStatus(e.message || String(e), true);
     }
+  }
+
+  /** View dispatch — `view="month"` gets the grid, everything else the agenda. */
+  _renderView(events) {
+    if (this.view === 'month') this._renderMonth(events);
+    else this._renderAgenda(events);
+  }
+
+  /** First of the displayed month. Month nav moves this; everything else
+   *  derives from `start`. */
+  get monthAnchor() {
+    if (!this._monthAnchor) {
+      const s = this.startDate;
+      this._monthAnchor = new Date(s.getFullYear(), s.getMonth(), 1);
+    }
+    return this._monthAnchor;
+  }
+
+  /** Step the grid by ±1 month and refetch — the window follows the anchor. */
+  async _stepMonth(delta) {
+    const a = this.monthAnchor;
+    this._monthAnchor = new Date(a.getFullYear(), a.getMonth() + delta, 1);
+    await this._update();
+  }
+
+  _renderMonth(events) {
+    const anchor = this.monthAnchor;
+    const locale = this.locale || undefined;
+    const frag = [];
+
+    if (!this.hasAttribute('hide-header')) {
+      const header = document.createElement('div');
+      header.className = 'cal-header cal-month-header';
+
+      const prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'cal-nav';
+      prev.textContent = '‹';
+      prev.setAttribute('aria-label', 'Previous month');
+      prev.addEventListener('click', () => this._stepMonth(-1));
+
+      const title = document.createElement('span');
+      title.className = 'cal-title';
+      title.textContent = anchor.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'cal-nav';
+      next.textContent = '›';
+      next.setAttribute('aria-label', 'Next month');
+      next.addEventListener('click', () => this._stepMonth(1));
+
+      header.append(prev, title, next);
+      frag.push(header);
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'cal-month';
+    grid.setAttribute('role', 'grid');
+    grid.setAttribute('aria-label', anchor.toLocaleDateString(locale, { month: 'long', year: 'numeric' }));
+
+    const cells = monthCells(anchor, this.locale);
+
+    // Weekday strip — names come from the first week's cells, so the
+    // labels always match the column order whatever the locale starts on.
+    const head = document.createElement('div');
+    head.className = 'cal-month-row cal-weekdays';
+    head.setAttribute('role', 'row');
+    for (const c of cells.slice(0, 7)) {
+      const wd = document.createElement('span');
+      wd.className = 'cal-weekday';
+      wd.setAttribute('role', 'columnheader');
+      wd.textContent = c.date.toLocaleDateString(locale, { weekday: 'short' });
+      head.appendChild(wd);
+    }
+    grid.appendChild(head);
+
+    // Bucket events by local day so each cell is a cheap lookup.
+    const byDay = new Map();
+    for (const ev of events) {
+      const k = ymdKey(ev.start);
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(ev);
+    }
+
+    const today = new Date();
+    let row = null;
+    cells.forEach((cell, i) => {
+      if (i % 7 === 0) {
+        row = document.createElement('div');
+        row.className = 'cal-month-row';
+        row.setAttribute('role', 'row');
+        grid.appendChild(row);
+      }
+      const dayEvents = byDay.get(ymdKey(cell.date)) || [];
+
+      const day = document.createElement('div');
+      day.className = 'cal-day'
+        + (cell.inMonth ? '' : ' outside')
+        + (sameYMD(cell.date, today) ? ' today' : '')
+        + (dayEvents.length ? ' has-events' : '');
+      day.setAttribute('role', 'gridcell');
+      day.dataset.date = ymdKey(cell.date);
+
+      const num = document.createElement('span');
+      num.className = 'cal-day-num';
+      num.textContent = String(cell.date.getDate());
+      day.appendChild(num);
+
+      for (const ev of dayEvents) {
+        const chip = document.createElement('span');
+        chip.className = 'cal-chip' + (ev.allDay ? ' all-day' : '');
+        chip.textContent = ev.summary || '(untitled)';
+        chip.title = ev.summary || '';
+        day.appendChild(chip);
+      }
+
+      if (dayEvents.length) {
+        day.tabIndex = 0;
+        day.setAttribute('aria-haspopup', 'dialog');
+        const open = () => this._openDay(day, cell.date, dayEvents);
+        day.addEventListener('click', open);
+        day.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        });
+      }
+
+      row.appendChild(day);
+    });
+
+    frag.push(grid);
+    this._root.replaceChildren(...frag);
+  }
+
+  /** Day popover — the full event list for one cell. A second click (or
+   *  Escape) closes it; only one is open at a time. */
+  _openDay(cell, date, events) {
+    const existing = this._root.querySelector('.cal-day-popover');
+    const wasMine = existing &amp;&amp; existing.parentElement === cell;
+    if (existing) existing.remove();
+    if (wasMine) return;
+
+    const pop = document.createElement('div');
+    pop.className = 'cal-day-popover';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', formatDate(date, this.locale));
+
+    const head = document.createElement('div');
+    head.className = 'cal-day-popover-head';
+    head.textContent = formatDate(date, this.locale);
+    pop.appendChild(head);
+
+    const ul = document.createElement('ul');
+    ul.className = 'cal-rows';
+    for (const ev of events) {
+      const li = document.createElement('li');
+      li.className = 'cal-row';
+
+      const time = document.createElement('span');
+      time.className = 'cal-row-time';
+      time.textContent = formatEventTime(ev, this.locale);
+
+      const body = document.createElement('div');
+      body.className = 'cal-row-body';
+      const summary = document.createElement('span');
+      summary.className = 'cal-row-summary';
+      if (ev.url) {
+        const a = document.createElement('a');
+        a.href = ev.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = ev.summary || '(untitled)';
+        summary.appendChild(a);
+      } else {
+        summary.textContent = ev.summary || '(untitled)';
+      }
+      body.appendChild(summary);
+      if (ev.location) {
+        const loc = document.createElement('span');
+        loc.className = 'cal-row-location';
+        loc.textContent = ev.location;
+        body.appendChild(loc);
+      }
+
+      li.append(time, body);
+      ul.appendChild(li);
+    }
+    pop.appendChild(ul);
+
+    pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') pop.remove(); });
+    cell.appendChild(pop);
   }
 
   _renderEmpty(msg) {
@@ -500,13 +733,13 @@ export { SolCalendar, buildProviderUrl };
 </div>
 
 <nav>
-    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addLeaf">addLeaf</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#effectiveProperties">effectiveProperties</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findParentOf">findParentOf</a></li><li><a href="global.html#findRegion">findRegion</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#fragOf">fragOf</a></li><li><a href="global.html#generateAppCss">generateAppCss</a></li><li><a href="global.html#generateAppHtml">generateAppHtml</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#loadReferencedDocs">loadReferencedDocs</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#moveLeaf">moveLeaf</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseLayoutTree">parseLayoutTree</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeLeaf">removeLeaf</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#seedAppMenu">seedAppMenu</a></li><li><a href="global.html#serializeLayout">serializeLayout</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#usedTreeFragments">usedTreeFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li></ul>
+    <h2><a href="index.html">Home</a></h2><h3>Modules</h3><ul><li><a href="module-sol-login-node.html">sol-login-node</a></li></ul><h3>Classes</h3><ul><li><a href="PopupProxySession.html">PopupProxySession</a></li><li><a href="SolAccordion.html">SolAccordion</a></li><li><a href="SolCalendar.html">SolCalendar</a></li><li><a href="SolDefault.html">SolDefault</a></li><li><a href="SolFeed.html">SolFeed</a></li><li><a href="SolForm.html">SolForm</a></li><li><a href="SolInclude.html">SolInclude</a></li><li><a href="SolLiveEdit.html">SolLiveEdit</a></li><li><a href="SolLogin.html">SolLogin</a></li><li><a href="SolMenu.html">SolMenu</a></li><li><a href="SolModal.html">SolModal</a></li><li><a href="SolPod.html">SolPod</a></li><li><a href="SolPodOps.html">SolPodOps</a></li><li><a href="SolQuery.html">SolQuery</a></li><li><a href="SolRolodex.html">SolRolodex</a></li><li><a href="SolSearch.html">SolSearch</a></li><li><a href="SolTabs.html">SolTabs</a></li><li><a href="SolTime.html">SolTime</a></li><li><a href="SolWac.html">SolWac</a></li><li><a href="SolWeather.html">SolWeather</a></li><li><a href="TriplePatternValidator.html">TriplePatternValidator</a></li><li><a href="module-sol-login-node.SolidAuth.html">SolidAuth</a></li></ul><h3>Global</h3><ul><li><a href="global.html#BIN_FRAG">BIN_FRAG</a></li><li><a href="global.html#DCT">DCT</a></li><li><a href="global.html#DEFAULT_ENGINES">DEFAULT_ENGINES</a></li><li><a href="global.html#ESM">ESM</a></li><li><a href="global.html#MANIFEST_PATH">MANIFEST_PATH</a></li><li><a href="global.html#MEETING_HOSTS">MEETING_HOSTS</a></li><li><a href="global.html#NAMED_VAR_RE">NAMED_VAR_RE</a></li><li><a href="global.html#NONE_GROUP">NONE_GROUP</a></li><li><a href="global.html#NS">NS</a></li><li><a href="global.html#NULL_BODY_STATUS">NULL_BODY_STATUS</a></li><li><a href="global.html#PARENT_SRC">PARENT_SRC</a></li><li><a href="global.html#SOL_AUTH_NEEDED">SOL_AUTH_NEEDED</a></li><li><a href="global.html#URL_RE">URL_RE</a></li><li><a href="global.html#WEATHER_MAP">WEATHER_MAP</a></li><li><a href="global.html#_resetRegistries">_resetRegistries</a></li><li><a href="global.html#_supports">_supports</a></li><li><a href="global.html#activate">activate</a></li><li><a href="global.html#activateInlinePlacements">activateInlinePlacements</a></li><li><a href="global.html#addCollection">addCollection</a></li><li><a href="global.html#addImageItem">addImageItem</a></li><li><a href="global.html#addLeaf">addLeaf</a></li><li><a href="global.html#addTopicEdit">addTopicEdit</a></li><li><a href="global.html#adoptFetch">adoptFetch</a></li><li><a href="global.html#applyProxy">applyProxy</a></li><li><a href="global.html#attachEditorSelfGear">attachEditorSelfGear</a></li><li><a href="global.html#buildEditor">buildEditor</a></li><li><a href="global.html#buildEditorElement">buildEditorElement</a></li><li><a href="global.html#buildProviderUrl">buildProviderUrl</a></li><li><a href="global.html#contentForHref">contentForHref</a></li><li><a href="global.html#dateMs">dateMs</a></li><li><a href="global.html#dedupeFeeds">dedupeFeeds</a></li><li><a href="global.html#deleteToBinEdit">deleteToBinEdit</a></li><li><a href="global.html#deriveTitle">deriveTitle</a></li><li><a href="global.html#deserializeRequest">deserializeRequest</a></li><li><a href="global.html#deserializeResponse">deserializeResponse</a></li><li><a href="global.html#dispatchCommand">dispatchCommand</a></li><li><a href="global.html#displayItem">displayItem</a></li><li><a href="global.html#domParser">domParser</a></li><li><a href="global.html#drawForceGraph">drawForceGraph</a></li><li><a href="global.html#editPlacement">editPlacement</a></li><li><a href="global.html#editorSpecFromDecl">editorSpecFromDecl</a></li><li><a href="global.html#editorSubjectOf">editorSubjectOf</a></li><li><a href="global.html#effectiveProperties">effectiveProperties</a></li><li><a href="global.html#emptyEl">emptyEl</a></li><li><a href="global.html#enginesFromRdf">enginesFromRdf</a></li><li><a href="global.html#ensureHandler">ensureHandler</a></li><li><a href="global.html#esc">esc</a></li><li><a href="global.html#expandQuery">expandQuery</a></li><li><a href="global.html#extOf">extOf</a></li><li><a href="global.html#extractFromHtml">extractFromHtml</a></li><li><a href="global.html#extractShell">extractShell</a></li><li><a href="global.html#feedFetch">feedFetch</a></li><li><a href="global.html#feedsFromRdf">feedsFromRdf</a></li><li><a href="global.html#fetchICSText">fetchICSText</a></li><li><a href="global.html#fetchIncludeContent">fetchIncludeContent</a></li><li><a href="global.html#filterWithSelector">filterWithSelector</a></li><li><a href="global.html#findExtensionPoints">findExtensionPoints</a></li><li><a href="global.html#findFirstSolLogin">findFirstSolLogin</a></li><li><a href="global.html#findItemWrapper">findItemWrapper</a></li><li><a href="global.html#findParentOf">findParentOf</a></li><li><a href="global.html#findRegion">findRegion</a></li><li><a href="global.html#findSubjects">findSubjects</a></li><li><a href="global.html#firstImageIn">firstImageIn</a></li><li><a href="global.html#firstTag">firstTag</a></li><li><a href="global.html#firstWeekday">firstWeekday</a></li><li><a href="global.html#formatDate">formatDate</a></li><li><a href="global.html#formatEventTime">formatEventTime</a></li><li><a href="global.html#fragNode">fragNode</a></li><li><a href="global.html#fragOf">fragOf</a></li><li><a href="global.html#generateAppCss">generateAppCss</a></li><li><a href="global.html#generateAppHtml">generateAppHtml</a></li><li><a href="global.html#generateShell">generateShell</a></li><li><a href="global.html#getAuthFetch">getAuthFetch</a></li><li><a href="global.html#getCalendarEvents">getCalendarEvents</a></li><li><a href="global.html#getDefault">getDefault</a></li><li><a href="global.html#getFeedItems">getFeedItems</a></li><li><a href="global.html#getMergedCalendarEvents">getMergedCalendarEvents</a></li><li><a href="global.html#getRegistry">getRegistry</a></li><li><a href="global.html#hrefWithParams">hrefWithParams</a></li><li><a href="global.html#htmlToText">htmlToText</a></li><li><a href="global.html#ianaOffsetHours">ianaOffsetHours</a></li><li><a href="global.html#isCommandName">isCommandName</a></li><li><a href="global.html#isCrossOrigin">isCrossOrigin</a></li><li><a href="global.html#isExternal">isExternal</a></li><li><a href="global.html#isLoggedIn">isLoggedIn</a></li><li><a href="global.html#isRdfConfigSource">isRdfConfigSource</a></li><li><a href="global.html#kitchenLoggedIn">kitchenLoggedIn</a></li><li><a href="global.html#lastSegment">lastSegment</a></li><li><a href="global.html#lit">lit</a></li><li><a href="global.html#loadConfig">loadConfig</a></li><li><a href="global.html#loadMenuFromUri">loadMenuFromUri</a></li><li><a href="global.html#loadReferencedDocs">loadReferencedDocs</a></li><li><a href="global.html#localName">localName</a></li><li><a href="global.html#mintFeedUri">mintFeedUri</a></li><li><a href="global.html#mintFragment">mintFragment</a></li><li><a href="global.html#mintTopicUri">mintTopicUri</a></li><li><a href="global.html#monthCells">monthCells</a></li><li><a href="global.html#mountInTarget">mountInTarget</a></li><li><a href="global.html#moveLeaf">moveLeaf</a></li><li><a href="global.html#normalize">normalize</a></li><li><a href="global.html#observeExtensionPoint">observeExtensionPoint</a></li><li><a href="global.html#offerExtensionPoint">offerExtensionPoint</a></li><li><a href="global.html#onDefaultChange">onDefaultChange</a></li><li><a href="global.html#openEditorModal">openEditorModal</a></li><li><a href="global.html#openInReader">openInReader</a></li><li><a href="global.html#pad2">pad2</a></li><li><a href="global.html#paramsToObject">paramsToObject</a></li><li><a href="global.html#parseBookmarkTree">parseBookmarkTree</a></li><li><a href="global.html#parseEngineList">parseEngineList</a></li><li><a href="global.html#parseICS">parseICS</a></li><li><a href="global.html#parseItem">parseItem</a></li><li><a href="global.html#parseLayoutTree">parseLayoutTree</a></li><li><a href="global.html#parseMenuItems">parseMenuItems</a></li><li><a href="global.html#parseShape">parseShape</a></li><li><a href="global.html#parseSourceList">parseSourceList</a></li><li><a href="global.html#patchDoc">patchDoc</a></li><li><a href="global.html#pickImage">pickImage</a></li><li><a href="global.html#pickLink">pickLink</a></li><li><a href="global.html#pickMeetingUrl">pickMeetingUrl</a></li><li><a href="global.html#placeOutput">placeOutput</a></li><li><a href="global.html#pruneSiblings">pruneSiblings</a></li><li><a href="global.html#purgeBody">purgeBody</a></li><li><a href="global.html#readCollections">readCollections</a></li><li><a href="global.html#readImageItems">readImageItems</a></li><li><a href="global.html#readShapeProperty">readShapeProperty</a></li><li><a href="global.html#readerFeatures">readerFeatures</a></li><li><a href="global.html#readerWindow">readerWindow</a></li><li><a href="global.html#recategorizeBody">recategorizeBody</a></li><li><a href="global.html#registerExtensionPoints">registerExtensionPoints</a></li><li><a href="global.html#registerInteropEditables">registerInteropEditables</a></li><li><a href="global.html#removeLeaf">removeLeaf</a></li><li><a href="global.html#removeMenuNode">removeMenuNode</a></li><li><a href="global.html#removeSubject">removeSubject</a></li><li><a href="global.html#removeTopicBody">removeTopicBody</a></li><li><a href="global.html#render">render</a></li><li><a href="global.html#renderComponentItem">renderComponentItem</a></li><li><a href="global.html#renderLinkItem">renderLinkItem</a></li><li><a href="global.html#renderRecordForm">renderRecordForm</a></li><li><a href="global.html#reorderEdit">reorderEdit</a></li><li><a href="global.html#resolveEditorSpec">resolveEditorSpec</a></li><li><a href="global.html#resolveExtensionPoint">resolveExtensionPoint</a></li><li><a href="global.html#resolveExtensionPoints">resolveExtensionPoints</a></li><li><a href="global.html#resolveRegion">resolveRegion</a></li><li><a href="global.html#resolveUrl">resolveUrl</a></li><li><a href="global.html#restoreEdit">restoreEdit</a></li><li><a href="global.html#rewriteMenuDocument">rewriteMenuDocument</a></li><li><a href="global.html#root">root</a></li><li><a href="global.html#sameYMD">sameYMD</a></li><li><a href="global.html#seedAppMenu">seedAppMenu</a></li><li><a href="global.html#serializeLayout">serializeLayout</a></li><li><a href="global.html#serializeMenuDocument">serializeMenuDocument</a></li><li><a href="global.html#serializeRequest">serializeRequest</a></li><li><a href="global.html#serializeResponse">serializeResponse</a></li><li><a href="global.html#services">services</a></li><li><a href="global.html#setPositionsEdit">setPositionsEdit</a></li><li><a href="global.html#shortLabelFromUrl">shortLabelFromUrl</a></li><li><a href="global.html#shouldPrompt">shouldPrompt</a></li><li><a href="global.html#signatureOf">signatureOf</a></li><li><a href="global.html#slugify">slugify</a></li><li><a href="global.html#solFetch">solFetch</a></li><li><a href="global.html#solForm">solForm</a></li><li><a href="global.html#solInclude">solInclude</a></li><li><a href="global.html#staleProviderRoots">staleProviderRoots</a></li><li><a href="global.html#stripCdata">stripCdata</a></li><li><a href="global.html#tagText">tagText</a></li><li><a href="global.html#timeToDate">timeToDate</a></li><li><a href="global.html#toCalendarEvent">toCalendarEvent</a></li><li><a href="global.html#treeNodes">treeNodes</a></li><li><a href="global.html#triggerSelfEditor">triggerSelfEditor</a></li><li><a href="global.html#trimUrlTail">trimUrlTail</a></li><li><a href="global.html#typedValue">typedValue</a></li><li><a href="global.html#updateMenuInStore">updateMenuInStore</a></li><li><a href="global.html#usedFragments">usedFragments</a></li><li><a href="global.html#usedTreeFragments">usedTreeFragments</a></li><li><a href="global.html#valueOf">valueOf</a></li><li><a href="global.html#ymdKey">ymdKey</a></li></ul>
 </nav>
 
 <br class="clear">
 
 <footer>
-    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Mon Jul 20 2026 15:16:02 GMT-0700 (Pacific Daylight Time)
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.5</a> on Wed Jul 22 2026 15:30:33 GMT-0700 (Pacific Daylight Time)
 </footer>
 
 <script> prettyPrint(); </script>
