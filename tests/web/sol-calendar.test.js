@@ -3,9 +3,10 @@
  *
  * Tests for <sol-calendar> — the inline iCalendar (ICS) agenda viewer.
  *
- * NOTE: despite the "calendar" name this component is NOT a month-grid
- * date-picker — it fetches one or more ICS feeds and renders the events
- * as a flat agenda list. So the deterministic seams exercised here are:
+ * NOTE: this component is not a date-picker — it fetches one or more ICS
+ * feeds and renders the events, either as a flat agenda list (default) or
+ * as a month grid (view="month"). The deterministic seams exercised here
+ * are:
  *   - registration + exports
  *   - static observedAttributes / shape
  *   - the pure buildProviderUrl() helper (the only exported pure fn)
@@ -17,6 +18,11 @@
  *     columns, event-URL links, the today + repeat-date classes, the
  *     empty-state message, and hide-header
  *   - ARIA on the status + agenda regions
+ *   - the month grid: whole-week cell counts (including a 28-day February
+ *     that needs no padding, and a leap February), in-month vs padding
+ *     cells, events bucketed into their day, the day popover and its
+ *     toggle/one-at-a-time behaviour, month-anchor stepping across a year
+ *     boundary, hide-header, and the grid/row/gridcell ARIA roles
  *
  * Renders are driven through _renderAgenda() with explicit event arrays
  * (and a fixed-date ICS blob through the real fetch path once), so no
@@ -389,5 +395,141 @@ describe('end-to-end render via a fixed-date ICS feed', () => {
     const summaries = [...el.shadowRoot.querySelectorAll('.cal-row-summary')]
       .map(s => s.textContent);
     expect(summaries).toEqual(['Standup', 'Lunch']);
+  });
+});
+
+// ── month view (view="month") ────────────────────────────────────────────────
+
+describe('_renderMonth', () => {
+  /** Mount on a fixed month so no assertion depends on today's date.
+   *  July 2026 starts on a Wednesday and needs 5 weeks (35 cells). */
+  const mountJuly = () => mount('source="x.ics" view="month" start="2026-07-01" locale="en-US"');
+
+  test('view="month" dispatches to the grid, not the agenda', async () => {
+    const el = await mountJuly();
+    el._renderView([]);
+    expect(el.shadowRoot.querySelector('.cal-month')).not.toBeNull();
+    expect(el.shadowRoot.querySelector('.cal-agenda')).toBeNull();
+  });
+
+  test('the grid is whole weeks, with the month days marked in-month', async () => {
+    const el = await mountJuly();
+    el._renderMonth([]);
+    const days = el.shadowRoot.querySelectorAll('.cal-day');
+    expect(days).toHaveLength(35);                 // 5 weeks
+    expect(days.length % 7).toBe(0);
+    // July 2026 has 31 days; the other 4 cells pad from June/August.
+    expect(el.shadowRoot.querySelectorAll('.cal-day:not(.outside)')).toHaveLength(31);
+    expect(el.shadowRoot.querySelectorAll('.cal-day.outside')).toHaveLength(4);
+  });
+
+  test('a 4-week month fills exactly 28 cells with no padding', async () => {
+    // February 2026 starts on a Sunday and has 28 days.
+    const el = await mount('source="x.ics" view="month" start="2026-02-01" locale="en-US"');
+    el._renderMonth([]);
+    expect(el.shadowRoot.querySelectorAll('.cal-day')).toHaveLength(28);
+    expect(el.shadowRoot.querySelectorAll('.cal-day.outside')).toHaveLength(0);
+  });
+
+  test('a leap February keeps all 29 days in-month', async () => {
+    const el = await mount('source="x.ics" view="month" start="2024-02-01" locale="en-US"');
+    el._renderMonth([]);
+    expect(el.shadowRoot.querySelectorAll('.cal-day:not(.outside)')).toHaveLength(29);
+  });
+
+  test('seven weekday column headers, one per grid column', async () => {
+    const el = await mountJuly();
+    el._renderMonth([]);
+    expect(el.shadowRoot.querySelectorAll('.cal-weekday')).toHaveLength(7);
+  });
+
+  test('events land in their own day cell as chips', async () => {
+    const el = await mountJuly();
+    el._renderMonth([
+      ev({ summary: 'Standup', start: new Date(2026, 6, 2, 9, 0) }),
+      ev({ summary: 'Lunch',   start: new Date(2026, 6, 2, 12, 0) }),
+      ev({ summary: 'Review',  start: new Date(2026, 6, 9, 15, 0) }),
+    ]);
+    const cell2 = el.shadowRoot.querySelector('[data-date="2026-07-02"]');
+    const cell9 = el.shadowRoot.querySelector('[data-date="2026-07-09"]');
+    expect([...cell2.querySelectorAll('.cal-chip')].map(c => c.textContent))
+      .toEqual(['Standup', 'Lunch']);
+    expect([...cell9.querySelectorAll('.cal-chip')].map(c => c.textContent))
+      .toEqual(['Review']);
+    expect(cell2.classList.contains('has-events')).toBe(true);
+    // a day with no events is inert
+    expect(el.shadowRoot.querySelector('[data-date="2026-07-03"]')
+      .classList.contains('has-events')).toBe(false);
+  });
+
+  test('clicking a day opens a popover listing that day, and toggles shut', async () => {
+    const el = await mountJuly();
+    el._renderMonth([
+      ev({ summary: 'Standup', start: new Date(2026, 6, 2, 9, 5),
+           end: new Date(2026, 6, 2, 9, 35), location: 'Cafe' }),
+      ev({ summary: 'Lunch', start: new Date(2026, 6, 2, 12, 0) }),
+    ]);
+    const cell = el.shadowRoot.querySelector('[data-date="2026-07-02"]');
+
+    cell.dispatchEvent(new Event('click', { bubbles: true }));
+    const pop = el.shadowRoot.querySelector('.cal-day-popover');
+    expect(pop).not.toBeNull();
+    expect(pop.getAttribute('role')).toBe('dialog');
+    expect([...pop.querySelectorAll('.cal-row-summary')].map(s => s.textContent))
+      .toEqual(['Standup', 'Lunch']);
+    expect(pop.querySelector('.cal-row-time').textContent).toBe('09:05–09:35');
+    expect(pop.querySelector('.cal-row-location').textContent).toBe('Cafe');
+
+    // second click on the same day closes it
+    cell.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(el.shadowRoot.querySelector('.cal-day-popover')).toBeNull();
+  });
+
+  test('only one popover is open at a time', async () => {
+    const el = await mountJuly();
+    el._renderMonth([
+      ev({ summary: 'A', start: new Date(2026, 6, 2, 9, 0) }),
+      ev({ summary: 'B', start: new Date(2026, 6, 9, 9, 0) }),
+    ]);
+    el.shadowRoot.querySelector('[data-date="2026-07-02"]')
+      .dispatchEvent(new Event('click', { bubbles: true }));
+    el.shadowRoot.querySelector('[data-date="2026-07-09"]')
+      .dispatchEvent(new Event('click', { bubbles: true }));
+    const pops = el.shadowRoot.querySelectorAll('.cal-day-popover');
+    expect(pops).toHaveLength(1);
+    expect(pops[0].parentElement.dataset.date).toBe('2026-07-09');
+  });
+
+  test('the month anchor starts at `start` and the nav steps it', async () => {
+    const el = await mountJuly();
+    expect(el.monthAnchor.getFullYear()).toBe(2026);
+    expect(el.monthAnchor.getMonth()).toBe(6);       // July
+
+    el._monthAnchor = new Date(2026, 11, 1);          // December
+    await el._stepMonth(1);
+    expect(el.monthAnchor.getFullYear()).toBe(2027);  // rolls the year
+    expect(el.monthAnchor.getMonth()).toBe(0);
+
+    await el._stepMonth(-1);
+    expect(el.monthAnchor.getFullYear()).toBe(2026);
+    expect(el.monthAnchor.getMonth()).toBe(11);
+  });
+
+  test('hide-header drops the title strip and its month nav', async () => {
+    const el = await mount('source="x.ics" view="month" start="2026-07-01" hide-header');
+    el._renderMonth([]);
+    expect(el.shadowRoot.querySelector('.cal-month-header')).toBeNull();
+    expect(el.shadowRoot.querySelector('.cal-nav')).toBeNull();
+    expect(el.shadowRoot.querySelector('.cal-month')).not.toBeNull();
+  });
+
+  test('the grid carries its ARIA roles', async () => {
+    const el = await mountJuly();
+    el._renderMonth([ev({ summary: 'A', start: new Date(2026, 6, 2, 9, 0) })]);
+    expect(el.shadowRoot.querySelector('.cal-month').getAttribute('role')).toBe('grid');
+    expect(el.shadowRoot.querySelectorAll('[role="row"]').length).toBe(6);   // weekday strip + 5 weeks
+    expect(el.shadowRoot.querySelectorAll('[role="gridcell"]')).toHaveLength(35);
+    expect(el.shadowRoot.querySelector('[data-date="2026-07-02"]')
+      .getAttribute('aria-haspopup')).toBe('dialog');
   });
 });

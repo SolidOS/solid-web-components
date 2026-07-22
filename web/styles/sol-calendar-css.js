@@ -149,6 +149,77 @@ export const CSS = `
     text-decoration: underline;
   }
 
+  /* ── month view (view="month") ─────────────────────────────────────── */
+
+  .cal-month-header { display: flex; align-items: center; gap: .5rem; }
+  .cal-month-header .cal-title { flex: 1; text-align: center; }
+
+  .cal-nav {
+    font: inherit; line-height: 1; cursor: pointer;
+    background: none; color: inherit;
+    border: 1px solid var(--border, #cfcfcf); border-radius: 6px;
+    padding: .1rem .5rem;
+  }
+  .cal-nav:hover { background: var(--hover-bg, rgba(0,0,0,.06)); }
+  .cal-nav:focus-visible { outline: 2px solid var(--focus, #4c6ef5); outline-offset: 1px; }
+
+  .cal-month { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
+  .cal-month-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+
+  .cal-weekdays { position: sticky; top: 0; z-index: 1; background: var(--bg, #fff); }
+  .cal-weekday {
+    padding: .25rem; text-align: center;
+    font-size: .8em; font-weight: 600; color: var(--muted, #666);
+  }
+
+  .cal-day {
+    position: relative;                 /* popover anchor */
+    min-height: 4.5rem; padding: .2rem;
+    border-top: 1px solid var(--border, #e6e6e6);
+    border-left: 1px solid var(--border, #e6e6e6);
+    display: flex; flex-direction: column; gap: .1rem;
+    /* NO overflow:hidden — it would clip the day popover. Chips ellipsis
+       individually, and a busy day just makes its week row taller. */
+  }
+  /* Lift the open day above its later siblings so they can't paint over it. */
+  .cal-day:has(.cal-day-popover) { z-index: 5; }
+  .cal-month-row .cal-day:last-child { border-right: 1px solid var(--border, #e6e6e6); }
+  .cal-month-row:last-child .cal-day { border-bottom: 1px solid var(--border, #e6e6e6); }
+  .cal-day.outside { opacity: .45; }
+  .cal-day.today { background: var(--today-bg, rgba(76,110,245,.10)); }
+  .cal-day.has-events { cursor: pointer; }
+  .cal-day:focus-visible { outline: 2px solid var(--focus, #4c6ef5); outline-offset: -2px; }
+
+  .cal-day-num { font-size: .85em; font-weight: 600; }
+  .cal-day.today .cal-day-num { color: var(--accent, #4c6ef5); }
+
+  .cal-chip {
+    font-size: .75em; line-height: 1.3;
+    padding: 0 .25rem; border-radius: 3px;
+    background: var(--chip-bg, rgba(76,110,245,.16));
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cal-chip.all-day { background: var(--chip-allday-bg, rgba(64,160,96,.18)); }
+
+  .cal-day-popover {
+    position: absolute; top: 100%; left: 0; z-index: 5;
+    min-width: max(100%, 16rem); max-width: 22rem;
+    max-height: 60vh; overflow: auto;
+    padding: .4rem;
+    background: var(--bg, #fff); color: var(--text, #212121);
+    border: 1px solid var(--border, #cfcfcf); border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.18);
+    cursor: default;
+  }
+  .cal-day-popover-head { font-weight: 600; margin-bottom: .25rem; }
+  /* The popover reuses .cal-rows/.cal-row, which the agenda lays out as a
+     date+time+body grid — here there's no date column. */
+  .cal-day-popover .cal-row { grid-template-columns: 5rem 1fr; }
+
+  /* A cell in the last rows would clip its popover against the scroller;
+     flip it above instead. */
+  .cal-month-row:nth-last-child(-n+2) .cal-day-popover { top: auto; bottom: 100%; }
+
   /* Phone (coarse pointer): inside a viewport-capped dropdown the fixed
      7rem+7rem grid columns squeeze the event body to a sliver (one
      character per line). Wrap instead: date + time on the first line,

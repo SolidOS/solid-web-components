@@ -6,10 +6,10 @@
  * Solid pod — and renders the events as an agenda list that fits
  * whatever container the host page gives it.
  *
- * v1 ships the agenda view only. `mini` (today-only card) and `month`
- * (grid + day popover) are planned and will land as a follow-up; the
- * view dispatch in `connectedCallback` is a switch so adding them is
- * local.
+ * Two views: `agenda` (default) and `month` — a 7-column grid whose
+ * cells carry event chips and open a day popover with the full list.
+ * `mini` (today-only card) is still planned; the dispatch in
+ * `_renderView` is where it lands.
  *
  * Attributes:
  *   source         One or more ICS URLs (whitespace-separated for >1),
@@ -21,9 +21,11 @@
  *   provider       google | apple | outlook | proton | ics  (default: ics)
  *   calendar-id    For provider="google", the calendar email/id; URL is built
  *                  via the public-ICS template. Other providers ignore it.
- *   view           agenda  (only value supported in v1)
- *   start          ISO date YYYY-MM-DD (default: today)
- *   window-days    Agenda lookahead in days (default: 30)
+ *   view           agenda | month  (default: agenda)
+ *   start          ISO date YYYY-MM-DD (default: today). In month view it
+ *                  picks the month the grid opens on.
+ *   window-days    Agenda lookahead in days (default: 30). Ignored by month
+ *                  view, which windows the fetch to the grid it draws.
  *   max-events     Cap on rendered events (default: 100)
  *   proxy          CORS proxy pattern — supports `{url}` token or appended
  *   time-zone      IANA TZ override (default: browser's resolved TZ)
@@ -122,6 +124,37 @@ function formatEventTime(ev, locale) {
   if (endSameMinute) return start;
   const end = `${pad2(ev.end.getHours())}:${pad2(ev.end.getMinutes())}`;
   return `${start}–${end}`;
+}
+
+/** Local YMD key ("2026-07-04") — the month grid buckets events by day. */
+function ymdKey(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** First day of the week for a locale: 1=Mon … 7=Sun, per Intl's weekInfo.
+ *  Falls back to Sunday where the engine doesn't expose it. */
+function firstWeekday(locale) {
+  try {
+    const info = new Intl.Locale(locale || navigator.language).weekInfo;
+    if (info && info.firstDay) return info.firstDay;
+  } catch { /* no weekInfo in this engine */ }
+  return 7;
+}
+
+/** The cells of a month grid: leading/trailing days pad the first and
+ *  last weeks so every row holds 7. `inMonth` marks the real ones. */
+function monthCells(anchor, locale) {
+  const year = anchor.getFullYear(), month = anchor.getMonth();
+  const start = firstWeekday(locale) % 7;                // 7 (Sun) → 0
+  const lead  = (new Date(year, month, 1).getDay() - start + 7) % 7;
+  const days  = new Date(year, month + 1, 0).getDate();  // day 0 of next month
+  const total = Math.ceil((lead + days) / 7) * 7;
+  const cells = [];
+  for (let i = 0; i < total; i++) {
+    const d = new Date(year, month, i - lead + 1);
+    cells.push({ date: d, inMonth: d.getMonth() === month });
+  }
+  return cells;
 }
 
 /** Pretty header label for the title strip. We don't have the calendar's
@@ -334,13 +367,22 @@ class SolCalendar extends HTMLElement {
       signal,
     };
 
+    // Month view windows the fetch to the grid it's about to draw — the
+    // whole displayed month plus the adjacent-month days padding its first
+    // and last weeks — instead of the agenda's rolling `window-days`.
+    if (this.view === 'month') {
+      const cells = monthCells(this.monthAnchor, this.locale);
+      opts.start = cells[0].date;
+      opts.windowDays = cells.length;
+    }
+
     try {
       if (urls.length > 1) {
         // Amalgamated calendar — Promise.allSettled inside, so a single
         // dead feed doesn't blank the rest. Surface the count of
         // failures in the status strip without overriding the events.
         const { events, errors } = await getMergedCalendarEvents(urls, opts);
-        this._renderAgenda(events);
+        this._renderView(events);
         if (errors.length) {
           this._setStatus(
             `Loaded ${urls.length - errors.length} of ${urls.length} calendars — ${errors.length} failed`,
@@ -357,7 +399,7 @@ class SolCalendar extends HTMLElement {
         }
       } else {
         const events = await getCalendarEvents(urls[0] || '', opts);
-        this._renderAgenda(events);
+        this._renderView(events);
         this._setStatus('');
       }
     } catch (e) {
@@ -365,6 +407,197 @@ class SolCalendar extends HTMLElement {
       this._renderEmpty(`Couldn't load calendar: ${e.message}`);
       this._setStatus(e.message || String(e), true);
     }
+  }
+
+  /** View dispatch — `view="month"` gets the grid, everything else the agenda. */
+  _renderView(events) {
+    if (this.view === 'month') this._renderMonth(events);
+    else this._renderAgenda(events);
+  }
+
+  /** First of the displayed month. Month nav moves this; everything else
+   *  derives from `start`. */
+  get monthAnchor() {
+    if (!this._monthAnchor) {
+      const s = this.startDate;
+      this._monthAnchor = new Date(s.getFullYear(), s.getMonth(), 1);
+    }
+    return this._monthAnchor;
+  }
+
+  /** Step the grid by ±1 month and refetch — the window follows the anchor. */
+  async _stepMonth(delta) {
+    const a = this.monthAnchor;
+    this._monthAnchor = new Date(a.getFullYear(), a.getMonth() + delta, 1);
+    await this._update();
+  }
+
+  _renderMonth(events) {
+    const anchor = this.monthAnchor;
+    const locale = this.locale || undefined;
+    const frag = [];
+
+    if (!this.hasAttribute('hide-header')) {
+      const header = document.createElement('div');
+      header.className = 'cal-header cal-month-header';
+
+      const prev = document.createElement('button');
+      prev.type = 'button';
+      prev.className = 'cal-nav';
+      prev.textContent = '‹';
+      prev.setAttribute('aria-label', 'Previous month');
+      prev.addEventListener('click', () => this._stepMonth(-1));
+
+      const title = document.createElement('span');
+      title.className = 'cal-title';
+      title.textContent = anchor.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'cal-nav';
+      next.textContent = '›';
+      next.setAttribute('aria-label', 'Next month');
+      next.addEventListener('click', () => this._stepMonth(1));
+
+      header.append(prev, title, next);
+      frag.push(header);
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'cal-month';
+    grid.setAttribute('role', 'grid');
+    grid.setAttribute('aria-label', anchor.toLocaleDateString(locale, { month: 'long', year: 'numeric' }));
+
+    const cells = monthCells(anchor, this.locale);
+
+    // Weekday strip — names come from the first week's cells, so the
+    // labels always match the column order whatever the locale starts on.
+    const head = document.createElement('div');
+    head.className = 'cal-month-row cal-weekdays';
+    head.setAttribute('role', 'row');
+    for (const c of cells.slice(0, 7)) {
+      const wd = document.createElement('span');
+      wd.className = 'cal-weekday';
+      wd.setAttribute('role', 'columnheader');
+      wd.textContent = c.date.toLocaleDateString(locale, { weekday: 'short' });
+      head.appendChild(wd);
+    }
+    grid.appendChild(head);
+
+    // Bucket events by local day so each cell is a cheap lookup.
+    const byDay = new Map();
+    for (const ev of events) {
+      const k = ymdKey(ev.start);
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(ev);
+    }
+
+    const today = new Date();
+    let row = null;
+    cells.forEach((cell, i) => {
+      if (i % 7 === 0) {
+        row = document.createElement('div');
+        row.className = 'cal-month-row';
+        row.setAttribute('role', 'row');
+        grid.appendChild(row);
+      }
+      const dayEvents = byDay.get(ymdKey(cell.date)) || [];
+
+      const day = document.createElement('div');
+      day.className = 'cal-day'
+        + (cell.inMonth ? '' : ' outside')
+        + (sameYMD(cell.date, today) ? ' today' : '')
+        + (dayEvents.length ? ' has-events' : '');
+      day.setAttribute('role', 'gridcell');
+      day.dataset.date = ymdKey(cell.date);
+
+      const num = document.createElement('span');
+      num.className = 'cal-day-num';
+      num.textContent = String(cell.date.getDate());
+      day.appendChild(num);
+
+      for (const ev of dayEvents) {
+        const chip = document.createElement('span');
+        chip.className = 'cal-chip' + (ev.allDay ? ' all-day' : '');
+        chip.textContent = ev.summary || '(untitled)';
+        chip.title = ev.summary || '';
+        day.appendChild(chip);
+      }
+
+      if (dayEvents.length) {
+        day.tabIndex = 0;
+        day.setAttribute('aria-haspopup', 'dialog');
+        const open = () => this._openDay(day, cell.date, dayEvents);
+        day.addEventListener('click', open);
+        day.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+        });
+      }
+
+      row.appendChild(day);
+    });
+
+    frag.push(grid);
+    this._root.replaceChildren(...frag);
+  }
+
+  /** Day popover — the full event list for one cell. A second click (or
+   *  Escape) closes it; only one is open at a time. */
+  _openDay(cell, date, events) {
+    const existing = this._root.querySelector('.cal-day-popover');
+    const wasMine = existing && existing.parentElement === cell;
+    if (existing) existing.remove();
+    if (wasMine) return;
+
+    const pop = document.createElement('div');
+    pop.className = 'cal-day-popover';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', formatDate(date, this.locale));
+
+    const head = document.createElement('div');
+    head.className = 'cal-day-popover-head';
+    head.textContent = formatDate(date, this.locale);
+    pop.appendChild(head);
+
+    const ul = document.createElement('ul');
+    ul.className = 'cal-rows';
+    for (const ev of events) {
+      const li = document.createElement('li');
+      li.className = 'cal-row';
+
+      const time = document.createElement('span');
+      time.className = 'cal-row-time';
+      time.textContent = formatEventTime(ev, this.locale);
+
+      const body = document.createElement('div');
+      body.className = 'cal-row-body';
+      const summary = document.createElement('span');
+      summary.className = 'cal-row-summary';
+      if (ev.url) {
+        const a = document.createElement('a');
+        a.href = ev.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = ev.summary || '(untitled)';
+        summary.appendChild(a);
+      } else {
+        summary.textContent = ev.summary || '(untitled)';
+      }
+      body.appendChild(summary);
+      if (ev.location) {
+        const loc = document.createElement('span');
+        loc.className = 'cal-row-location';
+        loc.textContent = ev.location;
+        body.appendChild(loc);
+      }
+
+      li.append(time, body);
+      ul.appendChild(li);
+    }
+    pop.appendChild(ul);
+
+    pop.addEventListener('keydown', (e) => { if (e.key === 'Escape') pop.remove(); });
+    cell.appendChild(pop);
   }
 
   _renderEmpty(msg) {

@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>sol-calendar view="month" preview</title>
+<!-- Renders the month grid from a fixed event set (no network), so the
+     layout can be eyeballed / screenshotted. Serve the repo root and open
+     /claude/scratch/month-preview.html. -->
+<script type="importmap">
+{
+  "imports": {
+    "rdflib": "/dist/vendor/rdflib.js",
+    "n3": "/dist/vendor/n3.js",
+    "dompurify": "/dist/vendor/dompurify.js",
+    "ical.js": "/dist/vendor/ical.js.js",
+    "marked": "/dist/vendor/marked.js",
+    "solid-logic": "/dist/vendor/solid-logic.js",
+    "solid-ui": "/dist/vendor/solid-ui.js",
+    "rdf-validate-shacl": "/dist/vendor/rdf-validate-shacl.js",
+    "@inrupt/solid-client-authn-browser": "/dist/vendor/@inrupt-solid-client-authn-browser.js",
+    "@comunica/query-sparql": "https://cdn.jsdelivr.net/npm/@comunica/query-sparql@5/+esm"
+  }
+}
+</script>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 1.5rem; background: #fff; color: #212121; }
+  .frame { width: 46rem; height: 32rem; border: 1px solid #ccc; border-radius: 8px; padding: .5rem; }
+  h1 { font-size: 1rem; }
+</style>
+<h1>&lt;sol-calendar view="month"&gt; — July 2026</h1>
+<div class="frame"><sol-calendar id="cal" view="month" start="2026-07-01" locale="en-US" source="x.ics"></sol-calendar></div>
+<script type="module">
+  import '/web/sol-calendar.js';
+  const ev = (summary, y, m, d, h = 9, mi = 0, extra = {}) => ({
+    summary, start: new Date(y, m, d, h, mi),
+    end: new Date(y, m, d, h + 1, mi), allDay: false, ...extra,
+  });
+  const events = [
+    ev('Standup', 2026, 6, 2, 9, 5),
+    ev('Lunch with Ada', 2026, 6, 2, 12, 0, { location: 'Cafe' }),
+    ev('Review', 2026, 6, 9, 15, 0),
+    { summary: 'Conference', start: new Date(2026, 6, 15), end: new Date(2026, 6, 15), allDay: true },
+    ev('1:1', 2026, 6, 15, 11, 0),
+    ev('Retro', 2026, 6, 30, 16, 30),
+    ev('June leftover', 2026, 5, 30, 10, 0),
+  ];
+  const el = document.getElementById('cal');
+  customElements.whenDefined('sol-calendar').then(async () => {
+    await new Promise(r => setTimeout(r, 50));
+    el._renderMonth(events);
+    window.__ready = true;
+  });
+</script>
