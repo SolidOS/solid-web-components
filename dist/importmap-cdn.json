@@ -4,7 +4,7 @@
     "dompurify": "https://esm.sh/dompurify@3",
     "ical.js": "https://esm.sh/ical.js@2",
     "marked": "https://esm.sh/marked@4",
-    "@comunica/query-sparql": "https://esm.sh/@comunica/query-sparql@5",
+    "@comunica/query-sparql": "https://cdn.jsdelivr.net/npm/@comunica/query-sparql@5/+esm",
     "solid-ui": "https://esm.sh/solid-ui@3",
     "solid-logic": "https://esm.sh/solid-logic@4",
     "@inrupt/solid-client-authn-browser": "https://esm.sh/@inrupt/solid-client-authn-browser@4",

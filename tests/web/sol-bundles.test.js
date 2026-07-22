@@ -39,14 +39,20 @@ test('sol-pod-bundle registers the pod stack', async () => {
 test('sol-form-bundle is the web-tier name for core/rdf-bundle.js', () => {
   // Executing it in jest would need the whole solid-ui stack; assert the
   // wiring statically — the bundle is a single re-import of rdf-bundle,
-  // whose own imports (sol-form, sol-tree-edit, sol-modal, sol-settings)
-  // register the elements at runtime through the importmap.
+  // whose own imports register the elements at runtime.
   const src = readFileSync(join(here, '../../web/sol-form-bundle.js'), 'utf8');
   expect(src).toMatch(/import '\.\.\/core\/rdf-bundle\.js';/);
   const core = readFileSync(join(here, '../../core/rdf-bundle.js'), 'utf8');
   for (const dep of ['sol-form', 'sol-tree-edit', 'sol-modal', 'sol-settings']) {
-    expect(core).toContain(`import '${dep}'`);
+    expect(core).toContain(`import '../web/${dep}.js'`);
   }
+});
+
+test('rdf-bundle imports sol-* by path, never by importmap nickname', () => {
+  // A bare `sol-form` is not an npm package: esm.sh resolves bare specifiers at
+  // publish time and emits a 404 URL, which rejects the whole bundle import.
+  const core = readFileSync(join(here, '../../core/rdf-bundle.js'), 'utf8');
+  expect(core).not.toMatch(/^import '(sol-|menu-from-rdf|rdf-bundle)[^']*';$/m);
 });
 
 test('sol-full is gone', () => {

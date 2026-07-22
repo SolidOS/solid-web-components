@@ -185,9 +185,13 @@ export class ComunicaSparqlAdapter {
     // import it on demand and build a QueryEngine from its export. Async factory
     // — awaited by executeQuery, so the (large) engine only loads when a
     // federated query actually runs, not on page load.
+    // The specifier is held in a variable on purpose: a CDN that rewrites bare
+    // specifiers at publish time (esm.sh) can't see through one, so the page's
+    // importmap stays in control of which Comunica build actually loads.
+    const COMUNICA = '@comunica/query-sparql';
     return async () => {
       let mod;
-      try { mod = await import('@comunica/query-sparql'); }
+      try { mod = await import(/* @vite-ignore */ COMUNICA); }
       catch (e) { throw new Error(`Comunica engine could not be loaded: ${e.message}`); }
       const QueryEngine = mod.QueryEngine || mod.default?.QueryEngine || mod.default;
       if (typeof QueryEngine !== 'function') throw new Error('Comunica module has no QueryEngine export');
