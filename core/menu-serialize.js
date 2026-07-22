@@ -107,6 +107,19 @@ function treeNodes(store, docUrl, items, out = []) {
   return out;
 }
 
+// schema:additionalProperty blank-node pairs. Shared by the component branch
+// (attributes on the mounted element) and the link branch (search params on the
+// outbound URL) so the two spellings can never drift apart.
+function emitParams(store, doc, node, params) {
+  for (const [k, v] of params || []) {
+    if (!k) continue;
+    const b = rdf.blankNode();
+    store.add(b, sch('name'), rdf.literal(String(k)), doc);
+    store.add(b, sch('value'), rdf.literal(String(v ?? '')), doc);
+    store.add(node, sch('additionalProperty'), b, doc);
+  }
+}
+
 function emitItem(store, docUrl, doc, item, taken) {
   // A ui:Plugin entry re-emits as its REFERENCE — the bare entry IRI in the
   // parts list. No body statements: the entry is not this doc's to write.
@@ -170,17 +183,14 @@ function emitItem(store, docUrl, doc, item, taken) {
     // block above).
     const params = (item.params || []).filter(([k]) => k !== 'region');
     if (item.region && !item.regionInherited) params.push(['region', String(item.region).toLowerCase()]);
-    for (const [k, v] of params) {
-      if (!k) continue;
-      const b = rdf.blankNode();
-      store.add(b, sch('name'), rdf.literal(String(k)), doc);
-      store.add(b, sch('value'), rdf.literal(String(v ?? '')), doc);
-      store.add(node, sch('additionalProperty'), b, doc);
-    }
+    emitParams(store, doc, node, params);
   } else {
     store.add(node, a, ui('Link'), doc);
     if (item.href != null) store.add(node, sch('url'), rdf.literal(String(item.href)), doc);
     if (item.contents != null) store.add(node, ui('contents'), rdf.literal(String(item.contents)), doc);
+    // A link's placement is the ui:region triple written above, NOT an
+    // attribute — so region never re-joins the param list here.
+    emitParams(store, doc, node, (item.params || []).filter(([k]) => k !== 'region'));
   }
   return node;
 }

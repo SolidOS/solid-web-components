@@ -47,6 +47,48 @@ export function paramsToObject(params) {
   return Object.fromEntries(params || []);
 }
 
+// Params the app consumes structurally (placement + gating). They stay in the
+// param list — gatedByParams reads them and they round-trip through the RDF —
+// but must never leak into a link's outbound URL.
+const URL_PARAM_SKIP = new Set(['region', 'if-logged-in', 'requires-write']);
+
+/**
+ * Merge a ui:Link's schema:additionalProperty pairs into its URL as search
+ * params. An empty value emits a bare flag (`?defer`), matching the
+ * empty-string convention for valueless attributes. A same-named key already in
+ * the href is replaced, not duplicated; any #fragment is preserved.
+ *
+ * String surgery rather than `new URL()`: same-origin link hrefs are relative
+ * (they go to `sol-include`) and have no base to resolve against here.
+ *
+ * @param {string} href
+ * @param {Array<[string, string]>} [params]
+ * @returns {string} href unchanged when there is nothing to add
+ */
+export function hrefWithParams(href, params) {
+  const pairs = (params || []).filter(([k]) => k && !URL_PARAM_SKIP.has(k));
+  if (!href || !pairs.length) return href;
+
+  const hash = href.indexOf('#');
+  const base = hash < 0 ? href : href.slice(0, hash);
+  const frag = hash < 0 ? '' : href.slice(hash);
+  const q = base.indexOf('?');
+  const path = q < 0 ? base : base.slice(0, q);
+
+  const names = new Set(pairs.map(([k]) => k));
+  const kept = (q < 0 ? '' : base.slice(q + 1)).split('&').filter((s) => {
+    if (!s) return false;
+    try { return !names.has(decodeURIComponent(s.split('=')[0])); }
+    catch { return true; }                       // malformed escape — leave it alone
+  });
+
+  const enc = encodeURIComponent;
+  const added = pairs.map(([k, v]) =>
+    (v === '' || v == null ? enc(k) : `${enc(k)}=${enc(v)}`));
+
+  return `${path}?${kept.concat(added).join('&')}${frag}`;
+}
+
 /**
  * Dispatch a menu/button/tab command. `command` is the registry key (from a
  * component tag or a bare `data-handler`); `params` is the
@@ -147,7 +189,12 @@ export function renderComponentItem(desc, ctx) {
  * non-default viewer is expressed as a `ui:Component`, not a handler.
  * Placement is resolved from the HTML by the dispatcher (region= / data-for).
  *
- * @param {object} desc { id, name, href, contents }
+ * The item's params are merged into the URL ONCE here, before both
+ * contentForHref and displayItem — so the embedded (iframe / sol-include) and
+ * the popped-out (window.open for the tab/window regions) paths get the same
+ * URL without per-surface handling.
+ *
+ * @param {object} desc { id, name, href, contents, params }
  * @param {object} ctx  { host, baseUrl, sourceName, embedClass }
  * @returns {(body: HTMLElement) => void}
  */
@@ -165,12 +212,13 @@ export function renderLinkItem(desc, ctx) {
     }
     if (!href) return;
 
-    const { tag, attrs, replace } = contentForHref(href);
+    const url = hrefWithParams(href, desc.params);
+    const { tag, attrs, replace } = contentForHref(url);
     ensure(tag);
 
     displayItem({
       launcher: ctx.host, id, name: name || id,
-      tag, attrs, href, replace,
+      tag, attrs, href: url, replace,
       embedClass: ctx.embedClass, fallbackEl: body, ensure,
     });
   };

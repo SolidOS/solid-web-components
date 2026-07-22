@@ -58,12 +58,20 @@ export function extractTab(a, opts = {}) {
     const region = a.hasAttribute('target')
       ? targetToRegion(a.getAttribute('target'))
       : ((a.getAttribute('region') || '').toLowerCase() || null);
+    // Remaining attributes are the link's params (its URL search params) —
+    // same data-/plain split components use, same TAB_SKIP structural set.
+    const params = [];
+    for (const attr of a.attributes) {
+      if (TAB_SKIP.has(attr.name)) continue;
+      params.push([attr.name.startsWith('data-') ? attr.name.slice(5) : attr.name, attr.value]);
+    }
     return {
       type: 'link',
       id: a.getAttribute('id') || undefined,
       name: (a.textContent || '').trim(),
       region,
       href: a.getAttribute('href'),
+      params,
     };
   }
   const params = [];

@@ -197,7 +197,7 @@
 :LinkShape
   a sh:NodeShape ;
   sh:targetClass ui:Link ;
-  sh:node :IconMixin ;
+  sh:node :IconMixin, :AttributedMixin ;
   sh:property [
     sh:path ui:label ;
     sh:minCount 1 ;
@@ -241,6 +241,7 @@
 # `a ui:Command` registry fragments are documentation and stay unbound.
 :CommandShape
   a sh:NodeShape ;
+  sh:node :AttributedMixin ;
   sh:property [
     sh:path schema:url ;
     sh:minCount 1 ;

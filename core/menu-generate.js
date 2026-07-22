@@ -75,6 +75,14 @@ export function emitTab(item, warn = () => {}, docUrl = null) {
     const t = r === 'tab' ? '_blank' : r === 'inline' ? '_self' : null;
     out += `  <a href="${esc(item.href)}"${item.id ? ` id="${esc(item.id)}"` : ''}\n`;
     out += t ? `     target="${esc(t)}"\n` : `     region="${esc(r)}"\n`;
+    // Params ride the same attribute channel components use, so a link's
+    // search params survive rdf2html → html2rdf. `source` has no meaning on a
+    // link (its URL is the href) and `region` is already spelled above.
+    for (const [k, v] of item.params || []) {
+      if (!k || k === 'source' || k === 'id' || k === 'region') continue;
+      const name = ANCHOR_ATTRS.has(k) ? k : `data-${k}`;
+      out += v === '' ? `     ${name}\n` : `     ${name}="${esc(v)}"\n`;
+    }
     out += `  >${item.name}</a>\n`;
     return out;
   }

@@ -100,7 +100,7 @@ shape <#AttributedMixin> {
 }
 
 shape <#LinkShape> -> ui:Link ;
-    sh:node <#IconMixin> {
+    sh:node <#IconMixin>, <#AttributedMixin> {
     ui:label xsd:string [1..1] %
         sh:name "label" ; sh:description "The display label for the link"
     % .
@@ -119,7 +119,8 @@ shape <#ComponentShape> -> ui:Component ;
     % .
 }
 
-shape <#CommandShape> {
+shape <#CommandShape> ;
+    sh:node <#AttributedMixin> {
     schema:url IRI [1..1] pattern="#[A-Za-z][A-Za-z0-9]*$" %
         sh:name "command URL" ; sh:description "A fragment IRI in the host app's command registry document which points to one of the app's commands."
     % .

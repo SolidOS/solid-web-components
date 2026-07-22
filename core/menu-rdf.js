@@ -236,7 +236,10 @@ export function parseMenuItems(store, menuNode, inheritedRegion = null) {
       //   Command   → a registry-doc fragment; the KEY is the fragment name
       const payload = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
       if (kind === UI + 'Link') {
-        items.push({ ...common, type: 'link', href: payload, contents: null });
+        // A link's params become search params on its URL at render time
+        // (rdf-render hrefWithParams); structural ones are filtered there, not
+        // here, so gating still sees them.
+        items.push({ ...common, type: 'link', href: payload, contents: null, params: itemParams });
         continue;
       }
       const tag = kind === UI + 'Command'
@@ -299,9 +302,15 @@ export function parseMenuItems(store, menuNode, inheritedRegion = null) {
 
     const href     = (store.any(part, rdf.sym(SCHEMA + 'url')) || {}).value || null;
     const contents = rdfVal(store, part, 'contents');
+    // Inline `a ui:Link` (not a catalog entry) — same param channel as the
+    // entry branch above; rdfComponent's derived tag is meaningless for a link
+    // URL and is discarded. Without this the HTML round trip loses params:
+    // harvest → serialize writes them, and this branch would drop them again.
+    const { params: linkParams } = rdfComponent(store, part);
     items.push({ type: 'link', id, name: label, icon, region,
       regionInherited: !ownRegion && !!menuRegion,
-      comment, publisher, requiresWrite, href, contents, manifest });
+      comment, publisher, requiresWrite, href, contents, manifest,
+      params: linkParams.filter(([k]) => k !== 'region') });
   }
   return items;
 }
