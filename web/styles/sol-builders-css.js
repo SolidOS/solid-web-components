@@ -40,7 +40,7 @@ ul.tree, ul.tree ul { list-style: none; margin: 0; padding: 0; }
 ul.tree ul { padding-left: 1.4rem; border-left: 1px dashed var(--border, #d0d0d0); margin-left: .55rem; }
 
 li.item { margin: .15rem 0; }
-/* row = three columns: [grip + name] [plugins column] [✕ at the right];
+/* row = four columns: [▲▼ position] [name] [plugins column] [✕ at the right];
    chips WRAP within their own column (a second row of plugins starts under
    the first) — never horizontal scrolling */
 .row { display: flex; align-items: flex-start; gap: .4rem; padding: .2rem .35rem;
@@ -52,7 +52,13 @@ li.item { margin: .15rem 0; }
 .row.drop-before { box-shadow: 0 -2px 0 0 var(--accent, #3498db); }
 .row.drop-after  { box-shadow: 0  2px 0 0 var(--accent, #3498db); }
 
-.grip { cursor: grab; color: var(--text-muted, #9aa0a6); user-select: none; padding: 0 .15rem; }
+/* Position controls: a tight ▲▼ stack at the row's left. Top-aligned with the
+   name field (a row grows tall when its chips wrap — the arrows stay level with
+   the name, never floating to the row's vertical centre). Disabled at the ends. */
+.pos { flex: 0 0 auto; display: flex; flex-direction: column; align-self: flex-start; }
+.pos > .move { padding: 0 .25rem; line-height: 1.05; color: var(--text-muted, #9aa0a6); }
+.pos > .move:hover:not(:disabled) { color: var(--text, #212121); }
+.pos > .move:disabled { opacity: .3; cursor: default; }
 /* Editable names LOOK like input fields: always boxed, light background,
    dark text (whatever the app theme). */
 .label { flex: 0 1 20ch; width: 20ch; font: inherit; font-size: max(16px, 1em); padding: .15rem .4rem;
@@ -140,8 +146,9 @@ li.item { margin: .15rem 0; }
 .chip:hover .chip-edit, .chip-edit:focus { opacity: 1; }
 
 /* ---- Phone (coarse pointer, no hover): tap-first skin — full-width cards,
-   a scrolling topic chip strip, 44px rows/buttons/inputs, no drag grip.
-   Desktop is untouched by construction. ---- */
+   a scrolling topic chip strip, 44px rows/buttons/inputs. Position is the same
+   ▲▼ buttons as desktop, sized up for touch. Desktop is untouched by
+   construction. ---- */
 @media (hover: none) and (pointer: coarse) {
   .card { width: 100%; min-height: 44px; cursor: default; }
   .cards { gap: .5rem; }
@@ -150,7 +157,7 @@ li.item { margin: .15rem 0; }
   .topic-tabs::-webkit-scrollbar { display: none; }
   .topic-tab { flex: 0 0 auto; scroll-snap-align: start; min-height: 44px;
                padding: 0 16px; white-space: nowrap; }
-  .grip { display: none; }
+  .pos > .move { min-width: 44px; min-height: 22px; }
   .row { flex-wrap: wrap; align-items: center; min-height: 44px; }
   .row-btn { min-width: 44px; min-height: 44px; }
   .label { flex: 1 1 8ch; min-width: 6rem; padding: .45rem .4rem; }

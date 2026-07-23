@@ -755,3 +755,57 @@ describe('SolMenuManager — removing a row', () => {
     expect(el._items.map(i => i.name)).toEqual(['Keep']);
   });
 });
+
+// ── row position: ▲▼ buttons move a row among its siblings ─────────────────────
+
+describe('SolMenuManager — ▲▼ position buttons', () => {
+  const upBtn = (row) => row.querySelector('.pos > .move[aria-label*="up"]');
+  const downBtn = (row) => row.querySelector('.pos > .move[aria-label*="down"]');
+  const seed = async () => {
+    const el = await mountMenu();
+    el._items = [
+      { type: 'submenu', name: 'A', children: [] },
+      { type: 'submenu', name: 'B', children: [] },
+      { type: 'submenu', name: 'C', children: [] },
+    ];
+    el._render();
+    return el;
+  };
+
+  test('every row shows ▲ and ▼ (no drag grip) regardless of pointer type', async () => {
+    const el = await seed();
+    expect(root(el).querySelector('.grip')).toBeNull();
+    for (const r of rows(el)) {
+      expect(upBtn(r.querySelector('.row'))).not.toBeNull();
+      expect(downBtn(r.querySelector('.row'))).not.toBeNull();
+    }
+  });
+
+  test('▼ moves a row down among its siblings', async () => {
+    const el = await seed();
+    downBtn(rows(el)[0].querySelector('.row')).click();
+    await flush();
+    expect(el._items.map(i => i.name)).toEqual(['B', 'A', 'C']);
+  });
+
+  test('▲ moves a row up among its siblings', async () => {
+    const el = await seed();
+    upBtn(rows(el)[2].querySelector('.row')).click();
+    await flush();
+    expect(el._items.map(i => i.name)).toEqual(['A', 'C', 'B']);
+  });
+
+  test('ends are disabled — first ▲ and last ▼', async () => {
+    const el = await seed();
+    expect(upBtn(rows(el)[0].querySelector('.row')).disabled).toBe(true);
+    expect(downBtn(rows(el)[0].querySelector('.row')).disabled).toBe(false);
+    const last = rows(el)[2].querySelector('.row');
+    expect(downBtn(last).disabled).toBe(true);
+    expect(upBtn(last).disabled).toBe(false);
+  });
+
+  test('a row is NOT draggable — position is the arrows, no drag', async () => {
+    const el = await seed();
+    expect(rows(el)[0].querySelector('.row').draggable).toBe(false);
+  });
+});

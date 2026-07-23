@@ -21,7 +21,8 @@
  *             `accordion` the body is always shown and `open` is ignored.
  *
  * Editing model:
- *   - every row: drag-grip (reorder among siblings), an editable name, and
+ *   - every row: ▲▼ position buttons (move among siblings; ends disabled), an
+ *     editable name, and
  *     a chip per plugin the item holds (friendly names only — element tags
  *     and URLs are never shown). A multi-plugin item lists ALL its plugins
  *     as chips on the row itself; chips are draggable, so a plugin can be
@@ -43,8 +44,11 @@
  *     Save button): the WHOLE Turtle document is rewritten via
  *     core/menu-serialize (pantry subjects preserved) and PUT with solFetch
  *
- * Phone (coarse pointer — drag & drop is unreachable): rows grow ▲▼ tap
- * reorder buttons and submenu chips a trailing ✕; the grip hides. Adding is
+ * Rows are NOT draggable: position is the ▲▼ buttons, full stop (no
+ * drag-to-reorder, no drag-to-another-menu). Rows remain drop TARGETS for
+ * plugin cards and for chips dragged off a submenu. Phone (coarse pointer —
+ * drag & drop is unreachable) additionally gives submenu chips a trailing ✕.
+ * Adding is
  * tap-driven from <sol-plugin-manager> ("Add to…" sheet) via the public API:
  *   addPlugin(payload, {submenuId})  — place a card payload here / in a submenu
  *   placeTargets                     — {label, flat, submenus:[{id,name}]}
@@ -353,12 +357,38 @@ class SolMenuManager extends HTMLElement {
     li.className = 'item';
     const row = document.createElement('div');
     row.className = 'row';
-    row.draggable = true;
+    // A row is NOT draggable: position within this list is the ▲▼ buttons, and
+    // there is no drag-to-another-menu. It stays a drop TARGET, though — a
+    // plugin card from <sol-plugin-manager> dropped on it assigns/adds
+    // (see _wireRowDnd). (Reordering plugins WITHIN a submenu is a separate
+    // affordance — dragging chips — and is untouched.)
 
-    const grip = document.createElement('span');
-    grip.className = 'grip';
-    grip.textContent = '≡';
-    grip.title = 'Drag to reorder';
+    // Position controls: ▲▼ move this row among its siblings, replacing the
+    // former drag grip. Ends are disabled. _touch re-renders, so the disabled
+    // state refreshes after every move.
+    const idx = siblings.indexOf(item);
+    const moveBtn = (delta, arrow, verb, atEnd) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'row-btn move';
+      btn.textContent = arrow;
+      btn.disabled = atEnd;
+      btn.title = `Move ${verb}`;
+      btn.setAttribute('aria-label', `Move ${item.name || 'item'} ${verb}`);
+      btn.addEventListener('click', () => {
+        const at = siblings.indexOf(item);
+        const to = at + delta;
+        if (to < 0 || to >= siblings.length) return;
+        siblings.splice(at, 1);
+        siblings.splice(to, 0, item);
+        this._touch();
+      });
+      return btn;
+    };
+    const pos = document.createElement('span');
+    pos.className = 'pos';
+    pos.append(moveBtn(-1, '▲', 'up', idx === 0),
+               moveBtn(1, '▼', 'down', idx === siblings.length - 1));
 
     const label = document.createElement('input');
     label.className = 'label';
@@ -514,34 +544,12 @@ class SolMenuManager extends HTMLElement {
       this._touch();
     });
 
-    // Three columns: [grip + name field] [plugins — wrapping in their own
+    // Columns: [▲▼ position] [name field] [plugins — wrapping in their own
     // column, a second row of chips starts under the first chip] [✕ right].
     const chipCol = document.createElement('span');
     chipCol.className = 'chips';
     chipCol.append(...chips);
-    // Phone: the grip is hidden (drag is unreachable), so rows reorder with
-    // ▲▼ taps — the same sibling splice an internal drag performs.
-    const tail = [del];
-    if (isCoarse()) {
-      const move = (delta, arrow, verb) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'row-btn';
-        btn.textContent = arrow;
-        btn.setAttribute('aria-label', `Move ${item.name || 'item'} ${verb}`);
-        btn.addEventListener('click', () => {
-          const at = siblings.indexOf(item);
-          const to = at + delta;
-          if (to < 0 || to >= siblings.length) return;
-          siblings.splice(at, 1);
-          siblings.splice(to, 0, item);
-          this._touch();
-        });
-        return btn;
-      };
-      tail.unshift(move(-1, '▲', 'up'), move(1, '▼', 'down'));
-    }
-    row.append(grip, label, chipCol, ...tail);
+    row.append(pos, label, chipCol, del);
     li.appendChild(row);
 
     this._wireRowDnd(row, item, siblings);
@@ -598,14 +606,10 @@ class SolMenuManager extends HTMLElement {
   // Two flows share the row targets: reordering rows among their siblings
   // (internal drag) and accepting plugin cards from <sol-plugin-manager>.
 
+  // A row is a drop TARGET only (rows aren't draggable — position is the ▲▼
+  // buttons). It accepts a plugin card from <sol-plugin-manager>, and a chip
+  // dragged off a submenu (the `internal` path — chips are still drag sources).
   _wireRowDnd(row, item, siblings) {
-    row.addEventListener('dragstart', (e) => {
-      this._dragItem = { item, siblings };
-      this._setDragData(e, item, this._menuIri());
-      e.stopPropagation();
-    });
-    row.addEventListener('dragend', (e) => this._endItemDrag(e));
-
     row.addEventListener('dragover', (e) => {
       const plugin = this._dragPayload(e);
       const internal = this._dragItem && this._dragItem.item !== item;
