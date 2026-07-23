@@ -18,12 +18,21 @@
 //                Absent ui:orientation defaults to VERTICAL (a page stacks;
 //                menus default horizontal — different medium, different
 //                natural axis). ui:columns N renders the parts as a grid.
-//   semantic tag — schema:additionalType maps to the emitted element:
-//                SiteNavigationElement→nav, WPHeader→header, WPFooter→
-//                footer, WPSideBar→aside; the root's first unmarked
-//                ui:Layout child emits <main>; everything else <div>.
+//   semantic role — PREFERRED: a `role` schema:additionalProperty (ARIA
+//                landmark) maps to the native element (banner→header,
+//                main→main, navigation→nav, contentinfo→footer, region→section)
+//                — the complete set, including main. FALLBACK: the legacy
+//                schema:additionalType (SiteNavigationElement→nav, WP*→
+//                header/footer/aside) and, for an unmarked region, the root's
+//                first unmarked child → <main>. Everything else → <div>.
+//   member types — a region's members dispatch on rdf:type: ui:Layout → nested
+//                region; ui:Component → a mounted element; ui:Menu → a menu
+//                component (sol-menu/sol-tabs) via from-rdf; ui:Link → its
+//                schema:url as an include/iframe. (No raw URLs — a URL is
+//                always the schema:url inside a Link/Component.)
 //   schema:additionalProperty — pairs emitted verbatim on the region's element (class
-//                merges with the structural app-row/app-col/app-grid-N).
+//                merges with the structural app-row/app-col/app-grid-N; a
+//                `role` that named a native element is dropped as redundant).
 
 import { rdf } from './rdf.js';
 import { menuMembers, rdfVal, rdfComponent, deriveTagFromModule } from './menu-rdf.js';
@@ -39,6 +48,20 @@ const SEMANTIC_TAGS = new Map([
   [SCHEMA + 'WPHeader', 'header'],
   [SCHEMA + 'WPFooter', 'footer'],
   [SCHEMA + 'WPSideBar', 'aside'],
+]);
+
+// ARIA landmark role (a `role` schema:additionalProperty on a region) → the
+// native element that carries that role implicitly. This is the PREFERRED way
+// to mark a region's semantics (complete — includes `main`, which schema.org's
+// WebPageElement family lacks); the schema:additionalType SEMANTIC_TAGS above
+// remain as a fallback for older layouts. `region` also requires an
+// accessible name (aria-label) to be a landmark — the generator warns if absent.
+const ROLE_TAGS = new Map([
+  ['banner', 'header'],
+  ['main', 'main'],
+  ['navigation', 'nav'],
+  ['contentinfo', 'footer'],
+  ['region', 'section'],
 ]);
 
 // Tags sol-basic already registers — kept in sync with web/sol-basic.js so
@@ -57,6 +80,43 @@ function isType(store, node, typeIri) {
   return store.each(node, sym(RDF + 'type'), null).some((t) => t.value === typeIri);
 }
 
+// The kind of a ui:Plugin member (its schema:additionalType — ui:Link etc.).
+const pluginKind = (store, node) => val(store, node, SCHEMA + 'additionalType');
+const fragmentOf = (iri) => { const i = (iri || '').indexOf('#'); return i >= 0 ? iri.slice(i + 1) : null; };
+
+// Re-relativize an href the Turtle parser resolved to absolute back to a
+// doc-relative path (so emitted markup stays origin-portable, matching how the
+// doc authored it). External / unparseable hrefs pass through unchanged.
+function relativize(href, baseUrl) {
+  if (!baseUrl) return href;
+  let u, b;
+  try { u = new URL(href, baseUrl); b = new URL(baseUrl); } catch { return href; }
+  if (u.origin !== b.origin) return href;
+  const dir = b.pathname.replace(/[^/]*$/, '');   // base's directory
+  const path = u.pathname.startsWith(dir) ? u.pathname.slice(dir.length) : u.pathname;
+  return path + u.search + u.hash;
+}
+
+// A ui:Link member's content, chosen by URL at BUILD time. "External" means a
+// DIFFERENT origin than where the app is served (the layout doc's `baseUrl`) —
+// it frames as an <iframe> with the absolute URL; same-origin content
+// transcludes via <sol-include> with a doc-relative source. Same element
+// choice a menu's ui:Link makes at runtime (display-target's contentForHref),
+// so a link renders the same in a layout or a menu. Without a baseUrl, an
+// absolute http(s) URL is assumed external.
+function contentForHrefBuild(href, baseUrl) {
+  let external = false;
+  try {
+    const u = new URL(href, baseUrl || undefined);
+    if (u.protocol === 'http:' || u.protocol === 'https:') {
+      external = baseUrl ? u.origin !== new URL(baseUrl).origin : true;
+    }
+  } catch { external = false; }   // relative with no base → same-origin
+  if (external) return { tag: 'iframe', attrs: [['src', href]] };
+  const src = relativize(href, baseUrl);
+  return { tag: 'sol-include', attrs: [['source', src], ['endpoint', src], ['trusted', 'true']] };
+}
+
 /**
  * Parse a ui:Layout node (and its subtree) into a plain description:
  *   { kind:'region', node, label, comment, orientation, columns, params,
@@ -64,48 +124,68 @@ function isType(store, node, typeIri) {
  *   { kind:'leaf', item:{type:'component', tag, params, name, comment}, url }
  */
 export function parseLayoutTree(store, node) {
-  if (isType(store, node, UI + 'Component')) {
+  const kind = pluginKind(store, node);   // schema:additionalType of a ui:Plugin, or null
+  const comment = val(store, node, RDFS + 'comment');
+
+  // A mounted custom element: a ui:Component class, or a ui:Plugin of kind
+  // ui:Component. The element tag derives from schema:url (rdfComponent).
+  if (isType(store, node, UI + 'Component') || kind === UI + 'Component') {
     const { tag, params } = rdfComponent(store, node);
     return {
       kind: 'leaf',
       node,
       url: val(store, node, SCHEMA + 'url'),
-      item: {
-        type: 'component',
-        tag,
-        params,
-        name: rdfVal(store, node, 'label') || '',
-        comment: val(store, node, RDFS + 'comment'),
-      },
+      item: { type: 'component', tag, params, name: rdfVal(store, node, 'label') || '', comment },
     };
   }
+  // A ui:Menu member → rendered by a menu component (sol-menu / sol-tabs) via
+  // from-rdf; the presentation is inferred from the containing region's role.
+  if (isType(store, node, UI + 'Menu')) {
+    return { kind: 'menu', node, fragment: fragmentOf(node.value), comment };
+  }
+  // A ui:Link member (class, or a ui:Plugin of kind ui:Link) → its schema:url,
+  // resolved to an include/iframe at emit time.
+  if (isType(store, node, UI + 'Link') || kind === UI + 'Link') {
+    return { kind: 'link', node, url: val(store, node, SCHEMA + 'url'), comment };
+  }
+  // A ui:Command has no persistent content — meaningless as layout content.
+  if (isType(store, node, UI + 'Command') || kind === UI + 'Command') {
+    return { kind: 'skip', node };
+  }
+
   const orientationIri = rdfVal(store, node, 'orientation');
   const columns = rdfVal(store, node, 'columns');
-  const attrNodes = store.each(node, sym(SCHEMA + 'additionalProperty'), null);
+  const params = store.each(node, sym(SCHEMA + 'additionalProperty'), null)
+    .map((p) => [
+      (store.any(p, sym(SCHEMA + 'name')) || {}).value || '',
+      (store.any(p, sym(SCHEMA + 'value')) || {}).value || '',
+    ])
+    .filter(([k]) => k);
+  const role = (params.find(([k]) => k === 'role') || [])[1] || null;
   const additionalTypeIri = val(store, node, SCHEMA + 'additionalType');
   return {
     kind: 'region',
     node,
     label: rdfVal(store, node, 'label'),
-    comment: val(store, node, RDFS + 'comment'),
+    comment,
     orientation:
       orientationIri && orientationIri.endsWith('Horizontal') ? 'horizontal' : 'vertical',
     columns: columns ? parseInt(columns, 10) : null,
+    role,
+    // The emitted element: a `role` wins (complete ARIA set incl. main), else
+    // the legacy schema:additionalType, else decided by emitRegion (div/main).
+    roleTag: (role && ROLE_TAGS.get(role)) || null,
     additionalTypeIri,
     semantic: SEMANTIC_TAGS.get(additionalTypeIri) || null,
-    params: attrNodes
-      .map((p) => [
-        (store.any(p, sym(SCHEMA + 'name')) || {}).value || '',
-        (store.any(p, sym(SCHEMA + 'value')) || {}).value || '',
-      ])
-      .filter(([k]) => k),
+    params,
     parts: menuMembers(store, node).map((el) => parseLayoutTree(store, el)),
   };
 }
 
+// Every non-region node in the tree (component leaves, menu / link members).
 const walkLeaves = (tree, out = []) => {
-  if (tree.kind === 'leaf') out.push(tree);
-  else tree.parts.forEach((p) => walkLeaves(p, out));
+  if (tree.kind === 'region') tree.parts.forEach((p) => walkLeaves(p, out));
+  else out.push(tree);
   return out;
 };
 
@@ -113,25 +193,44 @@ const walkLeaves = (tree, out = []) => {
 const structuralClass = (region) =>
   region.columns ? `app-grid-${region.columns}` : region.orientation === 'horizontal' ? 'app-row' : 'app-col';
 
-// `from-rdf` values of every menu-consuming leaf — the menu docs the app
-// needs seeded (builder uses this to know which fragments to create).
+// `from-rdf` values of every menu-consuming node — the menu docs the app needs
+// seeded (builder uses this to know which fragments to create). Both a
+// component leaf carrying a `from-rdf` param and a ui:Menu member (whose
+// fragment IS the source) count.
 export function menuSourcesIn(tree) {
-  return [...new Set(
-    walkLeaves(tree)
-      .flatMap((l) => l.item.params.filter(([k]) => k === 'from-rdf').map(([, v]) => v)),
-  )];
+  const out = new Set();
+  for (const l of walkLeaves(tree)) {
+    if (l.kind === 'leaf') {
+      l.item.params.filter(([k]) => k === 'from-rdf').forEach(([, v]) => out.add(v));
+    } else if (l.kind === 'menu') {
+      out.add(l.fragment ? `#${l.fragment}` : l.node.value);
+    }
+  }
+  return [...out];
 }
 
-function emitRegion(region, { depth, isMain, warn }) {
-  // The <main> claim: the first unmarked region on the primary content path
-  // becomes <main> — unless it holds nested regions (a wrapper like
-  // banner + row(aside, main)), in which case the claim descends into ITS
-  // first unmarked region child instead, so <aside> and <main> emit as
-  // siblings inside the wrapper.
+// A region is "marked" when it names its own element — by a `role` (preferred)
+// or a legacy schema:additionalType. Marked regions are NOT eligible for the
+// first-unmarked-<main> fallback, so a fully role-tagged layout never
+// auto-claims a <main>: main comes only from role="main".
+const isMarked = (region) => !!(region.roleTag || region.semantic);
+
+function emitRegion(region, { depth, isMain, warn, baseUrl }) {
+  // <main> fallback (legacy / unmarked layouts only): the first UNMARKED region
+  // on the primary path becomes <main> unless it wraps nested regions, in which
+  // case the claim descends to its first unmarked region child.
   const wraps = isMain && region.parts.some((p) => p.kind === 'region');
   const pad = '  '.repeat(depth);
-  const tag = region.semantic || (isMain && !wraps ? 'main' : 'div');
+  const tag = region.roleTag || region.semantic || (isMain && !wraps ? 'main' : 'div');
   const attrs = new Map(region.params);
+  // A native landmark element carries its ARIA role implicitly — drop the now
+  // -redundant `role` attribute. (An unrecognised role falls through to <div>
+  // and its `role` attr is kept, so e.g. role="search" still emits.)
+  if (region.roleTag) attrs.delete('role');
+  // `region` / <section> is a landmark only when it has an accessible name.
+  if (region.role === 'region' && !attrs.get('aria-label') && !attrs.get('aria-labelledby')) {
+    warn(`region ${region.node.value} has role="region" but no aria-label — it will not be a landmark`);
+  }
   const cls = [attrs.get('class'), structuralClass(region)].filter(Boolean).join(' ');
   attrs.delete('class');
   let open = `${pad}<${tag} class="${esc(cls)}"`;
@@ -143,19 +242,46 @@ function emitRegion(region, { depth, isMain, warn }) {
   let claimLeft = wraps;
   for (const part of region.parts) {
     if (part.kind === 'region') {
-      const childIsMain = claimLeft && !part.semantic;
+      const childIsMain = claimLeft && !isMarked(part);
       if (childIsMain) claimLeft = false;
-      out += emitRegion(part, { depth: depth + 1, isMain: childIsMain, warn });
+      out += emitRegion(part, { depth: depth + 1, isMain: childIsMain, warn, baseUrl });
     } else {
-      // Leaves render through menu-generate's emitBarItem so page markup and
-      // menu markup declare components identically; its output is 2-space
-      // indented, so add depth more levels to sit inside this region.
-      const html = emitBarItem(part.item, warn);
-      if (html) out += html.replace(/^(?!\s*$)/gm, '  '.repeat(depth));
+      out += emitPart(part, depth, region.role, warn, baseUrl);
     }
   }
   out += `${pad}</${tag}>\n`;
   return out;
+}
+
+// Emit a non-region member (component leaf, ui:Menu, ui:Link) inside a region
+// at `depth`. Component leaves keep going through menu-generate's emitBarItem
+// (page markup === menu markup); menu/link members are resolved to their
+// element here. `parentRole` lets a menu pick its presentation.
+function emitPart(part, depth, parentRole, warn, baseUrl) {
+  if (part.kind === 'skip') { warn(`ui:Command ${part.node.value} skipped — commands are not layout content`); return ''; }
+  if (part.kind === 'leaf') {
+    // emitBarItem output is 2-space indented; add `depth` levels to nest it.
+    const html = emitBarItem(part.item, warn);
+    return html ? html.replace(/^(?!\s*$)/gm, '  '.repeat(depth)) : '';
+  }
+  const indent = '  '.repeat(depth + 1);
+  const lead = part.comment ? `${indent}<!-- ${esc(part.comment)} -->\n` : '';
+  if (part.kind === 'menu') {
+    // A menu in a `navigation` region reads as a nav list (sol-menu); elsewhere
+    // as a tabset (sol-tabs). from-rdf points the component at the menu doc.
+    const tag = parentRole === 'navigation' ? 'sol-menu' : 'sol-tabs';
+    const from = part.fragment ? `#${part.fragment}` : part.node.value;
+    return `${lead}${indent}<${tag} from-rdf="${esc(from)}"></${tag}>\n`;
+  }
+  if (part.kind === 'link') {
+    if (!part.url) { warn(`ui:Link ${part.node.value} has no schema:url`); return ''; }
+    const { tag, attrs } = contentForHrefBuild(part.url, baseUrl);
+    let s = `${lead}${indent}<${tag}`;
+    for (const [k, v] of attrs) s += v === '' ? ` ${k}` : ` ${k}="${esc(v)}"`;
+    s += `></${tag}>\n`;
+    return s;
+  }
+  return '';
 }
 
 const emojiFavicon = (icon) =>
@@ -180,17 +306,20 @@ export function generateAppHtml({
   layoutNode,
   app = {},
   componentsBase = '/node_modules/sol-components',
+  baseUrl = null,
   warn = () => {},
 }) {
   const tree = parseLayoutTree(store, layoutNode);
-  const leaves = walkLeaves(tree);
+  // Only component leaves carry a module tag; menu/link members resolve to
+  // sol-basic elements (sol-menu/sol-tabs/sol-include), so they need no token.
+  const componentLeaves = walkLeaves(tree).filter((l) => l.kind === 'leaf');
 
   // sol-* tags boot via sol-load's data-components; anything else names its
   // module in a visible <script type="module"> of its own.
   const solTags = [...new Set(
-    leaves.map((l) => l.item.tag).filter((t) => t && t.startsWith('sol-') && !SOL_BASIC_TAGS.has(t)),
+    componentLeaves.map((l) => l.item.tag).filter((t) => t && t.startsWith('sol-') && !SOL_BASIC_TAGS.has(t)),
   )];
-  const foreign = leaves.filter((l) => l.item.tag && !l.item.tag.startsWith('sol-') && l.url);
+  const foreign = componentLeaves.filter((l) => l.item.tag && !l.item.tag.startsWith('sol-') && l.url);
 
   const title = app.title || 'App';
   const icon = app.icon || null;
@@ -216,22 +345,11 @@ export function generateAppHtml({
   }
 
   // The root layout IS the body: its structural class goes on <body>, its
-  // children emit directly. The first unmarked layout child is the page's
-  // primary content and emits <main>.
+  // children emit directly (bodyFromTree). The first unmarked layout child is
+  // the page's primary content and emits <main>.
   const rootCls = [new Map(tree.params).get('class'), structuralClass(tree)]
     .filter(Boolean).join(' ');
-  let mainClaimed = false;
-  let body = '';
-  for (const part of tree.parts) {
-    if (part.kind === 'region') {
-      const isMain = !part.semantic && !mainClaimed;
-      if (isMain) mainClaimed = true;
-      body += '\n' + emitRegion(part, { depth: 1, isMain, warn });
-    } else {
-      const html = emitBarItem(part.item, warn);
-      if (html) body += '\n' + html;
-    }
-  }
+  const body = bodyFromTree(tree, warn, baseUrl);
 
   return `<!doctype html>
 <html lang="en">
@@ -244,6 +362,52 @@ ${body}
 `;
 }
 
+// Emit a root layout's CHILDREN (nav/header/main/…/component leaves) — the
+// inner body markup, without the <body> wrapper. Shared by generateAppHtml
+// (whole standalone page) and generateLayoutBody (a body FRAGMENT for a host
+// that keeps its own <head> and <body> tag, e.g. dk splicing its shell region
+// into a hand-authored index.html).
+// True when a role="main" appears anywhere in the tree.
+const anyExplicitMain = (r) =>
+  r.kind === 'region' && (r.roleTag === 'main' || r.parts.some(anyExplicitMain));
+
+function bodyFromTree(tree, warn, baseUrl) {
+  // The positional "first unmarked region → <main>" fallback is LEGACY — it
+  // must not fire once a layout declares its main explicitly (role="main"),
+  // or an unmarked sibling (e.g. dk's menu-pane) would become a second <main>.
+  let mainClaimed = anyExplicitMain(tree);
+  let out = '';
+  for (const part of tree.parts) {
+    if (part.kind === 'region') {
+      const isMain = !isMarked(part) && !mainClaimed;
+      if (isMain) mainClaimed = true;
+      out += '\n' + emitRegion(part, { depth: 1, isMain, warn, baseUrl });
+    } else {
+      const html = emitPart(part, 0, tree.role || null, warn, baseUrl);
+      if (html) out += '\n' + html;
+    }
+  }
+  return out;
+}
+
+
+/**
+ * Emit just the body region tree of a ui:Layout — the inner markup (nav / main
+ * / component leaves), NOT a whole page. For a host that keeps its own <head>
+ * and <body> (dk splices this into index.html between markers); the root
+ * layout's own structural class is dropped since there is no <body> to carry
+ * it (host-owned, and app-col/app-row are inert without the compiler's app.css).
+ *
+ * @param {object} o
+ * @param {object} o.store       rdflib store holding the layout doc
+ * @param {object} o.layoutNode  the root ui:Layout node (rdf.sym)
+ * @param {(msg:string)=>void} [o.warn]
+ * @returns {string} the body fragment (leading newline, no trailing newline)
+ */
+export function generateLayoutBody({ store, layoutNode, baseUrl = null, warn = () => {} }) {
+  return bodyFromTree(parseLayoutTree(store, layoutNode), warn, baseUrl).replace(/\s+$/, '');
+}
+
 /**
  * Emit the app's stylesheet: structural flow classes actually used by the
  * tree plus minimal scaffolding. Arrangement CSS lives HERE (hand-editable),
@@ -253,7 +417,7 @@ export function generateAppCss(storeOrTree, layoutNode = null) {
   const tree = layoutNode ? parseLayoutTree(storeOrTree, layoutNode) : storeOrTree;
   const grids = new Set();
   (function walk(r) {
-    if (r.kind === 'leaf') return;
+    if (r.kind !== 'region') return;
     if (r.columns) grids.add(r.columns);
     r.parts.forEach(walk);
   })(tree);

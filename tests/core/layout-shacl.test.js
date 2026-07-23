@@ -63,13 +63,32 @@ test('ui:columns outside 1..6 fails', async () => {
   expect(report.conforms).toBe(false);
 });
 
-test('a ui:Link in layout members fails — members are Layout|Component only', async () => {
+test('a ui:Link in layout members CONFORMS — links are now first-class members', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; schema:itemListElement <#Layout-Bad> .
-<#Layout-Bad> a schema:ListItem ; schema:item <#Bad> ; schema:position 1 .
-<#Bad> a ui:Link ; ui:label "nope" ; schema:url <https://example.org/> .
+<#Layout> a ui:Layout ; schema:itemListElement <#Layout-L> .
+<#Layout-L> a schema:ListItem ; schema:item <#L> ; schema:position 1 .
+<#L> a ui:Link ; ui:label "Docs" ; schema:url <https://example.org/> .
 `);
-  expect(report.conforms).toBe(false);
+  expect(report.conforms).toBe(true);
+});
+
+test('a ui:Menu layout member conforms', async () => {
+  const report = await validate(`
+<#Layout> a ui:Layout ; schema:itemListElement <#M> .
+<#M> a ui:Menu ; ui:label "Nav" .
+`);
+  expect(report.conforms).toBe(true);
+});
+
+test('a wrapper WITHOUT `a schema:ListItem` still conforms (type now optional)', async () => {
+  const report = await validate(`
+<#Layout> a ui:Layout ; schema:itemListElement <#W> .
+<#W> schema:item <#Sub> ; schema:position 1 .
+<#Sub> a ui:Layout .
+`);
+  const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
+  expect(messages).toEqual([]);
+  expect(report.conforms).toBe(true);
 });
 
 test('an app node without ui:layout fails :AppShape', async () => {
@@ -84,6 +103,62 @@ test('a full app node conforms', async () => {
 <#app> a schema:WebApplication ;
   schema:name "My App" ;
   ui:icon "🍳" ;
+  ui:layout <layout.ttl#Layout> .
+`);
+  const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
+  expect(messages).toEqual([]);
+  expect(report.conforms).toBe(true);
+});
+
+test('an unordered (direct) ui:Component member conforms — no wrapper needed', async () => {
+  const report = await validate(`
+<#Layout> a ui:Layout ; schema:itemListElement <#Only> .
+<#Only> a ui:Component ; schema:url <https://example.org/sol-tabs.js> .
+`);
+  const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
+  expect(messages).toEqual([]);
+  expect(report.conforms).toBe(true);
+});
+
+test('an unordered (direct) nested ui:Layout member conforms', async () => {
+  const report = await validate(`
+<#Layout> a ui:Layout ; schema:itemListElement <#Sub> .
+<#Sub> a ui:Layout .
+`);
+  expect(report.conforms).toBe(true);
+});
+
+test('ordered and unordered members mix in one region', async () => {
+  const report = await validate(`
+<#Layout> a ui:Layout ;
+  schema:itemListElement <#Sub> , <#W> .
+<#Sub> a ui:Layout .
+<#W> a schema:ListItem ; schema:item <#Leaf> ; schema:position 1 .
+<#Leaf> a ui:Component ; schema:url <https://example.org/sol-tabs.js> .
+`);
+  expect(report.conforms).toBe(true);
+});
+
+test('a direct ui:Link member conforms — unordered links are allowed', async () => {
+  const report = await validate(`
+<#Layout> a ui:Layout ; schema:itemListElement <#L> .
+<#L> a ui:Link ; ui:label "Docs" ; schema:url <https://example.org/> .
+`);
+  expect(report.conforms).toBe(true);
+});
+
+test('a member of a non-layout type still fails (e.g. bare ui:Command)', async () => {
+  const report = await validate(`
+<#Layout> a ui:Layout ; schema:itemListElement <#Bad> .
+<#Bad> a ui:Command ; schema:url <commands.ttl#restart> .
+`);
+  expect(report.conforms).toBe(false);
+});
+
+test('a schema:SoftwareApplication app node conforms (AppShape broadened)', async () => {
+  const report = await validate(`
+<#app> a schema:SoftwareApplication ;
+  schema:name "Data Kitchen" ;
   ui:layout <layout.ttl#Layout> .
 `);
   const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));

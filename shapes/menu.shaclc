@@ -18,7 +18,6 @@ shape <#MenuShape> -> ui:Menu {
 }
 
 shape <#OrderedItemShape> {
-    class=schema:ListItem .
     schema:item IRI [1..1] @<#UnorderedItemShape> %
         sh:name "item" ; sh:description "An ordered menu item."
     % .

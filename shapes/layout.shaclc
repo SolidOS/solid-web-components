@@ -14,8 +14,8 @@ shape <#LayoutShape> -> ui:Layout {
     schema:additionalType [0..1] in=[schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar] %
         sh:name "semantic role" ; sh:description "Optional schema.org web-page-element class selecting the emitted semantic tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Unmarked regions emit div (the root's primary-content child emits main)."
     % .
-    schema:itemListElement IRI @<#LayoutEntryShape> %
-        sh:name "entries" ; sh:description "Region membership — one triple per positioned schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order). Optional: an empty region is a placeholder pane other items can target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)."
+    schema:itemListElement IRI @<#LayoutEntryShape>|@<#LayoutMemberShape> %
+        sh:name "entries" ; sh:description "Region membership, ordered OR unordered (as menu.shacl's items): an ordered schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order), or — for an unordered / single-item region — the ui:Layout / ui:Component member directly. An empty region is a placeholder pane other items target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)."
     % .
     schema:additionalProperty @<#PropertyValueShape> %
         sh:name "attribute" ; sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs"
@@ -26,13 +26,16 @@ shape <#LayoutShape> -> ui:Layout {
 }
 
 shape <#LayoutEntryShape> {
-    class=schema:ListItem .
-    schema:item IRI [1..1] ui:Layout|ui:Component %
+    schema:item IRI [1..1] @<#LayoutMemberShape> %
         sh:name "item" ; sh:description "The nested ui:Layout region or ui:Component leaf this placement mounts."
     % .
     schema:position xsd:integer [1..1] %
         sh:name "position" ; sh:description "Visual order within this region (ascending; sequential 1..n by convention)."
     % .
+}
+
+shape <#LayoutMemberShape> {
+    class=ui:Layout|class=ui:Component|class=ui:Menu|class=ui:Link|class=ui:Plugin .
 }
 
 shape <#PropertyValueShape> {
@@ -44,7 +47,7 @@ shape <#PropertyValueShape> {
     % .
 }
 
-shape <#AppShape> -> schema:WebApplication {
+shape <#AppShape> -> schema:WebApplication schema:SoftwareApplication {
     schema:name xsd:string [1..1] %
         sh:name "name" ; sh:description "The app's name (the generated page title)"
     % .

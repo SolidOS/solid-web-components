@@ -54,8 +54,11 @@
     sh:path schema:itemListElement ;
     sh:nodeKind sh:IRI ;
     sh:name "entries" ;
-    sh:description "Region membership — one triple per positioned schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order). Optional: an empty region is a placeholder pane other items can target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)." ;
-    sh:node :LayoutEntryShape ;
+    sh:description "Region membership, ordered OR unordered (as menu.shacl's items): an ordered schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order), or — for an unordered / single-item region — the ui:Layout / ui:Component member directly. An empty region is a placeholder pane other items target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)." ;
+    sh:or (
+      [ sh:node :LayoutEntryShape ]
+      [ sh:node :LayoutMemberShape ]
+    ) ;
   ] ;
   sh:property [
     sh:path schema:additionalProperty ;
@@ -69,20 +72,18 @@
     sh:description "Documentary note (round-tripped by the generator as an HTML comment)" ;
   ] .
 
-# A placement wrapper: WHERE one member sits in ONE region — the same
-# schema:ListItem idiom as menu.shacl's :MenuEntryShape.
+# A placement wrapper: WHERE one member sits in ONE region — recognised by its
+# schema:item + schema:position, NOT by an `a schema:ListItem` type. Serializers
+# still EMIT the type (self-describing); the shape makes declaring it optional,
+# so a hand-authored bare `[ schema:item … ; schema:position … ]` also validates.
 :LayoutEntryShape
   a sh:NodeShape ;
-  sh:class schema:ListItem ;
   sh:property [
     sh:path schema:item ;
     sh:minCount 1 ;
     sh:maxCount 1 ;
     sh:nodeKind sh:IRI ;
-    sh:or (
-      [ sh:class ui:Layout ]
-      [ sh:class ui:Component ]
-    ) ;
+    sh:node :LayoutMemberShape ;
     sh:name "item" ;
     sh:description "The nested ui:Layout region or ui:Component leaf this placement mounts." ;
   ] ;
@@ -95,10 +96,28 @@
     sh:description "Visual order within this region (ascending; sequential 1..n by convention)." ;
   ] .
 
-# The app's own metadata node — plain schema:WebApplication, no new class.
+# A direct member (unordered / single-item regions) AND the target of every
+# wrapper's schema:item: a nested ui:Layout region or a ui:Component leaf. No
+# targetClass — bound only via the membership paths, mirroring menu.shacl's
+# :UnorderedItemShape, minus its label rule (layout regions and leaves are not
+# menu items and need no ui:label).
+:LayoutMemberShape
+  a sh:NodeShape ;
+  sh:or (
+    [ sh:class ui:Layout ]      # a nested region
+    [ sh:class ui:Component ]   # a mounted custom element
+    [ sh:class ui:Menu ]        # rendered as a menu (sol-menu / sol-tabs)
+    [ sh:class ui:Link ]        # its schema:url transcluded / framed
+    [ sh:class ui:Plugin ]      # a cataloged plugin (kind picks Link/Component)
+  ) .
+
+# The app's own metadata node — a schema:SoftwareApplication (or the WEB
+# subtype for generated standalone web apps), no new class. Both are targeted:
+# a native host like data-kitchen is a SoftwareApplication, not a web app.
 :AppShape
   a sh:NodeShape ;
   sh:targetClass schema:WebApplication ;
+  sh:targetClass schema:SoftwareApplication ;
   sh:property [
     sh:path schema:name ;
     sh:minCount 1 ;

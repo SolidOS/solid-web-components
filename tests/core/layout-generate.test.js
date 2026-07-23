@@ -18,6 +18,7 @@ import { Parser } from 'n3';
 import { rdf } from '../../core/rdf.js';
 import {
   generateAppHtml,
+  generateLayoutBody,
   generateAppCss,
   parseLayoutTree,
   menuSourcesIn,
@@ -154,4 +155,166 @@ test('seedAppMenu emits a parseable newborn menu doc', () => {
   // a newborn menu has NO membership triples yet — members arrive as
   // positioned wrappers when the managers add them
   expect(g.any(menu, rdf.sym('http://schema.org/itemListElement'))).toBeFalsy();
+});
+
+// generateLayoutBody — the body FRAGMENT (no <head>/<body>) a host splices into
+// its own hand-authored page. Modelled on dk's shell: a nav, a content region
+// holding a tabset leaf, and a TRAILING empty region (the ☰-menu landing pane).
+describe('generateLayoutBody (fragment for a host page)', () => {
+  const SHELL = `
+@prefix : <#>.
+@prefix schema: <http://schema.org/>.
+@prefix ui: <http://www.w3.org/ns/ui#>.
+:Shell a ui:Layout ; ui:orientation ui:Vertical ;
+  schema:itemListElement
+    [ a schema:ListItem ; schema:item :Bar  ; schema:position 1 ] ,
+    [ a schema:ListItem ; schema:item :Main ; schema:position 2 ] ,
+    [ a schema:ListItem ; schema:item :Pane ; schema:position 3 ] .
+:Bar a ui:Layout ; schema:additionalType schema:SiteNavigationElement ;
+  schema:additionalProperty [ schema:name "class" ; schema:value "bar" ] ;
+  schema:itemListElement [ a schema:ListItem ; schema:item :Mini ; schema:position 1 ] .
+:Mini a ui:Component ; schema:url </web/sol-include.js> ;
+  schema:additionalProperty [ schema:name "source" ; schema:value "mini.html" ] , [ schema:name "trusted" ; schema:value "" ] .
+:Main a ui:Layout ;
+  schema:additionalProperty [ schema:name "id" ; schema:value "content" ] ;
+  schema:itemListElement [ a schema:ListItem ; schema:item :Tabs ; schema:position 1 ] .
+:Tabs a ui:Component ; schema:url </web/sol-tabs.js> ;
+  schema:additionalProperty [ schema:name "from-rdf" ; schema:value "menu.ttl#Tabs" ] .
+:Pane a ui:Layout ;
+  schema:additionalProperty [ schema:name "id" ; schema:value "pane" ] , [ schema:name "hidden" ; schema:value "" ] .
+`;
+  const body = () => {
+    const store = parseInto(SHELL, 'http://shell.test/shell.ttl');
+    return generateLayoutBody({ store, layoutNode: rdf.sym('http://shell.test/shell.ttl#Shell') });
+  };
+
+  test('returns a fragment — no <body>/<html>/<head>/<!doctype>', () => {
+    const out = body();
+    expect(out).not.toMatch(/<body|<\/body>|<html|<head|<!doctype/i);
+  });
+
+  test('<main> lands on the content region, not the trailing empty pane', () => {
+    const out = body();
+    expect(out).toMatch(/<main class="app-col" id="content"/);
+    // the trailing empty region emits a <div>, NOT a second <main>
+    expect(out).toMatch(/<div class="app-col" id="pane" hidden>/);
+    expect(out.match(/<main\b/g)).toHaveLength(1);
+  });
+
+  test('leaves emit their tag + attributes (sol-tabs from-rdf, sol-include source)', () => {
+    const out = body();
+    expect(out).toMatch(/<sol-tabs\b[\s\S]*?from-rdf="menu\.ttl#Tabs"[\s\S]*?><\/sol-tabs>/);
+    expect(out).toMatch(/<sol-include\b[\s\S]*?source="mini\.html"[\s\S]*?trusted[\s\S]*?><\/sol-include>/);
+    expect(out).toMatch(/<nav class="bar app-col"/);
+  });
+});
+
+// ── ARIA role → element, and member-type dispatch (2026-07-23) ────────────────
+describe('ARIA role regions + member-type dispatch', () => {
+  const DOC = 'http://role.test/doc';
+  const body = (ttl) => generateLayoutBody({
+    store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.\n${ttl}`, DOC),
+    layoutNode: rdf.sym(`${DOC}#L`),
+    baseUrl: DOC,
+    warn: () => {},
+  });
+
+  test('the 5 roles map to native elements; role attr dropped as redundant', () => {
+    const out = body(`
+:L a ui:Layout ; schema:itemListElement
+  [ schema:item :H ; schema:position 1 ], [ schema:item :N ; schema:position 2 ] ,
+  [ schema:item :M ; schema:position 3 ], [ schema:item :F ; schema:position 4 ] .
+:H a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "banner" ] .
+:N a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "navigation" ] .
+:M a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "main" ] .
+:F a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "contentinfo" ] .
+`);
+    expect(out).toMatch(/<header class="app-col">/);
+    expect(out).toMatch(/<nav class="app-col">/);
+    expect(out).toMatch(/<main class="app-col">/);
+    expect(out).toMatch(/<footer class="app-col">/);
+    expect(out).not.toMatch(/role="banner"|role="main"|role="navigation"|role="contentinfo"/);
+  });
+
+  test('role="region" emits <section> and keeps its aria-label', () => {
+    const out = body(`
+:L a ui:Layout ; schema:itemListElement [ schema:item :S ; schema:position 1 ] .
+:S a ui:Layout ; schema:additionalProperty
+  [ schema:name "role" ; schema:value "region" ] , [ schema:name "aria-label" ; schema:value "Tools" ] .
+`);
+    expect(out).toMatch(/<section class="app-col" aria-label="Tools">/);
+  });
+
+  test('role="region" without a name warns', () => {
+    const warnings = [];
+    generateLayoutBody({
+      store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.
+:L a ui:Layout ; schema:itemListElement [ schema:item :S ; schema:position 1 ] .
+:S a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "region" ] .`, DOC),
+      layoutNode: rdf.sym(`${DOC}#L`),
+      warn: (m) => warnings.push(m),
+    });
+    expect(warnings.join(' ')).toMatch(/role="region".*aria-label/);
+  });
+
+  test('a role-tagged layout never auto-claims <main> (heuristic retired for it)', () => {
+    // Every region is role-tagged → nothing is "unmarked" → no auto-<main>.
+    const out = body(`
+:L a ui:Layout ; schema:itemListElement [ schema:item :N ; schema:position 1 ] .
+:N a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "navigation" ] .
+`);
+    expect(out).toMatch(/<nav\b/);
+    expect(out).not.toMatch(/<main\b/);
+  });
+
+  test('a ui:Menu member emits a menu component via from-rdf (nav → sol-menu)', () => {
+    const out = body(`
+:L a ui:Layout ; schema:itemListElement [ schema:item :Nav ; schema:position 1 ] .
+:Nav a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "navigation" ] ;
+  schema:itemListElement :Menu .
+:Menu a ui:Menu .
+`);
+    expect(out).toMatch(/<nav class="app-col">/);
+    expect(out).toMatch(/<sol-menu from-rdf="#Menu"><\/sol-menu>/);
+  });
+
+  test('a ui:Menu outside a navigation region emits a tabset (sol-tabs)', () => {
+    const out = body(`
+:L a ui:Layout ; schema:itemListElement [ schema:item :Main ; schema:position 1 ] .
+:Main a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "main" ] ;
+  schema:itemListElement :Menu .
+:Menu a ui:Menu .
+`);
+    expect(out).toMatch(/<sol-tabs from-rdf="#Menu"><\/sol-tabs>/);
+  });
+
+  test('a bare ui:Link member transcludes (relative) / frames (external)', () => {
+    const out = body(`
+:L a ui:Layout ; schema:itemListElement [ schema:item :A ; schema:position 1 ], [ schema:item :B ; schema:position 2 ] .
+:A a ui:Link ; schema:url <local.html> .
+:B a ui:Link ; schema:url <https://example.org/ext> .
+`);
+    expect(out).toMatch(/<sol-include source="local\.html"[\s\S]*?trusted="true"><\/sol-include>/);
+    expect(out).toMatch(/<iframe src="https:\/\/example\.org\/ext"><\/iframe>/);
+  });
+
+  test('a ui:Plugin of kind ui:Link is treated as a link member', () => {
+    const out = body(`
+:L a ui:Layout ; schema:itemListElement [ schema:item :P ; schema:position 1 ] .
+:P a ui:Plugin ; schema:additionalType ui:Link ; schema:url <p.html> .
+`);
+    expect(out).toMatch(/<sol-include source="p\.html"/);
+  });
+
+  test('a ui:Command member is skipped with a warning', () => {
+    const warnings = [];
+    const out = generateLayoutBody({
+      store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.
+:L a ui:Layout ; schema:itemListElement [ schema:item :C ; schema:position 1 ] .
+:C a ui:Command .`, DOC),
+      layoutNode: rdf.sym(`${DOC}#L`), warn: (m) => warnings.push(m),
+    });
+    expect(out).not.toMatch(/:C|ui:Command/);
+    expect(warnings.join(' ')).toMatch(/Command.*skipped/);
+  });
 });

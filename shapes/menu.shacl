@@ -151,9 +151,11 @@
 
 # A placement wrapper: WHERE one member sits in ONE menu — position lives on
 # the placement, never the shared member. Reorder = swap two positions.
+# Recognised by schema:item + schema:position, NOT by an `a schema:ListItem`
+# type: serializers still emit the type, but declaring it is optional so a
+# hand-authored bare `[ schema:item … ; schema:position … ]` validates too.
 :OrderedItemShape
   a sh:NodeShape ;
-  sh:class schema:ListItem ;
   sh:property [
     sh:path schema:item ;
     sh:minCount 1 ;
