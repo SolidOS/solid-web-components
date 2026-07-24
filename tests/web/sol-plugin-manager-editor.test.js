@@ -75,7 +75,7 @@ test('✎ opens the overlay with a shape-driven sol-form over the entry', async 
   expect(ov).not.toBeNull();
   const form = ov.querySelector('sol-form');
   expect(form).not.toBeNull();
-  expect(form.getAttribute('shape')).toMatch(/shapes\/menu\.shacl$/);
+  expect(form.getAttribute('shape')).toMatch(/shapes\/ui\.shacl$/);
   expect(form.getAttribute('subject')).toBe(`${el._docUrl()}#clock`);
   // guard rails: a Component/Command entry's schema:url is contract — a
   // static row, not an input (a Link's url would be editable: [])

@@ -124,7 +124,7 @@
       <tr><td><code>ui:icon</code></td><td>any leaf item</td><td>Icon URL.</td></tr>
     </tbody>
   </table>
-  <p>The canonical shape lives in <code>shapes/menu.shacl</code>. Its
+  <p>The canonical shape lives in <code>shapes/ui.shacl</code>. Its
   <code>ui:Link</code> / <code>ui:Component</code> / <code>ui:Command</code> shapes are
   shared: a menu item, a palette card, and a component-interop manifest entry
   are all the same shape (component-interop's manifest shape adds only the
@@ -165,7 +165,7 @@
   element (the tag derives from the module filename); or, for a Command, a
   fragment IRI in the host app's command registry document whose hyphen-free
   fragment is the command key. <code>:PluginShape</code> in
-  <code>shapes/menu.shacl</code> constrains the url per kind with
+  <code>shapes/ui.shacl</code> constrains the url per kind with
   <code>sh:xone</code>.
   Shared metadata rides on the entry: <code>schema:description</code> (card
   blurb), <code>dcterms:publisher</code>, <code>schema:keywords</code>

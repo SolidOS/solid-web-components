@@ -8,7 +8,7 @@
  *
  * Each plugins/<tag>.ttl is a ui:Component doc (the same shape menus,
  * palette cards, and dk plugin manifests use — validated by
- * shapes/menu.shacl). The manifest `components` entry it produces carries the
+ * shapes/ui.shacl). The manifest `components` entry it produces carries the
  * ci meta contract: label / icon / description verbatim, shape / data / help
  * as dist-relative paths (plugins/ and dist/ are siblings, so the ttl's
  * ../-relative IRIs translate 1:1). The entry key is the element tag,

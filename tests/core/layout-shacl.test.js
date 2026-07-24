@@ -1,7 +1,7 @@
 /**
- * shapes/layout.shacl validation contract. Component leaves in a layout are
- * ordinary ui:Component nodes, so full validation composes layout.shacl with
- * menu.shacl into one shapes graph (the documented cross-file pattern).
+ * Layout validation contract (shapes/ui.shacl). Component leaves in a layout are
+ * ordinary ui:Component nodes; the layout and menu/plugin shapes now live in one
+ * file (ui.shacl), so a single shapes graph covers both.
  *
  * Covered here:
  *   - every shipped preset (data/layouts/*.ttl) conforms, index included
@@ -30,9 +30,10 @@ function parse(text, base = 'http://layout-shacl.test/doc') {
   return new Store(new Parser({ baseIRI: base }).parse(text));
 }
 
-// layout.shacl + menu.shacl composed into one shapes graph.
+// ui.shacl holds the layout + menu/plugin shapes in one graph.
 const shapes = new Store();
-for (const f of ['layout.shacl', 'menu.shacl']) {
+{
+  const f = 'ui.shacl';
   const quads = new Parser({ baseIRI: `http://layout-shacl.test/${f}` })
     .parse(readFileSync(join(root, 'shapes', f), 'utf8'));
   for (const q of quads) shapes.add(q);

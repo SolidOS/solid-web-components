@@ -1,5 +1,5 @@
 // Stage-6 smoke (plugin-manifest-unification): parseShape's sh:xone support
-// against the REAL shapes/menu.shacl with real rdflib. The jest rdflib mock
+// against the REAL shapes/ui.shacl with real rdflib. The jest rdflib mock
 // can't parse nested blank-node lists, so — like verify-plugin-entry-refs —
 // this contract runs here instead:
 //   - every kind surfaces the SAME single schema:url payload field, with
@@ -16,8 +16,8 @@ import { rdf } from '../../core/rdf.js';
 import { parseShape } from '../../core/shape-to-form.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const shapeText = readFileSync(join(here, '..', '..', 'shapes', 'menu.shacl'), 'utf8');
-const SHAPE_URI = 'https://pod.example/shapes/menu.shacl';
+const shapeText = readFileSync(join(here, '..', '..', 'shapes', 'ui.shacl'), 'utf8');
+const SHAPE_URI = 'https://pod.example/shapes/ui.shacl';
 
 const CAT = 'https://pod.example/ui-data/catalog.ttl';
 const DATA = `

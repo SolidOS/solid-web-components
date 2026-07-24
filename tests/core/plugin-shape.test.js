@@ -32,7 +32,7 @@ function parse(text, base = 'http://plugin-shape.test/doc') {
 }
 
 const shapes = parse(
-  readFileSync(join(root, 'shapes', 'menu.shacl'), 'utf8'),
+  readFileSync(join(root, 'shapes', 'ui.shacl'), 'utf8'),
   'http://plugin-shape.test/shapes',
 );
 

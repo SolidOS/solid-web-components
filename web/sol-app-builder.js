@@ -47,7 +47,7 @@
  * pantry via its `for` selector, which only sees the page DOM.
  *
  * All writes go through solFetch (gate token). No new RDF terms here —
- * layout vocabulary in data/ui-vocab.ttl, shapes in shapes/layout.shacl.
+ * layout vocabulary in data/ui-vocab.ttl, shapes in shapes/ui.shacl.
  */
 
 import { define } from '../core/define.js';

@@ -102,7 +102,7 @@ const TARGETS_CSS = `
 // entry — the SHACL contract (:PluginShape in the shapes/ this package
 // ships) IS the form. The entry being live config, edits propagate on the
 // next menu parse; the contract payload (a Component/Command schema:url) renders read-only.
-const EDITOR_SHAPE_URL = new URL('../shapes/menu.shacl', import.meta.url).href;
+const EDITOR_SHAPE_URL = new URL('../shapes/ui.shacl', import.meta.url).href;
 const EDITOR_CSS = `
   .editor-overlay { position: fixed; inset: 0; z-index: 60;
     background: rgba(0, 0, 0, 0.45); display: flex;

@@ -108,7 +108,7 @@ export async function parseShape(shapeText, baseUri, ctx = {}) {
   };
 
   // Effective properties: own sh:property entries plus node-level sh:node
-  // mixins (menu.shacl's :IconMixin / :AttributedMixin), deduped by path.
+  // mixins (ui.shacl's :IconMixin / :AttributedMixin), deduped by path.
   // `taken` is shared with the xone merge below so a kind shape's ui:label
   // never doubles the outer shape's.
   const taken = new Set();
@@ -146,7 +146,7 @@ export async function parseShape(shapeText, baseUri, ctx = {}) {
 /**
  * Resolve a node shape's EFFECTIVE property descriptors: its own
  * sh:property entries plus those contributed by node-level sh:node
- * references (the mixin approach — menu.shacl 2026-07-19), recursively.
+ * references (the mixin approach — ui.shacl 2026-07-19), recursively.
  * Dedup is by sh:path — the outermost/first definition wins, so a shape's
  * own field overrides a mixin's and nothing renders twice. Order: own
  * properties first (statement order — the form-field-order contract), then

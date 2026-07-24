@@ -116,8 +116,8 @@ class SolMenu extends HTMLElement {
       tag: 'sol-tree-edit',
       subjectAttr: 'root',
       attrs: {
-        'head-shape':      new URL('../shapes/menu.shacl', import.meta.url).href,
-        'item-shape':      new URL('../shapes/menu.shacl', import.meta.url).href,
+        'head-shape':      new URL('../shapes/ui.shacl', import.meta.url).href,
+        'item-shape':      new URL('../shapes/ui.shacl', import.meta.url).href,
         'drill-when-type': 'http://www.w3.org/ns/ui#Menu',
         'head-label':      'Menu Heading',
         'items-label':     'menu items',

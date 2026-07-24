@@ -11,7 +11,7 @@
 // (sol-tabs/sol-menu from-rdf), so menu edits need no regeneration; only a
 // LAYOUT change does.
 //
-// Tree semantics (see data/ui-vocab.ttl + shapes/layout.shacl):
+// Tree semantics (see data/ui-vocab.ttl + shapes/ui.shacl):
 //   ui:Layout  — a region whose members (positioned schema:itemListElement
 //                wrappers, same idiom as menus) render SIMULTANEOUSLY; nested
 //                layouts split it, ui:Component leaves are the content.

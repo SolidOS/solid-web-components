@@ -197,7 +197,7 @@ class SolTreeEdit extends HTMLElement {
       // Pass the root subject so parseShape selects the container NodeShape by
       // sh:targetClass (e.g. ui:Menu → MenuShape) rather than falling back to
       // the first sh:node-referenced shape — essential when head-shape is a
-      // multi-NodeShape file like menu.shacl.
+      // multi-NodeShape file like ui.shacl.
       this._headParsed = await parseShape(this._headShapeText, headUri, {
         subject: rdf.sym(rootAbs), dataStore: rdf.store,
       });
@@ -232,7 +232,7 @@ class SolTreeEdit extends HTMLElement {
       const target = store.any(ns, rdf.sym(SH + 'targetClass'));
       if (!target) continue;
       // Per-shape effective properties: own sh:property entries plus
-      // node-level sh:node mixins (menu.shacl's :IconMixin etc.), so
+      // node-level sh:node mixins (ui.shacl's :IconMixin etc.), so
       // mixed-in fields render in item forms too.
       out.push({ nodeShape: ns, target, properties: effectiveProperties(store, ns) });
     }
@@ -302,7 +302,7 @@ class SolTreeEdit extends HTMLElement {
       const body = document.createElement('div');
       // The membership predicate (schema:itemListElement) is the tree's own
       // list, edited as the item panels below — not a scalar head field. Drop
-      // it so a combined shape (e.g. menu.shacl, whose ui:Menu NodeShape
+      // it so a combined shape (e.g. ui.shacl, whose ui:Menu NodeShape
       // includes the membership property) can serve as both head- and
       // item-shape.
       const partsPred = this._partsPredicate().value;

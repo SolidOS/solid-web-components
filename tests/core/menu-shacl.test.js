@@ -1,5 +1,5 @@
 /**
- * shapes/menu.shacl validation contract.
+ * shapes/ui.shacl validation contract.
  *
  * These are the shared item shapes (ui:Menu / ui:Link / ui:Component) that
  * menus, palette cards, and component-interop manifest entries all validate
@@ -34,7 +34,7 @@ function parse(text, base = 'http://menu-shacl.test/doc') {
 }
 
 const shapes = parse(
-  readFileSync(join(root, 'shapes', 'menu.shacl'), 'utf8'),
+  readFileSync(join(root, 'shapes', 'ui.shacl'), 'utf8'),
   'http://menu-shacl.test/shapes',
 );
 
