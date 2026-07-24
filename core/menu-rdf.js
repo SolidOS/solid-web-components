@@ -51,6 +51,22 @@ export function rdfVal(store, subject, localName) {
   return node ? node.value : null;
 }
 
+// The NODE object of a single ui:<localName> property (vs rdfVal's .value) —
+// needed where the object is a resource we follow, e.g. a ui:region target.
+export function rdfNode(store, subject, localName) {
+  return store.any(subject, rdf.sym(UI + localName));
+}
+
+// Read a node's `schema:additionalProperty [ schema:name N ; schema:value V ]`
+// value for name N. A ui:region TARGET region declares its DOM id this way.
+function additionalProp(store, node, name) {
+  for (const p of store.each(node, rdf.sym(SCHEMA + 'additionalProperty'), null)) {
+    if (((store.any(p, rdf.sym(SCHEMA + 'name')) || {}).value) === name)
+      return (store.any(p, rdf.sym(SCHEMA + 'value')) || {}).value || null;
+  }
+  return null;
+}
+
 // Walk an rdf:List, returning its elements as an array. Menus no longer use
 // rdf:Collections (schema:itemListElement membership since 2026-07-19); this
 // stays for ui:Layout parts and other list-valued vocab.
@@ -147,21 +163,31 @@ function orientationToken(v) {
   return local.toLowerCase();
 }
 
-// Normalize a ui:region value to the lowercase token the HTML `region=`
-// attribute uses. Accepts a ui:Region instance IRI (ui:Modal → "modal") or a
-// literal. region is the ONE display property carried in RDF: it is the stored
-// form of placement. At render time placement is still resolved from HTML —
-// the generator emits `region=` from this token and display-target.js reads it
+// Normalize a ui:region OBJECT to the lowercase token the HTML `region=`
+// attribute uses. region is the ONE display property carried in RDF: it is the
+// stored form of placement. At render time placement is still resolved from HTML
+// — the generator emits `region=` from this token and display-target.js reads it
 // there — so the "display lives in HTML" runtime model is unchanged.
-// The ui:Region KINDS (placement surfaces). A ui:region value naming one of
-// these is a keyword; anything else is a TARGET reference — a CSS selector for
-// the element the items display in (e.g. "#dk-menu-pane", "main"), kept verbatim
-// so display-target's resolveRegion can safeQuery it. This is what lets a menu
-// say "my items display over THERE" without the target element claiming them
-// (data-for) from the other side.
-const REGION_KINDS = new Set(['inline', 'element', 'modal', 'floating', 'window', 'tab', 'dropdown']);
-function regionToken(v) {
-  if (!v) return null;
+//
+// The object is one of three things:
+//   • a ui:Region KIND (ui:Modal, resource or literal) → the lowercase keyword.
+//   • a TARGET region NODE (e.g. shell:MenuPane) → the menu says "my items
+//     display in THAT region". The runtime needs a selector, so we resolve the
+//     node to `#<its declared id>` (its own schema:additionalProperty "id";
+//     loadReferencedDocs pulls the target's doc in so the id is present). This
+//     is the relationship menu→region as a node link — the selector is DERIVED
+//     here, never stored in the data.
+//   • a bare literal selector (legacy hand-authored) → passed through verbatim.
+export const REGION_KINDS = new Set(['inline', 'element', 'modal', 'floating', 'window', 'tab', 'dropdown']);
+function regionToken(store, node) {
+  if (!node) return null;
+  if (node.termType === 'NamedNode') {
+    const local = (fragmentOf(node) || '').toLowerCase();
+    if (REGION_KINDS.has(local)) return local;
+    const id = additionalProp(store, node, 'id');
+    return id ? '#' + id : null;
+  }
+  const v = node.value;
   const local = (v.includes('#') ? v.slice(v.indexOf('#') + 1) : v).toLowerCase();
   return REGION_KINDS.has(local) ? local : v;
 }
@@ -188,7 +214,7 @@ function regionToken(v) {
 export function parseMenuItems(store, menuNode, inheritedRegion = null) {
   const parts = menuMembers(store, menuNode);
   const typeNode = rdf.sym(RDF + 'type');
-  const menuRegion = regionToken(rdfVal(store, menuNode, 'region')) || inheritedRegion;
+  const menuRegion = regionToken(store, rdfNode(store, menuNode, 'region')) || inheritedRegion;
   const items = [];
 
   for (const part of parts) {
@@ -198,7 +224,7 @@ export function parseMenuItems(store, menuNode, inheritedRegion = null) {
     const id       = fragmentOf(part);
     const label    = rdfVal(store, part, 'label') || part.value;
     const icon     = rdfVal(store, part, 'icon');
-    const ownRegion = regionToken(rdfVal(store, part, 'region'));
+    const ownRegion = regionToken(store, rdfNode(store, part, 'region'));
     // Resolved placement: the item's own region, else the menu default. The
     // regionInherited flag marks the latter so serialization never
     // materializes an inherited default onto the item.
@@ -365,10 +391,29 @@ export async function loadReferencedDocs(store, rootDocUrl, fetchFn = null) {
     }
     return out;
   };
+  // A ui:region whose object is a resource is a TARGET region NODE the menu
+  // binds to (e.g. shell:MenuPane, defined in the shell doc). regionToken needs
+  // that node's declared `id`, so pull its doc in like a member's. Same in-scope
+  // guard as members(), so foreign docs' region triples are never dereferenced.
+  const regionPred = rdf.sym(UI + 'region');
+  const regionTargets = () => {
+    const out = [];
+    for (const st of store.statementsMatching(null, regionPred, null)) {
+      const graph = st.why && st.why.value;
+      if (graph && !inDocs.has(graph)) continue;
+      const o = st.object;
+      if (!o || o.termType !== 'NamedNode') continue;
+      // A ui:Region KIND (ui:Modal, …) resolves from its fragment alone — don't
+      // dereference the ui: vocab; only true target regions need their doc.
+      if (REGION_KINDS.has((fragmentOf(o) || '').toLowerCase())) continue;
+      out.push(o);
+    }
+    return out;
+  };
   const failed = new Set();
   for (let round = 0; round < 2; round++) {
     const missing = new Set();
-    for (const member of members()) {
+    for (const member of [...members(), ...regionTargets()]) {
       if (!member || !member.value || member.termType !== 'NamedNode') continue;
       const doc = member.value.split('#')[0];
       if (!doc || inDocs.has(doc) || failed.has(doc)) continue;

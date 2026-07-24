@@ -82,3 +82,37 @@ test('membership without a graph term counts as the root doc (mock-parser compat
   await loadReferencedDocs(store, MENU_DOC, fetchFn);
   expect(fetched).toEqual([CATALOG_DOC]);
 });
+
+const UI = 'http://www.w3.org/ns/ui#';
+const SHELL_DOC = 'http://pod.test/shell.ttl';
+
+// A ui:region whose object is a TARGET region NODE in another doc is followed
+// like a member so regionToken can read the target's declared id — but a ui:Region
+// KIND (ui:Modal) resolves from its fragment alone and must NOT drag in the ui: vocab.
+test('a ui:region target node is fetched; a ui:Region KIND is not', async () => {
+  const store = graphStore();
+  const region = sym(UI + 'region');
+  store.add(sym(MENU_DOC + '#Menu'),  region, sym(SHELL_DOC + '#MenuPane'), sym(MENU_DOC));
+  store.add(sym(MENU_DOC + '#Menu2'), region, sym(UI + 'Modal'),           sym(MENU_DOC));
+  const fetched = [];
+  const fetchFn = async (url) => {
+    fetched.push(url);
+    return { ok: true, text: async () => `<${SHELL_DOC}#MenuPane> <${RDF}type> <${UI}Layout> .` };
+  };
+  await loadReferencedDocs(store, MENU_DOC, fetchFn);
+  expect(fetched).toEqual([SHELL_DOC]);   // the ui: vocab (Modal) is never dereferenced
+});
+
+// The same scoping guard as membership: a region target stated in a FOREIGN doc
+// (not the root or a doc this call fetched) is never dereferenced.
+test('a ui:region target in a foreign doc is not fetched', async () => {
+  const store = seededStore();
+  store.add(sym(SETTINGS_DOC + '#Menu'), sym(UI + 'region'), sym(SHELL_DOC + '#MenuPane'), sym(SETTINGS_DOC));
+  const fetched = [];
+  const fetchFn = async (url) => {
+    fetched.push(url);
+    return { ok: true, text: async () => `<${CATALOG_DOC}#Entry> <${RDF}type> <${UI}Plugin> .` };
+  };
+  await loadReferencedDocs(store, MENU_DOC, fetchFn);
+  expect(fetched).toEqual([CATALOG_DOC]);   // shell target lives in the settings doc → skipped
+});

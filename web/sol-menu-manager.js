@@ -63,7 +63,7 @@ import { adopt, sheetFrom } from '../core/adopt.js';
 import { CSS } from './styles/sol-builders-css.js';
 import { rdf } from '../core/rdf.js';
 import { loadRdfStore } from '../core/rdf-utils.js';
-import { parseMenuItems, loadReferencedDocs, deriveTagFromModule, commandKeyFromUrl } from '../core/menu-rdf.js';
+import { parseMenuItems, loadReferencedDocs, deriveTagFromModule, commandKeyFromUrl, REGION_KINDS } from '../core/menu-rdf.js';
 import { updateMenuInStore, serializeMenuDocument } from '../core/menu-serialize.js';
 import { solFetch } from '../core/auth-fetch.js';
 
@@ -95,7 +95,7 @@ class SolMenuManager extends HTMLElement {
     // the loaded doc — a save must never inject an orientation the doc didn't
     // declare (a flat menu that gains ui:Horizontal would reclassify as a
     // button bar in sol-plugin-manager's slot discovery).
-    this._meta = { label: null, orientation: null, region: null };
+    this._meta = { label: null, orientation: null, region: null, regionRef: null };
     this._dirty = false;
   }
 
@@ -281,8 +281,20 @@ class SolMenuManager extends HTMLElement {
       this._meta.label = label ? label.value : (this.source.split('#')[1] || 'menu');
       const orient = store.any(menuNode, rdf.sym('http://www.w3.org/ns/ui#orientation'));
       if (orient) this._meta.orientation = orient.value.split('#').pop().toLowerCase();
+      // A ui:region KIND (ui:Modal, …) round-trips as a keyword; a TARGET region
+      // NODE (e.g. shell:MenuPane) round-trips as a node REFERENCE, so its IRI is
+      // preserved verbatim rather than flattened to a token — see emitMenu.
       const region = store.any(menuNode, rdf.sym('http://www.w3.org/ns/ui#region'));
-      if (region) this._meta.region = region.value.split('#').pop().toLowerCase();
+      if (region) {
+        const frag = (region.value.split('#').pop() || '').toLowerCase();
+        if (region.termType === 'NamedNode' && !REGION_KINDS.has(frag)) {
+          this._meta.regionRef = region.value;
+          this._meta.region = null;
+        } else {
+          this._meta.region = frag;
+          this._meta.regionRef = null;
+        }
+      }
     } catch (e) {
       // A 404 just means "new document" — start empty.
       this._items = [];
@@ -834,7 +846,7 @@ class SolMenuManager extends HTMLElement {
       catch { store = rdf.graph(); }
       updateMenuInStore(store, this._docUrl(), this._menuIri(), {
         label: this._meta.label, orientation: this._meta.orientation,
-        region: this._meta.region, items: this._items,
+        region: this._meta.region, regionRef: this._meta.regionRef, items: this._items,
       });
       const turtle = await serializeMenuDocument(store, this._docUrl());
       const res = await solFetch(this._docUrl(), {

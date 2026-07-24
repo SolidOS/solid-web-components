@@ -205,7 +205,7 @@ function emitItem(store, docUrl, doc, item, taken) {
   return node;
 }
 
-function emitMenu(store, docUrl, doc, menuNode, { label, orientation, region, items, requiresWrite, comment }, taken) {
+function emitMenu(store, docUrl, doc, menuNode, { label, orientation, region, regionRef, items, requiresWrite, comment }, taken) {
   store.add(menuNode, a, ui('Menu'), doc);
   if (label != null) store.add(menuNode, ui('label'), rdf.literal(String(label)), doc);
   if (comment) store.add(menuNode, rdfs('comment'), rdf.literal(String(comment)), doc);
@@ -214,8 +214,13 @@ function emitMenu(store, docUrl, doc, menuNode, { label, orientation, region, it
     store.add(menuNode, ui('orientation'), ui(local), doc);
   }
   // Menu-level default placement (ui:region on the MENU) round-trips like
-  // orientation; members that inherit it carry no region of their own.
-  if (region) {
+  // orientation; members that inherit it carry no region of their own. A TARGET
+  // region is a NODE reference (regionRef, e.g. shell:MenuPane) — the menu→region
+  // link is written as a resource, not a selector string; a KIND keyword still
+  // goes through regionObject as ui:<Kind>.
+  if (regionRef) {
+    store.add(menuNode, ui('region'), rdf.sym(regionRef), doc);
+  } else if (region) {
     store.add(menuNode, ui('region'), regionObject(region), doc);
   }
   if (requiresWrite) store.add(menuNode, acl('mode'), acl('Write'), doc);

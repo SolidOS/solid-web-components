@@ -53,10 +53,11 @@
     sh:maxCount 1 ;
     sh:or (
       [ sh:in ( ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown ) ]
+      [ sh:class ui:Layout ]
       [ sh:datatype xsd:string ]
     ) ;
     sh:name "region" ;
-    sh:description "Default placement for items that carry no region of their own: a ui:Region KIND (ui:Modal etc.) OR a target-selector string (e.g. \"#dk-menu-pane\", \"main\") naming the element the items display in." ;
+    sh:description "Default placement for items that carry no region of their own: a ui:Region KIND (ui:Modal etc.), OR a TARGET region NODE the menu binds to (e.g. a ui:Layout region — the renderer derives its element from the node's own id), OR a legacy target-selector string." ;
   ] .
 
 # THE unified catalog entry: one editable ui:Plugin node is the manifest,
@@ -88,10 +89,11 @@
     sh:maxCount 1 ;
     sh:or (
       [ sh:in ( ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown ) ]
+      [ sh:class ui:Layout ]
       [ sh:datatype xsd:string ]
     ) ;
     sh:name "region" ;
-    sh:description "Where the plugin's content is placed — a ui:Region KIND (e.g. ui:Tab, ui:Modal) OR a target-selector string naming the element it displays in." ;
+    sh:description "Where the plugin's content is placed — a ui:Region KIND (e.g. ui:Tab, ui:Modal), OR a TARGET region NODE it binds to (the renderer derives the element from the node's own id), OR a legacy target-selector string." ;
   ] ;
   sh:property [
     sh:path dcterms:source ;

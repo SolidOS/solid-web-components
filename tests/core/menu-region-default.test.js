@@ -11,6 +11,7 @@
 import { Parser } from 'n3';
 import { graph, sym, literal, blankNode } from '../__mocks__/rdflib-esm.js';
 import { parseMenuItems } from '../../core/menu-rdf.js';
+import { updateMenuInStore } from '../../core/menu-serialize.js';
 
 const BASE = 'http://region.test/menu.ttl';
 
@@ -111,4 +112,59 @@ test('a target-selector ui:region passes through verbatim; kinds still tokenize'
 :A a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
 `);
   expect(parseMenuItems(kinds, sym(BASE + '#Menu'))[0].region).toBe('modal');
+});
+
+// A ui:region naming a TARGET REGION NODE (the menu→region link as a resource,
+// not a selector) resolves to `#<that region's declared id>` — the selector is
+// DERIVED from the target node's own schema:additionalProperty "id", never
+// stored. This is the shell:MenuPane binding the ☰ menu uses.
+test('a target-region node ui:region resolves to the target node\'s #id', () => {
+  const store = storeFrom(`${PREFIXES}
+:Menu a ui:Menu ; ui:label "M" ; ui:region :Pane ; schema:itemListElement :A .
+:A a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+:Pane a ui:Layout ; schema:additionalProperty [ schema:name "id" ; schema:value "dk-menu-pane" ] .
+`);
+  const [a] = parseMenuItems(store, sym(BASE + '#Menu'));
+  expect(a.region).toBe('#dk-menu-pane');   // derived from :Pane's id, not its fragment
+  expect(a.regionInherited).toBe(true);
+});
+
+// An unresolvable target (no declared id — its doc not loaded / no id property)
+// yields no region rather than a bogus selector.
+test('a target-region node with no id yields a null region', () => {
+  const store = storeFrom(`${PREFIXES}
+:Menu a ui:Menu ; ui:label "M" ; ui:region :Ghost ; schema:itemListElement :A .
+:A a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+`);
+  const [a] = parseMenuItems(store, sym(BASE + '#Menu'));
+  expect(a.region).toBe(null);
+});
+
+// Round-trip: a menu-level TARGET region is serialized back as a NODE reference
+// (regionRef), keeping the menu→region link a resource — never flattened to the
+// derived selector string. A KIND region without a regionRef still writes ui:<Kind>.
+const UI_NS = 'http://www.w3.org/ns/ui#';
+test('a regionRef round-trips as a ui:region node reference, not a literal', () => {
+  const DOC = 'http://region.test/menu.ttl';
+  const TARGET = 'http://region.test/shell.ttl#MenuPane';
+  const store = graph();
+  updateMenuInStore(store, DOC, DOC + '#More', {
+    label: '☰', regionRef: TARGET,
+    items: [{ type: 'link', id: 'A', name: 'A', href: 'https://a.example/' }],
+  });
+  const region = store.any(sym(DOC + '#More'), sym(UI_NS + 'region'));
+  expect(region).toBeTruthy();
+  expect(region.termType).toBe('NamedNode');   // a node link…
+  expect(region.value).toBe(TARGET);           // …to the exact target region
+});
+
+test('a KIND region still round-trips as ui:<Kind> when no regionRef is given', () => {
+  const DOC = 'http://region.test/menu.ttl';
+  const store = graph();
+  updateMenuInStore(store, DOC, DOC + '#More', {
+    label: '☰', region: 'modal',
+    items: [{ type: 'link', id: 'A', name: 'A', href: 'https://a.example/' }],
+  });
+  const region = store.any(sym(DOC + '#More'), sym(UI_NS + 'region'));
+  expect(region.value).toBe(UI_NS + 'Modal');
 });
