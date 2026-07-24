@@ -92,3 +92,23 @@ test('no menu default → region stays null', () => {
   expect(a.region).toBe(null);
   expect(a.regionInherited).toBe(false);
 });
+
+// A ui:region naming a TARGET (a CSS selector for the element items display in)
+// is kept verbatim — not fragment-lowercased like a ui:Region KIND — so
+// display-target's resolveRegion can safeQuery it (the menu-side alternative to
+// a target element claiming items via data-for).
+test('a target-selector ui:region passes through verbatim; kinds still tokenize', () => {
+  const store = storeFrom(`${PREFIXES}
+:Menu a ui:Menu ; ui:label "M" ; ui:region "#dk-menu-pane" ; schema:itemListElement :A .
+:A a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+`);
+  const [a] = parseMenuItems(store, sym(BASE + '#Menu'));
+  expect(a.region).toBe('#dk-menu-pane');       // verbatim, keeps the '#'
+  expect(a.regionInherited).toBe(true);
+
+  const kinds = storeFrom(`${PREFIXES}
+:Menu a ui:Menu ; ui:label "M" ; ui:region ui:Modal ; schema:itemListElement :A .
+:A a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+`);
+  expect(parseMenuItems(kinds, sym(BASE + '#Menu'))[0].region).toBe('modal');
+});

@@ -5,6 +5,7 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
+@prefix xhv: <http://www.w3.org/1999/xhtml/vocab#> .
 
 # App-layout shapes (app-builder, 2026-07-19). A ui:Layout is a page
 # arrangement whose members render SIMULTANEOUSLY (a ui:Menu's members are
@@ -44,17 +45,25 @@
     sh:description "Render the parts as a grid with this many columns (overrides orientation flow)" ;
   ] ;
   sh:property [
+    sh:path xhv:role ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:in ( "banner" "main" "navigation" "contentinfo" "region" "document" "application" ) ;
+    sh:name "role" ;
+    sh:description "REQUIRED role (the XHTML/RDFa `role` predicate). Landmark tokens map to native elements: banner→header, main→main, navigation→nav, contentinfo→footer, region→section (region also needs aria-label). document/application are for the ROOT layout (which IS the <body>): the compiler ignores the root's role and emits <body> plus its class/attrs. Complete landmark set, incl. main." ;
+  ] ;
+  sh:property [
     sh:path schema:additionalType ;
     sh:maxCount 1 ;
     sh:in ( schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar ) ;
-    sh:name "semantic role" ;
-    sh:description "Optional schema.org web-page-element class selecting the emitted semantic tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Unmarked regions emit div (the root's primary-content child emits main)." ;
+    sh:name "semantic role (legacy)" ;
+    sh:description "FALLBACK schema.org web-page-element class → emitted tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Prefer xhv:role. Unmarked regions emit div (the root's primary-content child emits main)." ;
   ] ;
   sh:property [
     sh:path schema:itemListElement ;
-    sh:nodeKind sh:IRI ;
     sh:name "entries" ;
-    sh:description "Region membership, ordered OR unordered (as menu.shacl's items): an ordered schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order), or — for an unordered / single-item region — the ui:Layout / ui:Component member directly. An empty region is a placeholder pane other items target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)." ;
+    sh:description "Region membership, ordered OR unordered (as menu.shacl's items): an ordered schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order) — the wrapper may be a blank node — or, for an unordered / single-item region, the ui:Layout / ui:Component member directly (an IRI). An empty region is a placeholder pane other items target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)." ;
     sh:or (
       [ sh:node :LayoutEntryShape ]
       [ sh:node :LayoutMemberShape ]

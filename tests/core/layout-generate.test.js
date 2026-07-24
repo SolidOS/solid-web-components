@@ -213,7 +213,7 @@ describe('generateLayoutBody (fragment for a host page)', () => {
 describe('ARIA role regions + member-type dispatch', () => {
   const DOC = 'http://role.test/doc';
   const body = (ttl) => generateLayoutBody({
-    store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.\n${ttl}`, DOC),
+    store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.\n@prefix xhv: <http://www.w3.org/1999/xhtml/vocab#>.\n${ttl}`, DOC),
     layoutNode: rdf.sym(`${DOC}#L`),
     baseUrl: DOC,
     warn: () => {},
@@ -224,10 +224,10 @@ describe('ARIA role regions + member-type dispatch', () => {
 :L a ui:Layout ; schema:itemListElement
   [ schema:item :H ; schema:position 1 ], [ schema:item :N ; schema:position 2 ] ,
   [ schema:item :M ; schema:position 3 ], [ schema:item :F ; schema:position 4 ] .
-:H a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "banner" ] .
-:N a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "navigation" ] .
-:M a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "main" ] .
-:F a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "contentinfo" ] .
+:H a ui:Layout ; xhv:role "banner" .
+:N a ui:Layout ; xhv:role "navigation" .
+:M a ui:Layout ; xhv:role "main" .
+:F a ui:Layout ; xhv:role "contentinfo" .
 `);
     expect(out).toMatch(/<header class="app-col">/);
     expect(out).toMatch(/<nav class="app-col">/);
@@ -239,8 +239,8 @@ describe('ARIA role regions + member-type dispatch', () => {
   test('role="region" emits <section> and keeps its aria-label', () => {
     const out = body(`
 :L a ui:Layout ; schema:itemListElement [ schema:item :S ; schema:position 1 ] .
-:S a ui:Layout ; schema:additionalProperty
-  [ schema:name "role" ; schema:value "region" ] , [ schema:name "aria-label" ; schema:value "Tools" ] .
+:S a ui:Layout ; xhv:role "region" ;
+  schema:additionalProperty [ schema:name "aria-label" ; schema:value "Tools" ] .
 `);
     expect(out).toMatch(/<section class="app-col" aria-label="Tools">/);
   });
@@ -248,9 +248,9 @@ describe('ARIA role regions + member-type dispatch', () => {
   test('role="region" without a name warns', () => {
     const warnings = [];
     generateLayoutBody({
-      store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.
+      store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.\n@prefix xhv: <http://www.w3.org/1999/xhtml/vocab#>.
 :L a ui:Layout ; schema:itemListElement [ schema:item :S ; schema:position 1 ] .
-:S a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "region" ] .`, DOC),
+:S a ui:Layout ; xhv:role "region" .`, DOC),
       layoutNode: rdf.sym(`${DOC}#L`),
       warn: (m) => warnings.push(m),
     });
@@ -261,7 +261,7 @@ describe('ARIA role regions + member-type dispatch', () => {
     // Every region is role-tagged → nothing is "unmarked" → no auto-<main>.
     const out = body(`
 :L a ui:Layout ; schema:itemListElement [ schema:item :N ; schema:position 1 ] .
-:N a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "navigation" ] .
+:N a ui:Layout ; xhv:role "navigation" .
 `);
     expect(out).toMatch(/<nav\b/);
     expect(out).not.toMatch(/<main\b/);
@@ -270,7 +270,7 @@ describe('ARIA role regions + member-type dispatch', () => {
   test('a ui:Menu member emits a menu component via from-rdf (nav → sol-menu)', () => {
     const out = body(`
 :L a ui:Layout ; schema:itemListElement [ schema:item :Nav ; schema:position 1 ] .
-:Nav a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "navigation" ] ;
+:Nav a ui:Layout ; xhv:role "navigation" ;
   schema:itemListElement :Menu .
 :Menu a ui:Menu .
 `);
@@ -281,7 +281,7 @@ describe('ARIA role regions + member-type dispatch', () => {
   test('a ui:Menu outside a navigation region emits a tabset (sol-tabs)', () => {
     const out = body(`
 :L a ui:Layout ; schema:itemListElement [ schema:item :Main ; schema:position 1 ] .
-:Main a ui:Layout ; schema:additionalProperty [ schema:name "role" ; schema:value "main" ] ;
+:Main a ui:Layout ; xhv:role "main" ;
   schema:itemListElement :Menu .
 :Menu a ui:Menu .
 `);
@@ -309,7 +309,7 @@ describe('ARIA role regions + member-type dispatch', () => {
   test('a ui:Command member is skipped with a warning', () => {
     const warnings = [];
     const out = generateLayoutBody({
-      store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.
+      store: parseInto(`@prefix : <#>.\n@prefix ui: <http://www.w3.org/ns/ui#>.\n@prefix schema: <http://schema.org/>.\n@prefix xhv: <http://www.w3.org/1999/xhtml/vocab#>.
 :L a ui:Layout ; schema:itemListElement [ schema:item :C ; schema:position 1 ] .
 :C a ui:Command .`, DOC),
       layoutNode: rdf.sym(`${DOC}#L`), warn: (m) => warnings.push(m),

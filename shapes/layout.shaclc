@@ -1,5 +1,6 @@
 PREFIX schema: <http://schema.org/>
 PREFIX ui: <http://www.w3.org/ns/ui#>
+PREFIX xhv: <http://www.w3.org/1999/xhtml/vocab#>
 
 shape <#LayoutShape> -> ui:Layout {
     ui:label xsd:string [0..1] %
@@ -11,11 +12,14 @@ shape <#LayoutShape> -> ui:Layout {
     ui:columns xsd:integer [0..1] minInclusive=1 maxInclusive=6 %
         sh:name "columns" ; sh:description "Render the parts as a grid with this many columns (overrides orientation flow)"
     % .
-    schema:additionalType [0..1] in=[schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar] %
-        sh:name "semantic role" ; sh:description "Optional schema.org web-page-element class selecting the emitted semantic tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Unmarked regions emit div (the root's primary-content child emits main)."
+    xhv:role xsd:string [1..1] in=["banner" "main" "navigation" "contentinfo" "region" "document" "application"] %
+        sh:name "role" ; sh:description "REQUIRED role (the XHTML/RDFa `role` predicate). Landmark tokens map to native elements: banner→header, main→main, navigation→nav, contentinfo→footer, region→section (region also needs aria-label). document/application are for the ROOT layout (which IS the <body>): the compiler ignores the root's role and emits <body> plus its class/attrs. Complete landmark set, incl. main."
     % .
-    schema:itemListElement IRI @<#LayoutEntryShape>|@<#LayoutMemberShape> %
-        sh:name "entries" ; sh:description "Region membership, ordered OR unordered (as menu.shacl's items): an ordered schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order), or — for an unordered / single-item region — the ui:Layout / ui:Component member directly. An empty region is a placeholder pane other items target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)."
+    schema:additionalType [0..1] in=[schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar] %
+        sh:name "semantic role (legacy)" ; sh:description "FALLBACK schema.org web-page-element class → emitted tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Prefer xhv:role. Unmarked regions emit div (the root's primary-content child emits main)."
+    % .
+    schema:itemListElement @<#LayoutEntryShape>|@<#LayoutMemberShape> %
+        sh:name "entries" ; sh:description "Region membership, ordered OR unordered (as menu.shacl's items): an ordered schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order) — the wrapper may be a blank node — or, for an unordered / single-item region, the ui:Layout / ui:Component member directly (an IRI). An empty region is a placeholder pane other items target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)."
     % .
     schema:additionalProperty @<#PropertyValueShape> %
         sh:name "attribute" ; sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs"

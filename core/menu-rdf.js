@@ -153,10 +153,17 @@ function orientationToken(v) {
 // form of placement. At render time placement is still resolved from HTML —
 // the generator emits `region=` from this token and display-target.js reads it
 // there — so the "display lives in HTML" runtime model is unchanged.
+// The ui:Region KINDS (placement surfaces). A ui:region value naming one of
+// these is a keyword; anything else is a TARGET reference — a CSS selector for
+// the element the items display in (e.g. "#dk-menu-pane", "main"), kept verbatim
+// so display-target's resolveRegion can safeQuery it. This is what lets a menu
+// say "my items display over THERE" without the target element claiming them
+// (data-for) from the other side.
+const REGION_KINDS = new Set(['inline', 'element', 'modal', 'floating', 'window', 'tab', 'dropdown']);
 function regionToken(v) {
   if (!v) return null;
-  const local = v.includes('#') ? v.slice(v.indexOf('#') + 1) : v;
-  return local.toLowerCase();
+  const local = (v.includes('#') ? v.slice(v.indexOf('#') + 1) : v).toLowerCase();
+  return REGION_KINDS.has(local) ? local : v;
 }
 
 /**

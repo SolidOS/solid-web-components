@@ -18,13 +18,13 @@
 //                Absent ui:orientation defaults to VERTICAL (a page stacks;
 //                menus default horizontal — different medium, different
 //                natural axis). ui:columns N renders the parts as a grid.
-//   semantic role — PREFERRED: a `role` schema:additionalProperty (ARIA
-//                landmark) maps to the native element (banner→header,
-//                main→main, navigation→nav, contentinfo→footer, region→section)
-//                — the complete set, including main. FALLBACK: the legacy
-//                schema:additionalType (SiteNavigationElement→nav, WP*→
-//                header/footer/aside) and, for an unmarked region, the root's
-//                first unmarked child → <main>. Everything else → <div>.
+//   semantic role — PREFERRED: an xhv:role (the XHTML/RDFa `role` predicate,
+//                an ARIA landmark token) maps to the native element
+//                (banner→header, main→main, navigation→nav, contentinfo→footer,
+//                region→section) — the complete set, including main. FALLBACK:
+//                the legacy schema:additionalType (SiteNavigationElement→nav,
+//                WP*→header/footer/aside) and, for an unmarked region, the
+//                root's first unmarked child → <main>. Everything else → <div>.
 //   member types — a region's members dispatch on rdf:type: ui:Layout → nested
 //                region; ui:Component → a mounted element; ui:Menu → a menu
 //                component (sol-menu/sol-tabs) via from-rdf; ui:Link → its
@@ -42,6 +42,7 @@ const UI     = 'http://www.w3.org/ns/ui#';
 const RDF    = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 const RDFS   = 'http://www.w3.org/2000/01/rdf-schema#';
 const SCHEMA = 'http://schema.org/';
+const XHV    = 'http://www.w3.org/1999/xhtml/vocab#';   // xhv:role — the `role` predicate
 
 const SEMANTIC_TAGS = new Map([
   [SCHEMA + 'SiteNavigationElement', 'nav'],
@@ -50,12 +51,12 @@ const SEMANTIC_TAGS = new Map([
   [SCHEMA + 'WPSideBar', 'aside'],
 ]);
 
-// ARIA landmark role (a `role` schema:additionalProperty on a region) → the
-// native element that carries that role implicitly. This is the PREFERRED way
-// to mark a region's semantics (complete — includes `main`, which schema.org's
-// WebPageElement family lacks); the schema:additionalType SEMANTIC_TAGS above
-// remain as a fallback for older layouts. `region` also requires an
-// accessible name (aria-label) to be a landmark — the generator warns if absent.
+// ARIA landmark role (an xhv:role token on a region) → the native element that
+// carries that role implicitly. This is the PREFERRED way to mark a region's
+// semantics (complete — includes `main`, which schema.org's WebPageElement
+// family lacks); the schema:additionalType SEMANTIC_TAGS above remain as a
+// fallback for older layouts. `region` also requires an accessible name
+// (aria-label) to be a landmark — the generator warns if absent.
 const ROLE_TAGS = new Map([
   ['banner', 'header'],
   ['main', 'main'],
@@ -161,7 +162,10 @@ export function parseLayoutTree(store, node) {
       (store.any(p, sym(SCHEMA + 'value')) || {}).value || '',
     ])
     .filter(([k]) => k);
-  const role = (params.find(([k]) => k === 'role') || [])[1] || null;
+  // A region's ARIA landmark role is a first-class xhv:role (the XHTML/RDFa
+  // `role` predicate) — NOT an additionalProperty attribute (role selects the
+  // element, so it is semantics, not a passthrough attr).
+  const role = val(store, node, XHV + 'role');
   const additionalTypeIri = val(store, node, SCHEMA + 'additionalType');
   return {
     kind: 'region',
@@ -347,15 +351,24 @@ export function generateAppHtml({
   // The root layout IS the body: its structural class goes on <body>, its
   // children emit directly (bodyFromTree). The first unmarked layout child is
   // the page's primary content and emits <main>.
-  const rootCls = [new Map(tree.params).get('class'), structuralClass(tree)]
-    .filter(Boolean).join(' ');
+  // The root layout IS the <body>: its class + any other attributes ride onto
+  // <body>. Its ROLE is ignored — <body> is implicitly the document, and
+  // document/application are the only roles it could carry (the region→element
+  // mapping doesn't apply to the page container).
+  const rootAttrs = new Map(tree.params);
+  const rootCls = [rootAttrs.get('class'), structuralClass(tree)].filter(Boolean).join(' ');
+  rootAttrs.delete('class');
+  rootAttrs.delete('role');
+  let bodyOpen = `<body class="${esc(rootCls)}"`;
+  for (const [k, v] of rootAttrs) bodyOpen += v === '' ? ` ${k}` : ` ${k}="${esc(v)}"`;
+  bodyOpen += '>';
   const body = bodyFromTree(tree, warn, baseUrl);
 
   return `<!doctype html>
 <html lang="en">
 <head>
 ${head}</head>
-<body class="${esc(rootCls)}">
+${bodyOpen}
 ${body}
 </body>
 </html>

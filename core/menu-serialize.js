@@ -38,6 +38,17 @@ const acl  = (l) => rdf.sym(ACL + l);
 const sch  = (l) => rdf.sym(SCHEMA + l);
 const a   = rdf.sym(RDF + 'type');
 
+const REGION_KINDS = new Set(['inline', 'element', 'modal', 'floating', 'window', 'tab', 'dropdown']);
+// A menu/item region → its RDF object: a ui:Region KIND writes as ui:<Kind>; a
+// TARGET selector (e.g. "#dk-menu-pane", "main") writes as a string literal —
+// the round-trip inverse of menu-rdf's regionToken.
+const regionObject = (region) => {
+  const r = String(region);
+  return REGION_KINDS.has(r.toLowerCase())
+    ? ui(r[0].toUpperCase() + r.slice(1).toLowerCase())
+    : rdf.literal(r);
+};
+
 /** Fragment → full IRI node in `docUrl`. */
 function fragNode(docUrl, fragment) {
   return rdf.sym(docUrl.split('#')[0] + '#' + fragment);
@@ -152,8 +163,7 @@ function emitItem(store, docUrl, doc, item, taken) {
   // parse) is never written back onto the item — the default stays on the
   // menu; only an item's OWN placement is materialized.
   if (item.region && !item.regionInherited && item.type !== 'component') {
-    const local = item.region[0].toUpperCase() + item.region.slice(1).toLowerCase();
-    store.add(node, ui('region'), ui(local), doc);
+    store.add(node, ui('region'), regionObject(item.region), doc);
   }
   // The attribute spelling (an empty-valued `if-logged-in` / `requires-write`
   // param) round-trips through the params below — emitting acl:mode as well
@@ -206,8 +216,7 @@ function emitMenu(store, docUrl, doc, menuNode, { label, orientation, region, it
   // Menu-level default placement (ui:region on the MENU) round-trips like
   // orientation; members that inherit it carry no region of their own.
   if (region) {
-    const local = region[0].toUpperCase() + region.slice(1).toLowerCase();
-    store.add(menuNode, ui('region'), ui(local), doc);
+    store.add(menuNode, ui('region'), regionObject(region), doc);
   }
   if (requiresWrite) store.add(menuNode, acl('mode'), acl('Write'), doc);
   const nodes = (items || []).map((item) => emitItem(store, docUrl, doc, item, taken));

@@ -12,8 +12,8 @@ shape <#MenuShape> -> ui:Menu {
     ui:orientation [0..1] in=[ui:Horizontal ui:Vertical] %
         sh:name "orientation" ; sh:description "ui:Horizontal or ui:Vertical menu layout"
     % .
-    ui:region [0..1] in=[ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown] %
-        sh:name "region" ; sh:description "Default placement for items that carry no region of their own."
+    ui:region [0..1] in=[ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown]|xsd:string %
+        sh:name "region" ; sh:description "Default placement for items that carry no region of their own: a ui:Region KIND (ui:Modal etc.) OR a target-selector string (e.g. \"#dk-menu-pane\", \"main\") naming the element the items display in."
     % .
 }
 
@@ -60,8 +60,8 @@ shape <#PluginShape> -> ui:Plugin ;
     ui:label xsd:string [1..1] %
         sh:name "label" ; sh:description "Display name for menus, buttons, etc."
     % .
-    ui:region [0..1] in=[ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown] %
-        sh:name "region" ; sh:description "Where the plugin's content is placed — a ui:Region instance, e.g. ui:Tab or ui:Modal."
+    ui:region [0..1] in=[ui:Inline ui:Element ui:Modal ui:Floating ui:Window ui:Tab ui:Dropdown]|xsd:string %
+        sh:name "region" ; sh:description "Where the plugin's content is placed — a ui:Region KIND (e.g. ui:Tab, ui:Modal) OR a target-selector string naming the element it displays in."
     % .
     dcterms:source IRI [0..1] %
         sh:name "manifest" ; sh:description "Provenance: the flat manifest doc this entry was generated from."
