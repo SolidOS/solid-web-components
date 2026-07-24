@@ -56,7 +56,7 @@ test('classic shell emits the nav + main skeleton with visible sources', () => {
 
   expect(html).toContain('<nav class="app-chrome-bar app-row" aria-label="Controls">');
   expect(html).toMatch(/<sol-login[\s\S]*?><\/sol-login>/);
-  expect(html).toContain('<main class="app-panels app-col">');
+  expect(html).toContain('<main class="app-panels app-col" aria-label="Content">');
   expect(html).toMatch(/<sol-tabs[\s\S]*?keep-alive[\s\S]*?from-rdf="app-menu\.ttl#Tabs"[\s\S]*?><\/sol-tabs>/);
   // the leaf's rdfs:comment round-trips as an HTML comment
   expect(html).toContain('<!-- The whole app body: a tabset built from the app\'s own menu doc -->');
@@ -83,8 +83,8 @@ test('dashboard grid emits app-grid-2 markup and CSS', () => {
   const { store, layoutNode } = loadLayout('dashboard-grid.ttl');
   const html = generateAppHtml({ store, layoutNode });
   // :Main is the root's first unmarked layout child → <main>, grid class
-  expect(html).toContain('<main class="app-widgets app-grid-2">');
-  expect(html).toContain('<header class="app-header app-row">');
+  expect(html).toContain('<main class="app-widgets app-grid-2" aria-label="Widgets">');
+  expect(html).toContain('<header class="app-header app-row" aria-label="Header">');
   expect(html).toMatch(/data-components="sol-basic sol-time sol-calendar"/);
 
   const css = generateAppCss(store, layoutNode);
@@ -98,9 +98,9 @@ test('dashboard grid emits app-grid-2 markup and CSS', () => {
 test('sidebar: aside emits, empty main is a placeholder pane', () => {
   const { store, layoutNode } = loadLayout('sidebar.ttl');
   const html = generateAppHtml({ store, layoutNode });
-  expect(html).toContain('<aside class="app-side app-col">');
+  expect(html).toContain('<aside class="app-side app-col" aria-label="Sidebar">');
   expect(html).toMatch(/<sol-menu[\s\S]*?from-rdf="app-menu\.ttl#Menu"[\s\S]*?region="\.app-main"/);
-  expect(html).toMatch(/<main class="app-main app-col">\s*<\/main>/);
+  expect(html).toMatch(/<main class="app-main app-col" aria-label="Content">\s*<\/main>/);
 });
 
 test('a foreign (non sol-*) leaf loads via its own visible module script', () => {

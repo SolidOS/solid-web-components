@@ -230,8 +230,8 @@ test('Generate writes readable index.html + app.css; Register PATCHes a ui:Plugi
   expect(html.type).toBe('text/html');
   expect(html.body).toContain('<title>Hello World</title>');
   // structure: header banner; aside + main INSIDE the middle row
-  expect(html.body).toContain('<header class="app-banner app-row">');
-  expect(html.body).toMatch(/<div class="app-row">[\s\S]*<aside[\s\S]*<main class="app-main app-col">/);
+  expect(html.body).toContain('<header class="app-banner app-row" aria-label="Banner">');
+  expect(html.body).toMatch(/<div class="app-row">[\s\S]*<aside[\s\S]*<main class="app-main app-col" aria-label="Content">/);
   // chrome scripts + visible sources
   expect(html.body).toContain('web/scripts/prefs.js');
   expect(html.body).toContain('web/scripts/app-commands.js');

@@ -62,7 +62,7 @@ test('ui:columns outside 1..6 fails', async () => {
 
 test('a ui:Link in layout members CONFORMS — links are now first-class members', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ; schema:itemListElement <#Layout-L> .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ; schema:itemListElement <#Layout-L> .
 <#Layout-L> a schema:ListItem ; schema:item <#L> ; schema:position 1 .
 <#L> a ui:Link ; ui:label "Docs" ; schema:url <https://example.org/> .
 `);
@@ -71,7 +71,7 @@ test('a ui:Link in layout members CONFORMS — links are now first-class members
 
 test('a ui:Menu layout member conforms', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ; schema:itemListElement <#M> .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ; schema:itemListElement <#M> .
 <#M> a ui:Menu ; ui:label "Nav" .
 `);
   expect(report.conforms).toBe(true);
@@ -79,9 +79,9 @@ test('a ui:Menu layout member conforms', async () => {
 
 test('a wrapper WITHOUT `a schema:ListItem` still conforms (type now optional)', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ; schema:itemListElement <#W> .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ; schema:itemListElement <#W> .
 <#W> schema:item <#Sub> ; schema:position 1 .
-<#Sub> a ui:Layout ; xhv:role "main" .
+<#Sub> a ui:Layout ; ui:label "Sub" ; xhv:role "main" .
 `);
   const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
   expect(messages).toEqual([]);
@@ -109,7 +109,7 @@ test('a full app node conforms', async () => {
 
 test('an unordered (direct) ui:Component member conforms — no wrapper needed', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ; schema:itemListElement <#Only> .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ; schema:itemListElement <#Only> .
 <#Only> a ui:Component ; schema:url <https://example.org/sol-tabs.js> .
 `);
   const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
@@ -119,17 +119,17 @@ test('an unordered (direct) ui:Component member conforms — no wrapper needed',
 
 test('an unordered (direct) nested ui:Layout member conforms', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ; schema:itemListElement <#Sub> .
-<#Sub> a ui:Layout ; xhv:role "main" .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ; schema:itemListElement <#Sub> .
+<#Sub> a ui:Layout ; ui:label "Sub" ; xhv:role "main" .
 `);
   expect(report.conforms).toBe(true);
 });
 
 test('ordered and unordered members mix in one region', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ;
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ;
   schema:itemListElement <#Sub> , <#W> .
-<#Sub> a ui:Layout ; xhv:role "main" .
+<#Sub> a ui:Layout ; ui:label "Sub" ; xhv:role "main" .
 <#W> a schema:ListItem ; schema:item <#Leaf> ; schema:position 1 .
 <#Leaf> a ui:Component ; schema:url <https://example.org/sol-tabs.js> .
 `);
@@ -138,7 +138,7 @@ test('ordered and unordered members mix in one region', async () => {
 
 test('a direct ui:Link member conforms — unordered links are allowed', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ; schema:itemListElement <#L> .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ; schema:itemListElement <#L> .
 <#L> a ui:Link ; ui:label "Docs" ; schema:url <https://example.org/> .
 `);
   expect(report.conforms).toBe(true);
@@ -146,7 +146,7 @@ test('a direct ui:Link member conforms — unordered links are allowed', async (
 
 test('a member of a non-layout type still fails (e.g. bare ui:Command)', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" ; schema:itemListElement <#Bad> .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" ; schema:itemListElement <#Bad> .
 <#Bad> a ui:Command ; schema:url <commands.ttl#restart> .
 `);
   expect(report.conforms).toBe(false);
@@ -165,7 +165,7 @@ test('a schema:SoftwareApplication app node conforms (AppShape broadened)', asyn
 
 test('a valid xhv:role landmark token conforms', async () => {
   const report = await validate(`
-<#Layout> a ui:Layout ; xhv:role "main" .
+<#Layout> a ui:Layout ; ui:label "Main" ; xhv:role "main" .
 `);
   expect(report.conforms).toBe(true);
 });

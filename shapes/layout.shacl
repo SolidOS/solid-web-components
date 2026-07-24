@@ -1,7 +1,6 @@
 @prefix : <#> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
@@ -23,10 +22,11 @@
   sh:targetClass ui:Layout ;
   sh:property [
     sh:path ui:label ;
+    sh:minCount 1 ;
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
     sh:name "label" ;
-    sh:description "Display name for this region (builder UI only — not emitted)" ;
+    sh:description "REQUIRED. The region's accessible name — emitted as aria-label on the landmark element (an explicit aria-label / aria-labelledby attribute overrides it). Required so every landmark carries a name: a role=region (<section>) is a landmark ONLY with one, and repeated nav/main need distinct names. The root layout IS the <body>, whose label is not emitted." ;
   ] ;
   sh:property [
     sh:path ui:orientation ;
@@ -54,13 +54,6 @@
     sh:description "REQUIRED role (the XHTML/RDFa `role` predicate). Landmark tokens map to native elements: banner→header, main→main, navigation→nav, contentinfo→footer, region→section (region also needs aria-label). document/application are for the ROOT layout (which IS the <body>): the compiler ignores the root's role and emits <body> plus its class/attrs. Complete landmark set, incl. main." ;
   ] ;
   sh:property [
-    sh:path schema:additionalType ;
-    sh:maxCount 1 ;
-    sh:in ( schema:SiteNavigationElement schema:WPHeader schema:WPFooter schema:WPSideBar ) ;
-    sh:name "semantic role (legacy)" ;
-    sh:description "FALLBACK schema.org web-page-element class → emitted tag: SiteNavigationElement→nav, WPHeader→header, WPFooter→footer, WPSideBar→aside. Prefer xhv:role. Unmarked regions emit div (the root's primary-content child emits main)." ;
-  ] ;
-  sh:property [
     sh:path schema:itemListElement ;
     sh:name "entries" ;
     sh:description "Region membership, ordered OR unordered (as menu.shacl's items): an ordered schema:ListItem wrapper (schema:item names the nested ui:Layout region or ui:Component leaf, schema:position its visual order) — the wrapper may be a blank node — or, for an unordered / single-item region, the ui:Layout / ui:Component member directly (an IRI). An empty region is a placeholder pane other items target (region= selector). Replaces the retired ui:parts rdf:Collection (2026-07-19)." ;
@@ -74,11 +67,6 @@
     sh:node :PropertyValueShape ;
     sh:name "attribute" ;
     sh:description "HTML attributes emitted on the region's element (class, aria-label, id) as schema:PropertyValue pairs" ;
-  ] ;
-  sh:property [
-    sh:path rdfs:comment ;
-    sh:datatype xsd:string ;
-    sh:description "Documentary note (round-tripped by the generator as an HTML comment)" ;
   ] .
 
 # A placement wrapper: WHERE one member sits in ONE region — recognised by its
@@ -149,11 +137,6 @@
     sh:nodeKind sh:IRI ;
     sh:name "layout" ;
     sh:description "The app's root ui:Layout" ;
-  ] ;
-  sh:property [
-    sh:path rdfs:comment ;
-    sh:datatype xsd:string ;
-    sh:description "Documentary note" ;
   ] .
 
 # Same contract as menu.shacl's :PropertyValueShape (kept local so this file

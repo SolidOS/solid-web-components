@@ -219,6 +219,11 @@ export function menuSourcesIn(tree) {
 // auto-claims a <main>: main comes only from role="main".
 const isMarked = (region) => !!(region.roleTag || region.semantic);
 
+// Elements that ARE ARIA landmarks — the only ones a ui:label is emitted onto
+// as aria-label (a <section> becomes a landmark once it has that name). A plain
+// <div> is not a landmark, so a name on it would be inert.
+const LANDMARK_TAGS = new Set(['header', 'nav', 'main', 'footer', 'aside', 'section']);
+
 function emitRegion(region, { depth, isMain, warn, baseUrl }) {
   // <main> fallback (legacy / unmarked layouts only): the first UNMARKED region
   // on the primary path becomes <main> unless it wraps nested regions, in which
@@ -231,6 +236,15 @@ function emitRegion(region, { depth, isMain, warn, baseUrl }) {
   // -redundant `role` attribute. (An unrecognised role falls through to <div>
   // and its `role` attr is kept, so e.g. role="search" still emits.)
   if (region.roleTag) attrs.delete('role');
+  // A region's ui:label IS its accessible name: emit it as aria-label on the
+  // LANDMARK element, unless an explicit aria-label / aria-labelledby already
+  // names it (the explicit attribute wins). Skipped on a plain <div> (not a
+  // landmark — a name there is inert for AT). The root layout is the <body>
+  // (emitted by the caller) and never reaches here, so its label is not emitted.
+  if (LANDMARK_TAGS.has(tag) && region.label
+      && !attrs.get('aria-label') && !attrs.get('aria-labelledby')) {
+    attrs.set('aria-label', region.label);
+  }
   // `region` / <section> is a landmark only when it has an accessible name.
   if (region.role === 'region' && !attrs.get('aria-label') && !attrs.get('aria-labelledby')) {
     warn(`region ${region.node.value} has role="region" but no aria-label — it will not be a landmark`);
