@@ -68,12 +68,28 @@ function emitLeaf(leaf, docUrl) {
   return lines.join(' ;\n') + ' .\n';
 }
 
+// A ui:Link member — first-class layout content (its schema:url transcludes /
+// frames at compile time). The composer emits these for the site-title and
+// footer slots; the serializer must round-trip them or a save would drop them.
+function emitLink(link, docUrl) {
+  const frag = fragOf(link.node) || 'link';
+  const lines = [`:${frag} a ui:Link`];
+  if (link.label) lines.push(`  ui:label ${lit(link.label)}`);
+  if (link.comment) lines.push(`  rdfs:comment ${lit(link.comment)}`);
+  if (link.url) lines.push(`  schema:url <${relativizeUrl(link.url, docUrl)}>`);
+  return lines.join(' ;\n') + ' .\n';
+}
+
 function emitRegion(region, docUrl, blocks, wrappers, wrapperTaken, isRoot = false) {
   const frag = fragOf(region.node) || 'Layout';
   const lines = [`:${frag} a ui:Layout`];
   if (region.label) lines.push(`  ui:label ${lit(region.label)}`);
   if (region.comment) lines.push(`  rdfs:comment ${lit(region.comment)}`);
-  if (region.additionalTypeIri) {
+  // A region's landmark is a first-class xhv:role (the XHTML/RDFa `role`
+  // predicate). Legacy layouts marked with schema:additionalType round-trip
+  // through it only when no role is present.
+  if (region.role) lines.push(`  xhv:role ${lit(region.role)}`);
+  else if (region.additionalTypeIri) {
     lines.push(`  schema:additionalType ${typeTerm(region.additionalTypeIri)}`);
   }
   if (region.orientation === 'horizontal') lines.push('  ui:orientation ui:Horizontal');
@@ -99,10 +115,11 @@ function emitRegion(region, docUrl, blocks, wrappers, wrapperTaken, isRoot = fal
   }
   blocks.push(lines.join(' ;\n') + ' .\n');
 
-  // Children: leaves directly after their region, child regions after that —
-  // the authored presets' reading order.
+  // Children: leaves/links directly after their region, child regions after
+  // that — the authored presets' reading order.
   for (const part of region.parts) {
     if (part.kind === 'leaf') blocks.push(emitLeaf(part, docUrl));
+    else if (part.kind === 'link') blocks.push(emitLink(part, docUrl));
   }
   for (const part of region.parts) {
     if (part.kind === 'region') emitRegion(part, docUrl, blocks, wrappers, wrapperTaken);
@@ -126,6 +143,7 @@ export function serializeLayout(tree, { docUrl, comment } = {}) {
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xhv: <http://www.w3.org/1999/xhtml/vocab#> .
 `;
   if (comment) out += '\n' + comment.split('\n').map((l) => `# ${l}`.trimEnd()).join('\n') + '\n';
   out += '\n' + blocks.join('\n');
@@ -186,12 +204,59 @@ export function addLeaf(tree, regionIri, item, docUrl) {
   return leaf;
 }
 
-/** Remove the leaf with `leafIri` from wherever it sits. Returns true if found. */
+/**
+ * Add a ui:Link leaf (transcluded/framed content) to a region. Mutates the
+ * tree; returns the link node.
+ *
+ * @param {object} tree      root region
+ * @param {string} regionIri IRI of the region to add into
+ * @param {object} item      { label, url, comment? } — url is the link target
+ * @param {string} docUrl    the layout doc URL (new fragments live here)
+ */
+export function addLink(tree, regionIri, item, docUrl) {
+  const region = findRegion(tree, regionIri);
+  if (!region) return null;
+  const taken = usedTreeFragments(tree);
+  const frag = mintFragment(item.label || 'link', taken);
+  const link = {
+    kind: 'link',
+    node: { value: `${String(docUrl).split('#')[0]}#${frag}` },
+    url: item.url || null,
+    label: item.label || '',
+    comment: item.comment || null,
+  };
+  region.parts.push(link);
+  return link;
+}
+
+/**
+ * Move a leaf/link to another region (or reorder within one). Removes it from
+ * its current parent and inserts it into `targetRegionIri` — before the part
+ * with `beforeIri` if given, else at the end. Regions themselves don't move.
+ * Returns true on success.
+ */
+export function moveNode(tree, nodeIri, targetRegionIri, beforeIri = null) {
+  const src = findParentOf(tree, nodeIri);
+  const target = findRegion(tree, targetRegionIri);
+  if (!src || !target) return false;
+  const i = src.parts.findIndex((p) => p.node && p.node.value === nodeIri);
+  if (i < 0 || src.parts[i].kind === 'region') return false;
+  const [part] = src.parts.splice(i, 1);
+  let j = target.parts.length;
+  if (beforeIri) {
+    const k = target.parts.findIndex((p) => p.node && p.node.value === beforeIri);
+    if (k >= 0) j = k;
+  }
+  target.parts.splice(j, 0, part);
+  return true;
+}
+
+/** Remove the leaf/link with `leafIri` from wherever it sits. Returns true if found. */
 export function removeLeaf(tree, leafIri) {
   const parent = findParentOf(tree, leafIri);
   if (!parent) return false;
   const i = parent.parts.findIndex((p) => p.node && p.node.value === leafIri);
-  if (i < 0 || parent.parts[i].kind !== 'leaf') return false;
+  if (i < 0 || parent.parts[i].kind === 'region') return false;
   parent.parts.splice(i, 1);
   return true;
 }

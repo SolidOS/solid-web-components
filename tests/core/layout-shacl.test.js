@@ -10,15 +10,15 @@
  *   - an app node without ui:layout fails :AppShape
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Parser, Store } from 'n3';
 import SHACLValidator from 'rdf-validate-shacl';
+import { composeLayoutTurtle } from '../../core/layout-compose.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
-const layoutsDir = join(root, 'data', 'layouts');
 
 const PREFIXES = `
 @prefix ui:     <http://www.w3.org/ns/ui#> .
@@ -43,16 +43,24 @@ async function validate(dataText) {
   return await new SHACLValidator(shapes).validate(parse(PREFIXES + dataText));
 }
 
-// NB: the data/layouts/*.ttl presets are the (unshipped) App Builder's demo
-// layouts — they mark regions the LEGACY way (schema:additionalType) and some
-// carry purely structural grid regions with no landmark. Since xhv:role is now
-// REQUIRED, they no longer conform, and they aren't a shipped concern; the
-// layout engine still compiles them (see layout-generate.test.js). Conformance
-// is now asserted on the live consumer instead — dk's shell (data-kitchen).
-test('the preset layouts still exist for the layout engine to compile', () => {
-  const files = readdirSync(layoutsDir).filter((f) => f.endsWith('.ttl'));
-  expect(files.length).toBeGreaterThanOrEqual(5);
-});
+// Every layout the App Builder composes (core/layout-compose.js) must conform:
+// each region carries a landmark xhv:role, so a composed doc is a full
+// end-to-end check of the vocabulary the configurator emits.
+const COMBOS = [
+  { sidebars: 'none', menuLocation: 'header', hamburger: true },
+  { sidebars: 'left', menuLocation: 'left-sidebar', hamburger: false },
+  { sidebars: 'both', footer: true, menuLocation: 'right-sidebar', hamburger: true },
+  { sidebars: 'right', menuLocation: 'under-header', footer: true, hamburger: true },
+];
+for (const cfg of COMBOS) {
+  test(`composed layout conforms (${JSON.stringify(cfg)})`, async () => {
+    const report = await new SHACLValidator(shapes)
+      .validate(parse(composeLayoutTurtle(cfg)));
+    const messages = report.results.map((r) => r.message.map((m) => m.value).join('; '));
+    expect(messages).toEqual([]);
+    expect(report.conforms).toBe(true);
+  });
+}
 
 test('ui:columns outside 1..6 fails', async () => {
   const report = await validate(`

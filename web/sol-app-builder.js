@@ -3,7 +3,7 @@
  * 2026-07-19). A built app is a pod folder holding readable artifacts:
  *
  *   app.ttl      the app node (schema:WebApplication; name, icon, ui:layout)
- *   layout.ttl   the ui:Layout tree (copied from a preset, then editable)
+ *   layout.ttl   the ui:Layout tree (composed from the Step-2 answers, then editable)
  *   app-menu.ttl the app's menu doc(s) the layout's from-rdf names
  *   index.html   GENERATED from the layout (core/layout-generate.js) — every
  *                element names its module / source / from-rdf visibly
@@ -17,32 +17,33 @@
  *                     folder IS the registry: a child container holding an
  *                     app.ttl with a schema:WebApplication is an app.
  *   catalog         — plugin catalog (ui:Menu of ui:Plugin entries). Powers
- *                     the plugins pantry and the "Add to catalog" publish
- *                     action. Optional; without it those affordances hide.
- *   presets         — preset index doc (a ui:Menu of ui:Link entries naming
- *                     layout docs). Default: the shipped data/layouts/index.ttl.
+ *                     the plugins pantry (steps 3–4), region drops, and the
+ *                     "Add to catalog" publish action. Optional; without it
+ *                     those affordances hide.
  *   components-base — where generated pages load sol-components from.
  *                     Default /node_modules/sol-components (same-origin);
  *                     set a pinned CDN base for portable app folders.
  *
- * Wizard steps with free jump-in — the POD DOCS are the wizard state, so any
- * step runs against whatever exists:
- *   1. Create/Choose App    — create or pick an app folder
- *   2. Select Layout        — a VISUAL choice among structural arrangements
- *                             (cards show a schematic derived from each
- *                             preset's actual RDF); picking copies the
- *                             layout WITH its theme chrome (banner ☰,
- *                             sidebar menu, content include)
- *   3. Add Menus and Content— every region of the layout with its elements
- *                             in place (theme chrome included, removable
- *                             like anything else); add a menu / tabs / page
- *                             content / widgets per region; menus expand to
- *                             the same sol-menu-manager Customize uses.
- *                             Saves rewrite layout.ttl via
+ * A top row picks the app — Create new app / Edit existing app — and the step
+ * rail stays greyed until one is chosen. Steps then run against the POD DOCS,
+ * which are the wizard state, so any step works with whatever exists:
+ *   1. Edit Layout          — pick a region arrangement (none/left/right/both,
+ *                             chosen visually) FIRST; the questions then appear:
+ *                             footer y/n, main-menu location, button-bar
+ *                             location, hamburger ☰ y/n. The answers COMPOSE
+ *                             layout.ttl (core/layout-compose.js) — header with
+ *                             a site-title link, menu / button bar / ☰ as
+ *                             chosen; sidebars + main as empty drop targets.
+ *   2. Add Features         — the layout on the left (each region a drop zone
+ *                             holding its elements as draggable chips), three
+ *                             accordions on the right (Pages / UI elements /
+ *                             Plugins, one open at a time). Drag a feature onto
+ *                             a region to add it; drag a chip to reorder or
+ *                             move it. Saves rewrite layout.ttl via
  *                             core/layout-serialize.js.
- *   4. Add Plugins          — the catalog pantry beside the app's menu
+ *   3. Add Plugins          — the catalog pantry beside the app's menu
  *                             managers (drag/add plugin cards into menus)
- *   5. Publish              — generate + preview + catalog entry
+ *   4. Publish              — generate + preview + catalog entry
  * Renders in LIGHT DOM: the embedded managers pair with the
  * pantry via its `for` selector, which only sees the page DOM.
  *
@@ -62,13 +63,17 @@ import {
   parseLayoutTree, generateAppHtml, generateAppCss, seedAppMenu,
 } from '../core/layout-generate.js';
 import {
-  serializeLayout, addLeaf, removeLeaf, moveLeaf,
+  serializeLayout, addLeaf, addLink, removeLeaf, moveNode,
 } from '../core/layout-serialize.js';
+import { composeLayoutTurtle, menuOrientationFor } from '../core/layout-compose.js';
 
 const freshFetch = (url, opts) => solFetch(url, { ...(opts || {}), cache: 'no-store' });
 
 const UI     = 'http://www.w3.org/ns/ui#';
 const SCHEMA = 'http://schema.org/';
+// The drag payload MIME for the Add-Features step (accordion feature / chip
+// move). The step-4 pantry uses its own PLUGIN_MIME contract separately.
+const SAB_MIME = 'application/x-sab-feature';
 
 const escHtml = (s) => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -76,12 +81,49 @@ const escHtml = (s) => String(s ?? '')
 const slugify = (name) =>
   String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'app';
 
+// Reverse of composeLayoutTurtle: infer the Edit-Layout answers from an existing
+// layout tree so editing an app shows its current arrangement + questions. The
+// region a MainMenu / MainButtonBar leaf sits in gives its location; sidebars
+// come from the app-side-left/right regions; footer / hamburger from presence.
+function cfgFromTree(tree) {
+  const clsOf = (r) => new Map(r.params || []).get('class') || '';
+  const slotOf = (r) => {
+    if (r.role === 'banner') return 'header';
+    if (r.role === 'navigation') return 'under-header';
+    if (r.role === 'complementary') return clsOf(r).includes('app-side-right') ? 'right-sidebar' : 'left-sidebar';
+    return null;
+  };
+  let hasLeft = false, hasRight = false, footer = false, hamburger = false;
+  let menuLocation = 'header', buttonBar = 'none';
+  (function walk(r) {
+    if (!r || r.kind !== 'region') return;
+    const cls = clsOf(r);
+    if (cls.includes('app-side-left')) hasLeft = true;
+    if (cls.includes('app-side-right')) hasRight = true;
+    if (r.role === 'contentinfo') footer = true;
+    const slot = slotOf(r);
+    for (const p of r.parts) {
+      if (p.kind === 'region') { walk(p); continue; }
+      if (p.kind !== 'leaf') continue;
+      const from = new Map(p.item.params).get('from-rdf') || '';
+      if (from.endsWith('#MainMenu') && slot) menuLocation = slot;
+      else if (from.endsWith('#MainButtonBar') && slot) buttonBar = slot;
+      else if (from.endsWith('#MainHamburgerMenu')) hamburger = true;
+    }
+  })(tree);
+  const sidebars = hasLeft && hasRight ? 'both' : hasLeft ? 'left' : hasRight ? 'right' : 'none';
+  return { sidebars, footer, menuLocation, buttonBar, hamburger };
+}
+
 const STARTER_CONTENT = `<h1>Hello</h1>
 <p>This is your app's content.html — edit it (e.g. with Live Edit in the pod
 browser) to change this page.</p>
 `;
 
 const STARTER_FOOTER = `<p>Built with the Solid App Builder.</p>
+`;
+
+const STARTER_SITE_TITLE = `<strong>My App</strong>
 `;
 
 // help.html is opened as a PAGE (the ☰ Help link), so it's a whole document.
@@ -106,18 +148,18 @@ const starterHelp = (componentsBase) => `<!doctype html>
 </html>
 `;
 
-// The theme chrome's ☰ menu — Help plus the two standard appearance
-// commands (implemented by web/scripts/app-commands.js, which
-// layout-generate emits in every generated head).
-const MORE_MENU_TTL = `@prefix : <#> .
+// The theme chrome's ☰ menu — Help (a ui:Link to the app's help.html) plus the
+// two standard appearance commands (implemented by web/scripts/app-commands.js,
+// which layout-generate emits in every generated head).
+const HAMBURGER_MENU_TTL = `@prefix : <#> .
 @prefix ui: <http://www.w3.org/ns/ui#> .
 @prefix schema: <http://schema.org/> .
 
 # The app's ☰ menu — edit via the builder (or any sol-menu-manager).
-:More a ui:Menu ;
+:MainHamburgerMenu a ui:Menu ;
   ui:label "☰" ;
   ui:orientation ui:Vertical ;
-  schema:itemListElement :More-Help, :More-Theme, :More-Text-size .
+  schema:itemListElement :Ham-Help, :Ham-Theme, :Ham-Text-size .
 
 :Help a ui:Link ;
   ui:label "Help" ;
@@ -131,9 +173,9 @@ const MORE_MENU_TTL = `@prefix : <#> .
   ui:label "Text size" ;
   schema:url <app-commands.ttl#cycleFontSize> .
 
-:More-Help a schema:ListItem; schema:item :Help; schema:position 1.
-:More-Theme a schema:ListItem; schema:item :Theme; schema:position 2.
-:More-Text-size a schema:ListItem; schema:item :Text-size; schema:position 3.
+:Ham-Help a schema:ListItem; schema:item :Help; schema:position 1.
+:Ham-Theme a schema:ListItem; schema:item :Theme; schema:position 2.
+:Ham-Text-size a schema:ListItem; schema:item :Text-size; schema:position 3.
 `;
 
 // The app's command registry document — a ui:Command menu item's schema:url
@@ -151,15 +193,6 @@ const APP_COMMANDS_TTL = `@prefix : <#> .
   rdfs:comment "Cycle the app text size (16 / 20 / 24 px)." .
 `;
 
-// The Add-element palette's built-in entries (beyond menu/tabs/content,
-// which need per-app seeding): plain widgets with no params — exactly the
-// spellings the shipped presets use.
-const WIDGETS = [
-  { kind: 'login', label: 'Sign in', module: 'web/sol-login.js' },
-  { kind: 'clock', label: 'Clock', module: 'web/sol-time.js' },
-  { kind: 'calendar', label: 'Calendar', module: 'web/sol-calendar.js' },
-];
-
 const CSS = `
 sol-app-builder { display: block; font-size: 1rem; }
 sol-app-builder .sab-steps { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 1rem; }
@@ -175,6 +208,9 @@ sol-app-builder .sab-steps button[aria-current="step"] {
 sol-app-builder .sab-steps button:disabled {
   color: var(--text-muted, #4d4d4d); cursor: default;
 }
+sol-app-builder .sab-top { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 .75rem; }
+sol-app-builder .sab-app-title { flex: 1 1 auto; font-size: 1.1rem; color: inherit; text-decoration: none; }
+sol-app-builder .sab-app-title:hover { text-decoration: underline; }
 sol-app-builder .sab-hint { color: var(--text-muted, #4d4d4d); margin: .5rem 0; }
 sol-app-builder .sab-error { color: #b00020; margin: .5rem 0; }
 sol-app-builder .sab-cards { display: flex; flex-wrap: wrap; gap: .75rem; margin: .75rem 0; }
@@ -189,6 +225,22 @@ sol-app-builder .sab-card .sab-card-title { font-weight: 600; }
 sol-app-builder .sab-card .sab-card-desc {
   color: var(--text-muted, #4d4d4d); margin-top: .25rem;
 }
+/* Step-2 configurator: grouped questions with pill choices. */
+sol-app-builder .sab-group {
+  border: 1px solid var(--border, #9e9e9e); border-radius: .5rem;
+  padding: .4rem .8rem .8rem; margin: .75rem 0;
+}
+sol-app-builder .sab-group legend { font-weight: 600; padding: 0 .4rem; }
+sol-app-builder .sab-choices { display: flex; flex-wrap: wrap; gap: .5rem; }
+sol-app-builder .sab-choice {
+  font-size: 1rem; padding: .4rem .9rem; border-radius: 999px;
+  border: 1px solid var(--border, #9e9e9e); background: transparent;
+  color: inherit; cursor: pointer;
+}
+sol-app-builder .sab-choice[aria-pressed="true"] {
+  background: var(--accent, #1F618D); color: #fff; border-color: transparent;
+}
+[data-theme="dark"] sol-app-builder .sab-choice[aria-pressed="true"] { color: #0f1115; }
 sol-app-builder form.sab-new { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .75rem 0; }
 sol-app-builder input {
   font-size: 1rem; padding: .4rem .6rem; border-radius: .3rem;
@@ -235,46 +287,51 @@ sol-app-builder .sab-schem-el {
   flex: 0 0 auto; width: .9rem; height: .6rem; border-radius: .15rem;
   background: var(--accent, #1F618D); opacity: .55;
 }
-/* Region panels (the Add Menus and Content step). */
-sol-app-builder .sab-region {
+/* Add-Features step: layout areas (left) + accordions (right). */
+sol-app-builder .sab-feat-wrap { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
+sol-app-builder .sab-layout { flex: 1 1 22rem; min-width: 0; }
+sol-app-builder .sab-accordions { flex: 0 0 14rem; }
+/* Wrapper regions render transparently — just a flex container along the
+   region's axis (root stacks; the Middle band runs across, full width). */
+sol-app-builder .sab-group { display: flex; gap: .5rem; }
+sol-app-builder .sab-group-col { flex-direction: column; }
+sol-app-builder .sab-group-row { flex-direction: row; align-items: stretch; }
+sol-app-builder .sab-group-row > .sab-area { flex: 1 1 0; min-width: 0; }
+/* A fillable area: a bordered box with its name on the border (the legend). */
+sol-app-builder .sab-area {
   border: 1px solid var(--border, #9e9e9e); border-radius: .5rem;
-  padding: .6rem .8rem; margin: .75rem 0; background: var(--surface, #fff);
-  color: var(--text, #000);
+  padding: .2rem .6rem .6rem; margin: 0 0 .5rem; min-width: 0;
+  background: var(--surface, #fff); color: var(--text, #000);
 }
-sol-app-builder .sab-region .sab-region { background: var(--bg, #f5f5f5); }
-sol-app-builder .sab-region .sab-region .sab-region { background: var(--surface, #fff); }
-sol-app-builder .sab-region-head {
-  display: flex; align-items: center; gap: .5rem; margin-bottom: .25rem;
+sol-app-builder .sab-area > legend { padding: 0 .4rem; font-size: 1rem; color: var(--text-muted, #4d4d4d); }
+sol-app-builder .sab-drop {
+  display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
+  min-height: 2rem; padding: .3rem; border-radius: .3rem;
+  border: 1px dashed var(--border, #9e9e9e);
 }
-sol-app-builder .sab-badge {
-  font-size: 1rem; color: var(--text-muted, #4d4d4d);
-  border: 1px solid var(--border, #9e9e9e); border-radius: 999px;
-  padding: 0 .6rem;
+sol-app-builder .sab-drop-over { border-style: solid; outline: 2px solid var(--accent, #1F618D); }
+sol-app-builder .sab-drop-hint { color: var(--text-muted, #4d4d4d); font-size: 1rem; padding: 0 .3rem; }
+sol-app-builder .sab-chip {
+  display: inline-flex; align-items: center; gap: .3rem; cursor: grab;
+  font-size: 1rem; padding: .2rem .3rem .2rem .6rem; border-radius: 999px;
+  border: 1px solid var(--border, #9e9e9e); background: var(--bg, #f5f5f5); color: var(--text, #000);
 }
-sol-app-builder .sab-el {
-  display: flex; align-items: center; flex-wrap: wrap; gap: .5rem;
-  padding: .35rem 0; border-top: 1px solid var(--border, #9e9e9e);
+sol-app-builder .sab-chip-x {
+  font-size: .9rem; line-height: 1; padding: .1rem .3rem; border-radius: 999px;
+  border: 0; background: transparent; color: var(--text-muted, #4d4d4d); cursor: pointer;
 }
-sol-app-builder .sab-el-name { flex: 1 1 auto; min-width: 12rem; }
-sol-app-builder .sab-el-name code { font-family: var(--font-mono, monospace); font-size: 1rem; }
-sol-app-builder .sab-el-params { color: var(--text-muted, #4d4d4d); }
-sol-app-builder .sab-el button, sol-app-builder .sab-add button {
-  font-size: 1rem; padding: .25rem .7rem; border-radius: .3rem;
-  border: 1px solid var(--border, #9e9e9e); background: transparent;
-  color: inherit; cursor: pointer;
+sol-app-builder .sab-acc { border: 1px solid var(--border, #9e9e9e); border-radius: .4rem; margin-bottom: .4rem; overflow: hidden; }
+sol-app-builder .sab-acc-head {
+  width: 100%; text-align: left; font-size: 1rem; font-weight: 600; cursor: pointer;
+  padding: .5rem .7rem; border: 0; background: var(--bg, #f5f5f5); color: inherit;
 }
-sol-app-builder .sab-add { margin-top: .5rem; }
-sol-app-builder .sab-add summary { cursor: pointer; font-size: 1rem; }
-sol-app-builder .sab-add-body {
-  display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
-  padding: .5rem 0 .25rem;
+sol-app-builder .sab-acc-head[aria-expanded="true"] { background: var(--accent, #1F618D); color: #fff; }
+sol-app-builder .sab-acc-body { display: flex; flex-direction: column; gap: .35rem; padding: .5rem; }
+sol-app-builder .sab-feat {
+  cursor: grab; font-size: 1rem; padding: .35rem .6rem; border-radius: .3rem;
+  border: 1px solid var(--border, #9e9e9e); background: var(--surface, #fff); color: var(--text, #000);
 }
-sol-app-builder .sab-add select {
-  font-size: 1rem; padding: .25rem .4rem; border-radius: .3rem;
-  border: 1px solid var(--input-border, #9aa0a8);
-  background: var(--input-bg, #eef); color: var(--input-text, #1a1a1a);
-}
-sol-app-builder .sab-el sol-menu-manager { flex: 1 1 100%; }
+[data-theme="dark"] sol-app-builder .sab-acc-head[aria-expanded="true"] { color: #0f1115; }
 /* Dark theme: the dark --accent (#4dabf7) is light — white-on-accent and
    dark-red error text would both fail contrast there. */
 [data-theme="dark"] sol-app-builder .sab-steps button[aria-current="step"],
@@ -289,11 +346,18 @@ sol-app-builder .sab-el sol-menu-manager { flex: 1 1 100%; }
 class SolAppBuilder extends HTMLElement {
   constructor() {
     super();
-    this._step = 'apps';
+    this._step = 'layout';
     this._apps = null;    // [{slug, folder, name, icon}]
     this._app = null;     // the selected one
-    this._presets = null; // [{label, icon, url, description}]
+    this._mode = null;    // 'new' | 'edit' — which top-row button is active (gates the rail)
+    this._openAcc = 'ui'; // which Add-Features accordion is open (one at a time)
+    this._removed = [];   // items removed from the layout — offered back in their accordion
+    this._removedSeq = 0;
     this._error = null;
+    // Edit-Layout answers — a layout is COMPOSED from these (core/layout-compose.js).
+    // sidebars=null until an arrangement is picked (then the questions appear);
+    // 'none' is itself a valid arrangement, so null ≠ 'none'.
+    this._cfg = { sidebars: null, footer: false, menuLocation: 'header', buttonBar: 'none', hamburger: true };
   }
 
   connectedCallback() {
@@ -303,6 +367,10 @@ class SolAppBuilder extends HTMLElement {
     import('./sol-plugin-manager.js').catch(() => {});
     this.addEventListener('click', (e) => this._onClick(e));
     this.addEventListener('submit', (e) => this._onSubmit(e));
+    // Add-Features (step 2): drag an accordion feature or a chip onto a layout area.
+    this.addEventListener('dragstart', (e) => this._onFeatureDragStart(e));
+    this.addEventListener('dragover', (e) => this._onFeatureDragOver(e));
+    this.addEventListener('drop', (e) => this._onFeatureDrop(e));
     this._load();
   }
 
@@ -311,13 +379,6 @@ class SolAppBuilder extends HTMLElement {
     if (!v) return null;
     const url = new URL(v, document.baseURI).href;
     return url.endsWith('/') ? url : url + '/';
-  }
-
-  get presetsUrl() {
-    return new URL(
-      this.getAttribute('presets') || new URL('../data/layouts/index.ttl', import.meta.url).href,
-      document.baseURI,
-    ).href;
   }
 
   get catalog() { return this.getAttribute('catalog') || null; }
@@ -330,7 +391,7 @@ class SolAppBuilder extends HTMLElement {
 
   async _load() {
     this._error = null;
-    await Promise.all([this._loadApps(), this._loadPresets()]);
+    await this._loadApps();
     this._render();
   }
 
@@ -361,32 +422,6 @@ class SolAppBuilder extends HTMLElement {
     }
   }
 
-  async _loadPresets() {
-    try {
-      const store = await loadRdfStore(this.presetsUrl, freshFetch);
-      const entries = menuMembers(store, rdf.sym(`${this.presetsUrl}#Presets`));
-      this._presets = entries.map((e) => ({
-        label: rdfVal(store, e, 'label') || e.value.split('#').pop(),
-        icon: rdfVal(store, e, 'icon') || '',
-        url: (store.any(e, rdf.sym(SCHEMA + 'url')) || {}).value || null,
-        description: (store.any(e, rdf.sym(SCHEMA + 'description')) || {}).value || '',
-      })).filter((p) => p.url);
-      // Each card's schematic derives from the preset's ACTUAL RDF — fetch
-      // and parse every layout doc (tolerating individual failures: a card
-      // without a tree falls back to its text form).
-      await Promise.all(this._presets.map(async (p) => {
-        try {
-          const docUrl = new URL(p.url, this.presetsUrl).href;
-          const pstore = await loadRdfStore(docUrl, freshFetch);
-          p.tree = parseLayoutTree(pstore, rdf.sym(`${docUrl}#Layout`));
-        } catch { p.tree = null; }
-      }));
-    } catch {
-      this._presets = [];
-      this._error = `Couldn't load layout presets from ${this.presetsUrl}`;
-    }
-  }
-
   // ── actions ──────────────────────────────────────────────────────────
 
   async _createApp(name, icon) {
@@ -408,69 +443,81 @@ class SolAppBuilder extends HTMLElement {
     });
     if (!r.ok) { this._error = `Couldn't create ${folder}app.ttl — ${r.status}`; return; }
     this._app = { slug, folder, name, icon };
+    // A brand-new app has no layout yet — arrangement-first (questions hidden
+    // until a layout is picked).
+    this._cfg = { sidebars: null, footer: false, menuLocation: 'header', buttonBar: 'none', hamburger: true };
+    this._removed = [];
     await this._loadApps();
     this._step = 'layout';
     this._render();
   }
 
-  async _pickPreset(preset) {
+  // Compose layout.ttl from the Edit-Layout answers, drop it into the app
+  // folder, seed the docs it names, and move to the element step.
+  async _createLayout() {
     const app = this._app;
-    if (!app) return;
-    const res = await freshFetch(new URL(preset.url, this.presetsUrl).href);
-    if (!res.ok) { this._error = `Couldn't load preset ${preset.label}`; this._render(); return; }
+    if (!app || !this._cfg.sidebars) return;   // no arrangement chosen yet
+    this._error = null;
+    const cfg = this._cfg;
     const layoutUrl = `${app.folder}layout.ttl`;
     const existing = await freshFetch(layoutUrl).catch(() => null);
     if (existing && existing.ok &&
-        !window.confirm(`Replace this app's existing layout with "${preset.label}"?`)) return;
-    const text = await res.text();
+        !window.confirm("Replace this app's existing layout?")) return;
+    const ttl = composeLayoutTurtle({
+      ...cfg, title: app.name, componentsBase: this.componentsBase,
+    });
     const put = await solFetch(layoutUrl, {
-      method: 'PUT', headers: { 'Content-Type': 'text/turtle' }, body: text,
+      method: 'PUT', headers: { 'Content-Type': 'text/turtle' }, body: ttl,
     });
     if (!put.ok) { this._error = `Couldn't save layout.ttl — ${put.status}`; this._render(); return; }
-    await this._seedLayoutDocs(layoutUrl);
-    this._app.preset = preset.label;
-    this._step = 'elements';   // WordPress flow: layout chosen → place elements
+    await this._seedComposedDocs(layoutUrl, cfg);
+    this._app.preset = this._describeCfg(cfg);
+    this._step = 'elements';   // layout composed → place elements
     this._render();
   }
 
-  // Seed the docs the layout consumes and doesn't have yet — called for the
-  // whole tree on preset pick (theme chrome) and for the single new leaf on
-  // element add.
-  async _seedLayoutDocs(layoutUrl) {
-    const store = await loadRdfStore(layoutUrl, freshFetch);
-    const tree = parseLayoutTree(store, rdf.sym(`${layoutUrl}#Layout`));
-    const leaves = [];
-    (function walk(n) {
-      if (n.kind === 'leaf') leaves.push(n);
-      else n.parts.forEach(walk);
-    })(tree);
-    for (const leaf of leaves) await this._seedDocsForLeaf(leaf, layoutUrl);
+  // Seed the docs the composed layout names: the three menu docs (MainMenu with
+  // its placement orientation, MainButtonBar, MainHamburgerMenu with its Help +
+  // appearance commands), and the preset content htmls (site-title, footer, help).
+  async _seedComposedDocs(layoutUrl, cfg) {
+    const menuDoc = new URL('app-menu.ttl', layoutUrl).href;
+    await this._ensureMenuFragment(menuDoc, 'MainMenu',
+      seedAppMenu({ label: 'Main menu', fragment: 'MainMenu', orientation: menuOrientationFor(cfg.menuLocation) }));
+    if (cfg.buttonBar !== 'none') {
+      await this._ensureMenuFragment(menuDoc, 'MainButtonBar',
+        seedAppMenu({ label: 'Button bar', fragment: 'MainButtonBar', orientation: 'Horizontal' }));
+    }
+    if (cfg.hamburger) {
+      await this._ensureMenuFragment(menuDoc, 'MainHamburgerMenu', HAMBURGER_MENU_TTL);
+      await this._seedIfAbsent(new URL('app-commands.ttl', layoutUrl).href, APP_COMMANDS_TTL, 'text/turtle');
+      await this._seedIfAbsent(new URL('help.html', layoutUrl).href, starterHelp(this.componentsBase), 'text/html');
+    }
+    await this._seedIfAbsent(new URL('site-title.html', layoutUrl).href, STARTER_SITE_TITLE, 'text/html');
+    if (cfg.footer) await this._seedIfAbsent(new URL('footer.html', layoutUrl).href, STARTER_FOOTER, 'text/html');
   }
 
-  // One leaf's consumed docs: its from-rdf menu fragment (orientation by
-  // consumer — a sidebar sol-menu / dropdown stacks, a sol-tabs bar runs
-  // across; the theme's #More fragment seeds with Help + the standard
-  // appearance commands, plus the command registry doc and help.html), and
-  // any *.html a sol-include names.
+  _describeCfg(cfg) {
+    const sides = { none: 'no sidebar', left: 'left sidebar', right: 'right sidebar', both: 'two sidebars' }[cfg.sidebars];
+    const menu = { header: 'header', 'under-header': 'under header', 'left-sidebar': 'left sidebar', 'right-sidebar': 'right sidebar' }[cfg.menuLocation];
+    const bar = cfg.buttonBar === 'none' ? ''
+      : `, bar in ${{ header: 'header', 'left-sidebar': 'left sidebar', 'right-sidebar': 'right sidebar' }[cfg.buttonBar]}`;
+    return `${sides}, menu in ${menu}${bar}${cfg.footer ? ', footer' : ''}${cfg.hamburger ? ', ☰' : ''}`;
+  }
+
+  // One added leaf's consumed docs: its from-rdf menu fragment (orientation by
+  // consumer — a sidebar sol-menu / dropdown stacks, a bar runs across) and any
+  // *.html a sol-include names. Used by the element step's Add.
   async _seedDocsForLeaf(leaf, layoutUrl) {
     const params = new Map(leaf.item.params);
     const fromRdf = params.get('from-rdf');
     if (fromRdf) {
       const docUrl = new URL(fromRdf.split('#')[0], layoutUrl).href;
       const fragment = fromRdf.split('#')[1] || 'Tabs';
-      if (fragment === 'More') {
-        await this._ensureMenuFragment(docUrl, fragment, MORE_MENU_TTL);
-        await this._seedIfAbsent(new URL('app-commands.ttl', layoutUrl).href,
-          APP_COMMANDS_TTL, 'text/turtle');
-        await this._seedIfAbsent(new URL('help.html', layoutUrl).href,
-          starterHelp(this.componentsBase), 'text/html');
-      } else {
-        const vertical = leaf.item.tag === 'sol-menu' || leaf.item.tag === 'sol-dropdown-button';
-        await this._ensureMenuFragment(docUrl, fragment, seedAppMenu({
-          label: fragment, fragment,
-          orientation: vertical ? 'Vertical' : 'Horizontal',
-        }));
-      }
+      const vertical = leaf.item.tag === 'sol-menu' || leaf.item.tag === 'sol-dropdown-button';
+      await this._ensureMenuFragment(docUrl, fragment, seedAppMenu({
+        label: fragment, fragment,
+        orientation: vertical ? 'Vertical' : 'Horizontal',
+      }));
     }
     const src = params.get('source');
     if (src && /\.html?$/.test(src) && leaf.item.tag === 'sol-include') {
@@ -485,9 +532,9 @@ class SolAppBuilder extends HTMLElement {
     await solFetch(url, { method: 'PUT', headers: { 'Content-Type': type }, body });
   }
 
-  // A menu DOC can hold several menu fragments (app-menu.ttl#Menu and
-  // #More): create the doc when absent, APPEND the fragment's block when the
-  // doc exists without it (Turtle allows re-declaring prefixes mid-doc).
+  // A menu DOC can hold several menu fragments (app-menu.ttl#MainMenu,
+  // #MainButtonBar, #MainHamburgerMenu): create the doc when absent, APPEND the
+  // fragment's block when the doc exists without it (Turtle re-declares prefixes).
   async _ensureMenuFragment(docUrl, fragment, block) {
     const there = await freshFetch(docUrl).catch(() => null);
     if (!there || !there.ok) {
@@ -514,6 +561,9 @@ class SolAppBuilder extends HTMLElement {
         layoutNode: rdf.sym(`${layoutUrl}#Layout`),
         app: { title: app.name, icon: app.icon },
         componentsBase: this.componentsBase,
+        // The app folder is the base: same-origin ui:Link content (site-title /
+        // footer html) transcludes via sol-include rather than framing.
+        baseUrl: app.folder,
       });
       const css = generateAppCss(store, rdf.sym(`${layoutUrl}#Layout`));
       for (const [name, body, type] of [
@@ -587,31 +637,83 @@ class SolAppBuilder extends HTMLElement {
   // ── events ───────────────────────────────────────────────────────────
 
   _onClick(e) {
+    const mode = e.target.closest('[data-mode]');
+    if (mode) { this._setMode(mode.dataset.mode); return; }
     const step = e.target.closest('[data-step]');
     if (step && !step.disabled) { this._step = step.dataset.step; this._render(); return; }
     const app = e.target.closest('[data-app]');
-    if (app) {
-      this._app = this._apps.find((a) => a.slug === app.dataset.app) || null;
-      this._step = 'layout';
-      this._render();
-      return;
-    }
-    const preset = e.target.closest('[data-preset]');
-    if (preset) {
-      const p = this._presets.find((x) => x.url === preset.dataset.preset);
-      if (p) this._pickPreset(p);
-      return;
-    }
-    const add = e.target.closest('[data-add]');
-    if (add) { this._addElement(add); return; }
+    if (app) { this._pickApp(app.dataset.app); return; }
+    const cfg = e.target.closest('[data-cfg-sidebars],[data-cfg-footer],[data-cfg-menu],[data-cfg-bar],[data-cfg-hamburger]');
+    if (cfg) { this._setCfg(cfg); return; }
+    const acc = e.target.closest('[data-acc]');
+    if (acc) { this._openAcc = acc.dataset.acc; this._renderAccordions(); return; }
     const elAction = e.target.closest('[data-el-action]');
     if (elAction) { this._elementAction(elAction); return; }
     const action = e.target.closest('[data-action]');
     if (action) {
+      if (action.dataset.action === 'create-layout') this._createLayout();
       if (action.dataset.action === 'generate') this._generate();
       if (action.dataset.action === 'register') this._register();
       if (action.dataset.action === 'reload') this._load();
     }
+  }
+
+  // The top-row buttons: choosing new/edit clears the current app (so nothing
+  // shows below the buttons) and shows the create form or the existing-app picker.
+  async _setMode(mode) {
+    this._mode = mode;
+    this._app = null;
+    this._error = null;
+    if (mode === 'edit') this._apps = null;
+    this._render();
+    if (mode === 'edit') { await this._loadApps(); this._render(); }
+  }
+
+  // Pick an existing app to edit: derive its Edit-Layout answers from the
+  // existing layout so the arrangement + questions show its current state.
+  async _pickApp(slug) {
+    this._app = (this._apps || []).find((a) => a.slug === slug) || null;
+    this._step = 'layout';
+    this._removed = [];
+    if (this._app) await this._deriveCfg(this._app);
+    this._render();
+  }
+
+  // Set _cfg from the app's layout.ttl (questions shown, pre-selected). With no
+  // layout yet, fall back to arrangement-first (sidebars=null hides the questions).
+  async _deriveCfg(app) {
+    const layoutUrl = `${app.folder}layout.ttl`;
+    const res = await freshFetch(layoutUrl).catch(() => null);
+    if (!res || !res.ok) {
+      this._cfg = { sidebars: null, footer: false, menuLocation: 'header', buttonBar: 'none', hamburger: true };
+      return;
+    }
+    try {
+      const store = await loadRdfStore(layoutUrl, freshFetch);
+      this._cfg = cfgFromTree(parseLayoutTree(store, rdf.sym(`${layoutUrl}#Layout`)));
+      this._app.preset = this._describeCfg(this._cfg);
+    } catch {
+      this._cfg = { sidebars: null, footer: false, menuLocation: 'header', buttonBar: 'none', hamburger: true };
+    }
+  }
+
+  // Apply one Edit-Layout answer; changing the sidebar arrangement can void a
+  // sidebar menu / button-bar location (only offered when that side exists) —
+  // fall back to the header / none if so.
+  _setCfg(btn) {
+    const d = btn.dataset;
+    if (d.cfgSidebars) {
+      this._cfg.sidebars = d.cfgSidebars;
+      const hasLeft = this._cfg.sidebars === 'left' || this._cfg.sidebars === 'both';
+      const hasRight = this._cfg.sidebars === 'right' || this._cfg.sidebars === 'both';
+      const voided = (loc) => (loc === 'left-sidebar' && !hasLeft) || (loc === 'right-sidebar' && !hasRight);
+      if (voided(this._cfg.menuLocation)) this._cfg.menuLocation = 'header';
+      if (voided(this._cfg.buttonBar)) this._cfg.buttonBar = 'none';
+    } else if (d.cfgFooter) this._cfg.footer = d.cfgFooter === 'true';
+    else if (d.cfgMenu) this._cfg.menuLocation = d.cfgMenu;
+    else if (d.cfgBar) this._cfg.buttonBar = d.cfgBar;
+    else if (d.cfgHamburger) this._cfg.hamburger = d.cfgHamburger === 'true';
+    this._render();
   }
 
   _onSubmit(e) {
@@ -627,216 +729,237 @@ class SolAppBuilder extends HTMLElement {
   _render() {
     const app = this._app;
     const steps = [
-      ['apps', '1. Create/Choose App'],
-      ['layout', '2. Select Layout'],
-      ['elements', '3. Add Menus and Content'],
-      ['plugins', '4. Add Plugins'],
-      ['publish', '5. Publish'],
+      ['layout', '1. Edit Layout'],
+      ['elements', '2. Place Content and UI'],
+      ['plugins', '3. Add Plugins'],
+      ['publish', '4. Publish'],
     ];
-    let html = `<nav class="sab-steps" aria-label="Builder steps">`;
-    for (const [id, label] of steps) {
-      const needsApp = id !== 'apps';
-      html += `<button type="button" data-step="${id}"
-        ${this._step === id ? 'aria-current="step"' : ''}
-        ${needsApp && !app ? 'disabled' : ''}>${escHtml(label)}</button>`;
+    // Top row: the two mode buttons (+ the app's name once one is selected).
+    // Nothing else shows until a mode is chosen.
+    let html = `<div class="sab-top">
+      ${app ? `<a class="sab-app-title" href="${escHtml(app.folder)}" target="_blank" rel="noopener"
+        ><strong>${escHtml(app.icon ? app.icon + ' ' : '')}${escHtml(app.name)}</strong></a>` : ''}
+      <button type="button" class="sab-choice" data-mode="new" ${this._mode === 'new' && !app ? 'aria-pressed="true"' : ''}>Create new app</button>
+      <button type="button" class="sab-choice" data-mode="edit" ${this._mode === 'edit' && !app ? 'aria-pressed="true"' : ''}>Edit existing app</button>
+    </div>`;
+    if (app || this._mode) {
+      html += `<nav class="sab-steps" aria-label="Builder steps">`;
+      for (const [id, label] of steps) {
+        html += `<button type="button" data-step="${id}"
+          ${this._step === id ? 'aria-current="step"' : ''}
+          ${!app ? 'disabled' : ''}>${escHtml(label)}</button>`;
+      }
+      html += `</nav>`;
+      if (this._error) html += `<p class="sab-error">${escHtml(this._error)}</p>`;
+      html += app ? (this[`_render_${this._step}`]?.() || '') : this._render_chooser();
     }
-    html += `</nav>`;
-    if (app) {
-      html += `<p class="sab-hint">App: <strong>${escHtml(app.icon ? app.icon + ' ' : '')}${escHtml(app.name)}</strong>
-        — <a href="${escHtml(app.folder)}" target="_blank" rel="noopener">${escHtml(app.folder)}</a></p>`;
-    }
-    if (this._error) html += `<p class="sab-error">${escHtml(this._error)}</p>`;
-    html += this[`_render_${this._step}`]?.() || '';
     this.innerHTML = html;
   }
 
-  _render_apps() {
-    let html = `<h3>Create an app</h3>
-<form class="sab-new">
+  // Shown when no app is selected: the create form (mode 'new'), the existing-app
+  // picker (mode 'edit'), or a prompt to choose one.
+  _render_chooser() {
+    if (this._mode === 'new') {
+      return `<form class="sab-new">
   <input name="app-name" placeholder="App name" required aria-label="App name">
   <input name="app-icon" placeholder="Icon (emoji or URL)" size="14" aria-label="Icon">
   <button type="submit">Create</button>
 </form>`;
-    html += `<h3>Or pick an existing one</h3>`;
-    if (this._apps === null) html += `<p class="sab-hint">Loading…</p>`;
-    else if (!this._apps.length) html += `<p class="sab-hint">No apps yet under ${escHtml(this.appsRoot || '?')}.</p>`;
-    else {
-      html += `<div class="sab-cards">`;
-      for (const a of this._apps) {
-        html += `<button type="button" class="sab-card" data-app="${escHtml(a.slug)}"
-          ${this._app && this._app.slug === a.slug ? 'aria-pressed="true"' : ''}>
-          <div class="sab-card-title">${escHtml(a.icon ? a.icon + ' ' : '')}${escHtml(a.name)}</div>
-          <div class="sab-card-desc">${escHtml(a.slug)}/</div></button>`;
-      }
-      html += `</div>`;
     }
-    html += `<div class="sab-actions"><button type="button" class="sab-quiet" data-action="reload">Reload list</button></div>`;
-    return html;
+    if (this._mode === 'edit') {
+      let html = '';
+      if (this._apps === null) html += `<p class="sab-hint">Loading…</p>`;
+      else if (!this._apps.length) html += `<p class="sab-hint">No apps yet under ${escHtml(this.appsRoot || '?')}.</p>`;
+      else {
+        html += `<div class="sab-cards">`;
+        for (const a of this._apps) {
+          html += `<button type="button" class="sab-card" data-app="${escHtml(a.slug)}">
+            <div class="sab-card-title">${escHtml(a.icon ? a.icon + ' ' : '')}${escHtml(a.name)}</div>
+            <div class="sab-card-desc">${escHtml(a.slug)}/</div></button>`;
+        }
+        html += `</div>`;
+      }
+      html += `<div class="sab-actions"><button type="button" class="sab-quiet" data-action="reload">Reload list</button></div>`;
+      return html;
+    }
+    return `<p class="sab-hint">Choose <strong>Create new app</strong> or <strong>Edit existing app</strong> above to begin.</p>`;
   }
 
-  // A mini block diagram derived from the preset's parsed tree — regions
-  // become nested boxes (labels included), leaves become chips. Decorative:
-  // the card's title/description carry the accessible text.
-  _schematicHtml(tree) {
-    const box = (r) => {
-      const cls = ['sab-schem-r'];
-      if (r.columns || r.orientation === 'horizontal') { /* row is default */ } else cls.push('col');
-      if (r.semantic === 'aside') cls.push('aside-r');
-      if (r.semantic === 'header' || r.semantic === 'nav' || r.semantic === 'footer') cls.push('bar-r');
-      const inner = r.parts.map((p) => (p.kind === 'region' ? box(p) : `<div class="sab-schem-el"></div>`)).join('');
-      // A wrapper region (only nested regions inside) shows no label of its
-      // own — its children label themselves.
-      const showLabel = r.label && !r.parts.some((p) => p.kind === 'region');
-      const label = showLabel ? `<span>${escHtml(r.label)}</span>` : '';
-      return `<div class="${cls.join(' ')}">${label}${inner}</div>`;
-    };
-    const rootCls = tree.orientation === 'horizontal' ? '' : ' style="flex-direction:column"';
-    const inner = tree.parts.map((p) => (p.kind === 'region' ? box(p) : `<div class="sab-schem-el"></div>`)).join('');
-    return `<div class="sab-schem" aria-hidden="true"${rootCls}>${inner}</div>`;
+  // A mini block diagram of one sidebar arrangement — a header bar over a body
+  // row of an optional left aside, the main pane, an optional right aside.
+  // Decorative (the card title carries the accessible text).
+  _arrangementSchematic(kind) {
+    const aside = '<div class="sab-schem-r aside-r"></div>';
+    const main = '<div class="sab-schem-r"><span>main</span></div>';
+    const body = `<div class="sab-schem-r" style="flex:1 1 auto; align-items:stretch; padding:0; gap:.2rem; border:0; background:transparent">${
+      (kind === 'left' || kind === 'both') ? aside : ''}${main}${(kind === 'right' || kind === 'both') ? aside : ''}</div>`;
+    return `<div class="sab-schem" aria-hidden="true" style="flex-direction:column">
+      <div class="sab-schem-r bar-r"></div>${body}</div>`;
   }
 
+  // Step 1: Edit Layout — pick a region arrangement first; the questions
+  // (footer, menu location, button-bar location, hamburger) appear only once
+  // one is chosen. A layout is COMPOSED from the answers (core/layout-compose.js).
   _render_layout() {
-    let html = `<h3>Select a layout</h3>`;
-    if (this._app?.preset) html += `<p class="sab-hint">Current layout: ${escHtml(this._app.preset)} (saved as layout.ttl — pick another to replace it).</p>`;
-    if (!this._presets) html += `<p class="sab-hint">Loading presets…</p>`;
-    else {
-      html += `<div class="sab-cards">`;
-      for (const p of this._presets) {
-        html += `<button type="button" class="sab-card" data-preset="${escHtml(p.url)}"
-          ${this._app?.preset === p.label ? 'aria-pressed="true"' : ''}>
-          ${p.tree ? this._schematicHtml(p.tree) : ''}
-          <div class="sab-card-title">${escHtml(p.icon ? p.icon + ' ' : '')}${escHtml(p.label)}</div>
-          <div class="sab-card-desc">${escHtml(p.description)}</div></button>`;
-      }
-      html += `</div>`;
+    const cfg = this._cfg;
+    const hasLeft = cfg.sidebars === 'left' || cfg.sidebars === 'both';
+    const hasRight = cfg.sidebars === 'right' || cfg.sidebars === 'both';
+    const arrangements = [
+      ['none', 'Header + main'], ['left', 'Left sidebar'],
+      ['right', 'Right sidebar'], ['both', 'Two sidebars'],
+    ];
+    const card = ([kind, label]) => `<button type="button" class="sab-card" data-cfg-sidebars="${kind}"
+      ${cfg.sidebars === kind ? 'aria-pressed="true"' : ''}>${this._arrangementSchematic(kind)}
+      <div class="sab-card-title">${escHtml(label)}</div></button>`;
+    const choice = (attr, val, on, label) => `<button type="button" class="sab-choice"
+      data-cfg-${attr}="${val}" ${on ? 'aria-pressed="true"' : ''}>${escHtml(label)}</button>`;
+    // Sidebar options for menu / button-bar location — only when that side exists.
+    const withSides = (base) => {
+      const o = [...base];
+      if (hasLeft) o.push(['left-sidebar', 'Left sidebar']);
+      if (hasRight) o.push(['right-sidebar', 'Right sidebar']);
+      return o;
+    };
+    const menuOpts = withSides([['header', 'Centre of header'], ['under-header', 'Under the header']]);
+    const barOpts = withSides([['none', 'None'], ['header', 'Header']]);
+
+    let html = `<fieldset class="sab-group"><legend>Regions — pick an arrangement to begin</legend>
+      <div class="sab-cards">${arrangements.map(card).join('')}</div></fieldset>`;
+    if (cfg.sidebars !== null) {
+      html += `<fieldset class="sab-group"><legend>Footer</legend><div class="sab-choices">
+        ${choice('footer', 'true', cfg.footer, 'Yes')}${choice('footer', 'false', !cfg.footer, 'No')}</div></fieldset>`;
+      html += `<fieldset class="sab-group"><legend>Main menu location</legend><div class="sab-choices">
+        ${menuOpts.map(([v, l]) => choice('menu', v, cfg.menuLocation === v, l)).join('')}</div></fieldset>`;
+      html += `<fieldset class="sab-group"><legend>Button bar location</legend><div class="sab-choices">
+        ${barOpts.map(([v, l]) => choice('bar', v, cfg.buttonBar === v, l)).join('')}</div></fieldset>`;
+      html += `<fieldset class="sab-group"><legend>Hamburger ☰ menu (top right of header)</legend><div class="sab-choices">
+        ${choice('hamburger', 'true', cfg.hamburger, 'Yes')}${choice('hamburger', 'false', !cfg.hamburger, 'No')}</div></fieldset>`;
+      html += `<div class="sab-actions"><button type="button" data-action="create-layout">Create this layout →</button></div>`;
+    } else {
+      html += `<p class="sab-hint">Pick a region arrangement above to set footer, menu, button bar, and hamburger.</p>`;
     }
-    html += `<p class="sab-hint">Picking a layout copies it to your app as layout.ttl — complete with its
-      theme chrome (banner ☰ menu, sidebar menu, content) — and seeds the menu / content docs it
-      names. Every piece is removable on the next step; the layout file itself is plain Turtle.</p>`;
+    if (this._app?.preset) {
+      html += `<p class="sab-hint">Current layout: ${escHtml(this._app.preset)} — saved as layout.ttl.
+        Create again to replace it. The next step places menus, content, and plugins in each region.</p>`;
+    }
     return html;
   }
 
-  // ── step 3: Add Menus and Content (the layout's regions + elements) ───
+  // ── step 2: Add Features (layout areas ← drag from the accordions) ────
 
   _render_elements() {
     const app = this._app;
     if (!app) return '';
-    queueMicrotask(() => this._mountElements());
-    return `<h3>Add menus and content</h3>
-<p class="sab-hint">Every region of the layout, with its elements in place — the theme's own
-  chrome included. Remove or reorder anything; add a menu, tabs, page content, or a widget
-  per region. A menu's contents expand in place for editing.</p>
-<div id="sab-elements"><p class="sab-hint">Loading the layout…</p></div>`;
+    queueMicrotask(() => this._mountFeatures());
+    return `<p class="sab-hint">Drag a feature from the right onto a layout area on the left. Drag a chip to
+  reorder it, or move it to another area.</p>
+<div class="sab-feat-wrap">
+  <div class="sab-layout" id="sab-layout"><p class="sab-hint">Loading the layout…</p></div>
+  <div class="sab-accordions" id="sab-accordions"></div>
+</div>`;
   }
 
-  async _mountElements() {
-    const box = this.querySelector('#sab-elements');
+  async _mountFeatures() {
+    const box = this.querySelector('#sab-layout');
     const app = this._app;
     if (!box || !app) return;
     try {
       this._layoutUrl = `${app.folder}layout.ttl`;
       const store = await loadRdfStore(this._layoutUrl, freshFetch);
       this._tree = parseLayoutTree(store, rdf.sym(`${this._layoutUrl}#Layout`));
-      await this._loadCatalogComponents();
-      box.innerHTML = this._regionPanelHtml(this._tree);
+      this._renderLayoutAreas();
+      this._renderAccordions();
     } catch {
-      box.innerHTML = `<p class="sab-hint">No layout yet — pick one on the Select Layout step first.</p>`;
+      box.innerHTML = `<p class="sab-hint">No layout yet — create one on step 1 first.</p>`;
     }
   }
 
-  // Catalog entries of kind ui:Component become palette chips (same payload
-  // shape the pantry drags: label / module / params / icon).
-  async _loadCatalogComponents() {
-    this._catalogComponents = [];
-    if (!this.catalog) return;
-    try {
-      const catDoc = new URL(this.catalog.split('#')[0], document.baseURI).href;
-      const store = await loadRdfStore(catDoc, freshFetch);
-      for (const e of menuMembers(store, rdf.sym(new URL(this.catalog, document.baseURI).href))) {
-        const kind = (store.any(e, rdf.sym(SCHEMA + 'additionalType')) || {}).value;
-        if (kind !== UI + 'Component') continue;
-        const module = (store.any(e, rdf.sym(SCHEMA + 'url')) || {}).value;
-        if (!module) continue;
-        const { params } = rdfComponent(store, e);
-        this._catalogComponents.push({
-          label: rdfVal(store, e, 'label') || module.split('/').pop(),
-          icon: rdfVal(store, e, 'icon') || '',
-          module, params,
-        });
-      }
-    } catch { /* palette simply omits catalog chips */ }
+  // Left pane: the layout's regions as drop zones, each holding its elements as
+  // draggable chips (nested regions render as nested areas).
+  _renderLayoutAreas() {
+    const box = this.querySelector('#sab-layout');
+    if (box && this._tree) box.innerHTML = this._layoutAreaHtml(this._tree);
   }
 
-  // Empty class-bearing regions — the panes a menu can open items into
-  // (the sidebar preset's `region=".app-main"` pattern).
-  _paneTargets() {
-    const out = [];
-    (function walk(r) {
-      if (r.kind !== 'region') return;
-      const cls = new Map(r.params).get('class');
-      if (cls && !r.parts.length) out.push({ selector: `.${cls.split(/\s+/)[0]}`, label: r.label || cls });
-      r.parts.forEach(walk);
-    })(this._tree);
-    return out;
-  }
-
-  _regionPanelHtml(region) {
+  _layoutAreaHtml(region) {
+    // A wrapper region (root, or the Middle band) holds only nested regions —
+    // it's pure structure, so render it transparently: no border, no name, no
+    // drop zone, just lay its children out along its orientation.
+    const isWrapper = region.parts.length > 0 && region.parts.every((p) => p.kind === 'region');
+    if (isWrapper) {
+      const dir = region.orientation === 'horizontal' ? 'sab-group-row' : 'sab-group-col';
+      return `<div class="sab-group ${dir}">${region.parts.map((p) => this._layoutAreaHtml(p)).join('')}</div>`;
+    }
+    // A real, fillable area: a bordered box with its name on the border (so it
+    // can't be mistaken for a chip) and a drop zone holding its chips. Only
+    // content and UI chrome show here — plugin components stay in the layout
+    // but are placed/managed on the Add Plugins step, not this one.
     const iri = region.node.value;
-    const badge = region.semantic
-      ? `<span class="sab-badge">${escHtml(region.semantic)}</span>` : '';
-    let html = `<div class="sab-region" data-region="${escHtml(iri)}">
-      <div class="sab-region-head"><strong>${escHtml(region.label || 'Region')}</strong>${badge}</div>`;
-    if (region.comment) html += `<p class="sab-hint">${escHtml(region.comment)}</p>`;
+    let inner = '';
     for (const part of region.parts) {
-      if (part.kind === 'leaf') html += this._elementRowHtml(part);
-      else html += this._regionPanelHtml(part);
+      if (part.kind === 'region') inner += this._layoutAreaHtml(part);
+      else if (this._isChrome(part)) inner += this._chipHtml(part);
     }
-    html += this._paletteHtml();
-    html += `</div>`;
-    return html;
+    return `<fieldset class="sab-area">
+      <legend>${escHtml(region.label || 'Region')}</legend>
+      <div class="sab-drop" data-region="${escHtml(iri)}">${inner || '<span class="sab-drop-hint">drop a feature here</span>'}</div>
+    </fieldset>`;
   }
 
-  _elementRowHtml(leaf) {
-    const params = new Map(leaf.item.params);
-    const fromRdf = params.get('from-rdf');
-    const src = params.get('source');
-    const detail = fromRdf ? `from-rdf ${fromRdf}` : src ? `source ${src}` : '';
-    return `<div class="sab-el" data-node="${escHtml(leaf.node.value)}"
-      ${fromRdf ? `data-menu-src="${escHtml(fromRdf)}"` : ''}>
-      <span class="sab-el-name">${escHtml(leaf.item.name || leaf.item.tag || '?')}
-        <code>${escHtml(leaf.item.tag || '')}</code>
-        ${detail ? `<span class="sab-el-params">${escHtml(detail)}</span>` : ''}</span>
-      <button type="button" data-el-action="up" aria-label="Move up">↑</button>
-      <button type="button" data-el-action="down" aria-label="Move down">↓</button>
-      ${fromRdf ? `<button type="button" data-el-action="edit">Edit menu</button>` : ''}
-      <button type="button" data-el-action="remove">Remove</button>
-    </div>`;
+  // Content / UI chrome vs a plugin: links (html content) and menu-consuming
+  // elements (menus, bars, tabs, the ☰) are chrome; any other component is a
+  // plugin and does not appear on this step.
+  _isChrome(part) {
+    if (part.kind === 'link') return true;
+    if (part.kind !== 'leaf') return false;
+    return ['sol-menu', 'sol-tabs', 'sol-dropdown-button'].includes(part.item.tag);
   }
 
-  _paletteHtml() {
-    const targets = this._paneTargets();
-    let html = `<details class="sab-add"><summary>Add element…</summary><div class="sab-add-body">
-      <button type="button" data-add="menu">Menu</button>`;
-    if (targets.length) {
-      html += `<label>items open into
-        <select class="sab-menu-target">
-          <option value="">(this menu's own popups)</option>
-          ${targets.map((t) => `<option value="${escHtml(t.selector)}">${escHtml(t.label)}</option>`).join('')}
-        </select></label>`;
-    }
-    html += `<button type="button" data-add="tabs">Tabs</button>
-      <button type="button" data-add="content">Page content</button>`;
-    for (const w of WIDGETS) {
-      html += `<button type="button" data-add="${w.kind}">${escHtml(w.label)}</button>`;
-    }
-    for (const c of this._catalogComponents || []) {
-      html += `<button type="button" data-add="catalog"
-        data-module="${escHtml(c.module)}" data-label="${escHtml(c.label)}"
-        data-params="${escHtml(JSON.stringify(c.params || []))}">${escHtml(c.icon ? c.icon + ' ' : '')}${escHtml(c.label)}</button>`;
-    }
-    html += `</div></details>`;
-    return html;
+  _chipHtml(part) {
+    const iri = part.node.value;
+    const label = part.kind === 'link'
+      ? (part.label || 'Link')
+      : (part.item.name || part.item.tag || 'Item');
+    const icon = this._chipIcon(part);
+    return `<span class="sab-chip" draggable="true" data-node="${escHtml(iri)}">${
+      icon ? `<span class="sab-chip-icon">${escHtml(icon)}</span>` : ''}${escHtml(label)}<button
+      type="button" class="sab-chip-x" data-el-action="remove" aria-label="Remove">✕</button></span>`;
   }
+
+  // The chip's leading emoji, derived from what the element IS (so labels stay
+  // clean text): 🔗 a link/page, ☰ the Action (hamburger) menu, 🔘 a button
+  // bar, 🗂 tabs; a plain nav menu has none, a plugin keeps its own icon.
+  _chipIcon(part) {
+    if (part.kind === 'link') return '🔗';
+    const tag = part.item.tag;
+    const cls = new Map(part.item.params || []).get('class') || '';
+    if (tag === 'sol-dropdown-button') return '☰';   // the Action / hamburger menu
+    if (tag === 'sol-tabs') return '🗂';
+    if (tag === 'sol-menu') return cls.includes('app-bar') ? '🔘' : '';
+    return part.item.icon || '';
+  }
+
+  // Right pane: three accordions (Pages / UI elements / Plugins), one open at a
+  // time; each holds draggable feature sources.
+  _renderAccordions() {
+    const box = this.querySelector('#sab-accordions');
+    if (!box) return;
+    const open = this._openAcc || 'ui';
+    const feat = (feature, label, icon = '') => `<div class="sab-feat" draggable="true"
+      data-feature="${escHtml(JSON.stringify(feature))}">${icon ? escHtml(icon) + ' ' : ''}${escHtml(label)}</div>`;
+    const section = (id, title, body) => `<div class="sab-acc">
+      <button type="button" class="sab-acc-head" data-acc="${id}" aria-expanded="${open === id}">${escHtml(title)}</button>
+      ${open === id ? `<div class="sab-acc-body">${body}</div>` : ''}</div>`;
+    // Items removed from the layout are offered back in their matching bin.
+    const removedIn = (bin) => (this._removed || []).filter((r) => r.bin === bin)
+      .map((r) => feat({ op: 'restore', id: r.id, restore: r.restore }, r.label, r.icon)).join('');
+    const pages = feat({ op: 'page' }, 'New HTML Content', '📄') + removedIn('pages');
+    const ui = feat({ op: 'menu' }, 'Action Menu', '☰') + feat({ op: 'bar' }, 'Button bar', '🔘')
+      + feat({ op: 'tabs' }, 'Tabs', '🗂') + removedIn('ui');
+    box.innerHTML = section('ui', 'UI elements', ui)
+      + section('pages', 'HTML Content', pages);
+  }
+
 
   async _saveLayout() {
     const body = serializeLayout(this._tree, {
@@ -849,70 +972,88 @@ class SolAppBuilder extends HTMLElement {
     if (!r.ok) this._error = `Couldn't save layout.ttl — ${r.status}`;
   }
 
-  async _addElement(btn) {
-    const regionIri = btn.closest('.sab-region')?.dataset.region;
-    if (!regionIri || !this._tree) return;
-    const kind = btn.dataset.add;
-    let item = null;
+  // Add a dropped feature to a region: a Page (ui:Link → new html), a Menu /
+  // Button bar / Tabs (a menu-consuming component with a fresh from-rdf doc), or
+  // a catalog Plugin (component leaf, or ui:Link for a link plugin).
+  async _addFeature(payload, regionIri) {
+    if (!this._tree || !regionIri) return;
     const mod = (file) => `${this.componentsBase}/web/${file}`;
-    if (kind === 'menu') {
-      const frag = await this._mintMenuFragment('Menu');
-      const params = [['from-rdf', `app-menu.ttl#${frag}`]];
-      const target = btn.closest('.sab-add-body')?.querySelector('.sab-menu-target')?.value;
-      if (target) params.push(['region', target]);
-      item = { label: 'Menu', module: mod('sol-menu.js'), params };
-    } else if (kind === 'tabs') {
-      const frag = await this._mintMenuFragment('Tabs');
-      item = {
-        label: 'Tabs', module: mod('sol-tabs.js'),
-        params: [['keep-alive', ''], ['from-rdf', `app-menu.ttl#${frag}`]],
-      };
-    } else if (kind === 'content') {
-      const name = await this._freeHtmlName('content');
-      item = {
-        label: 'Page content', module: mod('sol-include.js'),
-        params: [['source', name], ['trusted', '']],
-      };
-    } else if (kind === 'catalog') {
-      let params = [];
-      try { params = JSON.parse(btn.dataset.params || '[]'); } catch { /* none */ }
-      item = { label: btn.dataset.label || 'Component', module: btn.dataset.module, params };
-    } else {
-      const w = WIDGETS.find((x) => x.kind === kind);
-      if (w) item = { label: w.label, module: mod(w.module.split('/').pop()), params: [] };
-    }
-    if (!item) return;
-    const leaf = addLeaf(this._tree, regionIri, item, this._layoutUrl);
-    if (!leaf) return;
-    await this._saveLayout();
-    await this._seedDocsForLeaf(leaf, this._layoutUrl);
-    this._mountElements();
+    if (payload.op === 'page') {
+      const name = await this._freeHtmlName('page');
+      addLink(this._tree, regionIri, { label: 'Page', url: name, comment: `A page, from the app's own ${name}` }, this._layoutUrl);
+      await this._saveLayout();
+      await this._seedIfAbsent(new URL(name, this._layoutUrl).href, STARTER_CONTENT, 'text/html');
+    } else if (payload.op === 'menu' || payload.op === 'bar' || payload.op === 'tabs') {
+      const base = payload.op === 'tabs' ? 'Tabs' : payload.op === 'bar' ? 'Bar' : 'Menu';
+      const frag = await this._mintMenuFragment(base);
+      let item;
+      if (payload.op === 'menu') {           // an Action Menu is a ☰ hamburger dropdown
+        item = { label: 'Action Menu', module: mod('sol-dropdown-button.js'),
+          params: [['label', '☰'], ['from-rdf', `app-menu.ttl#${frag}`]] };
+      } else if (payload.op === 'bar') {
+        item = { label: 'Button bar', module: mod('sol-menu.js'),
+          params: [['from-rdf', `app-menu.ttl#${frag}`], ['class', 'app-bar']] };
+      } else {
+        item = { label: 'Tabs', module: mod('sol-tabs.js'),
+          params: [['keep-alive', ''], ['from-rdf', `app-menu.ttl#${frag}`]] };
+      }
+      addLeaf(this._tree, regionIri, item, this._layoutUrl);
+      await this._saveLayout();
+      await this._ensureMenuFragment(new URL('app-menu.ttl', this._layoutUrl).href, frag,
+        seedAppMenu({ label: frag, fragment: frag, orientation: payload.op === 'menu' ? 'Vertical' : 'Horizontal' }));
+    } else if (payload.op === 'restore') {
+      const rd = payload.restore || {};
+      if (rd.type === 'link') addLink(this._tree, regionIri, { label: rd.label, url: rd.url }, this._layoutUrl);
+      else addLeaf(this._tree, regionIri, { label: rd.label, module: rd.module, params: rd.params || [] }, this._layoutUrl);
+      await this._saveLayout();
+      this._removed = this._removed.filter((r) => r.id !== payload.id);   // out of the pantry
+    } else return;
+    this._renderLayoutAreas();
+    this._renderAccordions();
   }
 
+  // The only chip action is Remove (reorder is drag). A removed leaf/link is
+  // offered back in its matching accordion (Pages / UI elements / Plugins).
   async _elementAction(btn) {
     const row = btn.closest('[data-node]');
-    if (!row || !this._tree) return;
-    const iri = row.dataset.node;
-    const action = btn.dataset.elAction;
-    if (action === 'edit') {
-      const open = row.querySelector('sol-menu-manager');
-      if (open) { open.remove(); return; }
-      const el = document.createElement('sol-menu-manager');
-      el.setAttribute('source', new URL(row.dataset.menuSrc, this._layoutUrl).href);
-      if (this.catalog) el.setAttribute('catalog', this.catalog);
-      row.appendChild(el);
-      return;
-    }
-    if (action === 'remove') removeLeaf(this._tree, iri);
-    else if (action === 'up') moveLeaf(this._tree, iri, -1);
-    else if (action === 'down') moveLeaf(this._tree, iri, +1);
-    else return;
+    if (!row || !this._tree || btn.dataset.elAction !== 'remove') return;
+    const part = this._findPart(row.dataset.node);
+    if (part) this._removed.push(this._descriptorFor(part));
+    removeLeaf(this._tree, row.dataset.node);
     await this._saveLayout();
-    this._mountElements();
+    this._renderLayoutAreas();
+    this._renderAccordions();
+  }
+
+  // Find a leaf/link part in the tree by its node IRI.
+  _findPart(iri) {
+    let found = null;
+    (function walk(r) {
+      if (!r) return;
+      if (r.kind === 'region') r.parts.forEach(walk);
+      else if (r.node && r.node.value === iri) found = r;
+    })(this._tree);
+    return found;
+  }
+
+  // Describe a removed part so it can be re-offered (and restored) in the right
+  // accordion: a ui:Link → Pages; a menu-consuming component (from-rdf) → UI
+  // elements; any other component → Plugins.
+  _descriptorFor(part) {
+    const id = ++this._removedSeq;
+    const icon = this._chipIcon(part);
+    if (part.kind === 'link') {
+      return { id, bin: 'pages', label: part.label || 'Page', icon,
+        restore: { type: 'link', label: part.label || 'Page', url: part.url } };
+    }
+    const params = part.item.params || [];
+    return { id, bin: 'ui',
+      label: part.item.name || part.item.tag || 'Item', icon,
+      restore: { type: 'component', label: part.item.name, module: part.url, params } };
   }
 
   // Next free fragment in the app's menu doc (app-menu.ttl may hold several
-  // menus — #Menu, #More, #Tabs…).
+  // menus — #MainMenu, #MainButtonBar, #MainHamburgerMenu, added #Menu/#Tabs…).
   async _mintMenuFragment(base) {
     const docUrl = new URL('app-menu.ttl', this._layoutUrl).href;
     const taken = new Set();
@@ -937,6 +1078,54 @@ class SolAppBuilder extends HTMLElement {
     return `${base}-${Date.now()}.html`;
   }
 
+  // ── step 2 drag & drop: accordion feature / chip → layout area ────────
+
+  // A chip (existing element) or an accordion feature source begins dragging.
+  _onFeatureDragStart(e) {
+    const chip = e.target.closest && e.target.closest('.sab-chip[data-node]');
+    if (chip) {
+      e.dataTransfer.setData(SAB_MIME, JSON.stringify({ op: 'move', node: chip.dataset.node }));
+      e.dataTransfer.effectAllowed = 'move';
+      return;
+    }
+    const feat = e.target.closest && e.target.closest('.sab-feat[data-feature]');
+    if (feat) {
+      e.dataTransfer.setData(SAB_MIME, feat.dataset.feature);
+      e.dataTransfer.effectAllowed = 'copy';
+    }
+  }
+
+  _onFeatureDragOver(e) {
+    const drop = e.target.closest && e.target.closest('.sab-drop');
+    if (!drop) return;
+    if (![...((e.dataTransfer && e.dataTransfer.types) || [])].includes(SAB_MIME)) return;
+    e.preventDefault();
+    this.querySelectorAll('.sab-drop-over').forEach((el) => { if (el !== drop) el.classList.remove('sab-drop-over'); });
+    drop.classList.add('sab-drop-over');
+  }
+
+  async _onFeatureDrop(e) {
+    const drop = e.target.closest && e.target.closest('.sab-drop');
+    if (!drop) return;
+    let payload;
+    try { payload = JSON.parse(e.dataTransfer.getData(SAB_MIME)); } catch { payload = null; }
+    this.querySelectorAll('.sab-drop-over').forEach((el) => el.classList.remove('sab-drop-over'));
+    if (!payload) return;
+    e.preventDefault();
+    const regionIri = drop.dataset.region;
+    // Drop onto a chip = insert before it (reorder); onto the area = append.
+    const beforeChip = e.target.closest('.sab-chip[data-node]');
+    const beforeIri = beforeChip ? beforeChip.dataset.node : null;
+    if (payload.op === 'move') {
+      if (payload.node !== beforeIri && moveNode(this._tree, payload.node, regionIri, beforeIri)) {
+        await this._saveLayout();
+        this._renderLayoutAreas();
+      }
+      return;
+    }
+    await this._addFeature(payload, regionIri);
+  }
+
   // ── step 4: Add Plugins (catalog pantry + the app's menu managers) ────
 
   _render_plugins() {
@@ -946,8 +1135,7 @@ class SolAppBuilder extends HTMLElement {
     // Rendered async into the placeholder (light DOM, so the pantry's `for`
     // selector below can see the managers).
     queueMicrotask(() => this._mountManagers());
-    let html = `<h3>Add plugins</h3>
-<p class="sab-hint">Add plugin cards from the catalog into the app's menus — drag a card onto a
+    let html = `<p class="sab-hint">Add plugin cards from the catalog into the app's menus — drag a card onto a
   menu, or use its Add-to button.</p>
 <div class="sab-managers" id="sab-managers"><p class="sab-hint">Loading the app's menus…</p></div>`;
     if (this.catalog) {
@@ -969,10 +1157,11 @@ class SolAppBuilder extends HTMLElement {
       const tree = parseLayoutTree(store, rdf.sym(`${layoutUrl}#Layout`));
       const sources = [];
       (function walk(n) {
-        if (n.kind === 'leaf') {
+        if (n.kind === 'region') n.parts.forEach(walk);
+        else if (n.kind === 'leaf') {
           const v = new Map(n.item.params).get('from-rdf');
           if (v) sources.push(v);
-        } else n.parts.forEach(walk);
+        }
       })(tree);
       if (!sources.length) {
         box.innerHTML = `<p class="sab-hint">This layout has no menu regions — nothing to edit here.</p>`;
@@ -995,8 +1184,7 @@ class SolAppBuilder extends HTMLElement {
     const app = this._app;
     if (!app) return '';
     const indexUrl = `${app.folder}index.html`;
-    let html = `<h3>Publish</h3>
-<p class="sab-hint">Generate writes the readable page artifacts from layout.ttl. Menus stay live
+    let html = `<p class="sab-hint">Generate writes the readable page artifacts from layout.ttl. Menus stay live
   (the page reads them via from-rdf) — regenerate only after a layout change.</p>
 <div class="sab-actions">
   <button type="button" data-action="generate">${app.generated ? 'Regenerate' : 'Generate'} index.html + app.css</button>`;

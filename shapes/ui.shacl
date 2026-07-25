@@ -323,9 +323,9 @@
     sh:minCount 1 ;
     sh:maxCount 1 ;
     sh:datatype xsd:string ;
-    sh:in ( "banner" "main" "navigation" "contentinfo" "region" "document" "application" ) ;
+    sh:in ( "banner" "main" "navigation" "contentinfo" "complementary" "region" "document" "application" ) ;
     sh:name "role" ;
-    sh:description "REQUIRED role (the XHTML/RDFa `role` predicate). Landmark tokens map to native elements: banner→header, main→main, navigation→nav, contentinfo→footer, region→section (region also needs aria-label). document/application are for the ROOT layout (which IS the <body>): the compiler ignores the root's role and emits <body> plus its class/attrs. Complete landmark set, incl. main." ;
+    sh:description "REQUIRED role (the XHTML/RDFa `role` predicate). Landmark tokens map to native elements: banner→header, main→main, navigation→nav, contentinfo→footer, complementary→aside, region→section (region also needs aria-label). document/application are for the ROOT layout (which IS the <body>): the compiler ignores the root's role and emits <body> plus its class/attrs. Complete landmark set, incl. main." ;
   ] ;
   sh:property [
     sh:path schema:itemListElement ;

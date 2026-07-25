@@ -1,25 +1,25 @@
 /**
  * core/layout-serialize.js — the write half of parseLayoutTree. Covered:
- *   - round-trip: every shipped preset parses → serializes → re-parses to a
- *     deep-equal tree (labels, orientation, columns, semantic type,
- *     attribute pairs, membership order)
+ *   - round-trip: a composed layout parses → serializes → re-parses to a
+ *     deep-equal tree (labels, orientation, columns, xhv:role, attribute
+ *     pairs, membership order)
+ *   - xhv:role is emitted (not schema:additionalType)
  *   - determinism: serialize(parse(serialize(x))) is byte-identical
  *   - addLeaf mints a fragment and lands in the right region
  *   - removeLeaf / moveLeaf edit membership
+ *
+ * Fixtures are composed by core/layout-compose.js — the App Builder no longer
+ * ships static preset files, so the layouts under test are the ones the
+ * configurator actually produces.
  */
 
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Parser } from 'n3';
 import { rdf } from '../../core/rdf.js';
 import { parseLayoutTree } from '../../core/layout-generate.js';
 import {
   serializeLayout, addLeaf, removeLeaf, moveLeaf, findRegion,
 } from '../../core/layout-serialize.js';
-
-const here = dirname(fileURLToPath(import.meta.url));
-const layoutsDir = join(here, '..', '..', 'data', 'layouts');
+import { composeLayoutTurtle } from '../../core/layout-compose.js';
 
 const BASE = 'http://layout.test/app/layout.ttl';
 
@@ -49,6 +49,15 @@ function norm(t) {
       params: t.item.params,
     };
   }
+  if (t.kind === 'link') {
+    return {
+      kind: 'link',
+      frag: t.node.value.split('#')[1],
+      url: t.url,
+      label: t.label || null,
+      comment: t.comment || null,
+    };
+  }
   return {
     kind: 'region',
     frag: t.node.value.split('#')[1],
@@ -56,43 +65,55 @@ function norm(t) {
     comment: t.comment || null,
     orientation: t.orientation,
     columns: t.columns,
-    additionalTypeIri: t.additionalTypeIri || null,
+    role: t.role || null,
     params: t.params,
     parts: t.parts.map(norm),
   };
 }
 
-const PRESETS = [
-  'banner-main.ttl', 'banner-left-sidebar.ttl', 'banner-right-sidebar.ttl',
-  'banner-two-sidebars.ttl', 'banner-main-footer.ttl',
-  'classic-shell.ttl', 'single-page.ttl', 'sidebar.ttl', 'dashboard-grid.ttl',
-];
+// Representative structures the configurator can emit.
+const FIXTURES = {
+  'header + main': { sidebars: 'none', menuLocation: 'header', hamburger: true },
+  'left sidebar (menu in it)': { sidebars: 'left', menuLocation: 'left-sidebar', hamburger: true },
+  'right sidebar + under-header menu': { sidebars: 'right', menuLocation: 'under-header', hamburger: false },
+  'two sidebars + footer': { sidebars: 'both', footer: true, menuLocation: 'left-sidebar', hamburger: true },
+};
 
-for (const file of PRESETS) {
-  test(`${file} round-trips through serializeLayout`, () => {
-    const original = treeOf(readFileSync(join(layoutsDir, file), 'utf8'));
+for (const [name, cfg] of Object.entries(FIXTURES)) {
+  test(`${name} round-trips through serializeLayout`, () => {
+    const original = treeOf(composeLayoutTurtle(cfg));
     const ttl = serializeLayout(original, { docUrl: BASE });
     const reparsed = treeOf(ttl);
     expect(norm(reparsed)).toEqual(norm(original));
   });
 }
 
+test('regions serialize with xhv:role, not schema:additionalType', () => {
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'both', footer: true, menuLocation: 'left-sidebar' }));
+  const ttl = serializeLayout(tree, { docUrl: BASE });
+  expect(ttl).toContain('xhv:role "banner"');
+  expect(ttl).toContain('xhv:role "complementary"');
+  expect(ttl).toContain('xhv:role "main"');
+  expect(ttl).toContain('xhv:role "contentinfo"');
+  expect(ttl).not.toMatch(/schema:additionalType|WPHeader|WPSideBar|WPFooter/);
+});
+
 test('serialization is deterministic across a round trip', () => {
-  const tree = treeOf(readFileSync(join(layoutsDir, 'banner-left-sidebar.ttl'), 'utf8'));
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'left', menuLocation: 'left-sidebar' }));
   const once = serializeLayout(tree, { docUrl: BASE });
   const twice = serializeLayout(treeOf(once), { docUrl: BASE });
   expect(twice).toBe(once);
 });
 
 test('same-origin module URLs relativize to path form', () => {
-  const tree = treeOf(readFileSync(join(layoutsDir, 'banner-main.ttl'), 'utf8'));
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'none', menuLocation: 'header' }));
   const ttl = serializeLayout(tree, { docUrl: BASE });
-  expect(ttl).toContain('schema:url </node_modules/sol-components/web/sol-include.js>');
+  expect(ttl).toContain('schema:url </node_modules/sol-components/web/sol-menu.js>');
   expect(ttl).not.toContain('http://layout.test/node_modules');
 });
 
 test('addLeaf mints a fragment inside the chosen region', () => {
-  const tree = treeOf(readFileSync(join(layoutsDir, 'banner-left-sidebar.ttl'), 'utf8'));
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'left', menuLocation: 'left-sidebar' }));
   const main = findRegion(tree, `${BASE}#Main`);
   expect(main).toBeTruthy();
   const leaf = addLeaf(tree, `${BASE}#Main`, {
@@ -109,8 +130,8 @@ test('addLeaf mints a fragment inside the chosen region', () => {
 });
 
 test('removeLeaf drops the element; moveLeaf reorders siblings', () => {
-  const tree = treeOf(readFileSync(join(layoutsDir, 'banner-two-sidebars.ttl'), 'utf8'));
-  expect(removeLeaf(tree, `${BASE}#more`)).toBe(true);
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'both', menuLocation: 'left-sidebar', hamburger: true }));
+  expect(removeLeaf(tree, `${BASE}#Hamburger`)).toBe(true);
   expect(serializeLayout(tree, { docUrl: BASE })).not.toContain('sol-dropdown-button');
 
   const middle = findRegion(tree, `${BASE}#Middle`);

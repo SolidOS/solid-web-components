@@ -1,19 +1,18 @@
 /**
  * core/layout-generate.js — compile a ui:Layout tree into the standalone
- * app page (readable index.html + app.css). Covered here:
- *   - classic-shell preset → nav/main structure, visible from-rdf/module
- *     attributes, sol-load data-components derivation
+ * app page (readable index.html + app.css). Covered here (with inline
+ * xhv:role fixtures — the App Builder ships no static preset files):
+ *   - a nav + main skeleton → visible from-rdf/module attributes, sol-load
+ *     data-components derivation
  *   - componentsBase override reaches both links and the loader tag
- *   - dashboard-grid → app-grid-N class + generated grid CSS
+ *   - a columns grid → app-grid-N class + generated grid CSS
+ *   - a sidebar (complementary → aside) opening into an empty main pane
  *   - foreign (non sol-*) leaf → its own <script type="module"> and no
  *     data-components token
  *   - attribute escaping
  *   - menuSourcesIn / seedAppMenu helpers
  */
 
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Parser } from 'n3';
 import { rdf } from '../../core/rdf.js';
 import {
@@ -24,9 +23,6 @@ import {
   menuSourcesIn,
   seedAppMenu,
 } from '../../core/layout-generate.js';
-
-const here = dirname(fileURLToPath(import.meta.url));
-const layoutsDir = join(here, '..', '..', 'data', 'layouts');
 
 const BASE = 'http://layout.test/layout.ttl';
 
@@ -45,13 +41,83 @@ function parseInto(text, base) {
   return g;
 }
 
-function loadLayout(file, base = BASE) {
-  const store = parseInto(readFileSync(join(layoutsDir, file), 'utf8'), base);
-  return { store, layoutNode: rdf.sym(`${base}#Layout`) };
-}
+const PRE = `@prefix : <#> .
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xhv: <http://www.w3.org/1999/xhtml/vocab#> .
+`;
+const loadTtl = (ttl, base = BASE) =>
+  ({ store: parseInto(PRE + ttl, base), layoutNode: rdf.sym(`${base}#Layout`) });
 
-test('classic shell emits the nav + main skeleton with visible sources', () => {
-  const { store, layoutNode } = loadLayout('classic-shell.ttl');
+// A nav bar (sol-login) over a main pane holding the app's tabset.
+const NAV_MAIN = `
+:Layout a ui:Layout ; ui:label "App" ; xhv:role "document" ; ui:orientation ui:Vertical ;
+  schema:itemListElement :Layout-Bar, :Layout-Main .
+:Bar a ui:Layout ; ui:label "Controls" ; xhv:role "navigation" ; ui:orientation ui:Horizontal ;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-chrome-bar" ] ;
+  schema:itemListElement :Bar-login .
+:login a ui:Component ; ui:label "Sign in" ;
+  schema:url </node_modules/sol-components/web/sol-login.js> .
+:Main a ui:Layout ; ui:label "Content" ; xhv:role "main" ;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-panels" ] ;
+  schema:itemListElement :Main-tabs .
+:tabs a ui:Component ; ui:label "App" ;
+  rdfs:comment "The whole app body: a tabset built from the app's own menu doc" ;
+  schema:url </node_modules/sol-components/web/sol-tabs.js> ;
+  schema:additionalProperty [ schema:name "keep-alive" ; schema:value "" ] ,
+               [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Tabs" ] .
+:Layout-Bar a schema:ListItem; schema:item :Bar; schema:position 1.
+:Layout-Main a schema:ListItem; schema:item :Main; schema:position 2.
+:Bar-login a schema:ListItem; schema:item :login; schema:position 1.
+:Main-tabs a schema:ListItem; schema:item :tabs; schema:position 1.
+`;
+
+// A header over a two-column widget grid.
+const GRID = `
+:Layout a ui:Layout ; ui:label "App" ; xhv:role "document" ; ui:orientation ui:Vertical ;
+  schema:itemListElement :Layout-Header, :Layout-Main .
+:Header a ui:Layout ; ui:label "Header" ; xhv:role "banner" ; ui:orientation ui:Horizontal ;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-header" ] ;
+  schema:itemListElement :Header-clock .
+:clock a ui:Component ; ui:label "Clock" ;
+  schema:url </node_modules/sol-components/web/sol-time.js> .
+:Main a ui:Layout ; ui:label "Widgets" ; xhv:role "main" ; ui:columns 2 ;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-widgets" ] ;
+  schema:itemListElement :Main-calendar, :Main-notes .
+:calendar a ui:Component ; ui:label "Calendar" ;
+  schema:url </node_modules/sol-components/web/sol-calendar.js> .
+:notes a ui:Component ; ui:label "Notes" ;
+  schema:url </node_modules/sol-components/web/sol-include.js> ;
+  schema:additionalProperty [ schema:name "source" ; schema:value "content.html" ] ,
+               [ schema:name "trusted" ; schema:value "" ] .
+:Layout-Header a schema:ListItem; schema:item :Header; schema:position 1.
+:Layout-Main a schema:ListItem; schema:item :Main; schema:position 2.
+:Header-clock a schema:ListItem; schema:item :clock; schema:position 1.
+:Main-calendar a schema:ListItem; schema:item :calendar; schema:position 1.
+:Main-notes a schema:ListItem; schema:item :notes; schema:position 2.
+`;
+
+// A sidebar menu opening items into an empty main pane.
+const SIDEBAR = `
+:Layout a ui:Layout ; ui:label "App" ; xhv:role "document" ; ui:orientation ui:Horizontal ;
+  schema:itemListElement :Layout-Side, :Layout-Main .
+:Side a ui:Layout ; ui:label "Sidebar" ; xhv:role "complementary" ;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-side" ] ;
+  schema:itemListElement :Side-menu .
+:menu a ui:Component ; ui:label "Menu" ;
+  schema:url </node_modules/sol-components/web/sol-menu.js> ;
+  schema:additionalProperty [ schema:name "from-rdf" ; schema:value "app-menu.ttl#Menu" ] ,
+               [ schema:name "region" ; schema:value ".app-main" ] .
+:Main a ui:Layout ; ui:label "Content" ; xhv:role "main" ;
+  schema:additionalProperty [ schema:name "class" ; schema:value "app-main" ] .
+:Layout-Side a schema:ListItem; schema:item :Side; schema:position 1.
+:Layout-Main a schema:ListItem; schema:item :Main; schema:position 2.
+:Side-menu a schema:ListItem; schema:item :menu; schema:position 1.
+`;
+
+test('a nav + main skeleton emits with visible sources', () => {
+  const { store, layoutNode } = loadTtl(NAV_MAIN);
   const html = generateAppHtml({ store, layoutNode, app: { title: 'My App', icon: '🍳' } });
 
   expect(html).toContain('<nav class="app-chrome-bar app-row" aria-label="Controls">');
@@ -72,17 +138,17 @@ test('classic shell emits the nav + main skeleton with visible sources', () => {
 });
 
 test('componentsBase override reaches stylesheet and loader', () => {
-  const { store, layoutNode } = loadLayout('classic-shell.ttl');
+  const { store, layoutNode } = loadTtl(NAV_MAIN);
   const cdn = 'https://cdn.jsdelivr.net/npm/sol-components@2';
   const html = generateAppHtml({ store, layoutNode, componentsBase: cdn });
   expect(html).toContain(`href="${cdn}/web/styles/root.css"`);
   expect(html).toContain(`src="${cdn}/web/sol-load.js"`);
 });
 
-test('dashboard grid emits app-grid-2 markup and CSS', () => {
-  const { store, layoutNode } = loadLayout('dashboard-grid.ttl');
+test('a columns grid emits app-grid-2 markup and CSS', () => {
+  const { store, layoutNode } = loadTtl(GRID);
   const html = generateAppHtml({ store, layoutNode });
-  // :Main is the root's first unmarked layout child → <main>, grid class
+  // :Main (role main) with ui:columns 2 → <main>, grid class
   expect(html).toContain('<main class="app-widgets app-grid-2" aria-label="Widgets">');
   expect(html).toContain('<header class="app-header app-row" aria-label="Header">');
   expect(html).toMatch(/data-components="sol-basic sol-time sol-calendar"/);
@@ -96,7 +162,7 @@ test('dashboard grid emits app-grid-2 markup and CSS', () => {
 });
 
 test('sidebar: aside emits, empty main is a placeholder pane', () => {
-  const { store, layoutNode } = loadLayout('sidebar.ttl');
+  const { store, layoutNode } = loadTtl(SIDEBAR);
   const html = generateAppHtml({ store, layoutNode });
   expect(html).toContain('<aside class="app-side app-col" aria-label="Sidebar">');
   expect(html).toMatch(/<sol-menu[\s\S]*?from-rdf="app-menu\.ttl#Menu"[\s\S]*?region="\.app-main"/);
@@ -137,10 +203,10 @@ test('attribute values are escaped in emitted markup', () => {
 });
 
 test('menuSourcesIn finds every from-rdf the layout consumes', () => {
-  const classic = loadLayout('classic-shell.ttl');
-  expect(menuSourcesIn(parseLayoutTree(classic.store, classic.layoutNode)))
+  const navMain = loadTtl(NAV_MAIN);
+  expect(menuSourcesIn(parseLayoutTree(navMain.store, navMain.layoutNode)))
     .toEqual(['app-menu.ttl#Tabs']);
-  const sidebar = loadLayout('sidebar.ttl');
+  const sidebar = loadTtl(SIDEBAR);
   expect(menuSourcesIn(parseLayoutTree(sidebar.store, sidebar.layoutNode)))
     .toEqual(['app-menu.ttl#Menu']);
 });

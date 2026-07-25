@@ -18,12 +18,12 @@
 //                Absent ui:orientation defaults to VERTICAL (a page stacks;
 //                menus default horizontal — different medium, different
 //                natural axis). ui:columns N renders the parts as a grid.
-//   semantic role — PREFERRED: an xhv:role (the XHTML/RDFa `role` predicate,
-//                an ARIA landmark token) maps to the native element
-//                (banner→header, main→main, navigation→nav, contentinfo→footer,
-//                region→section) — the complete set, including main. FALLBACK:
-//                the legacy schema:additionalType (SiteNavigationElement→nav,
-//                WP*→header/footer/aside) and, for an unmarked region, the
+//   semantic role — an xhv:role (the XHTML/RDFa `role` predicate, an ARIA
+//                landmark token) maps to the native element (banner→header,
+//                main→main, navigation→nav, contentinfo→footer,
+//                complementary→aside, region→section) — the complete landmark
+//                set. FALLBACK: a legacy schema:additionalType
+//                (SiteNavigationElement→nav) and, for an unmarked region, the
 //                root's first unmarked child → <main>. Everything else → <div>.
 //   member types — a region's members dispatch on rdf:type: ui:Layout → nested
 //                region; ui:Component → a mounted element; ui:Menu → a menu
@@ -46,9 +46,6 @@ const XHV    = 'http://www.w3.org/1999/xhtml/vocab#';   // xhv:role — the `rol
 
 const SEMANTIC_TAGS = new Map([
   [SCHEMA + 'SiteNavigationElement', 'nav'],
-  [SCHEMA + 'WPHeader', 'header'],
-  [SCHEMA + 'WPFooter', 'footer'],
-  [SCHEMA + 'WPSideBar', 'aside'],
 ]);
 
 // ARIA landmark role (an xhv:role token on a region) → the native element that
@@ -62,6 +59,7 @@ const ROLE_TAGS = new Map([
   ['main', 'main'],
   ['navigation', 'nav'],
   ['contentinfo', 'footer'],
+  ['complementary', 'aside'],
   ['region', 'section'],
 ]);
 
@@ -147,7 +145,7 @@ export function parseLayoutTree(store, node) {
   // A ui:Link member (class, or a ui:Plugin of kind ui:Link) → its schema:url,
   // resolved to an include/iframe at emit time.
   if (isType(store, node, UI + 'Link') || kind === UI + 'Link') {
-    return { kind: 'link', node, url: val(store, node, SCHEMA + 'url'), comment };
+    return { kind: 'link', node, url: val(store, node, SCHEMA + 'url'), label: rdfVal(store, node, 'label'), comment };
   }
   // A ui:Command has no persistent content — meaningless as layout content.
   if (isType(store, node, UI + 'Command') || kind === UI + 'Command') {
@@ -181,6 +179,10 @@ export function parseLayoutTree(store, node) {
     roleTag: (role && ROLE_TAGS.get(role)) || null,
     additionalTypeIri,
     semantic: SEMANTIC_TAGS.get(additionalTypeIri) || null,
+    // The resolved native element (header/main/nav/footer/aside/section) from
+    // role or the legacy additionalType — what consumers (the builder's
+    // schematic + region badges) key off, independent of which mark set it up.
+    tag: (role && ROLE_TAGS.get(role)) || SEMANTIC_TAGS.get(additionalTypeIri) || null,
     params,
     parts: menuMembers(store, node).map((el) => parseLayoutTree(store, el)),
   };
@@ -467,6 +469,8 @@ body.app-col > .app-row { flex: 1 1 auto; min-height: 0; align-items: stretch; }
 aside { flex: 0 0 14rem; overflow: auto; }
 /* Theme chrome: the banner's ☰ sits at the right end of the bar. */
 .app-banner > sol-dropdown-button:last-child { margin-left: auto; }
+/* A button bar in the banner is pushed to the right (just left of the ☰). */
+.app-banner .app-bar { margin-left: auto; }
 `;
   for (const n of [...grids].sort()) {
     css += `.app-grid-${n} { display: grid; grid-template-columns: repeat(${n}, minmax(0, 1fr)); gap: 1rem; }\n`;
