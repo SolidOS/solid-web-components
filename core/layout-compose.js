@@ -3,10 +3,10 @@
 // button-bar location, hamburger).
 //
 // Regions carry landmark xhv:roles (banner / navigation / complementary / main
-// / contentinfo). Three slots hold preset ui:Link content pointing at html
-// files the builder seeds: the header's "site-title" (site-title.html), the
-// footer (footer.html), and the ☰'s Help (help.html). Sidebars and main are
-// empty labelled drop targets the owner fills on the element step.
+// / contentinfo). Preset ui:Link content points at html files the builder
+// seeds: the header's "site-title" (site-title.html), main's start page
+// (start-page.html), the footer (footer.html), and the ☰'s Help (help.html).
+// Sidebars are empty labelled drop targets the owner fills on the element step.
 //
 // The layout names three menu docs via from-rdf: MainMenu (the nav, opens into
 // .app-main), MainButtonBar (a horizontal row of shortcut buttons), and
@@ -155,6 +155,7 @@ export function composeLayoutTurtle({
     region('Main', {
       label: 'Main', role: 'main', cls: 'app-main',
       comment: 'The main pane the menu opens items into (also a drop target)',
+      children: ['StartPage'],
     });
     if (hasRight) region('Right', {
       label: 'Right sidebar', role: 'complementary', cls: 'app-side-right',
@@ -164,6 +165,7 @@ export function composeLayoutTurtle({
     region('Main', {
       label: 'Main', role: 'main', cls: 'app-main',
       comment: 'The main pane the menu opens items into (also a drop target)',
+      children: ['StartPage'],
     });
   }
 
@@ -179,23 +181,28 @@ export function composeLayoutTurtle({
   // Preset content: site-title (always) and footer (if any) are ui:Links to
   // seeded html; the ☰'s Help link lives in the MainHamburgerMenu doc.
   linkLeaf('SiteTitle', {
-    label: 'Site title', url: 'site-title.html',
+    label: 'Site Banner', url: 'site-title.html',
     comment: 'The site title / banner, from the app\'s own site-title.html',
   });
   componentLeaf('Menu', {
-    label: 'Menu', module: web(MENU_MODULE),
+    label: 'Tabbed Menu', module: web(MENU_MODULE),
     comment: 'Items open into the main pane named by the region selector',
     params: [['from-rdf', 'app-menu.ttl#MainMenu'], ['region', '.app-main']],
   });
   if (hasBar) componentLeaf('ButtonBar', {
     label: 'Button bar', module: web(MENU_MODULE),
-    comment: 'A row of shortcut buttons',
-    params: [['from-rdf', 'app-menu.ttl#MainButtonBar'], ['class', 'app-bar']],
+    comment: 'A row of shortcut buttons, opening into the main pane',
+    params: [['from-rdf', 'app-menu.ttl#MainButtonBar'], ['class', 'app-bar'],
+      ['region', '.app-main']],
   });
   if (hamburger) componentLeaf('Hamburger', {
-    label: 'Action Menu', module: web(HAMBURGER_MODULE),
+    label: 'Button Menu', module: web(HAMBURGER_MODULE),
     comment: 'Theme chrome: Help / Theme / Text size from the app\'s hamburger menu',
     params: [['label', '☰'], ['from-rdf', 'app-menu.ttl#MainHamburgerMenu']],
+  });
+  linkLeaf('StartPage', {
+    label: 'Start Page', url: 'start-page.html',
+    comment: 'What the main pane shows before a menu item opens into it, from the app\'s own start-page.html',
   });
   if (footer) linkLeaf('FooterContent', {
     label: 'Footer', url: 'footer.html',

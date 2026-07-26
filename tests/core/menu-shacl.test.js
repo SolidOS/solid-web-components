@@ -12,6 +12,8 @@
  *   - a free-standing ui:Component without ui:label conforms (labels are only
  *     required in menu context)
  *   - a ui:Link with neither schema:url nor ui:contents fails (the sh:xone)
+ *   - the three menu VARIANTS, which carry no sh:targetClass and are reached
+ *     by name: what each admits as members
  */
 
 import { readFileSync } from 'node:fs';
@@ -146,4 +148,76 @@ test("a Component's schema:url must be an IRI with a tag-shaped filename", async
 `);
     expect(report.conforms).toBe(false);
   }
+});
+
+// The menu variants have no sh:targetClass — they are named contracts, applied
+// to a chosen node. Binding one with sh:targetNode is how a validator aims it.
+const SHAPES_BASE = 'http://menu-shacl.test/shapes';
+const uiShaclText = readFileSync(join(root, 'shapes', 'ui.shacl'), 'utf8');
+
+async function validateAs(shapeName, focus, dataText) {
+  const bound = parse(
+    `${uiShaclText}\n<${SHAPES_BASE}#${shapeName}> <http://www.w3.org/ns/shacl#targetNode> <${focus}> .\n`,
+    SHAPES_BASE,
+  );
+  return await new SHACLValidator(bound).validate(parse(PREFIXES + dataText));
+}
+
+const FOCUS = 'http://menu-shacl.test/doc#Menu';
+
+const flatMenu = `
+<#Menu> a ui:Menu ; ui:label "m" ;
+  schema:itemListElement <#A>, <#B> .
+<#A> a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+<#B> a ui:Link ; ui:label "B" ; schema:url "https://b.example/" .
+`;
+
+const menuWithSubmenu = `
+<#Menu> a ui:Menu ; ui:label "m" ;
+  schema:itemListElement <#A>, <#Sub> .
+<#A> a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+<#Sub> a ui:Menu ; ui:label "More" ;
+  schema:itemListElement <#C> .
+<#C> a ui:Link ; ui:label "C" ; schema:url "https://c.example/" .
+`;
+
+const oneSubmenu = `
+<#Menu> a ui:Menu ; ui:label "☰" ;
+  schema:itemListElement <#Sub> .
+<#Sub> a ui:Menu ; ui:label "More" ;
+  schema:itemListElement <#C> .
+<#C> a ui:Link ; ui:label "C" ; schema:url "https://c.example/" .
+`;
+
+test('a tabbed menu takes many items, submenus among them', async () => {
+  expect((await validateAs('TabbedMenuShape', FOCUS, flatMenu)).conforms).toBe(true);
+  expect((await validateAs('TabbedMenuShape', FOCUS, menuWithSubmenu)).conforms).toBe(true);
+});
+
+test('a tabbed menu needs at least one item', async () => {
+  const report = await validateAs('TabbedMenuShape', FOCUS, `<#Menu> a ui:Menu ; ui:label "m" .`);
+  expect(report.conforms).toBe(false);
+});
+
+test('a button menu is one item, and that item is a submenu', async () => {
+  expect((await validateAs('ButtonMenuShape', FOCUS, oneSubmenu)).conforms).toBe(true);
+  // two items — a button drops one list
+  expect((await validateAs('ButtonMenuShape', FOCUS, menuWithSubmenu)).conforms).toBe(false);
+  // one item, but not a submenu
+  expect((await validateAs('ButtonMenuShape', FOCUS, `
+<#Menu> a ui:Menu ; ui:label "☰" ; schema:itemListElement <#A> .
+<#A> a ui:Link ; ui:label "A" ; schema:url "https://a.example/" .
+`)).conforms).toBe(false);
+});
+
+test('a button bar takes many items but refuses a submenu', async () => {
+  expect((await validateAs('ButtonBarShape', FOCUS, flatMenu)).conforms).toBe(true);
+  expect((await validateAs('ButtonBarShape', FOCUS, menuWithSubmenu)).conforms).toBe(false);
+  expect((await validateAs('ButtonBarShape', FOCUS, oneSubmenu)).conforms).toBe(false);
+});
+
+test('the variants leave plain ui:Menu data alone (no targetClass)', async () => {
+  // the same submenu-bearing menu conforms when nothing aims a variant at it
+  const report = await validate(menuWithSubmenu);
+  expect(report.conforms).toBe(true);
 });

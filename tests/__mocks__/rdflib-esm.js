@@ -2,5 +2,5 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const rdflib = require('./rdflib.cjs');
-export const { graph, sym, literal, blankNode, parse, st, NamedNode, BlankNode, Literal, Statement, Fetcher } = rdflib;
+export const { graph, sym, literal, blankNode, parse, st, serialize, NamedNode, BlankNode, Literal, Statement, Fetcher } = rdflib;
 export default rdflib;

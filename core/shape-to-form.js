@@ -59,18 +59,28 @@ const OWL      = 'http://www.w3.org/2002/07/owl#';
  * Pure / sync. Throws if the SHACL fails to parse.
  *
  * @param {string} shapeText  raw turtle of the SHACL document
- * @param {string} baseUri    base URI used to resolve relative refs in the doc
+ * @param {string} baseUri    the shape's URI. A FRAGMENT names one shape in the
+ *                            document (…/ui.shacl#ButtonBarShape); without one
+ *                            the shape is inferred (see below)
  * @returns {{ targets: Targets, properties: ShapeProp[] }}
  */
 export async function parseShape(shapeText, baseUri, ctx = {}) {
   const abs = baseUri
     ? new URL(baseUri, typeof document !== 'undefined' ? document.baseURI : 'file:///').href
     : '';
+  // The fragment names a shape; the document is what gets parsed, and what
+  // relative IRIs inside it resolve against.
+  const hash = abs.indexOf('#');
+  const docUri = hash >= 0 ? abs.slice(0, hash) : abs;
+  const named = hash >= 0 ? abs : '';
   const shapeStore = rdf.graph();
-  rdf.parse(shapeText, shapeStore, abs, 'text/turtle');
-  await followOwlImports(shapeStore, abs);
+  rdf.parse(shapeText, shapeStore, docUri, 'text/turtle');
+  await followOwlImports(shapeStore, docUri);
 
   // Shape selection (in priority order):
+  //   0. A FRAGMENT on the shape URI names the shape outright. This is the
+  //      only way to reach one of several shapes that target the same class
+  //      (ui.shacl's menu variants), and the only one that can't guess wrong.
   //   1. If ctx supplies subject + dataStore: prefer the shape whose
   //      sh:targetClass matches one of the subject's rdf:type values.
   //      This is the "outer shape applies to user data" case (e.g.,
@@ -88,7 +98,11 @@ export async function parseShape(shapeText, baseUri, ctx = {}) {
     return { targets: { nodes: [], classes: [], subjectsOf: [] }, properties: [] };
   }
   let nodeShape = null;
-  if (ctx.subject && ctx.dataStore) {
+  if (named) {
+    nodeShape = allShapes.find((s) => s.value === named) || null;
+    if (!nodeShape) console.warn(`[shape-to-form] no shape ${named} — inferring instead`);
+  }
+  if (!nodeShape && ctx.subject && ctx.dataStore) {
     const subjectTypes = ctx.dataStore.each(ctx.subject, rdf.sym(RDF_NS + 'type'));
     if (subjectTypes.length) {
       nodeShape = allShapes.find(s => {

@@ -27,6 +27,21 @@
       try { localStorage.setItem('swc-font-size', next); } catch (e) {}
     },
   };
+  // A sidebar's collapse control (emitted by core/layout-generate.js as
+  // .app-rail-toggle inside the <aside> it collapses).
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('.app-rail-toggle');
+    if (!btn) return;
+    var rail = btn.closest('aside');
+    if (!rail) return;
+    var collapsed = rail.classList.toggle('app-rail-collapsed');
+    var right = rail.className.indexOf('app-side-right') >= 0;
+    btn.setAttribute('aria-expanded', String(!collapsed));
+    btn.textContent = (collapsed === right) ? '‹' : '›';
+    var name = (rail.getAttribute('aria-label') || 'sidebar');
+    btn.setAttribute('aria-label', (collapsed ? 'Expand ' : 'Collapse ') + name);
+  });
+
   document.addEventListener('sol-command', function (e) {
     var key = e.detail && e.detail.command;
     if (typeof key !== 'string') return;

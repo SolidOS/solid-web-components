@@ -157,8 +157,9 @@ test('a columns grid emits app-grid-2 markup and CSS', () => {
   expect(css).toContain('.app-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));');
   // scaffolding: page never scrolls, the pane does
   expect(css).toContain('body { margin: 0; min-height: 100dvh; overflow: hidden;');
-  expect(css).toContain('html { background: var(--bg); color: var(--text); }');
-  expect(css).toContain('main { flex: 1 1 auto; min-height: 0; overflow: auto; }');
+  // the text size sits on the ROOT, so the page's rem-sized chrome scales with it
+  expect(css).toContain('html { background: var(--bg); color: var(--text); font-size: var(--font-size); }');
+  expect(css).toContain('main { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 1rem 1.25rem; }');
 });
 
 test('sidebar: aside emits, empty main is a placeholder pane', () => {

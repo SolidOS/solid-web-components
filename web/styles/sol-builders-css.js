@@ -20,7 +20,9 @@ export const CSS = `
 .builder > .cards { overflow: hidden auto; flex: 1 1 auto; min-height: 0; }
 .builder > ul.tree { overflow: hidden auto; min-height: 0; }
 .builder-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
-.builder-title { font-weight: 700; font-size: max(16px, 1em); flex: 1 1 auto; }
+.builder-title { font-weight: 700; font-size: max(16px, 1em); flex: 1 1 auto;
+                 color: var(--builder-title-fg, inherit);
+                 display: var(--builder-title-display, inline); }
 .builder-status { font-size: max(16px, 1em); color: var(--text-muted, #7f8c8d); }
 .builder-status.error { color: var(--error, #c0392b); }
 .builder-status.saved { color: var(--success, #27ae60); }
@@ -80,10 +82,13 @@ li.item { margin: .15rem 0; }
 .row-btn.danger:hover { color: var(--error, #c0392b); }
 
 .adders { display: flex; gap: .4rem; margin-top: .45rem; }
-.add-btn { font: inherit; font-size: max(16px, 1em); padding: .25rem .6rem; cursor: pointer;
-           border: 1px dashed var(--border, #c0c0c0); border-radius: 6px;
-           background: transparent; color: var(--text-muted, #555); }
-.add-btn:hover { background: var(--hover, #eaf2fb); color: var(--text, #111); }
+.add-btn { display: var(--builder-add-display, inline-block);
+           font: inherit; font-size: max(16px, 1em); padding: .25rem .6rem; cursor: pointer;
+           border: 1px dashed var(--builder-add-border, var(--border, #c0c0c0)); border-radius: 6px;
+           background: var(--builder-add-bg, transparent);
+           color: var(--builder-add-fg, var(--text-muted, #555)); }
+.add-btn:hover { background: var(--builder-add-hover-bg, var(--hover, #eaf2fb));
+                 color: var(--builder-add-hover-fg, var(--text, #111)); }
 .add-input { flex: 1 1 auto; min-width: 12rem; font: inherit; font-size: max(16px, 1em);
              padding: .25rem .5rem; border: 1px dashed var(--border, #c0c0c0); border-radius: 6px;
              background: #d9d9d9; color: #1a1a1a; }
@@ -110,7 +115,8 @@ li.item { margin: .15rem 0; }
    to the card's top-right; quiet until hover. */
 .card-del { margin-left: auto; align-self: flex-start; background: none; border: none;
   cursor: pointer; font-size: max(16px, 1em); line-height: 1; padding: 0 .1rem;
-  color: var(--text-muted, #7f8c8d); opacity: .55; }
+  color: var(--builder-del-fg, var(--text-muted, #7f8c8d));
+  opacity: var(--builder-del-opacity, .55); }
 .card-del:hover, .card-del:focus-visible { opacity: 1; color: var(--danger, #c0392b); }
 
 /* plugin manager: drop target, topic tabs, ghost cards, manifest-URL row */

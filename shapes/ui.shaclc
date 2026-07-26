@@ -126,6 +126,59 @@ shape <#CommandShape> ;
     % .
 }
 
+shape <#TabbedMenuShape> ;
+    sh:node <#MenuShape> {
+    schema:itemListElement IRI [1..*] @<#OrderedItemShape>|@<#UnorderedItemShape> %
+        sh:name "menu items" ; sh:description "The items of a tabbed menu. Any item may itself be a menu, which nests as a submenu."
+    % .
+}
+
+shape <#ButtonMenuShape> ;
+    sh:node <#MenuShape> {
+    schema:itemListElement IRI [1..1] @<#OrderedSubmenuItemShape>|@<#SubmenuMemberShape> %
+        sh:name "menu item" ; sh:description "The one item of a button menu: a menu, whose own items are what the button drops."
+    % .
+}
+
+shape <#OrderedSubmenuItemShape> {
+    schema:item IRI [1..1] @<#SubmenuMemberShape> %
+        sh:name "item" ; sh:description "An ordered item that is a menu."
+    % .
+    schema:position xsd:integer [1..1] %
+        sh:name "position" ; sh:description "Sort order number within this menu."
+    % .
+}
+
+shape <#SubmenuMemberShape> {
+    class=ui:Menu .
+    ui:label xsd:string [1..1] %
+        sh:name "label" ; sh:description "Display label"
+    % .
+}
+
+shape <#ButtonBarShape> ;
+    sh:node <#MenuShape> {
+    schema:itemListElement IRI [1..*] @<#OrderedFlatItemShape>|@<#FlatMemberShape> %
+        sh:name "menu items" ; sh:description "The items of a button bar, each one a button. No item is itself a menu — a bar has no second level."
+    % .
+}
+
+shape <#OrderedFlatItemShape> {
+    schema:item IRI [1..1] @<#FlatMemberShape> %
+        sh:name "item" ; sh:description "An ordered item that is not a menu."
+    % .
+    schema:position xsd:integer [1..1] %
+        sh:name "position" ; sh:description "Sort order number within this menu."
+    % .
+}
+
+shape <#FlatMemberShape> {
+    class=ui:Plugin|class=ui:Link|class=ui:Component|class=ui:Command .
+    ui:label xsd:string [1..1] %
+        sh:name "label" ; sh:description "Display label"
+    % .
+}
+
 shape <#PropertyValueShape> {
     schema:name xsd:string [1..1] %
         sh:name "name" ; sh:description "Attribute name"

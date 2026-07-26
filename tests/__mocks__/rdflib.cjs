@@ -154,4 +154,18 @@ class Fetcher {
   }
 }
 
-module.exports = { graph, sym, literal, blankNode, parse, st, NamedNode, BlankNode, Literal, Statement, Fetcher };
+// Minimal Turtle writer — full IRIs, one triple per line. Enough for the
+// menu/layout writers under test (and re-readable by parse() above); it is
+// NOT a real serializer: no prefixes, no blank-node syntax, no lists.
+function serialize(doc, store, base, contentType) {
+  const term = (t) => {
+    if (!t) return '<>';
+    if (t.termType === 'Literal') return `"${String(t.value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+    return `<${t.value}>`;
+  };
+  return `${store.statements
+    .map((st) => `${term(st.subject)} ${term(st.predicate)} ${term(st.object)} .`)
+    .join('\n')}\n`;
+}
+
+module.exports = { graph, sym, literal, blankNode, parse, st, serialize, NamedNode, BlankNode, Literal, Statement, Fetcher };

@@ -130,10 +130,15 @@ class SolDropdownButton extends SolMenu {
     this._wireDismiss();
   }
 
+  // Re-read the menu: the RDF document, or — with no source — the inline
+  // <menu>, so a host that rewrites its item text (e.g. a Theme item naming the
+  // theme in effect) gets that text rendered.
   async reload() {
     const uri = this._menuUri();
-    if (uri) await this._loadFromRdf(uri);
-    else this._renderNav();   // harvest path: refresh the context section
+    if (uri) { await this._loadFromRdf(uri); return; }
+    const declared = this._harvestItems(this);
+    if (declared?.length) this._items = declared;
+    this._renderNav();
   }
 
   // Context items (context-source=) append below a separator after the

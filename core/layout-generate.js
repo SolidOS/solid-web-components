@@ -269,6 +269,13 @@ function emitRegion(region, { depth, isMain, warn, baseUrl }) {
       out += emitPart(part, depth, region.role, warn, baseUrl);
     }
   }
+  // A sidebar collapses: the control sits in its OUTER bottom corner and is
+  // part of the emitted markup (web/scripts/app-commands.js drives it).
+  if (tag === 'aside') {
+    out += `${pad}  <button type="button" class="app-rail-toggle" aria-expanded="true"`
+      + ` aria-label="Collapse ${esc(region.label || 'sidebar')}">`
+      + `${cls.includes('app-side-right') ? '›' : '‹'}</button>\n`;
+  }
   out += `${pad}</${tag}>\n`;
   return out;
 }
@@ -455,22 +462,73 @@ export function generateAppCss(storeOrTree, layoutNode = null) {
 html, body { height: 100%; }
 /* root.css defines the theme vars; the page applies them (data-theme flips
    them, driven by the ☰ menu's toggleTheme command). */
-html { background: var(--bg); color: var(--text); }
+/* The text size lands on the ROOT: the page and its components size themselves
+   in rem, which is relative to html — on body it would leave them all fixed. */
+html { background: var(--bg); color: var(--text); font-size: var(--font-size); }
 body { margin: 0; min-height: 100dvh; overflow: hidden;
-       font-family: var(--font-ui); font-size: var(--font-size); }
+       font-family: var(--font-ui); }
 .app-row { display: flex; flex-direction: row; align-items: center; gap: .5rem; }
 .app-col { display: flex; flex-direction: column; }
 /* Scroll lives on the content pane, never the page. */
-main { flex: 1 1 auto; min-height: 0; overflow: auto; }
-nav, header, footer, aside { padding: .5rem 1rem; }
-/* A middle row (e.g. sidebar + main) fills the space between banner and
-   footer; sidebars keep their own scroll and a fixed rail width. */
-body.app-col > .app-row { flex: 1 1 auto; min-height: 0; align-items: stretch; }
-aside { flex: 0 0 14rem; overflow: auto; }
+main { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 1rem 1.25rem; }
+nav, aside { padding: .5rem 1rem; }
+header { height: 4rem; box-sizing: border-box; padding: 0 1rem; overflow: hidden; }
+footer { height: 3rem; box-sizing: border-box; padding: 0 1rem; overflow: hidden; }
+/* Chrome: the bands read as bands. Surface against the page's --bg, with a
+   rule between each and the content. */
+header { background: var(--surface); border-bottom: 1px solid var(--border); }
+footer { background: var(--surface); border-top: 1px solid var(--border);
+         color: var(--text-muted); }
+nav    { background: var(--surface); border-bottom: 1px solid var(--border); }
+aside  { background: var(--surface); }
+/* No rule between a left rail and main — the surfaces already differ. */
+.app-side-right { border-left: 1px solid var(--border); }
+/* Only the MIDDLE band grows — the band is a <section> (sidebars + main) or a
+   bare <main>. The banner, nav and footer carry .app-row too, so growing by
+   that class would split the page into equal thirds. */
+body.app-col > section.app-row,
+body.app-col > main { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+body.app-col > header,
+body.app-col > nav,
+body.app-col > footer { flex: 0 0 auto; }
+aside { flex: 0 0 420px; overflow: auto; position: relative; padding-bottom: 2.6rem; }
+/* Collapse control: the rail's outer bottom corner. */
+.app-rail-toggle {
+  position: absolute; bottom: .5rem; width: 1.8rem; height: 1.8rem; line-height: 1;
+  font: inherit; font-size: 1rem; cursor: pointer;
+  border: 1px solid var(--border); border-radius: .3rem;
+  background: var(--bg); color: var(--text);
+}
+aside:not(.app-side-right) .app-rail-toggle { left: .5rem; }
+.app-side-right .app-rail-toggle { right: .5rem; }
+aside.app-rail-collapsed { flex-basis: 2.8rem; overflow: hidden; }
+aside.app-rail-collapsed > *:not(.app-rail-toggle) { display: none; }
+/* Content the regions transclude brings its own headings and paragraph
+   margins; in a bar those inflate its height, so the bar sets the type. The
+   banner is the largest thing on the page — a page heading sits under it. */
+header :is(h1, h2, h3, p), nav :is(h1, h2, h3, p), footer :is(h1, h2, h3, p) { margin: 0; }
+/* The banner's content IS the app title, whatever tag it was written with. */
+header :is(h1, h2, h3, strong, b) {
+  font-size: 2.4em; line-height: 1.2; font-weight: 700; color: #b45309;
+}
+/* Headings carry the app's accent-warm colour. */
+h1, h2, h3 { color: #b45309; }
+[data-theme="dark"] h1, [data-theme="dark"] h2, [data-theme="dark"] h3,
+[data-theme="dark"] header :is(strong, b) { color: #fb923c; }
+footer :is(h1, h2, h3, p) { font-size: .9em; }
+main :is(h1, h2) { font-size: 1.2em; }
+main > :first-child { margin-top: 0; }
 /* Theme chrome: the banner's ☰ sits at the right end of the bar. */
 .app-banner > sol-dropdown-button:last-child { margin-left: auto; }
-/* A button bar in the banner is pushed to the right (just left of the ☰). */
+/* A button bar in the banner is pushed to the right (just left of the ☰) —
+   the pair travels together, so only the first of them takes the free space. */
 .app-banner .app-bar { margin-left: auto; }
+.app-banner .app-bar ~ sol-dropdown-button { margin-left: .5rem; }
+/* The banner's controls are one set: the bar's buttons and the ☰ read at the
+   same size and weight. Both live in a shadow tree — the bar's buttons take
+   their size from --font-size, the ☰'s trigger inherits its host's font. */
+.app-banner .app-bar { --font-size: 1.4rem; font-weight: 700; }
+.app-banner > sol-dropdown-button { font-size: 1.4rem; font-weight: 700; }
 `;
   for (const n of [...grids].sort()) {
     css += `.app-grid-${n} { display: grid; grid-template-columns: repeat(${n}, minmax(0, 1fr)); gap: 1rem; }\n`;

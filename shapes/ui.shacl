@@ -250,6 +250,127 @@
     sh:description "A fragment IRI in the host app's command registry document which points to one of the app's commands." ;
   ] .
 
+# ── menu variants ─────────────────────────────────────────────────────────
+# Three kinds of menu, told apart by what their membership admits. Each is a
+# ui:Menu and carries a menu's head fields; only the membership rule differs.
+
+:TabbedMenuShape
+  a sh:NodeShape ;
+  sh:node :MenuShape ;
+  sh:property [
+    sh:path schema:itemListElement ;
+    sh:minCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:or (
+      [ sh:node :OrderedItemShape ]
+      [ sh:node :UnorderedItemShape ]
+    ) ;
+    sh:name "menu items" ;
+    sh:description "The items of a tabbed menu. Any item may itself be a menu, which nests as a submenu." ;
+  ] .
+
+:ButtonMenuShape
+  a sh:NodeShape ;
+  sh:node :MenuShape ;
+  sh:property [
+    sh:path schema:itemListElement ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:or (
+      [ sh:node :OrderedSubmenuItemShape ]
+      [ sh:node :SubmenuMemberShape ]
+    ) ;
+    sh:name "menu item" ;
+    sh:description "The one item of a button menu: a menu, whose own items are what the button drops." ;
+  ] .
+
+:ButtonBarShape
+  a sh:NodeShape ;
+  sh:node :MenuShape ;
+  sh:property [
+    sh:path schema:itemListElement ;
+    sh:minCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:or (
+      [ sh:node :OrderedFlatItemShape ]
+      [ sh:node :FlatMemberShape ]
+    ) ;
+    sh:name "menu items" ;
+    sh:description "The items of a button bar, each one a button. No item is itself a menu — a bar has no second level." ;
+  ] .
+
+# A member that is NOT a menu: the leaf kinds a flat menu holds.
+:FlatMemberShape
+  a sh:NodeShape ;
+  sh:or (
+    [ sh:class ui:Plugin ]
+    [ sh:class ui:Link ]
+    [ sh:class ui:Component ]
+    [ sh:class ui:Command ]
+  ) ;
+  sh:property [
+    sh:path ui:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "label" ;
+    sh:description "Display label" ;
+  ] .
+
+# A member that IS a menu — a submenu.
+:SubmenuMemberShape
+  a sh:NodeShape ;
+  sh:class ui:Menu ;
+  sh:property [
+    sh:path ui:label ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:string ;
+    sh:name "label" ;
+    sh:description "Display label" ;
+  ] .
+
+:OrderedFlatItemShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:item ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:node :FlatMemberShape ;
+    sh:name "item" ;
+    sh:description "An ordered item that is not a menu." ;
+  ] ;
+  sh:property [
+    sh:path schema:position ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:integer ;
+    sh:name "position" ;
+    sh:description "Sort order number within this menu." ;
+  ] .
+
+:OrderedSubmenuItemShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:item ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:nodeKind sh:IRI ;
+    sh:node :SubmenuMemberShape ;
+    sh:name "item" ;
+    sh:description "An ordered item that is a menu." ;
+  ] ;
+  sh:property [
+    sh:path schema:position ;
+    sh:minCount 1 ;
+    sh:maxCount 1 ;
+    sh:datatype xsd:integer ;
+    sh:name "position" ;
+    sh:description "Sort order number within this menu." ;
+  ] .
+
 # ── mixins ────────────────────────────────────────────────────────────────
 :IconMixin
   a sh:NodeShape ;

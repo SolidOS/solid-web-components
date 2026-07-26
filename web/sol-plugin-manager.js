@@ -359,6 +359,10 @@ class SolPluginManager extends HTMLElement {
   // sees nothing until Create, and closing discards the draft. The kind
   // field re-renders the form when it changes so the picked kind's payload
   // contract (:PluginShape's sh:xone branch) appears.
+  /** Open the "add a plugin" creator. Public so a host that renders its own
+   *  add affordance (e.g. on a panel border) can drive the same flow. */
+  openCreator() { return this._openCreator(); }
+
   async _openCreator() {
     this._closeEditor({ skipRefresh: true });
     this._closeCreator();

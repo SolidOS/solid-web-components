@@ -7,6 +7,7 @@
  *   - determinism: serialize(parse(serialize(x))) is byte-identical
  *   - addLeaf mints a fragment and lands in the right region
  *   - removeLeaf / moveLeaf edit membership
+ *   - removeRegion detaches a whole region; insertPart puts it back
  *
  * Fixtures are composed by core/layout-compose.js — the App Builder no longer
  * ships static preset files, so the layouts under test are the ones the
@@ -18,6 +19,7 @@ import { rdf } from '../../core/rdf.js';
 import { parseLayoutTree } from '../../core/layout-generate.js';
 import {
   serializeLayout, addLeaf, removeLeaf, moveLeaf, findRegion,
+  removeRegion, insertPart,
 } from '../../core/layout-serialize.js';
 import { composeLayoutTurtle } from '../../core/layout-compose.js';
 
@@ -124,7 +126,8 @@ test('addLeaf mints a fragment inside the chosen region', () => {
   expect(leaf.item.tag).toBe('sol-include');
   const ttl = serializeLayout(tree, { docUrl: BASE });
   expect(ttl).toContain(':Page-content a ui:Component');
-  expect(ttl).toContain(':Main-Page-content a schema:ListItem; schema:item :Page-content; schema:position 1.');
+  // Main already holds its start-page link, so the added leaf is second
+  expect(ttl).toContain(':Main-Page-content a schema:ListItem; schema:item :Page-content; schema:position 2.');
   // and it round-trips
   expect(norm(treeOf(ttl))).toEqual(norm(tree));
 });
@@ -140,4 +143,37 @@ test('removeLeaf drops the element; moveLeaf reorders siblings', () => {
   expect(moveLeaf(tree, `${BASE}#Right`, -1)).toBe(true);
   expect(order()).toEqual(['Left', 'Right', 'Main']);
   expect(moveLeaf(tree, `${BASE}#Left`, -1)).toBe(false); // already first
+});
+
+test('removeRegion detaches a region with its contents; insertPart restores it', () => {
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'both', footer: true }));
+  const middle = findRegion(tree, `${BASE}#Middle`);
+  const order = () => middle.parts.map((p) => p.node.value.split('#')[1]);
+  expect(order()).toEqual(['Left', 'Main', 'Right']);
+
+  const cut = removeRegion(tree, `${BASE}#Left`);
+  expect(cut.parentIri).toBe(`${BASE}#Middle`);
+  expect(cut.index).toBe(0);
+  expect(order()).toEqual(['Main', 'Right']);
+  expect(serializeLayout(tree, { docUrl: BASE })).not.toContain('app-side-left');
+
+  expect(insertPart(tree, cut.parentIri, cut.region, cut.index)).toBe(true);
+  expect(order()).toEqual(['Left', 'Main', 'Right']);
+  expect(serializeLayout(tree, { docUrl: BASE })).toContain('app-side-left');
+});
+
+test('removeRegion takes the region\'s elements with it', () => {
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'none', menuLocation: 'header' }));
+  const cut = removeRegion(tree, `${BASE}#Header`);
+  const ttl = serializeLayout(tree, { docUrl: BASE });
+  expect(ttl).not.toContain('site-title.html');
+  expect(ttl).not.toContain('MainMenu');
+  insertPart(tree, cut.parentIri, cut.region, cut.index);
+  expect(serializeLayout(tree, { docUrl: BASE })).toContain('site-title.html');
+});
+
+test('removeRegion refuses the root and non-regions', () => {
+  const tree = treeOf(composeLayoutTurtle({ sidebars: 'none' }));
+  expect(removeRegion(tree, `${BASE}#Layout`)).toBe(null);   // no parent
+  expect(removeRegion(tree, `${BASE}#SiteTitle`)).toBe(null); // a link, not a region
 });

@@ -261,6 +261,29 @@ export function removeLeaf(tree, leafIri) {
   return true;
 }
 
+/**
+ * Detach a whole region (with everything in it) from its parent. The root has
+ * no parent, so it never detaches. Returns { region, parentIri, index } — the
+ * record insertPart() needs to put it back — or null.
+ */
+export function removeRegion(tree, regionIri) {
+  const parent = findParentOf(tree, regionIri);
+  if (!parent) return null;
+  const i = parent.parts.findIndex((p) => p.node && p.node.value === regionIri);
+  if (i < 0 || parent.parts[i].kind !== 'region') return null;
+  const [region] = parent.parts.splice(i, 1);
+  return { region, parentIri: parent.node.value, index: i };
+}
+
+/** Put a detached part back into `parentIri` at `index` (clamped to the end). */
+export function insertPart(tree, parentIri, part, index) {
+  const parent = findRegion(tree, parentIri);
+  if (!parent || !part) return false;
+  const i = Math.max(0, Math.min(index == null ? parent.parts.length : index, parent.parts.length));
+  parent.parts.splice(i, 0, part);
+  return true;
+}
+
 /** Move the part with `iri` by delta (−1 up / +1 down) within its region. */
 export function moveLeaf(tree, iri, delta) {
   const parent = findParentOf(tree, iri);
