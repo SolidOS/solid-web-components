@@ -18,7 +18,7 @@
  * Not tested (genuinely untestable / out of scope): the actual SolidOS render
  * that mashlib performs inside the scaffold (we stub mashlib), the global
  * window.fetch auth patch (it's a one-shot global side-effect guarded by a
- * window flag and best left to live e2e), and _fitBar()'s ResizeObserver/RAF
+ * window flag and best left to live e2e), and _fitChrome()'s ResizeObserver/RAF
  * layout measuring (jsdom reports zero box metrics, so nothing real to assert).
  */
 

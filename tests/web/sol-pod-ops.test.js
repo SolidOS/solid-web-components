@@ -465,3 +465,107 @@ describe('SolPodOps — _tabGraph', () => {
     expect(c.body.textContent).toContain('No triples found');
   });
 });
+
+describe('prepareHtmlPreview — HTML view link plumbing', () => {
+  test('injects <base> after <head> so relative links resolve', async () => {
+    const { prepareHtmlPreview } = await import('../../web/sol-pod-ops.js');
+    const out = prepareHtmlPreview('<html><head><title>t</title></head><body><a href="x.html">x</a></body></html>',
+      'https://pod.example/dir/page.html');
+    expect(out).toContain('<head><base href="https://pod.example/dir/page.html">');
+    expect(out.indexOf('<base')).toBeLessThan(out.indexOf('<title>'));
+  });
+
+  test('prepends the injection when the document has no <head>', async () => {
+    const { prepareHtmlPreview } = await import('../../web/sol-pod-ops.js');
+    const out = prepareHtmlPreview('<p>bare</p>', 'https://pod.example/bare.html');
+    expect(out.startsWith('<base href="https://pod.example/bare.html">')).toBe(true);
+    expect(out).toContain('<p>bare</p>');
+  });
+
+  test('escapes the doc URL in the base href', async () => {
+    const { prepareHtmlPreview } = await import('../../web/sol-pod-ops.js');
+    const out = prepareHtmlPreview('<head></head>', 'https://pod.example/a"><script>x</script>.html');
+    expect(out).not.toContain('href="https://pod.example/a"><script>');
+  });
+
+  test('view tab srcdoc for .html carries the injected base', async () => {
+    const el = mkOps(opsFetch({ getText: '<html><head></head><body>hi</body></html>' }));
+    const c = cells();
+    await el._tabView(file('https://pod.example/p.html', 'p.html'), 'p.html', c.body, c.footer, c.actions);
+    const iframe = c.body.querySelector('iframe');
+    expect(iframe).toBeTruthy();
+    expect(iframe.getAttribute('srcdoc') || iframe.srcdoc).toContain('<base href="https://pod.example/p.html">');
+    // inert preview: same-origin for parent-side link wiring, no scripts
+    expect(iframe.getAttribute('sandbox')).toBe('allow-same-origin');
+  });
+});
+
+describe('openPageViewer — floating page viewer', () => {
+  test('mounts one reusable window and navigates it to HTML content', async () => {
+    const { openPageViewer } = await import('../../web/sol-pod-ops.js');
+    const fetchFor = () => async () => ({
+      headers: { get: () => 'text/html' },
+      text: async () => '<html><head></head><body>inner</body></html>',
+      blob: async () => new Blob([]),
+    });
+    const v1 = openPageViewer('https://pod.example/one.html', fetchFor);
+    await flush();
+    const win = document.querySelector('.sol-page-viewer');
+    expect(win).toBeTruthy();
+    expect(win.hidden).toBe(false);
+    expect(win.querySelector('.viewer-url').textContent).toBe('https://pod.example/one.html');
+    const v2 = openPageViewer('https://pod.example/two.html', fetchFor);
+    await flush();
+    expect(v2).toBe(v1);                                        // shared window
+    expect(document.querySelectorAll('.sol-page-viewer')).toHaveLength(1);
+    expect(win.querySelector('.viewer-url').textContent).toBe('https://pod.example/two.html');
+    // − / + window controls: minimize collapses (class), maximize fills, each
+    // re-click restores; close clears both states.
+    const minBtn = win.querySelector('.viewer-min');
+    const maxBtn = win.querySelector('.viewer-max');
+    expect(minBtn && maxBtn).toBeTruthy();
+    minBtn.click();
+    expect(win.classList.contains('minimized')).toBe(true);
+    maxBtn.click();
+    expect(win.classList.contains('maximized')).toBe(true);
+    expect(win.classList.contains('minimized')).toBe(false);
+    maxBtn.click();
+    expect(win.classList.contains('maximized')).toBe(false);
+    win.querySelector('.viewer-close').click();
+    expect(win.hidden).toBe(true);
+    expect(win.classList.contains('minimized') || win.classList.contains('maximized')).toBe(false);
+    // the injected sheet must defeat `.sol-page-viewer { display:flex }` when
+    // hidden — a bare [hidden] UA rule loses to the class rule (2026-07-26 bug)
+    expect(document.getElementById('sol-page-viewer-style').textContent)
+      .toContain('.sol-page-viewer[hidden]');
+  });
+
+  test('renders non-HTML text targets as readable <pre>, not a blob', async () => {
+    const { openPageViewer } = await import('../../web/sol-pod-ops.js');
+    const fetchFor = () => async () => ({
+      ok: true, status: 200, statusText: 'OK',
+      headers: { get: () => 'text/turtle' },
+      text: async () => '@prefix ex: <https://ex/>.',
+      blob: async () => new Blob([]),
+    });
+    openPageViewer('https://pod.example/data.ttl', fetchFor);
+    await flush();
+    const iframe = document.querySelector('.sol-page-viewer iframe');
+    const srcdoc = iframe.getAttribute('srcdoc') || iframe.srcdoc || '';
+    expect(srcdoc).toContain('<pre');
+    expect(srcdoc).toContain('@prefix ex:');
+  });
+
+  test('shows the status for a failed fetch instead of blank content', async () => {
+    const { openPageViewer } = await import('../../web/sol-pod-ops.js');
+    const fetchFor = () => async () => ({
+      ok: false, status: 404, statusText: 'Not Found',
+      headers: { get: () => 'text/plain' },
+      text: async () => '', blob: async () => new Blob([]),
+    });
+    openPageViewer('https://pod.example/missing.md', fetchFor);
+    await flush();
+    const iframe = document.querySelector('.sol-page-viewer iframe');
+    expect(iframe.getAttribute('srcdoc') || iframe.srcdoc).toContain('404 Not Found');
+  });
+});

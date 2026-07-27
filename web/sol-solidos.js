@@ -312,8 +312,8 @@ class SolSolidos extends HTMLElement {
     if (this._hasBar()) {
       this._barEl = this.querySelector(':scope > .sol-location-bar');
       this._wireBar(uri);
-      this._fitBar();
     }
+    this._fitChrome();
     m.initMainPage(store, uri);
     if (this._hasBar()) this._keepBarAlive();
 
@@ -323,7 +323,7 @@ class SolSolidos extends HTMLElement {
   // solid-ui's MOBILE layout (Android WebView UA) rebuilds the whole BODY from
   // its own template during boot, discarding this element — and the wired
   // location bar with it. Watch for that takeover for a while and re-seat the
-  // bar (its listeners ride along) at the top of the rebuilt body; _fitBar's
+  // bar (its listeners ride along) at the top of the rebuilt body; _fitChrome's
   // document fallbacks then fit against the body-level header. On desktop the
   // takeover never happens and this polls to a quiet stop.
   _keepBarAlive() {
@@ -334,31 +334,36 @@ class SolSolidos extends HTMLElement {
       if (!this._barEl.isConnected && document.getElementById('MainContent')) {
         document.body.prepend(this._barEl);
         this._renderLocations();
-        this._fitBar();
+        this._fitChrome();
       }
     }, 500);
   }
 
   // mashlib's banner (#mainSolidUiHeader) mounts position:fixed;top:0;z-index:110 and
-  // would paint over the location bar. HOST_CSS keeps the bar on top (z-index 120);
-  // this drops the banner — and the main content below it — by the bar's measured
-  // height so the two stack instead of overlapping. The banner upgrades async (custom
-  // element) and the bar reflows on the host app's font-size toggle / viewport resize,
-  // so re-fit on whenDefined + a ResizeObserver rather than once.
-  _fitBar() {
+  // would paint over the top of the content — and the location bar when one is on
+  // (HOST_CSS keeps the bar on top, z-index 120). This element doesn't use mashlib's
+  // own offset (mash.css puts it on an .app-main wrapper this DOM doesn't have), so
+  // fit the pieces here: the banner drops below the bar (bar height 0 when absent),
+  // the main content's top margin clears the banner, and SolidAppContext.scroll —
+  // solid-ui getEyeFocus's viewport-top offset, default 52 — tracks the same chrome
+  // height so scroll-to-focus lands rows below the banner instead of under it.
+  // The banner upgrades async (custom element) and reflows on the host app's
+  // font-size toggle / viewport resize, so re-fit on whenDefined + a ResizeObserver.
+  _fitChrome() {
     // Document fallbacks: after solid-ui's mobile body takeover the header /
     // main / bar live at body level, not inside this element (see _keepBarAlive).
     const fit = () => {
       const bar = this._barEl?.isConnected
         ? this._barEl : this.querySelector(':scope > .sol-location-bar');
-      if (!bar) return;
-      const bh = bar.offsetHeight;
+      const bh = bar ? bar.offsetHeight : 0;
       const hdr = this.querySelector(':scope > #mainSolidUiHeader')
         || document.getElementById('mainSolidUiHeader');
       const main = this.querySelector(':scope > #MainContent')
         || document.getElementById('MainContent');
       if (hdr) hdr.style.top = `${bh}px`;                       // banner sits below the bar
       if (main) main.style.marginTop = `${hdr ? hdr.offsetHeight : 0}px`;  // content clears the banner
+      window.SolidAppContext = window.SolidAppContext || {};
+      window.SolidAppContext.scroll = bh + (hdr ? hdr.offsetHeight : 0);
     };
     fit();
     requestAnimationFrame(fit);

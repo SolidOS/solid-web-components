@@ -18,7 +18,7 @@
 
 import { CSS as POD_MODAL_CSS, sheet as POD_MODAL_SHEET } from './styles/sol-pod-modal-css.js';
 import { BTN_CSS } from './styles/buttons-css.js';
-import { adopt, sheetFrom } from '../core/adopt.js';
+import { adopt, sheetFrom, ensureDocStyle } from '../core/adopt.js';
 import { define } from '../core/define.js';
 import { siblingUrl } from '../core/here.js';
 import { sanitizeHtml, escapeHtml } from '../core/utils.js';
@@ -43,6 +43,234 @@ const HOST_CSS = BTN_CSS + `
 `;
 
 const hostSheet = sheetFrom(HOST_CSS);
+
+/* ── HTML preview + floating page viewer ─────────────────────────────
+ * The view tab renders .html files as an inert srcdoc iframe:
+ * sandbox="allow-same-origin" WITHOUT allow-scripts, so the previewed
+ * document runs nothing (a host page CSP would block injected inline
+ * script anyway — dk's is script-src 'self') while the parent can reach
+ * its DOM to wire link handling, and its assets fetch with credentials.
+ * prepareHtmlPreview injects a <base> so the document's relative links
+ * and assets resolve against its pod URL (srcdoc alone resolves them
+ * against about:srcdoc). Clicked links: same-pod targets open in the
+ * floating page viewer below; external targets go to window.open (which
+ * dk routes to its native reader view). */
+export function prepareHtmlPreview(html, docUrl) {
+  const inject = `<base href="${escapeHtml(docUrl)}">`;
+  if (/<head[^>]*>/i.test(html)) return html.replace(/<head[^>]*>/i, (m) => m + inject);
+  return inject + html;
+}
+
+/* Attach the capture-phase link interceptor to a preview iframe's document
+ * (reattached on every load — each srcdoc assignment mints a new document).
+ * onLink gets the clicked absolute href. */
+function wirePreviewLinks(iframe, onLink) {
+  const wire = () => {
+    const doc = iframe.contentDocument;
+    if (!doc) return;                       // sandbox denied us — nothing to wire
+    doc.addEventListener('click', (e) => {
+      const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a || !a.href) return;
+      e.preventDefault(); e.stopPropagation();
+      if (/^https?:/i.test(a.href)) onLink(a.href);
+    }, true);
+  };
+  iframe.addEventListener('load', wire);
+  if (iframe.contentDocument?.readyState === 'complete') wire();
+}
+
+/* A large draggable, resizable floating window hosting one iframe. Links
+ * clicked inside it navigate it in place (same mini-viewer treatment), so
+ * it acts as a small page browser riding the pod's authed fetch. One
+ * window is shared — repeated clicks re-aim it. */
+const VIEWER_CSS = `
+  .sol-page-viewer {
+    position: fixed; z-index: 1200;
+    top: 8vh; left: 12vw;
+    width: min(72vw, 1100px); height: min(78vh, 850px);
+    min-width: 320px; min-height: 240px;
+    display: flex; flex-direction: column;
+    background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #d0d7de);
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    resize: both; overflow: hidden;   /* native resize handle, bottom-right */
+  }
+  .sol-page-viewer[hidden] { display: none; }  /* our flex beats the UA hidden rule */
+  .sol-page-viewer header {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    background: var(--color-header, #f6f8fa);
+    border-bottom: 1px solid var(--color-border, #d0d7de);
+    cursor: move; user-select: none;
+  }
+  .sol-page-viewer .viewer-url {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font: 1rem/1.4 system-ui, sans-serif;
+    color: var(--color-text, #24292f);
+  }
+  .sol-page-viewer .viewer-btn {
+    border: 1px solid var(--color-border, #d0d7de); background: var(--color-surface, #fff);
+    border-radius: 4px; padding: 0.1rem 0.5rem; cursor: pointer;
+    font: 1rem/1.4 system-ui, sans-serif; min-width: 2rem;
+  }
+  .sol-page-viewer iframe { flex: 1; border: 0; width: 100%; }
+  /* − collapses to the title bar (position kept); + fills the app window.
+     Both beat the dragged/resized inline geometry, hence the importants. */
+  .sol-page-viewer.minimized { height: auto !important; min-height: 0; resize: none; }
+  .sol-page-viewer.minimized iframe { display: none; }
+  .sol-page-viewer.maximized {
+    top: 0 !important; left: 0 !important;
+    width: 100vw !important; height: 100vh !important;
+    border-radius: 0; resize: none;
+  }
+`;
+
+/* Off-pod link targets get the same interface as the floating viewer, but as
+ * a REAL window (external sites can't be iframed): window.open with popup
+ * features at the viewer's size. dk's main process turns popup-featured opens
+ * into an isolated floating window; a plain browser opens a comparable popup. */
+function openExternalWindow(href) {
+  const w = Math.min(Math.round((window.outerWidth || 1280) * 0.72), 1100);
+  const h = Math.min(Math.round((window.outerHeight || 900) * 0.78), 850);
+  window.open(href, '_blank', `popup=yes,noopener=yes,width=${w},height=${h}`);
+}
+
+let _pageViewer = null;
+
+export function openPageViewer(url, fetchFor) {
+  if (!_pageViewer) _pageViewer = createPageViewer();
+  _pageViewer.show();
+  _pageViewer.navigate(url, fetchFor);
+  return _pageViewer;
+}
+
+function createPageViewer() {
+  ensureDocStyle(document, 'sol-page-viewer-style', VIEWER_CSS);
+  const root = document.createElement('div');
+  root.className = 'sol-page-viewer';
+  root.hidden = true;
+
+  const header = document.createElement('header');
+  const urlEl = document.createElement('span');
+  urlEl.className = 'viewer-url';
+  const mkBtn = (text, label, extraClass) => {
+    const b = document.createElement('button');
+    b.className = 'viewer-btn' + (extraClass ? ' ' + extraClass : '');
+    b.type = 'button';
+    b.textContent = text;
+    b.setAttribute('aria-label', label);
+    b.title = label;
+    return b;
+  };
+  const minBtn = mkBtn('−', 'Minimize', 'viewer-min');
+  const maxBtn = mkBtn('+', 'Maximize', 'viewer-max');
+  const closeBtn = mkBtn('✕', 'Close', 'viewer-close');
+  header.append(urlEl, minBtn, maxBtn, closeBtn);
+
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', 'allow-same-origin');   // inert content, reachable DOM
+  root.append(header, iframe);
+  document.body.appendChild(root);
+
+  const viewer = {
+    _url: null,
+    _fetchFor: null,
+    _blobUrl: null,
+    show() {
+      if (!root.isConnected) document.body.appendChild(root);  // survive a cleared body
+      root.hidden = false;
+    },
+    close() {
+      root.hidden = true;
+      root.classList.remove('minimized', 'maximized');
+      iframe.removeAttribute('src'); iframe.removeAttribute('srcdoc');
+      if (this._blobUrl) { URL.revokeObjectURL(this._blobUrl); this._blobUrl = null; }
+    },
+    async navigate(url, fetchFor) {
+      this._url = url;
+      if (fetchFor) this._fetchFor = fetchFor;
+      urlEl.textContent = url;
+      urlEl.title = url;
+      if (this._blobUrl) { URL.revokeObjectURL(this._blobUrl); this._blobUrl = null; }
+      try {
+        const f = (this._fetchFor && this._fetchFor(url)) || fetch;
+        const resp = await f(url);
+        const ct = resp.headers.get('content-type') || '';
+        if (!resp.ok) {
+          iframe.removeAttribute('src');
+          iframe.srcdoc = `<p style="font:1rem system-ui;padding:1rem">${resp.status} ${escapeHtml(resp.statusText || '')} — ${escapeHtml(url)}</p>`;
+        } else if (/text\/html/i.test(ct)) {
+          iframe.removeAttribute('src');
+          iframe.srcdoc = prepareHtmlPreview(await resp.text(), url);
+        } else if (/^(image|video|audio)\/|\/pdf\b/i.test(ct)) {
+          // Renderable binaries ride a blob URL (the frame's own requests
+          // would be unauthenticated); everything else shows as text below —
+          // a blob of e.g. text/markdown would trigger a (sandbox-blocked)
+          // download and render nothing.
+          const blob = await resp.blob();
+          this._blobUrl = URL.createObjectURL(blob);
+          iframe.removeAttribute('srcdoc');
+          iframe.src = this._blobUrl;
+        } else {
+          const text = await resp.text();
+          iframe.removeAttribute('src');
+          iframe.srcdoc = `<pre style="font-size:1rem;margin:1rem;white-space:pre-wrap">${escapeHtml(text)}</pre>`;
+        }
+      } catch (e) {
+        iframe.removeAttribute('src');
+        iframe.srcdoc = `<p style="font:1rem system-ui;padding:1rem">Failed to load ${escapeHtml(url)}: ${escapeHtml(e.message)}</p>`;
+      }
+    },
+  };
+
+  closeBtn.addEventListener('click', () => viewer.close());
+  // − / + behave like regular window controls: − collapses to the title bar,
+  // + fills the app window; each re-click (or the other button) restores.
+  minBtn.addEventListener('click', () => {
+    root.classList.remove('maximized');
+    root.classList.toggle('minimized');
+  });
+  maxBtn.addEventListener('click', () => {
+    root.classList.remove('minimized');
+    root.classList.toggle('maximized');
+  });
+  header.addEventListener('dblclick', (e) => {
+    if (e.target.closest('button')) return;
+    root.classList.remove('minimized');
+    root.classList.toggle('maximized');
+  });
+
+  // Drag by the header. Pointer capture keeps the moves flowing even when
+  // the pointer crosses the iframe (which would otherwise swallow them).
+  header.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button') || root.classList.contains('maximized')) return;
+    const r = root.getBoundingClientRect();
+    const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const move = (ev) => {
+      root.style.left = `${Math.max(0, ev.clientX - dx)}px`;
+      root.style.top = `${Math.max(0, ev.clientY - dy)}px`;
+    };
+    const up = () => {
+      header.removeEventListener('pointermove', move);
+      header.removeEventListener('pointerup', up);
+    };
+    try { header.setPointerCapture(e.pointerId); } catch (_) { /* jsdom */ }
+    header.addEventListener('pointermove', move);
+    header.addEventListener('pointerup', up);
+  });
+
+  // Links clicked inside the window: same-origin targets navigate it in
+  // place; anything else goes to window.open (dk's native reader).
+  wirePreviewLinks(iframe, (href) => {
+    let sameOrigin = false;
+    try { sameOrigin = new URL(href).origin === new URL(viewer._url).origin; } catch (_) { return; }
+    if (sameOrigin) viewer.navigate(href);
+    else openExternalWindow(href);
+  });
+
+  return viewer;
+}
 let _liveEditLoaded = false;
 
 /**
@@ -321,8 +549,17 @@ class SolPodOps extends HTMLElement {
       } else if (extOf(effectiveName) === 'html' || extOf(effectiveName) === 'htm') {
         const text = await (await fetchFn(item.url)).text();
         const iframe = document.createElement('iframe');
-        iframe.className = 'modal-pdf'; iframe.sandbox = 'allow-scripts';
-        iframe.srcdoc = text;
+        iframe.className = 'modal-pdf';
+        iframe.setAttribute('sandbox', 'allow-same-origin');  // inert content, reachable DOM
+        // Same-pod links open in the floating page viewer; external ones go
+        // to window.open (dk routes those to its native reader view).
+        wirePreviewLinks(iframe, (href) => {
+          let sameOrigin = false;
+          try { sameOrigin = new URL(href).origin === new URL(item.url).origin; } catch (_) { return; }
+          if (sameOrigin) openPageViewer(href, (u) => this._fetchFor(u));
+          else openExternalWindow(href);
+        });
+        iframe.srcdoc = prepareHtmlPreview(text, item.url);
         body.innerHTML = ''; body.appendChild(iframe);
       } else if (extOf(effectiveName) === 'mmd' || extOf(effectiveName) === 'mermaid') {
         const text = await (await fetchFn(item.url)).text();
